@@ -27,7 +27,7 @@ and [`docs/calendar-parity.md`](docs/calendar-parity.md).
 | Builds verified | Windows, macOS and Linux (CI on each), FreeBSD and Windows ARM64 (scheduled), the browser build (wasm) | measured |
 | 200,000 messages (R6.4, 2026-10-18) | open **1.5 s** cold (1.1 s warm), a save after a change **8 ms**, **770 MB** held after opening (peak 840 MB); a search everywhere answers from the word index in **0.16 s**, the process at most **849 MB** (R6.2) | measured (`mailbox_bench`, see the progress log) |
 | 64,000 messages, 677 MB, 374 folders (#519, 2026-10-27) | the window's open **0.84 s** warm (was 1.35 s), the bodies the budget holds following in the background in about 0.23 s, on a made-up mailbox shaped as a large real one (about 7 KB of headers a message) | measured (`store_bench_tests.rs`, see the progress log) |
-| Releases | twenty-two published, v0.1.0 to v0.13.0 ([Releases](https://github.com/UCS-Care-Group/mailcraft/releases)); from v0.5.0 each carries MailCraft's own release signature, none is signed by Windows or macOS, and on macOS updates are installed by the owner until the builds are notarized (#497) | measured |
+| Releases | twenty-two published, v0.1.0 to v0.13.0 ([Releases](https://github.com/UCSLabs/mailcraft/releases)); from v0.5.0 each carries MailCraft's own release signature, none is signed by Windows or macOS, and on macOS updates are installed by the owner until the builds are notarized (#497) | measured |
 
 The gap between the two readiness numbers is the story of this release: the mailbox, the
 commands, the interface and the file formats are in good shape, and the connection to real mail
@@ -144,32 +144,32 @@ issues, not by estimate. Where each stands
 
 | # | To leave beta | Status |
 |---|---|---|
-| B1 | At least 5 testers, none of them authors, each on a Microsoft account (personal, or work or school) | In progress: 11 signed up ([#11](https://github.com/UCS-Care-Group/mailcraft/issues/11)), 6 of them on Microsoft accounts; 4 of those also for the beta run, 1 short |
+| B1 | At least 5 testers, none of them authors, each on a Microsoft account (personal, or work or school) | In progress: 11 signed up ([#11](https://github.com/UCSLabs/mailcraft/issues/11)), 6 of them on Microsoft accounts; 4 of those also for the beta run, 1 short |
 | B2 | Each uses MailCraft on 14 working days (Monday to Friday; about three weeks), on at least 2 devices | The 14-day beta run has been under way since 2026-10-22 or before; each tester's 14 days count from when they start (R8) |
 | B3 | Windows x64, macOS (Apple silicon and Intel) and Linux x86_64, each with at least one tester | Met on paper: each platform, an Intel Mac included, has a tester on a Microsoft account signed up for the beta run; to be proven in it. All are built in CI |
 | B4 | No data-loss incident, and no crash that loses work, in those 14 working days | Counting: no data loss in the beta run, which has been running since 2026-10-22 or before |
 | B5 | Reading, filing, searching, forwarding and replying in rich text, with the quoted original kept | Built (R3, R4, R6.2); to be proven in the beta run |
-| B6 | Accepting and declining a meeting; reminders come up as system notifications while MailCraft runs | In progress: meetings are answered from the reading pane and the calendar; desktop alerts (R7.1, 0.5.2) seen on Linux (KDE) and on macOS (Apple silicon, 0.8.2) ([#25](https://github.com/UCS-Care-Group/mailcraft/issues/25), closed 2026-11-09); no report from Windows yet |
-| B7 | Every account in step with Outlook on the web, checked by each tester at the end | Built: Microsoft accounts are kept in step through Microsoft Graph (R3); R3.8, no IMAP or SMTP left for a Microsoft account, waits on testers ([#19](https://github.com/UCS-Care-Group/mailcraft/issues/19)); the check is the beta run's last step |
+| B6 | Accepting and declining a meeting; reminders come up as system notifications while MailCraft runs | In progress: meetings are answered from the reading pane and the calendar; desktop alerts (R7.1, 0.5.2) seen on Linux (KDE) and on macOS (Apple silicon, 0.8.2) ([#25](https://github.com/UCSLabs/mailcraft/issues/25), closed 2026-11-09); no report from Windows yet |
+| B7 | Every account in step with Outlook on the web, checked by each tester at the end | Built: Microsoft accounts are kept in step through Microsoft Graph (R3); R3.8, no IMAP or SMTP left for a Microsoft account, waits on testers ([#19](https://github.com/UCSLabs/mailcraft/issues/19)); the check is the beta run's last step |
 | B8 | Accounts of up to 200,000 messages: open under 3 s, a save under 1 s, under 1 GB of memory, measured on the reference machine and reported by testers | Met on the reference machine (R6.4, R6.2: open 1.5 s, a save 8 ms, at most 849 MB with a search); testers' reports to come |
-| B9 | Sign-ins remembered on every beta platform | In progress: seen across a restart and a reboot on Windows by a tester (0.12.0, IMAP and SMTP accounts, [#11](https://github.com/UCS-Care-Group/mailcraft/issues/11), 2026-11-12); built for macOS, not yet seen there; Linux through the Secret Service (R5), across a restart on GNOME and KDE still to be seen |
+| B9 | Sign-ins remembered on every beta platform | In progress: seen across a restart and a reboot on Windows by a tester (0.12.0, IMAP and SMTP accounts, [#11](https://github.com/UCSLabs/mailcraft/issues/11), 2026-11-12); built for macOS, not yet seen there; Linux through the Secret Service (R5), across a restart on GNOME and KDE still to be seen |
 | B10 | The Windows and macOS builds signed; the Microsoft registration publisher-verified | In progress: publisher verification under way; signing the Windows and macOS builds not started |
 
 ## The steps of the roadmap reset
 
 The steps R1–R8 of the roadmap reset led to the public beta and lead to the checklist above, tracked in
-[#2](https://github.com/UCS-Care-Group/mailcraft/issues/2). Where each stands (2026-11-15):
+[#2](https://github.com/UCSLabs/mailcraft/issues/2). Where each stands (2026-11-15):
 
 | Step | What | Status |
 |---|---|---|
 | R1 | Hygiene | Done |
 | R2 | Exchange Web Services removed for Microsoft accounts | Done (0.3.0); an organisation's own Exchange server has an account kind of its own since #252 |
-| R3 | Microsoft accounts kept in step through Microsoft Graph: folders, mail down, changes up, drafts, sending, undo, the switch from IMAP | Done but R3.8: no IMAP or SMTP left for a Microsoft account ([#19](https://github.com/UCS-Care-Group/mailcraft/issues/19)), once R3 is proven on testers |
+| R3 | Microsoft accounts kept in step through Microsoft Graph: folders, mail down, changes up, drafts, sending, undo, the switch from IMAP | Done but R3.8: no IMAP or SMTP left for a Microsoft account ([#19](https://github.com/UCSLabs/mailcraft/issues/19)), once R3 is proven on testers |
 | R4 | Rich-text replies, signatures with a logo | Done |
 | R5 | Sign-ins remembered on Linux and FreeBSD (Secret Service) | Done; across a restart on GNOME and KDE still to be seen |
 | R6 | 200,000 messages: bodies read when wanted, a log-structured mailbox, a word index, search on the server | Done: open 1.5 s, under 1 GB, a search in 0.16 s |
-| R7 | Desktop Alerts, Copy Diagnostics, told of (and installing) a new version | Built (0.5.2); Desktop Alerts seen on Linux and macOS, none reported from Windows yet ([#25](https://github.com/UCS-Care-Group/mailcraft/issues/25), closed) |
-| R8 | The beta run: 5 testers on Microsoft accounts, 14 working days, nothing lost | Under way, still recruiting ([#11](https://github.com/UCS-Care-Group/mailcraft/issues/11)): 11 signed up, 6 on Microsoft accounts, 4 of them for the beta run; one more wanted |
+| R7 | Desktop Alerts, Copy Diagnostics, told of (and installing) a new version | Built (0.5.2); Desktop Alerts seen on Linux and macOS, none reported from Windows yet ([#25](https://github.com/UCSLabs/mailcraft/issues/25), closed) |
+| R8 | The beta run: 5 testers on Microsoft accounts, 14 working days, nothing lost | Under way, still recruiting ([#11](https://github.com/UCSLabs/mailcraft/issues/11)): 11 signed up, 6 on Microsoft accounts, 4 of them for the beta run; one more wanted |
 
 Two things outside the code stand in the way of testers in other organisations: the publisher
 verification of MailCraft's Microsoft registration (in progress; until then an administrator
@@ -191,10 +191,10 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
    people outside the organisation who would see each other's addresses) and Report Phishing;
    the warnings about a sender when reading came with #508 (gap 17).
 6. The rest of Snooze, whose first part (the commands `mail.snooze`, `mail.unsnooze` and `mail.returnDue`, no menu or dialog yet) is in 0.13.0 (gap 17).
-7. Signed and encrypted mail with S/MIME and OpenPGP: signatures are checked where a message is read; signing and encrypting what is sent, and opening encrypted mail, remain (gap 16, [#30](https://github.com/UCS-Care-Group/mailcraft/issues/30)).
+7. Signed and encrypted mail with S/MIME and OpenPGP: signatures are checked where a message is read; signing and encrypting what is sent, and opening encrypted mail, remain (gap 16, [#30](https://github.com/UCSLabs/mailcraft/issues/30)).
 8. New mail the moment it arrives on IMAP accounts (IDLE), not at the next run (gap 2): done for the Inbox of accounts whose server offers IDLE (#276).
 9. Calendars and contacts beyond Microsoft (CalDAV, CardDAV, subscribed calendars) and Google
-   accounts (gaps 3, 5); with the Google account, Google Keep's notes ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232), [#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)).
+   accounts (gaps 3, 5); with the Google account, Google Keep's notes ([#232](https://github.com/UCSLabs/mailcraft/issues/232), [#233](https://github.com/UCSLabs/mailcraft/issues/233)).
 10. Microsoft To Do's My Day and flagged mail (the tasks themselves are kept in step since #248); the organisation's directory, and LDAP, when
    addressing (gap 17).
 11. Focused Inbox kept in step with Outlook; Automatic Replies on servers other than Microsoft's (Sieve; Microsoft accounts have them); the rest of rules kept on the server: forwarding by a rule (#566 part 3), Outlook's other conditions and actions, changing a rule there, a shared mailbox's rules, Sieve (gap 17; a Microsoft account's rules are kept there since #566).
@@ -203,7 +203,7 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 14. Free/busy across the organisation, rooms (gaps 9, 17).
 15. Grammar checking and spell checking on the remaining platforms (gap 7); further review of the French, German, Spanish, Italian, Dutch,
     Romanian, Hungarian, Polish, Czech, Simplified Chinese and Georgian previews, more languages, right-to-left layout (gap 14). Partly done: the eleven ship as previews.
-16. With several accounts, combined folders (All Inboxes, Sent, Drafts, Archive, Trash) ([#625](https://github.com/UCS-Care-Group/mailcraft/issues/625)); attachments dragged out of a message into other programs ([#626](https://github.com/UCS-Care-Group/mailcraft/issues/626)), and on macOS looked at with Quick Look ([#627](https://github.com/UCS-Care-Group/mailcraft/issues/627)). Partly done: All Accounts in the folder pane (All Inboxes, All Drafts, All Sent Items, All Deleted Items, All Archives, #625).
+16. With several accounts, combined folders (All Inboxes, Sent, Drafts, Archive, Trash) ([#625](https://github.com/UCSLabs/mailcraft/issues/625)); attachments dragged out of a message into other programs ([#626](https://github.com/UCSLabs/mailcraft/issues/626)), and on macOS looked at with Quick Look ([#627](https://github.com/UCSLabs/mailcraft/issues/627)). Partly done: All Accounts in the folder pane (All Inboxes, All Drafts, All Sent Items, All Deleted Items, All Archives, #625).
 17. Colour schemes of the owner's own: a whole palette (light, dark and high contrast) read from a file and chosen by name, checked so that text stays readable. Today there are four accents and high contrast, chosen in File › Options (gap 17).
 
 ## The browser build
@@ -211,8 +211,8 @@ the first people MailCraft is for. Each is a shortfall in [`docs/gaps.md`](docs/
 MailCraft also builds for the browser (WebAssembly), from the same code. Every change is checked to
 build, and each release carries it as a download, but it has not yet been reviewed in use, and it
 can't open the connections IMAP and SMTP need: the only mail servers it reaches are JMAP ones, to
-read, to take changes up to and to send through ([#226](https://github.com/UCS-Care-Group/mailcraft/issues/226),
-[#1074](https://github.com/UCS-Care-Group/mailcraft/issues/1074), [docs/jmap.md](docs/jmap.md)); otherwise it opens the sample mailbox and mailboxes kept in the
+read, to take changes up to and to send through ([#226](https://github.com/UCSLabs/mailcraft/issues/226),
+[#1074](https://github.com/UCSLabs/mailcraft/issues/1074), [docs/jmap.md](docs/jmap.md)); otherwise it opens the sample mailbox and mailboxes kept in the
 browser.
 
 It is to be a mail client of its own (decided 2026-10-19, with #226):
@@ -220,8 +220,8 @@ It is to be a mail client of its own (decided 2026-10-19, with #226):
 1. Review it: run it in the main browsers, and list what works, what doesn't and what is missing.
 2. JMAP accounts: read (#226, done); changes going up and sending (#1074, done).
 3. Microsoft accounts through Microsoft Graph, which runs over HTTPS as JMAP does.
-4. Gmail and Google Workspace accounts ([#233](https://github.com/UCS-Care-Group/mailcraft/issues/233)),
-   once Google sign-in on the desktop is in ([#232](https://github.com/UCS-Care-Group/mailcraft/issues/232)).
+4. Gmail and Google Workspace accounts ([#233](https://github.com/UCSLabs/mailcraft/issues/233)),
+   once Google sign-in on the desktop is in ([#232](https://github.com/UCSLabs/mailcraft/issues/232)).
 
 ## The milestones before the reset
 

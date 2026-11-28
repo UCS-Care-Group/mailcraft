@@ -1129,7 +1129,7 @@ fn time_zones(app: &mut MailApp, ui: &mut Ui, prefs: &mailcraft_engine::Prefs) {
 }
 
 /// Everyone who has worked on MailCraft, on GitHub.
-pub(crate) const CONTRIBUTORS_LINK: &str = "https://github.com/UCS-Care-Group/mailcraft/graphs/contributors";
+pub(crate) const CONTRIBUTORS_LINK: &str = "https://github.com/UCSLabs/mailcraft/graphs/contributors";
 
 /// The line of About that credits the people who made the program: a link to the project's
 /// contributors, shown as where it leads, in one piece.

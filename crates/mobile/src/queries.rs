@@ -150,7 +150,7 @@ pub(crate) fn row(s: &Session, m: &Message, r: &mailcraft_engine::list::Row) -> 
         when: mailcraft_engine::list::when(m),
         unread: r.unread > 0,
         flagged: m.flag == mailcraft_model::FlagStatus::Flagged,
-        has_attachments: m.attachments.iter().any(|a| !a.inline),
+        has_attachments: m.has_attachments(),
         important: m.importance == Importance::High,
         answered: m.answered,
         forwarded: m.forwarded,
@@ -161,6 +161,7 @@ pub(crate) fn row(s: &Session, m: &Message, r: &mailcraft_engine::list::Row) -> 
         member_ids: r.members.iter().copied().take(text::MAX_ROW_MEMBERS).collect(),
         group_is_category: r.group.is_some() && r.category,
         group: r.group.as_deref().map(|g| text::clip(g, MAX_NAME)),
+        low_importance: m.importance == Importance::Low,
     }
 }
 

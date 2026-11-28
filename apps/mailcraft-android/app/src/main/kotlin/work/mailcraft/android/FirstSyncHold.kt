@@ -80,14 +80,19 @@ internal class FirstSyncHolds(
     }
 
     /**
-     * A Send/Receive the owner asked for (a pull to refresh): [start] asks the core for the round,
-     * and the core lets go of every account held back as it begins one, so nothing is held here
-     * either once it has. Both happen under the lock, so that a "Not now" answered while the ask is
-     * on its way lands either before the round (and is let go with the rest) or after it (and is
+     * A Send/Receive the owner asked for (a pull to refresh) of [account], or of every account for
+     * null: [start] asks the core for the round, and the core lets go of that account's hold (every
+     * account's, for null) as it begins one, so it isn't held here either once it has; another
+     * account's hold stays. Both happen under the lock, so that a "Not now" answered while the ask
+     * is on its way lands either before the round (and is let go with the rest) or after it (and is
      * kept, as the core keeps it), never between the core's letting go and this one's.
      */
-    suspend fun ownerRound(start: suspend () -> SyncAnswer): SyncAnswer = lock.withLock {
-        start().also { if (it.started && store.load().isNotEmpty()) store.save(emptySet()) }
+    suspend fun ownerRound(account: ULong?, start: suspend () -> SyncAnswer): SyncAnswer = lock.withLock {
+        start().also {
+            val kept = store.load()
+            val left = if (account == null) emptySet() else kept - account
+            if (it.started && left != kept) store.save(left)
+        }
     }
 
     /**

@@ -7,14 +7,14 @@
         "name": "UCS Care Group",
         "email": "systems@ucscaregroup.co.uk",
         "description": "UCS Care Group is a UK care provider whose sector IT support and consultancy arm stewards MailCraft, an open-source mail client, with its contributors. Funding pays for engineering time, code signing, security review and testing.",
-        "webpageUrl": { "url": "https://github.com/UCS-Care-Group" }
+        "webpageUrl": { "url": "https://github.com/UCSLabs" }
     },
     "projects": [{
         "guid": "mailcraft",
         "name": "MailCraft",
         "description": "A clean-room, open-source mail, calendar, contacts and tasks program in Rust with classic Outlook's layout. It runs natively on Windows, macOS and Linux and works with Microsoft 365, Outlook.com and IMAP accounts. It is private by construction: nothing in a message runs, nothing is fetched without the owner's say-so, there is no telemetry, and passwords and sign-ins live only in the operating system's credential store. Every command is scriptable through a CLI and an MCP server.",
-        "webpageUrl": { "url": "https://github.com/UCS-Care-Group/mailcraft" },
-        "repositoryUrl": { "url": "https://github.com/UCS-Care-Group/mailcraft" },
+        "webpageUrl": { "url": "https://github.com/UCSLabs/mailcraft" },
+        "repositoryUrl": { "url": "https://github.com/UCSLabs/mailcraft" },
         "licenses": ["spdx:MIT", "spdx:Apache-2.0"],
         "tags": ["email", "calendar", "privacy", "desktop", "rust", "productivity"]
     }],

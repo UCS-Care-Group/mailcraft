@@ -11,6 +11,7 @@ use crate::Session;
 
 const OWNER: &str = "owner@example.org";
 const SHARED: &str = "support@example.org";
+const OFFICE: &str = "office@example.org";
 
 /// A session with a Microsoft account and a shared mailbox opened under it; the account's id.
 fn session() -> (Session, Id) {
@@ -168,6 +169,57 @@ fn a_reply_to_line_too_long_to_be_true_is_answered_only_in_part() {
     let id = message(&mut s, owner, OWNER, &[OWNER], &[], &refs);
     let (to, _) = reply(&mut s, "mail.replyAll", id);
     assert_eq!(to.split("; ").count(), mailcraft_mime::MAX_RECIPIENTS);
+}
+
+#[test]
+fn mail_from_another_of_the_owners_accounts_replies_to_that_account() {
+    // #1727: the owner's two accounts; the office writes to the owner, who answers it.
+    let (mut s, owner) = session();
+    s.run("account.add", &json!({"email": OFFICE, "kind": "microsoft"})).unwrap();
+    let id = message(&mut s, owner, OFFICE, &[OWNER], &[], &[]);
+    let (to, cc) = reply(&mut s, "mail.reply", id);
+    assert_eq!((to.as_str(), cc.as_str()), (OFFICE, ""));
+    let (to, cc) = reply(&mut s, "mail.replyAll", id);
+    assert_eq!((to.as_str(), cc.as_str()), (OFFICE, ""));
+    // Also from a shared mailbox to the owner alone.
+    let id = message(&mut s, owner, SHARED, &[OWNER], &[], &[]);
+    let (to, _) = reply(&mut s, "mail.reply", id);
+    assert_eq!(to, SHARED);
+}
+
+#[test]
+fn mail_from_another_of_the_owners_accounts_to_others_too_replies_to_the_sender() {
+    let (mut s, owner) = session();
+    s.run("account.add", &json!({"email": OFFICE, "kind": "microsoft"})).unwrap();
+    let id = message(&mut s, owner, OFFICE, &[OWNER, "alex@example.net"], &[], &[]);
+    let (to, cc) = reply(&mut s, "mail.reply", id);
+    assert_eq!((to.as_str(), cc.as_str()), (OFFICE, ""));
+    let (to, cc) = reply(&mut s, "mail.replyAll", id);
+    assert_eq!((to.as_str(), cc.as_str()), ("office@example.org; alex@example.net", ""), "the owner never in it");
+}
+
+#[test]
+fn mail_from_another_of_the_owners_accounts_to_this_ones_sender_address_replies_to_the_sender() {
+    // An IMAP account that sends as sales@ too; the office writes to both of its addresses.
+    let mut s = Session::empty();
+    let imap = json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}, "outgoing": {"host": "smtp.example.org"}});
+    let ada = s.run("account.add", &imap).unwrap()["id"].as_u64().unwrap();
+    s.run("account.setSenderAddresses", &json!({"id": ada, "addresses": [{"email": "sales@example.org"}]})).unwrap();
+    s.run("account.add", &json!({"email": OFFICE, "kind": "microsoft"})).unwrap();
+    let id = message(&mut s, ada, OFFICE, &["ada@example.org", "sales@example.org"], &[], &[]);
+    let (to, cc) = reply(&mut s, "mail.reply", id);
+    assert_eq!((to.as_str(), cc.as_str()), (OFFICE, ""), "never the owner's own alias");
+    let (to, cc) = reply(&mut s, "mail.replyAll", id);
+    assert_eq!((to.as_str(), cc.as_str()), (OFFICE, ""));
+}
+
+#[test]
+fn a_message_the_owner_sent_to_another_of_his_accounts_replies_to_it() {
+    let (mut s, owner) = session();
+    s.run("account.add", &json!({"email": OFFICE, "kind": "microsoft"})).unwrap();
+    let id = message(&mut s, owner, OWNER, &[OFFICE], &[], &[]);
+    let (to, _) = reply(&mut s, "mail.reply", id);
+    assert_eq!(to, OFFICE);
 }
 
 #[test]
