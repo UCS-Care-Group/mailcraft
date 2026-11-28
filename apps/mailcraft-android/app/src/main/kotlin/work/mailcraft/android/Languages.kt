@@ -24,6 +24,7 @@ internal val LANGUAGES: List<LanguageOption> = listOf(
     LanguageOption("pl", "Polski"),
     LanguageOption("sl", "Slovenščina"),
     LanguageOption("cs", "Čeština"),
+    LanguageOption("pt", "Português"),
     LanguageOption("ka", "ქართული"),
 )
 

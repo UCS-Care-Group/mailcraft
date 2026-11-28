@@ -19,7 +19,9 @@ class LanguagesTest {
         assertEquals("sl", coreLanguage("sl-SI"))
         assertEquals("cs", coreLanguage("cs-CZ"))
         assertEquals("ka", coreLanguage("ka-GE"))
-        assertEquals("en", coreLanguage("pt"))
+        assertEquals("pt", coreLanguage("pt-BR"))
+        assertEquals("pt", coreLanguage("pt_PT"))
+        assertEquals("en", coreLanguage("ja"))
         assertEquals("en", coreLanguage(""))
         assertEquals("en", coreLanguage(null))
         assertEquals("en", coreLanguage("\u0000￿"))
@@ -29,8 +31,8 @@ class LanguagesTest {
     fun theChoiceIsTheFirstLanguageThatIsOffered() {
         assertEquals("", chosenTag(emptyList()))
         assertEquals("fr", chosenTag(listOf("fr-CA")))
-        assertEquals("es", chosenTag(listOf("pt-BR", "es-MX", "fr")))
-        assertEquals("", chosenTag(listOf("pt-BR", "ja")))
+        assertEquals("es", chosenTag(listOf("ja", "es-MX", "fr")))
+        assertEquals("", chosenTag(listOf("ko", "ja")))
         assertEquals("", chosenTag(listOf("")))
     }
 

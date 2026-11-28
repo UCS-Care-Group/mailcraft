@@ -75,6 +75,7 @@ pub enum Lang {
     Polish,
     Slovenian,
     Czech,
+    Portuguese,
     ChineseSimplified,
     Georgian,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
@@ -84,7 +85,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 14] = [
+    pub const ALL: [Lang; 15] = [
         Lang::English,
         Lang::French,
         Lang::German,
@@ -96,6 +97,7 @@ impl Lang {
         Lang::Polish,
         Lang::Slovenian,
         Lang::Czech,
+        Lang::Portuguese,
         Lang::ChineseSimplified,
         Lang::Georgian,
         Lang::Pseudo,
@@ -115,6 +117,7 @@ impl Lang {
             Lang::Polish => "pl",
             Lang::Slovenian => "sl",
             Lang::Czech => "cs",
+            Lang::Portuguese => "pt",
             Lang::ChineseSimplified => "zh_CN",
             Lang::Georgian => "ka",
             Lang::Pseudo => "pseudo",
@@ -158,6 +161,7 @@ impl Lang {
             "pl" => Some(Lang::Polish),
             "sl" => Some(Lang::Slovenian),
             "cs" => Some(Lang::Czech),
+            "pt" => Some(Lang::Portuguese),
             "ka" => Some(Lang::Georgian),
             _ => None,
         }
@@ -177,6 +181,7 @@ impl Lang {
             Lang::Polish => "Polski",
             Lang::Slovenian => "Slovenščina",
             Lang::Czech => "Čeština",
+            Lang::Portuguese => "Português",
             Lang::ChineseSimplified => "简体中文",
             Lang::Georgian => "ქართული",
             Lang::Pseudo => "Pseudo",
@@ -197,6 +202,7 @@ impl Lang {
                 | Lang::Polish
                 | Lang::Slovenian
                 | Lang::Czech
+                | Lang::Portuguese
                 | Lang::ChineseSimplified
                 | Lang::Georgian
         )
@@ -454,6 +460,8 @@ mod tests {
         assert_eq!(Lang::from_code("es_MX.UTF-8"), Some(Lang::Spanish));
         assert_eq!(Lang::from_code("it-CH"), Some(Lang::Italian));
         assert_eq!(Lang::from_code("nl-NL"), Some(Lang::Dutch));
+        assert_eq!(Lang::from_code("pt_BR.UTF-8"), Some(Lang::Portuguese));
+        assert_eq!(Lang::from_code("pt-PT"), Some(Lang::Portuguese));
         let fr = if Lang::French.has_catalogue() { Lang::French } else { Lang::English };
         assert_eq!(Lang::from_pref("auto", Some("fr-BE")), fr);
         assert_eq!(Lang::from_pref("fr", None), fr);
@@ -465,11 +473,20 @@ mod tests {
     /// "Archive" the command, and a text said with a folder's name names the folder.
     #[test]
     fn a_context_tells_the_folder_from_the_command() {
-        let said: Vec<(&str, &str)> =
-            [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch].iter().map(|l| (l.t("Archive"), l.folder("Archive"))).collect();
+        let said: Vec<(&str, &str)> = [Lang::French, Lang::German, Lang::Spanish, Lang::Italian, Lang::Dutch, Lang::Portuguese]
+            .iter()
+            .map(|l| (l.t("Archive"), l.folder("Archive")))
+            .collect();
         assert_eq!(
             said,
-            [("Archiver", "Archives"), ("Archivieren", "Archiv"), ("Archivar", "Archivo"), ("Archivia", "Archivio"), ("Archiveren", "Archief")]
+            [
+                ("Archiver", "Archives"),
+                ("Archivieren", "Archiv"),
+                ("Archivar", "Archivo"),
+                ("Archivia", "Archivio"),
+                ("Archiveren", "Archief"),
+                ("Arquivar", "Arquivo Morto")
+            ]
         );
         assert_eq!((Lang::English.folder("Archive"), Lang::Pseudo.tc("folder", "Archive")), ("Archive", "Árchívé"));
         // A context the catalogue doesn't have is English, never the word of another meaning.
@@ -496,6 +513,7 @@ mod tests {
             "Polski (wersja zapoznawcza)",
             "Slovenščina (predogled)",
             "Čeština (náhled)",
+            "Português (prévia)",
         ];
         if !cfg!(target_arch = "wasm32") {
             expected.push("简体中文（预览）");
@@ -514,6 +532,8 @@ mod tests {
         assert_eq!(Lang::from_pref("hu", None), Lang::Hungarian);
         assert_eq!(Lang::from_pref("auto", Some("sl_SI.UTF-8")), Lang::Slovenian);
         assert_eq!(Lang::from_pref("sl", None), Lang::Slovenian);
+        assert_eq!(Lang::from_pref("auto", Some("pt-BR")), Lang::Portuguese);
+        assert_eq!(Lang::from_pref("pt", None), Lang::Portuguese);
         assert_eq!(Lang::from_pref("auto", Some("ka_GE.UTF-8")), Lang::Georgian);
         assert_eq!(Lang::from_pref("ka", None), Lang::Georgian);
     }
