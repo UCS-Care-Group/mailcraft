@@ -713,6 +713,9 @@ pub struct Quote {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct Compose {
+    /// A local signature file could not be read; the normal signature was used instead.
+    #[serde(skip)]
+    pub signature_file_warning: String,
     pub mode: ComposeMode,
     /// The message replied to or forwarded.
     pub source: Option<Id>,
@@ -808,6 +811,13 @@ pub(crate) enum Saving {
 }
 
 impl Compose {
+    /// Pictures still referenced by the text, including signature pictures; deleted pictures
+    /// retained only for Undo do not count.
+    pub fn has_pictures(&self) -> bool {
+        let held = self.body.text().pictures();
+        self.pictures.iter().any(|p| held.contains(&p.id)) || self.signature.as_ref().is_some_and(|s| s.pictures.iter().any(|p| held.contains(&p.id)))
+    }
+
     /// Whether the signature in the message is still the one that went in.
     pub fn signature_unedited(&self) -> bool {
         self.signature.as_ref().is_some_and(|inserted| self.body.text().signature().as_ref() == Some(&inserted.text))
@@ -1143,6 +1153,8 @@ pub struct Clock {
 
 #[derive(Clone)]
 pub(crate) struct Undo {
+    /// Stable identity shared with a host's local sidecar across Undo and Redo.
+    token: Arc<()>,
     label: &'static str,
     pub(crate) mailbox: Mailbox,
     /// What the step did to the Microsoft accounts' mail, for keeping them in step when it is
@@ -1156,6 +1168,10 @@ pub(crate) struct Undo {
 }
 
 pub struct Session {
+    /// Trusted host settings only, never loaded from a mailbox or exposed as command parameters.
+    /// Called afresh when a message chooses its account's default signature.
+    pub signature_file: Option<Box<dyn Fn(&str) -> Result<Option<mailcraft_model::Signature>, String> + Send + Sync>>,
+    pub(crate) signature_file_warning: std::sync::Mutex<Option<String>>,
     pub mailbox: Mailbox,
     pub view: ViewState,
     pub sel: Selection,
@@ -1535,6 +1551,8 @@ impl Session {
     /// mailbox is looked at: what zone its times are in is settled by it, [`Session::settle_zone`].)
     pub fn with_clock(mailbox: Mailbox, clock: Clock) -> Self {
         let mut s = Session {
+            signature_file: None,
+            signature_file_warning: Default::default(),
             mailbox,
             view: ViewState::default(),
             sel: Selection::default(),
@@ -3604,13 +3622,29 @@ impl Session {
     // ---- undo ----
 
     fn snapshot(&self, label: &'static str) -> Undo {
-        Undo { label, mailbox: self.mailbox.clone(), touched: Default::default(), sel: self.sel.clone(), folder: self.view.folder, mail: false }
+        Undo {
+            token: Arc::new(()),
+            label,
+            mailbox: self.mailbox.clone(),
+            touched: Default::default(),
+            sel: self.sel.clone(),
+            folder: self.view.folder,
+            mail: false,
+        }
     }
 
     /// [`Session::snapshot`] without the mailbox, for a command that doesn't change it
     /// ([`Session::run`]): never kept as a step of the history.
     fn snapshot_light(&self, label: &'static str) -> Undo {
-        Undo { label, mailbox: Mailbox::default(), touched: Default::default(), sel: self.sel.clone(), folder: self.view.folder, mail: false }
+        Undo {
+            token: Arc::new(()),
+            label,
+            mailbox: Mailbox::default(),
+            touched: Default::default(),
+            sel: self.sel.clone(),
+            folder: self.view.folder,
+            mail: false,
+        }
     }
 
     /// A .pst import that came in a batch at a time, kept as one step to undo: the mailbox as it
@@ -3746,6 +3780,12 @@ impl Session {
         self.steps_moved
     }
 
+    /// Identity of the next step, for host-local settings that must follow that operation.
+    /// A weak reference expires when the step leaves both stacks; no mailbox data is exposed.
+    pub fn undo_token(&self, redo: bool) -> Option<std::sync::Weak<()>> {
+        (if redo { &self.redo } else { &self.history }).last().map(|u| Arc::downgrade(&u.token))
+    }
+
     /// What the last undo or redo couldn't do, in words (empty when it did everything).
     pub fn undo_said(&self) -> &[String] {
         &self.undo_said
@@ -3858,7 +3898,15 @@ impl Session {
         self.ews_run_cut.clear();
         self.run_had.clear();
         let mail = u.mail;
-        let cur = Undo { label: u.label, mailbox: now, touched, sel: std::mem::replace(&mut self.sel, u.sel), folder: self.view.folder, mail };
+        let cur = Undo {
+            token: u.token,
+            label: u.label,
+            mailbox: now,
+            touched,
+            sel: std::mem::replace(&mut self.sel, u.sel),
+            folder: self.view.folder,
+            mail,
+        };
         self.rev += 1;
         self.restored = self.restored.wrapping_add(1);
         self.dirty = true;

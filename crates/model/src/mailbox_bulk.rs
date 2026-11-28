@@ -111,7 +111,9 @@ impl Mailbox {
     /// messages something waited for before the first of them was moved, and a move waiting is
     /// found where it lay then (looked for again only when one called off before has shifted
     /// it): moving one adds nothing for another, so a big move takes time in proportion to its
-    /// size rather than to its square.
+    /// size rather than to its square. (Not when the moves call off many waiting moves, as an
+    /// undo of a big move does: each call-off shifts the ones after it, and each of those is then
+    /// looked for by a scan, so that case still grows with the square.)
     pub fn move_each(&mut self, moves: &[(Id, Id)]) -> Result<Vec<(Id, Id)>, ModelError> {
         #[cfg(test)]
         MOVE_EACH_CALLS.with(|c| c.set(c.get() + 1));

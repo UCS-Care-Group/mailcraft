@@ -321,6 +321,13 @@ fn auto_capitalization_distinguishes_abbreviations_from_standalone_no() {
         ("Smith ET AL. showed the result ", "Smith ET AL. showed the result "),
         ("Read (et al. for details) ", "Read (et al. for details) "),
         ("Ask Al. thanks ", "Ask Al. Thanks "),
+        ("I enjoy art. thanks ", "I enjoy art. Thanks "),
+        ("I see art. thanks ", "I see art. Thanks "),
+        ("I enjoy art. five galleries opened ", "I enjoy art. Five galleries opened "),
+        ("See art. five for details ", "See art. five for details "),
+        ("See art. twenty-one for details ", "See art. twenty-one for details "),
+        ("Art. iii of the agreement ", "Art. iii of the agreement "),
+        ("Under art. 5 of the agreement ", "Under art. 5 of the agreement "),
     ] {
         let mut body = RichBody::default();
         for character in typed.chars() {
@@ -331,9 +338,28 @@ fn auto_capitalization_distinguishes_abbreviations_from_standalone_no() {
 }
 
 #[test]
+fn auto_capitalization_handles_quoted_first_words_and_following_sentences() {
+    for (typed, expected) in [
+        ("„hallo welt.“ danke ", "„Hallo welt.“ Danke "),
+        ("„hallo.“ danke ", "„Hallo.“ Danke "),
+        ("„hallo.“\ndanke ", "„Hallo.“\nDanke "),
+        ("«hallo welt.» danke ", "«Hallo welt.» Danke "),
+        ("«hallo.» danke ", "«Hallo.» Danke "),
+        ("“hello.” thanks ", "“Hello.” Thanks "),
+        ("hallo welt. danke ", "Hallo welt. Danke "),
+    ] {
+        let mut body = RichBody::default();
+        for character in typed.chars() {
+            body.type_with_auto_capitalization(&character.to_string(), "de").unwrap();
+        }
+        assert_eq!(body.plain(), expected, "{typed:?}");
+    }
+}
+
+#[test]
 fn auto_capitalization_preserves_georgian_script_independently_of_writing_language() {
     for language in ["ka", "ka-GE", "ka_GE", "en", "tr", "nl"] {
-        let typed = "გამარჯობა. როგორ ხარ? ყველაფერი კარგადაა!\nნახვამდის ";
+        let typed = "გამარჯობა. როგორ ხარ? ყველაფერი კარგადაა!\nნახვამდის\n";
         let mut body = RichBody::default();
         for character in typed.chars() {
             body.type_with_auto_capitalization(&character.to_string(), language).unwrap();

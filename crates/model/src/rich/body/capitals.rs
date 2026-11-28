@@ -63,7 +63,7 @@ pub(super) fn find(text: &RichText, typed_from: usize, caret: usize, language: &
     let starts_paragraph = start == 0 && before.trim_start_matches(|c: char| c.is_whitespace() || opening(c)).is_empty();
     let before_sentence = before.trim_end_matches(|c: char| c.is_whitespace() || opening(c));
     let language = language.split(['-', '_']).next().unwrap_or_default();
-    if !starts_paragraph && !sentence_ends(before_sentence, start == 0, language) {
+    if !starts_paragraph && !sentence_ends(before_sentence, start == 0, language, body) {
         return None;
     }
     let position = split + token.len() - word.len();
@@ -82,7 +82,7 @@ fn opening(c: char) -> bool {
 }
 
 fn closing(c: char) -> bool {
-    matches!(c, '"' | '\'' | '’' | '”' | '»' | ')' | ']')
+    matches!(c, '"' | '\'' | '’' | '“' | '”' | '»' | ')' | ']')
 }
 
 fn word_character(c: char) -> bool {
@@ -93,7 +93,7 @@ fn sentence_punctuation(c: char) -> bool {
     matches!(c, '.' | '!' | '?' | '。' | '！' | '？')
 }
 
-fn sentence_ends(mut before: &str, starts_at_paragraph: bool, language: &str) -> bool {
+fn sentence_ends(mut before: &str, starts_at_paragraph: bool, language: &str, following: &str) -> bool {
     loop {
         before = before.trim_end_matches(|c: char| c.is_whitespace() || closing(c));
         if before.ends_with(|c| c != '.' && sentence_punctuation(c)) {
@@ -137,11 +137,61 @@ fn sentence_ends(mut before: &str, starts_at_paragraph: bool, language: &str) ->
         {
             return false;
         }
+        if last.eq_ignore_ascii_case("art") && article_reference(stem.strip_suffix(last).unwrap_or_default(), following) {
+            return false;
+        }
         let abbreviations = [
-            "approx", "art", "avv", "b.sc", "bijv", "bzw", "ca", "cf", "dept", "dhr", "dott", "dott.ssa", "dr", "dra", "ecc", "ej", "es", "etc",
-            "evtl", "fig", "ggf", "hr", "inc", "ing", "m.sc", "mevr", "mlle", "mme", "mr", "mrs", "ms", "nr", "núm", "pag", "pág", "ph.d", "prof",
-            "rif", "sc.d", "sig", "sig.na", "sig.ra", "sr", "sra", "srta", "st", "tel", "ud", "uds", "vol", "vs",
+            "approx", "avv", "b.sc", "bijv", "bzw", "ca", "cf", "dept", "dhr", "dott", "dott.ssa", "dr", "dra", "ecc", "ej", "es", "etc", "evtl",
+            "fig", "ggf", "hr", "inc", "ing", "m.sc", "mevr", "mlle", "mme", "mr", "mrs", "ms", "nr", "núm", "pag", "pág", "ph.d", "prof", "rif",
+            "sc.d", "sig", "sig.na", "sig.ra", "sr", "sra", "srta", "st", "tel", "ud", "uds", "vol", "vs",
         ];
         return !abbreviations.contains(&last.to_lowercase().as_str());
     }
+}
+
+/// An article-number cue keeps `art.` an abbreviation; the ordinary noun in
+/// "I enjoy art. thanks" still ends a sentence. This remains a conservative rule,
+/// not an attempt to parse the grammar of the surrounding prose.
+fn article_reference(prefix: &str, following: &str) -> bool {
+    let previous = prefix.split_whitespace().next_back().unwrap_or_default().trim_matches(|c| opening(c) || closing(c) || matches!(c, ':' | ','));
+    let cues = ["by", "cf", "cf.", "in", "of", "per", "see", "to", "under", "vedi", "vgl", "vgl.", "voir"];
+    if !previous.is_empty() && !cues.iter().any(|cue| previous.eq_ignore_ascii_case(cue)) {
+        return false;
+    }
+    let roman = !following.is_empty() && following.chars().all(|c| matches!(c.to_ascii_lowercase(), 'i' | 'v' | 'x' | 'l' | 'c' | 'd' | 'm'));
+    let numbers = [
+        "zero",
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+        "seven",
+        "eight",
+        "nine",
+        "ten",
+        "eleven",
+        "twelve",
+        "thirteen",
+        "fourteen",
+        "fifteen",
+        "sixteen",
+        "seventeen",
+        "eighteen",
+        "nineteen",
+        "twenty",
+        "thirty",
+        "forty",
+        "fifty",
+        "sixty",
+        "seventy",
+        "eighty",
+        "ninety",
+        "hundred",
+        "thousand",
+        "million",
+    ];
+    let spelled = following.split('-').all(|part| numbers.iter().any(|number| part.eq_ignore_ascii_case(number)));
+    roman || spelled || ["bis", "ter", "quater"].iter().any(|suffix| following.eq_ignore_ascii_case(suffix))
 }

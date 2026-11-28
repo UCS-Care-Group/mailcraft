@@ -881,3 +881,16 @@ proptest! {
         let _ = check(Signed::Detached { content: &content, signature: &signature }, &context);
     }
 }
+
+/// The certificates a SignedData carries are read out of it, as a directory's
+/// `userSMIMECertificate` holds them (#1393); nothing else gives any.
+#[test]
+fn the_certificates_a_signed_data_carries_are_read_out() {
+    let (_, signature) = halves(DETACHED);
+    let carried = crate::import::carried_certificates(&signature);
+    assert!(carried.iter().any(|c| c == ALICE), "the signer's certificate");
+    assert!(carried.iter().all(|c| crate::import::certificate_info(c).is_some()));
+    for junk in [&b""[..], b"\x30\x03\x02\x01\x01", ALICE, CA, &signature[..signature.len() / 2]] {
+        assert!(crate::import::carried_certificates(junk).is_empty());
+    }
+}
