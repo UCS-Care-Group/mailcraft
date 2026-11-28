@@ -197,7 +197,7 @@ impl DigitalSignatures {
         if let Some(chosen) =
             self.chosen.as_ref().filter(|k| !self.keys.as_ref().is_some_and(|r| r.as_ref().is_ok_and(|ks| ks.iter().any(|c| c.key == **k))))
         {
-            let name = if chosen.label.is_empty() { chosen.fingerprint.chars().take(16).collect() } else { chosen.label.clone() };
+            let name = chosen.shown();
             ui.label(egui::RichText::new(crate::i18n::fmt(tl!("Chosen now: {key}"), &[("key", &name)])).color(t.text_dim).size(11.0));
         }
         // None: the account signs nothing (and Always, which needs a key, goes off). Offered whatever

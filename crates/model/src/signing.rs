@@ -49,6 +49,11 @@ impl SigningKey {
     pub fn checked(&self) -> Option<SigningKey> {
         SigningKey::new(self.format, &self.fingerprint, &self.label)
     }
+
+    /// What the window calls it: its name, or the start of its fingerprint when it has none.
+    pub fn shown(&self) -> String {
+        if self.label.is_empty() { self.fingerprint.chars().take(16).collect() } else { self.label.clone() }
+    }
 }
 
 /// How an account Digitally signs its mail (#30 R16).

@@ -166,3 +166,20 @@ fn a_message_to_be_signed_without_a_usable_key_is_never_handed_out_unsigned() {
     let m = sync_request(&s, a).unwrap().outbox.into_iter().find(|m| m.id == id).unwrap();
     assert!(m.sign_with.is_some_and(|k| k.checked().is_none()), "Send Again doesn't send it unsigned");
 }
+
+/// Review of #1036: a message held already (for another reason) that a run couldn't sign keeps
+/// its reason, and the owner is still told it didn't go.
+#[test]
+fn a_message_held_already_that_couldnt_be_signed_is_still_said() {
+    let (mut s, a) = imap();
+    key(&mut s, a, true);
+    s.run("mail.new", &json!({"to": "maya@lumen.example", "subject": "Rota", "account": a})).unwrap();
+    let id = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+    s.mailbox.message_mut(id).unwrap().held = "held before".into();
+    let unsigned = vec![Unsigned { message: id, why: "the smartcard needs its PIN".into() }];
+    let email = s.mailbox.account(a).unwrap().email.clone();
+    let answer = s.run("sync.apply", &json!({"result": SyncResult { account: a, email, unsigned, ..Default::default() }})).unwrap();
+    assert_eq!(s.mailbox.message(id).unwrap().held, "held before");
+    let errors = answer["errors"].as_array().unwrap();
+    assert!(errors.iter().any(|e| e.as_str().is_some_and(|e| e.contains("Rota") && e.contains("PIN"))), "{answer}");
+}

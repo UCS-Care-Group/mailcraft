@@ -221,7 +221,7 @@ impl Shown {
                 .collect(),
             quote: c.quote.is_some(),
             signing: mailcraft_engine::cmd::signing::will_sign(&app.session, c)
-                .map(|key| key.map(|k| if k.label.is_empty() { k.fingerprint.chars().take(16).collect() } else { k.label })),
+                .map(|key| key.as_ref().map(mailcraft_model::signing::SigningKey::shown)),
         })
     }
 }

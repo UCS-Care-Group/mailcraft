@@ -111,6 +111,8 @@ enum Setup {
     None,
     /// A message being written, with recipients and an attachment, that the owner wrote in.
     Writing,
+    /// [`Setup::Writing`], from an account that always Digitally signs (#30): it would go signed.
+    Signed,
     /// A meeting in a window of its own.
     Meeting,
     /// A message in a window of its own.
@@ -137,6 +139,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     // Send.
     ("compose.send", "{}", Setup::Writing),
     ("compose.sendLater", r#"{"at": 1900000000}"#, Setup::Writing),
+    // Turning Sign off for a message that would go Digitally signed (#30).
+    ("compose.sign", r#"{"value": false}"#, Setup::Signed),
     ("mail.setSendTime", r#"{"id": $message, "at": 1900000000}"#, Setup::None),
     ("account.setAutomaticReplies", r#"{"status": "disabled"}"#, Setup::None),
     ("mail.sendAgain", r#"{"id": $message}"#, Setup::None),
@@ -342,6 +346,13 @@ fn set_up(a: &mut MailApp, setup: Setup, i: &Ids) {
         Setup::Writing => {
             a.execute("mail.new", json!({"to": "alice@example.org", "subject": "Audit lunch"})).unwrap();
             a.execute("compose.attach", json!({"name": "notes.txt", "data": "AAAA"})).unwrap();
+        }
+        Setup::Signed => {
+            // (The sample's account is a local one, which signs nothing.)
+            a.session.mailbox.accounts[0].kind = mailcraft_model::AccountKind::Imap;
+            let key = json!({"format": "smime", "fingerprint": "AB".repeat(32), "label": "Ada"});
+            a.execute("account.setSigning", json!({"account": i.account, "key": key, "always": true})).unwrap();
+            set_up(a, Setup::Writing, i);
         }
         Setup::Meeting => {
             a.execute("ui.openWindow", json!({"new": "meeting", "title": "Review", "attendees": "alice@example.org"})).unwrap();

@@ -142,14 +142,14 @@ pub fn hold_unsigned(mb: &mut Mailbox, account: Id, unsigned: &[Unsigned], lang:
         }
         m.sending = false;
         changed = true;
-        if !m.held.is_empty() {
-            continue;
-        }
         let why: String = u.why.chars().filter(|c| !c.is_control()).take(300).collect();
-        m.held = mailcraft_i18n::fmt(lang.t("It couldn't be Digitally signed: {why}. It wasn't sent; Send Again tries again."), &[("why", &why)]);
+        // One held already keeps the reason it has; the owner is told all the same, as it
+        // didn't go this time either.
+        if m.held.is_empty() {
+            m.held = mailcraft_i18n::fmt(lang.t("It couldn't be Digitally signed: {why}. It wasn't sent; Send Again tries again."), &[("why", &why)]);
+        }
         let subject: String = m.subject.chars().filter(|c| !c.is_control()).take(60).collect();
         let subject = if subject.trim().is_empty() { lang.t("(no subject)").to_string() } else { subject };
-        let why: String = u.why.chars().filter(|c| !c.is_control()).take(300).collect();
         said.push(mailcraft_i18n::fmt(
             lang.t("'{subject}' couldn't be Digitally signed, so it wasn't sent: {why}. It is held in the Outbox."),
             &[("subject", &subject), ("why", &why)],
