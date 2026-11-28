@@ -141,6 +141,12 @@ msgid "\"{title}\" is cancelled, so it can't be added to the selection."
 msgstr "„{title}“ je zrušena, takže ji nelze přidat do výběru."
 
 #. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "'{subject}' isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."
+msgstr "„{subject}“ se nepřesune: poštovní server ji mezitím přesunul nebo odstranil, nebo cílová složka už neexistuje."
+
+#. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
@@ -27164,6 +27170,15 @@ msgid_plural "{n} messages are already here and are left out"
 msgstr[0] "{n} zpráva už tu je a vynechá se"
 msgstr[1] "{n} zprávy už tu jsou a vynechají se"
 msgstr[2] "{n} zpráv už tu je a vynechá se"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} message isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."
+msgid_plural "{n} messages aren't moved: their mail server has moved or removed them since, or the folders they were to go to are gone."
+msgstr[0] "{n} zpráva se nepřesune: poštovní server ji mezitím přesunul nebo odstranil, nebo cílová složka už neexistuje."
+msgstr[1] "{n} zprávy se nepřesunou: poštovní server je mezitím přesunul nebo odstranil, nebo cílové složky už neexistují."
+msgstr[2] "{n} zpráv se nepřesune: poštovní server je mezitím přesunul nebo odstranil, nebo cílové složky už neexistují."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt

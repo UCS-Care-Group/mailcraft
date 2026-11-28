@@ -119,6 +119,11 @@ msgid "\"{title}\" is cancelled, so it can't be added to the selection."
 msgstr ""
 
 #. what a command says
+#: crates/engine/src/undo.rs
+msgid "'{subject}' isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
 msgstr ""
@@ -22492,6 +22497,13 @@ msgstr[1] ""
 #: crates/ui-egui/src/import_tree.rs
 msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
+msgstr[0] ""
+msgstr[1] ""
+
+#. what a command says
+#: crates/engine/src/undo.rs
+msgid "{n} message isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."
+msgid_plural "{n} messages aren't moved: their mail server has moved or removed them since, or the folders they were to go to are gone."
 msgstr[0] ""
 msgstr[1] ""
 

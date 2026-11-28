@@ -402,6 +402,9 @@ struct Said {
     queued: Vec<Queued>,
     /// Categories the undo would have put back, which a full list had no room for (#661).
     no_room: Vec<String>,
+    /// An IMAP account's messages the change moved that aren't moved back (#1884): the server has
+    /// moved or removed them since, or the folder they were to go to is gone ([`imap_back`]).
+    not_back: Vec<String>,
 }
 
 /// A subject or a name as a line about it shows it.
@@ -466,6 +469,22 @@ impl Said {
                 lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
             }
         }
+        match self.not_back.as_slice() {
+            [] => {}
+            [one] => lines.push(mailcraft_i18n::fmt(
+                lang.t("'{subject}' isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."),
+                &[("subject", &shown(one))],
+            )),
+            many => {
+                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
+                let line = lang.tn(
+                    n,
+                    "{n} message isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone.",
+                    "{n} messages aren't moved: their mail server has moved or removed them since, or the folders they were to go to are gone.",
+                );
+                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
+            }
+        }
         lines
     }
 }
@@ -495,15 +514,14 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     }
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
-    imap_back(&mut out, touched, now, &g);
+    let mut said = Said { not_back: imap_back(&mut out, touched, now, &g), ..Said::default() };
     if g.is_empty() {
         // A message on its way onto another account's server now still is (a rule's move of mail
         // that came since the change, #566).
         queue(&mut out, now, &g);
         waiting_as_now(&mut out, touched, now);
-        return (out, Vec::new());
+        return (out, said.lines(lang));
     }
-    let mut said = Said::default();
     let dropped = folders(&mut out, touched, now, &g, &mut said);
     messages(&mut out, touched, now, &g, &mut said);
     // A folder the change made, not on the server, that something still lies in stays.
@@ -578,17 +596,25 @@ fn server_place(mb: &Mailbox, waiting: &HashMap<Id, (String, u32, Option<RemoteF
 /// waiting moves are looked through once, and the moves back are made together, so that a big
 /// undo takes time in proportion to its size; a move back that is refused (its folder is gone)
 /// leaves that message where the server has it, and the others go on.
-fn imap_back(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>) {
+///
+/// Answers the subjects of the messages the change moved that aren't moved back, for the owner
+/// to be told (#1884): the server has moved or removed them since (renumbered their mailbox, say),
+/// or the folder they were to go to is gone.
+fn imap_back(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>) -> Vec<String> {
     let (was, is) = (waiting_moves(out), waiting_moves(now));
     let imap = |m: &Message| !relevant(m, g) && now.account(m.account).is_some_and(|a| a.kind == AccountKind::Imap);
     let mut back: Vec<(Id, Id)> = Vec::new();
     let mut kept: HashSet<Id> = HashSet::new();
     let mut removed: Vec<Id> = Vec::new();
+    let mut not_back: Vec<String> = Vec::new();
     for id in &touched.changed_messages {
         let Some(o) = out.message(*id).filter(|o| imap(o)) else { continue };
         let Some(c) = now.message(*id) else {
             if !touched.removed_messages.contains(id) {
                 removed.push(*id);
+                if touched.moved_messages.contains(id) {
+                    not_back.push(o.subject.clone());
+                }
             }
             continue;
         };
@@ -602,7 +628,7 @@ fn imap_back(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<I
         }
     }
     if back.is_empty() && kept.is_empty() && removed.is_empty() {
-        return;
+        return not_back;
     }
     let ours: HashSet<Id> = back.iter().map(|(id, _)| *id).chain(kept.iter().copied()).chain(removed.iter().copied()).collect();
     // (The moves of their own account's server; another account's, of one moved in, stay.)
@@ -625,6 +651,7 @@ fn imap_back(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<I
             None if is.contains_key(&id) => {
                 // (The folder the server has it in isn't known here: it stays as the run left it.)
                 kept.insert(id);
+                not_back.push(c.subject.clone());
                 continue;
             }
             None => (c.folder, c.uid, c.synced),
@@ -633,8 +660,13 @@ fn imap_back(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<I
         if let Ok(m) = out.message_mut(id) {
             (m.folder, m.uid, m.synced) = (folder, uid, synced);
         }
-        if target != folder && out.folder(target).is_some_and(|f| f.account == c.account) && !out.stays_out_of(id, target) {
+        if target == folder {
+            continue;
+        }
+        if out.folder(target).is_some_and(|f| f.account == c.account) && !out.stays_out_of(id, target) {
             moves.push((id, target));
+        } else {
+            not_back.push(c.subject.clone());
         }
     }
     out.pending.extend(
@@ -655,9 +687,12 @@ fn imap_back(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<I
     // (All at once; should that be refused, each on its own, a refused one where the server has it.)
     if out.move_each(&moves).is_err() {
         for (id, target) in moves {
-            let _ = out.move_message(id, target);
+            if out.move_message(id, target).is_err() {
+                not_back.extend(out.message(id).map(|m| m.subject.clone()));
+            }
         }
     }
+    not_back
 }
 
 /// The rules waiting for the messages the change touched to be here whole are as they are now

@@ -1566,6 +1566,7 @@ mod two_way {
         assert_eq!(state(&s, one).0, deleted);
         run(&mut s, "edit.undo", json!({}));
         assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(inbox), "back in the Inbox here");
+        assert!(s.undo_said().is_empty(), "nothing to tell: {:?}", s.undo_said());
         assert_eq!(
             request(&s, a).ops,
             [RemoteOp::Move { message: one, from: "Trash".into(), uid: 5, to: "INBOX".into(), to_folder: inbox, create: vec![] }],
@@ -1674,6 +1675,8 @@ mod two_way {
         run(&mut s, "edit.undo", json!({}));
         assert!(s.mailbox.message(one).is_none(), "it stays gone");
         assert!(request(&s, a).ops.is_empty());
+        // And the owner is told that the undo didn't reach it (#1884).
+        assert_eq!(s.undo_said(), ["'Two' isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."]);
     }
 
     /// Two messages deleted at once and undone after the run took them, one of them from a folder
@@ -1697,10 +1700,97 @@ mod two_way {
         run(&mut s, "edit.undo", json!({}));
         let filed_now = s.mailbox.message(filed).unwrap();
         assert_eq!((filed_now.folder, filed_now.uid), (deleted, 5), "where the server has it");
+        // The owner is told of that one alone (#1884).
+        assert_eq!(s.undo_said(), ["'Filed' isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."]);
         assert_eq!(s.mailbox.message(two).map(|m| m.folder), Some(inbox));
         assert_eq!(
             request(&s, a).ops,
             [RemoteOp::Move { message: two, from: "Trash".into(), uid: 6, to: "INBOX".into(), to_folder: inbox, create: vec![] }]
+        );
+    }
+
+    /// A server without UIDPLUS doesn't say the UID a deleted message got in Trash (#1884):
+    /// undo puts it back in the Inbox here, and no move goes up until a run has found that UID;
+    /// then it is moved back from there, never under the old UID.
+    #[test]
+    fn undo_of_a_deletion_a_server_without_uidplus_took_waits_for_its_uid() {
+        let (mut s, a, inbox, _) = synced();
+        let deleted = folder(&s, a, FolderKind::Deleted);
+        let one = titled(&s, a, "Two");
+        run(&mut s, "mail.delete", json!({"id": one}));
+        apply(&mut s, SyncResult { account: a, moved: vec![moved(one, "INBOX", 2, deleted, 0, 0)], ..Default::default() });
+        assert_eq!(state(&s, one).0, deleted);
+        run(&mut s, "edit.undo", json!({}));
+        assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(inbox), "back in the Inbox here");
+        let ops = request(&s, a).ops;
+        assert!(!ops.iter().any(|op| matches!(op, RemoteOp::Move { uid, .. } if *uid != 5)), "no move under a UID the server didn't give: {ops:?}");
+        // A run reads Trash whole and finds it there under UID 5.
+        let trash = FolderDelta {
+            complete: true,
+            ..news(Some(deleted), "Trash", FolderKind::Deleted, 10, vec![Message { uid: 5, ..from_server(2, "Two") }], vec![])
+        };
+        apply(&mut s, SyncResult { account: a, folders: vec![trash], ..Default::default() });
+        assert_eq!(s.mailbox.messages.values().filter(|m| m.subject == "Two").count(), 1, "matched, not added");
+        assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(inbox));
+        assert_eq!(
+            request(&s, a).ops,
+            [RemoteOp::Move { message: one, from: "Trash".into(), uid: 5, to: "INBOX".into(), to_folder: inbox, create: vec![] }]
+        );
+    }
+
+    /// Undone after the server took a deletion, then redone before the next run (#1884): the
+    /// move back is called off, and nothing goes up.
+    #[test]
+    fn redo_before_the_next_run_calls_the_move_back_off() {
+        let (mut s, a, _, _) = synced();
+        let deleted = folder(&s, a, FolderKind::Deleted);
+        let one = titled(&s, a, "Two");
+        run(&mut s, "mail.delete", json!({"id": one}));
+        apply(&mut s, SyncResult { account: a, moved: vec![moved(one, "INBOX", 2, deleted, 5, 10)], ..Default::default() });
+        run(&mut s, "edit.undo", json!({}));
+        assert_eq!(request(&s, a).ops.len(), 1);
+        run(&mut s, "edit.redo", json!({}));
+        assert_eq!(state(&s, one).0, deleted);
+        assert_eq!(state(&s, one).1, 5, "where the server has it");
+        assert!(request(&s, a).ops.is_empty(), "nothing to send: {:?}", request(&s, a).ops);
+    }
+
+    /// Undone while the run that sends the deletion is on its way (#1884): its answer leaves the
+    /// message in the Inbox here, and the next run moves it back from where the server put it.
+    #[test]
+    fn undo_while_the_run_sends_the_move_moves_it_back_after() {
+        let (mut s, a, inbox, _) = synced();
+        let deleted = folder(&s, a, FolderKind::Deleted);
+        let one = titled(&s, a, "Two");
+        run(&mut s, "mail.delete", json!({"id": one}));
+        let sent = request(&s, a);
+        assert_eq!(sent.ops.len(), 1);
+        run(&mut s, "edit.undo", json!({}));
+        apply(&mut s, SyncResult { account: a, moved: vec![moved(one, "INBOX", 2, deleted, 5, 10)], ..Default::default() });
+        assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(inbox), "the undo stands");
+        assert_eq!(
+            request(&s, a).ops,
+            [RemoteOp::Move { message: one, from: "Trash".into(), uid: 5, to: "INBOX".into(), to_folder: inbox, create: vec![] }]
+        );
+    }
+
+    /// Redone while the run that sends the move back is on its way (#1884): its answer leaves the
+    /// message in Deleted Items here, and the next run deletes it again from where it is now.
+    #[test]
+    fn redo_while_the_run_sends_the_move_back_deletes_it_again_after() {
+        let (mut s, a, inbox, _) = synced();
+        let deleted = folder(&s, a, FolderKind::Deleted);
+        let one = titled(&s, a, "Two");
+        run(&mut s, "mail.delete", json!({"id": one}));
+        apply(&mut s, SyncResult { account: a, moved: vec![moved(one, "INBOX", 2, deleted, 5, 10)], ..Default::default() });
+        run(&mut s, "edit.undo", json!({}));
+        assert_eq!(request(&s, a).ops.len(), 1);
+        run(&mut s, "edit.redo", json!({}));
+        apply(&mut s, SyncResult { account: a, moved: vec![moved(one, "Trash", 5, inbox, 7, 7)], ..Default::default() });
+        assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(deleted), "the redo stands");
+        assert_eq!(
+            request(&s, a).ops,
+            [RemoteOp::Move { message: one, from: "INBOX".into(), uid: 7, to: "Trash".into(), to_folder: deleted, create: vec![] }]
         );
     }
 
