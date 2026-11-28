@@ -8,7 +8,8 @@ use mailcraft_model::sync::DirectoryKind;
 
 use crate::http::HttpResponse;
 use crate::oab::{
-    FullFile, MAX_KEPT_BYTES, MAX_UNPACKED, MAX_VALUES, OabError, address_list, address_list_within, fetch, full_file, judged, oab_url, origin,
+    FullFile, MAX_FILE, MAX_KEPT_BYTES, MAX_UNPACKED, MAX_VALUES, OabError, address_list, address_list_within, fetch, file_failure, full_file,
+    judged, oab_url, origin,
 };
 use crate::standin::{AUTHORIZATION, StandIn, block_on};
 use crate::standin_directory::Person;
@@ -92,6 +93,17 @@ fn an_answer_longer_than_its_cap_is_refused_whatever_the_transport_read() {
     let answer = HttpResponse::new(200, vec![b' '; 11]);
     assert!(matches!(judged(&answer, 10), Err(Error::TooLarge)));
     assert_eq!(judged(&answer, 11).unwrap().len(), 11);
+}
+
+/// A file past the cap that the table of contents gave no size for is found out by the transport
+/// or the check of the answer: it is as much `TooLarge` as one whose size the table named, which
+/// is held to the day's schedule, and any other failure of the request is left as it is.
+#[test]
+fn a_file_found_too_large_after_the_request_is_too_large() {
+    assert!(matches!(file_failure(Error::TooLarge), OabError::TooLarge));
+    assert!(matches!(file_failure(Error::Unauthorized), OabError::Ews(Error::Unauthorized)));
+    let answer = HttpResponse::new(200, vec![b' '; MAX_FILE + 1]);
+    assert!(matches!(judged(&answer, MAX_FILE).map_err(file_failure), Err(OabError::TooLarge)));
 }
 
 #[test]

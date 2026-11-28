@@ -381,7 +381,7 @@ Answers IMAP, SMTP or Microsoft Graph with whatever it likes.
   person for a name; the owner sees the address before the message goes.
 - **An Offline Address Book is a server's file, read as hostile** (#1393). People's Address Book
   downloads an Exchange server account's whole address list when it is first shown in a run (and
-  a day later, when its table of contents names a newer generation than the one held): Autodiscover at the host of the account's own Exchange Web Services address
+  a day later, when its table of contents names another generation than the one held): Autodiscover at the host of the account's own Exchange Web Services address
   for `OABUrl`, which is taken only when it names that same host (so the sign-in goes nowhere
   else), `oab.xml` there (at most 2 MB, read by the hostile XML reader, a file name of letters,
   digits, `.`, `-` and `_` alone), and the full file of version 4, at most 16 MB, unpacked to at most 256 MB with at most 128 MB of its values kept while it is read

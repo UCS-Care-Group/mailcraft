@@ -347,7 +347,7 @@ fn e8(data: &mut [u8], size: u32) {
                     if target >= size {
                         target = displacement - size;
                     }
-                    chunk[i + 1..i + 5].copy_from_slice(&(target as i32).to_le_bytes());
+                    chunk[i + 1..i + 5].copy_from_slice(&i32::try_from(target).unwrap().to_le_bytes());
                 }
                 i += 4;
             }

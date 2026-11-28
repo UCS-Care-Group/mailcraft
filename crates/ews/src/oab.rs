@@ -282,6 +282,16 @@ impl From<Error> for OabError {
     }
 }
 
+/// What stopped the request for the file: a file past [`MAX_FILE`] is [`OabError::TooLarge`]
+/// however it was found out (the table of contents gave no size, so the transport or the check of
+/// the answer found it), so that it is held to the day's schedule, as a size in the table is.
+fn file_failure(error: Error) -> OabError {
+    match error {
+        Error::TooLarge => OabError::TooLarge,
+        other => OabError::Ews(other),
+    }
+}
+
 /// Downloads and reads the account's address list from its own server: the three requests of the
 /// module, over `exchange`. Once `cancel` is set, the request on its way finishes and nothing
 /// after it is asked or read. When the table of contents names the generation `held` (the list
@@ -307,9 +317,9 @@ pub async fn fetch<E: HttpExchange>(
         return Err(OabError::TooLarge);
     }
     go_on()?;
-    let file = exchange.exchange(&get(&format!("{url}{}", full.name), authorization, MAX_FILE)?).await.map_err(Error::from)?;
+    let file = exchange.exchange(&get(&format!("{url}{}", full.name), authorization, MAX_FILE)?).await.map_err(Error::from).map_err(file_failure)?;
     go_on()?;
-    let list = address_list(judged(&file, MAX_FILE)?).map_err(OabError::File)?;
+    let list = address_list(judged(&file, MAX_FILE).map_err(file_failure)?).map_err(OabError::File)?;
     Ok(Some(list))
 }
 
