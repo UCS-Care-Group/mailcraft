@@ -328,3 +328,32 @@ fn a_draft_quoted_in_any_shipped_language_reopens_with_its_quote() {
         assert_eq!(compose(&s).quote.clone().unwrap().text, was.text, "{lang:?}");
     }
 }
+#[test]
+fn mixed_mime_inline_logo_is_shown_in_the_body_and_stays_in_a_forward() {
+    let wire = b"From: sender@example.org\r\nContent-Type: multipart/mixed; boundary=m\r\n\r\n\
+        --m\r\nContent-Type: text/plain\r\n\r\nBefore logo\r\n\
+        --m\r\nContent-Type: image/png; name=logo.png\r\nContent-Disposition: inline; filename=logo.png\r\n\
+        Content-Transfer-Encoding: base64\r\n\r\niVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGMwSDjwHwAEZAJQVm34EgAAAABJRU5ErkJggg==\r\n\
+        --m\r\nContent-Type: text/plain\r\n\r\nAfter logo\r\n--m--\r\n";
+    let mut message = mailcraft_mime_model::parse(wire);
+    assert_eq!(message.listed_attachments().count(), 0);
+    let cid = message.attachments[0].content_id.clone();
+    let mut s = session();
+    let id = newsletter(&mut s);
+    let original = s.mailbox.message(id).unwrap();
+    message.id = id;
+    message.account = original.account;
+    message.folder = original.folder;
+    *s.mailbox.message_mut(id).unwrap() = message;
+    run(&mut s, "mail.forward", json!({"id": id}));
+    let quoted = compose(&s).quote.as_ref().unwrap();
+    assert!(quoted.html.contains(&format!("cid:{cid}")));
+    run(&mut s, "compose.set", json!({"to": "recipient@example.org"}));
+    let sent = run(&mut s, "compose.send", json!({}))["id"].as_u64().unwrap();
+    let sent = s.mailbox.message(sent).unwrap();
+    let bytes = mailcraft_mime_model::write(sent, &mailcraft_mime_model::WriteOptions::default());
+    let parsed = mailcraft_mime_model::parse(&bytes);
+    assert_eq!(parsed.listed_attachments().count(), 0);
+    assert!(parsed.body.html.as_deref().unwrap().contains(&format!("cid:{cid}")));
+    assert_eq!(parsed.attachments.iter().filter(|a| a.content_id == cid).count(), 1);
+}

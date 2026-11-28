@@ -162,6 +162,331 @@ fn html_with_an_inline_image() {
 }
 
 #[test]
+fn mixed_inline_pictures_stand_between_text_parts_without_a_cid_reference() {
+    for (kind, before, after) in [("text/plain", "Before", "After"), ("text/html", "<p>Before</p>", "<p>After</p>")] {
+        let content_type = format!("Content-Type: {kind}");
+        let wire = eml(&[
+            "Content-Type: multipart/mixed; boundary=m",
+            "",
+            "--m",
+            &content_type,
+            "",
+            before,
+            "--m",
+            "Content-Type: image/png; name=logo.png",
+            "Content-Disposition: inline; filename=logo.png",
+            "Content-Transfer-Encoding: base64",
+            "",
+            "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGMwSDjwHwAEZAJQVm34EgAAAABJRU5ErkJggg==",
+            "--m",
+            &content_type,
+            "",
+            after,
+            "--m--",
+        ]);
+        let wire = String::from_utf8(wire).unwrap();
+        let message = parse(wire.as_bytes());
+        let html = message.body.html.as_deref().unwrap();
+        assert!(html.find("Before").unwrap() < html.find("<img").unwrap());
+        assert!(html.find("<img").unwrap() < html.find("After").unwrap());
+        assert!(html.contains(&format!("cid:{}", message.attachments[0].content_id)));
+        assert!(message.attachments[0].inline);
+        assert!(message.attachments[0].data.starts_with(b"\x89PNG\r\n\x1a\n"));
+
+        let ordinary = parse(wire.replace("Content-Disposition: inline", "Content-Disposition: attachment").as_bytes());
+        assert!(!ordinary.body.html.as_deref().unwrap_or("").contains("<img"));
+        let invalid = parse(
+            wire.replace("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR4nGMwSDjwHwAEZAJQVm34EgAAAABJRU5ErkJggg==", "bm90IGEgcGljdHVyZQ==")
+                .as_bytes(),
+        );
+        assert!(!invalid.body.html.as_deref().unwrap_or("").contains("<img"));
+        if kind == "text/html" {
+            let identified = wire.replace("Content-Disposition: inline", "Content-ID: <logo@example.org>\r\nContent-Disposition: inline");
+            for place in [before, after] {
+                let explicit = identified.replace(place, &format!("{place}<img src=\"CID:LOGO%40EXAMPLE.ORG\">"));
+                let message = parse(explicit.as_bytes());
+                let html = message.body.html.as_deref().unwrap();
+                assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 1);
+            }
+            let named_in_text = identified.replace(before, "<p>Before cid:logo@example.org</p>");
+            let message = parse(named_in_text.as_bytes());
+            assert_eq!(mailcraft_html::images(&mailcraft_html::parse(message.body.html.as_deref().unwrap())).len(), 1);
+        }
+    }
+}
+
+#[test]
+fn mixed_picture_cids_match_raw_or_percent_decoded_references() {
+    for (id, reference, count) in [
+        ("logo%25@example.org", "logo%25@example.org", 1),
+        ("logo%25@example.org", "logo%2525@example.org", 1),
+        ("logo@example.org", "logo%40example.org", 1),
+        ("logo%40example.org", "logo@example.org", 2),
+    ] {
+        let wire = format!(
+            "Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\nContent-Type: image/png\r\nContent-Disposition: inline\r\nContent-ID: <{id}>\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--m\r\nContent-Type: text/html\r\n\r\n<p>Text<img src=\"cid:{reference}\"></p>\r\n--m--\r\n"
+        );
+        let message = parse(wire.as_bytes());
+        let html = message.body.html.as_deref().unwrap();
+        assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), count, "{id} / {reference}: {html}");
+    }
+}
+
+#[test]
+fn generated_mixed_picture_cids_avoid_later_explicit_ids() {
+    let message = parse(&eml(&[
+        "Content-Type: multipart/mixed; boundary=m",
+        "",
+        "--m",
+        "Content-Type: text/plain",
+        "",
+        "Before",
+        "--m",
+        "Content-Type: image/png",
+        "Content-Disposition: inline",
+        "Content-Transfer-Encoding: base64",
+        "",
+        "iVBORw0KGgo=",
+        "--m",
+        "Content-Type: text/plain",
+        "",
+        "Between",
+        "--m",
+        "Content-Type: image/gif",
+        "Content-Disposition: inline",
+        "Content-ID: <MAILCRAFT-MIXED-3@INLINE.INVALID>",
+        "",
+        "GIF89a",
+        "--m",
+        "Content-Type: text/plain",
+        "",
+        "After",
+        "--m--",
+    ]));
+    assert_eq!(message.attachments.len(), 2);
+    let first = &message.attachments[0];
+    let last = &message.attachments[1];
+    assert!(!first.content_id.eq_ignore_ascii_case(&last.content_id));
+    assert!(first.data.starts_with(b"\x89PNG"));
+    assert!(last.data.starts_with(b"GIF89a"));
+    let html = message.body.html.as_deref().unwrap();
+    assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 2);
+    let first_at = html.find(&format!("cid:{}", first.content_id)).unwrap();
+    let last_at = html.find(&format!("cid:{}", last.content_id)).unwrap();
+    assert!(html.find("Before").unwrap() < first_at);
+    assert!(first_at < html.find("Between").unwrap());
+    assert!(html.find("Between").unwrap() < last_at);
+    assert!(last_at < html.find("After").unwrap());
+}
+
+#[test]
+fn mixed_picture_does_not_choose_the_following_html_alternative() {
+    let picture = "Content-Type: image/png\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=";
+    let alternatives = "Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\nContent-Type: text/plain\r\n\r\nPlain alternative\r\n--a\r\nContent-Type: text/html\r\n\r\n<p>Selected <b>HTML alternative</b></p>\r\n--a\r\nContent-Type: text/html\r\n\r\n<p>Unselected alternative</p>\r\n--a--";
+    for picture_first in [true, false] {
+        let (first, last) = if picture_first { (picture, alternatives) } else { (alternatives, picture) };
+        let message = parse(format!("Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\n{first}\r\n--m\r\n{last}\r\n--m--\r\n").as_bytes());
+        let html = message.body.html.as_deref().unwrap();
+        assert!(html.contains("<b>HTML alternative</b>"), "{html}");
+        assert!(!html.contains("Unselected alternative"), "{html}");
+        assert!(!html.contains("Plain alternative"), "{html}");
+        assert_eq!(html.find("<img").unwrap() < html.find("Selected").unwrap(), picture_first, "{html}");
+        assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 1);
+    }
+}
+
+#[test]
+fn one_cid_reference_shows_only_one_of_two_distinct_attachment_ids() {
+    for reversed in [false, true] {
+        for reference in ["logo%40example.org", "LOGO%40EXAMPLE.ORG", "logo@example.org"] {
+            let mut ids = ["logo%40example.org", "logo@example.org"];
+            if reversed {
+                ids.reverse();
+            }
+            let picture = |id| {
+                format!(
+                    "Content-Type: image/png\r\nContent-Disposition: inline\r\nContent-ID: <{id}>\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo="
+                )
+            };
+            let wire = format!(
+                "Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\nContent-Type: text/html\r\n\r\n<p>Both<img src=\"cid:{reference}\"></p>\r\n--m\r\n{}\r\n--m\r\n{}\r\n--m--\r\n",
+                picture(ids[0]),
+                picture(ids[1])
+            );
+            let message = parse(wire.as_bytes());
+            let html = message.body.html.as_deref().unwrap();
+            assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 2, "{html}");
+            assert_eq!(message.attachments.iter().map(|part| part.content_id.as_str()).collect::<Vec<_>>(), ids);
+        }
+    }
+}
+
+#[test]
+fn mixed_pictures_keep_plain_only_alternatives_in_either_order() {
+    let picture = "Content-Type: image/png\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=";
+    let alternative = "Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\nContent-Type: text/plain\r\n\r\nChosen plain\r\n--a\r\nContent-Type: text/plain\r\n\r\nOther plain\r\n--a--";
+    for picture_first in [true, false] {
+        let (first, last) = if picture_first { (picture, alternative) } else { (alternative, picture) };
+        let message = parse(format!("Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\n{first}\r\n--m\r\n{last}\r\n--m--\r\n").as_bytes());
+        let html = message.body.html.as_deref().unwrap();
+        assert_eq!(html.matches("Chosen plain").count(), 1, "{html}");
+        assert!(!html.contains("Other plain"), "{html}");
+        assert_eq!(message.body.text, "Chosen plain");
+        assert_eq!(html.find("<img").unwrap() < html.find("Chosen plain").unwrap(), picture_first, "{html}");
+    }
+}
+
+#[test]
+fn related_html_selects_its_enclosing_alternative_without_duplicate_renderings() {
+    for chosen_related in [true, false] {
+        let related = "Content-Type: multipart/related; boundary=r\r\n\r\n--r\r\nContent-Type: text/html\r\n\r\n<p>Related</p>\r\n--r--";
+        let direct = "Content-Type: text/html\r\n\r\n<p>Direct</p>";
+        let (first, last) = if chosen_related { (related, direct) } else { (direct, related) };
+        let message =
+            parse(format!("Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{first}\r\n--a\r\n{last}\r\n--a--\r\n").as_bytes());
+        assert_eq!(message.body.html.as_deref(), Some(if chosen_related { "<p>Related</p>" } else { "<p>Direct</p>" }));
+    }
+}
+
+fn mixed_alternative(before: &str, after: &str) -> String {
+    format!(
+        "Content-Type: multipart/mixed; boundary=x\r\n\r\n--x\r\nContent-Type: text/plain\r\n\r\n{before}\r\n--x\r\nContent-Type: image/png\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--x\r\nContent-Type: text/plain\r\n\r\n{after}\r\n--x--"
+    )
+}
+
+#[test]
+fn alternative_mixed_caption_is_synthesized_once() {
+    let candidate = mixed_alternative("Caption", "");
+    let message = parse(format!("Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{candidate}\r\n--a--\r\n").as_bytes());
+    let html = message.body.html.as_deref().unwrap();
+    assert_eq!(html.matches("Caption").count(), 1, "{html}");
+    assert_eq!(message.body.text, "Caption");
+    assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 1);
+}
+
+#[test]
+fn alternative_mixed_branch_preserves_all_text_and_picture_positions() {
+    let candidate = mixed_alternative("Before", "After");
+    let alternative = format!(
+        "Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{candidate}\r\n--a\r\nContent-Type: text/plain\r\n\r\nWrong rendering\r\n--a--"
+    );
+    for surrounded in [false, true] {
+        let wire = if surrounded {
+            format!(
+                "Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\nContent-Type: text/plain\r\n\r\nPrefix\r\n--m\r\n{alternative}\r\n--m\r\nContent-Type: text/plain\r\n\r\nSuffix\r\n--m--\r\n"
+            )
+        } else {
+            format!("{alternative}\r\n")
+        };
+        let message = parse(wire.as_bytes());
+        let html = message.body.html.as_deref().unwrap();
+        for text in ["Before", "After"] {
+            assert_eq!(html.matches(text).count(), 1, "{html}");
+        }
+        assert!(html.find("Before").unwrap() < html.find("<img").unwrap());
+        assert!(html.find("<img").unwrap() < html.find("After").unwrap());
+        assert!(!html.contains("Wrong rendering"), "{html}");
+        let expected = if surrounded { "Prefix\n\nBefore\n\nAfter\n\nSuffix" } else { "Before\n\nAfter" };
+        assert_eq!(message.body.text, expected);
+        if surrounded {
+            assert!(html.find("Prefix").unwrap() < html.find("Before").unwrap());
+            assert!(html.find("After").unwrap() < html.find("Suffix").unwrap());
+        }
+    }
+}
+
+#[test]
+fn skipped_alternative_branch_keeps_files_without_body_contributions() {
+    for rich_first in [true, false] {
+        let candidate = mixed_alternative("Plain before", "Plain after");
+        let rich = "Content-Type: text/html\r\n\r\n<p>Chosen HTML</p>";
+        let (first, last) = if rich_first { (rich, candidate.as_str()) } else { (candidate.as_str(), rich) };
+        let message =
+            parse(format!("Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{first}\r\n--a\r\n{last}\r\n--a--\r\n").as_bytes());
+        assert_eq!(message.body.html.as_deref(), Some("<p>Chosen HTML</p>"));
+        assert_eq!(message.body.text, "Plain before\n\nPlain after");
+        assert_eq!(message.attachments.len(), 1);
+        assert_eq!(message.attachments[0].data.as_slice(), b"\x89PNG\r\n\x1a\n");
+        assert!(message.attachments[0].inline);
+        assert!(message.attachments[0].content_id.is_empty());
+    }
+}
+
+#[test]
+fn nested_alternatives_prefer_source_html_over_synthetic_picture_html() {
+    let mixed = mixed_alternative("Plain before", "Plain after");
+    let nested = format!(
+        "Content-Type: multipart/alternative; boundary=n\r\n\r\n--n\r\n{mixed}\r\n--n\r\nContent-Type: text/html\r\n\r\n<p>Chosen nested HTML</p>\r\n--n--"
+    );
+    let message = parse(format!("Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{nested}\r\n--a\r\nContent-Type: text/html\r\n\r\n<p>Wrong outer HTML</p>\r\n--a--\r\n").as_bytes());
+    assert_eq!(message.body.html.as_deref(), Some("<p>Chosen nested HTML</p>"));
+    assert_eq!(message.body.text, "Plain before\n\nPlain after");
+    assert_eq!(message.attachments.len(), 1);
+    assert!(message.attachments[0].content_id.is_empty());
+}
+
+#[test]
+fn sibling_alternative_picture_offsets_are_rebased_independently() {
+    let alternative = |boundary, before, after| {
+        format!(
+            "Content-Type: multipart/alternative; boundary={boundary}\r\n\r\n--{boundary}\r\n{}\r\n--{boundary}--",
+            mixed_alternative(before, after)
+        )
+    };
+    let first = alternative("a", "First before", "First after");
+    let last = alternative("b", "Last before", "Last after");
+    let wire = format!(
+        "Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\nContent-Type: image/png\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=\r\n--m\r\n{first}\r\n--m\r\nContent-Type: text/plain\r\n\r\nBetween groups\r\n--m\r\n{last}\r\n--m--\r\n"
+    );
+    let message = parse(wire.as_bytes());
+    let html = message.body.html.as_deref().unwrap();
+    assert_eq!(message.attachments.len(), 3);
+    assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 3);
+    let mut positions = Vec::new();
+    for part in &message.attachments {
+        positions.push(html.find(&format!("cid:{}", part.content_id)).unwrap());
+    }
+    assert!(positions[0] < html.find("First before").unwrap());
+    assert!(html.find("First before").unwrap() < positions[1]);
+    assert!(positions[1] < html.find("First after").unwrap());
+    assert!(html.find("First after").unwrap() < html.find("Between groups").unwrap());
+    assert!(html.find("Between groups").unwrap() < html.find("Last before").unwrap());
+    assert!(html.find("Last before").unwrap() < positions[2]);
+    assert!(positions[2] < html.find("Last after").unwrap());
+    for text in ["First before", "First after", "Between groups", "Last before", "Last after"] {
+        assert_eq!(html.matches(text).count(), 1, "{html}");
+    }
+    assert_eq!(message.body.text, "First before\n\nFirst after\n\nBetween groups\n\nLast before\n\nLast after");
+}
+
+#[test]
+fn related_plain_root_remains_visible_beside_a_synthesized_picture() {
+    let picture = "Content-Type: image/png\r\nContent-Disposition: inline\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgo=";
+    let related = "Content-Type: multipart/related; boundary=r\r\n\r\n--r\r\nContent-Type: text/plain\r\n\r\nCaption\r\n--r--";
+    for picture_first in [true, false] {
+        let (first, last) = if picture_first { (picture, related) } else { (related, picture) };
+        let message = parse(format!("Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\n{first}\r\n--m\r\n{last}\r\n--m--\r\n").as_bytes());
+        assert_eq!(message.body.text, "Caption");
+        // Preserve the reader-visible body whether pictures synthesize HTML or not.
+        let visible = message.body.html.as_deref().map(mailcraft_html::to_text).unwrap_or_else(|| message.body.text.clone());
+        assert!(visible.contains("Caption"), "{visible}");
+        if let Some(html) = &message.body.html {
+            assert_eq!(html.matches("Caption").count(), 1, "{html}");
+            assert_eq!(html.find("<img").unwrap() < html.find("Caption").unwrap(), picture_first, "{html}");
+            assert_eq!(mailcraft_html::images(&mailcraft_html::parse(html)).len(), 1);
+        }
+    }
+    let alternative = format!(
+        "Content-Type: multipart/alternative; boundary=a\r\n\r\n--a\r\n{related}\r\n--a\r\nContent-Type: text/html\r\n\r\n<p>Chosen HTML</p>\r\n--a--"
+    );
+    let message = parse(format!("Content-Type: multipart/mixed; boundary=m\r\n\r\n--m\r\n{picture}\r\n--m\r\n{alternative}\r\n--m--\r\n").as_bytes());
+    let html = message.body.html.as_deref().unwrap();
+    assert!(html.contains("Chosen HTML"));
+    assert!(!html.contains("Caption"), "plain alternative remains a separate rendering: {html}");
+    assert_eq!(message.body.text, "Caption");
+}
+
+#[test]
 fn two_attachments_one_with_an_rfc2231_name() {
     let m = parse(&eml(&[
         "Subject: Files",
