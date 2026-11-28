@@ -752,7 +752,10 @@ impl<E: HttpExchange> Run<'_, E> {
     /// since it was listed is left out (the folder's next changes say it is deleted). Any other the
     /// server didn't answer for holds the page back, so that it is read again: kept as its id
     /// alone, it would read as a message with nothing set, over what is kept of it (its read state,
-    /// flag, categories). What stops the run stops it here too.
+    /// flag, categories). The folder is then blocked ([`Asked::Unreadable`]), not failing: an item
+    /// the server always refuses doesn't count towards the folders in a row, and the other folders
+    /// go on. The preview and the flag are asked of a server that knows them. What stops the run
+    /// stops it here too.
     async fn listed(&mut self, messages: &mut Vec<GraphMessage>) -> Result<(), Asked> {
         // Each id asked once: a page can name an item more than once (two changes to it since the
         // last read), and each of them takes what was found of it.
@@ -760,8 +763,9 @@ impl<E: HttpExchange> Run<'_, E> {
         let ids: Vec<String> = messages.iter().map(|m| m.server.id.clone()).filter(|id| asked.insert(id.clone())).collect();
         let mut found: HashMap<String, GraphMessage> = HashMap::new();
         let mut gone: HashSet<String> = HashSet::new();
+        let preview = self.client.version().has_preview();
         for some in ids.chunks(MAX_LISTED_ASKED) {
-            let op = GetItemListed::new(some);
+            let op = GetItemListed::new(some).with_preview(preview);
             if op.is_empty() {
                 continue;
             }
@@ -773,7 +777,7 @@ impl<E: HttpExchange> Run<'_, E> {
         for message in messages.iter_mut() {
             let Some(whole) = found.get(&message.server.id).cloned() else {
                 log::info!("ews mail: the server didn't give what a list shows of a message; the folder is read again later");
-                return Err(Asked::Bad);
+                return Err(Asked::Unreadable);
             };
             *message = whole;
         }

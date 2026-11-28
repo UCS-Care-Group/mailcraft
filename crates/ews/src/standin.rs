@@ -226,6 +226,9 @@ pub struct State {
     /// `GetItem` answers these items with `ErrorItemNotFound`, as when they went between the
     /// listing and the question.
     pub gone_from_get_item: Vec<String>,
+    /// `GetItem` answers these items with `ErrorAccessDenied`, each by itself: an item the server
+    /// always refuses, the others asked with it answered.
+    pub refused_in_get_item: Vec<String>,
     /// The server's `SyncFolderItems` takes the recipients in the shape it is asked for and answers
     /// without them, as Exchange 2013 to 2019 do (#1151); `GetItem` gives them.
     pub omits_recipients: bool,
@@ -310,6 +313,7 @@ impl Default for State {
             lists_no_recipients: false,
             refuses_get_item: false,
             gone_from_get_item: Vec::new(),
+            refused_in_get_item: Vec::new(),
             omits_recipients: false,
             zimbra_ids: false,
             versions: Vec::new(),

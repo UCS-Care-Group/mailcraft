@@ -439,18 +439,25 @@ pub struct Listed {
 #[derive(Clone, PartialEq, Eq)]
 pub struct GetItemListed {
     ids: Vec<String>,
+    preview: bool,
 }
 
 impl std::fmt::Debug for GetItemListed {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("GetItemListed").field("ids", &self.ids.len()).finish()
+        f.debug_struct("GetItemListed").field("ids", &self.ids.len()).field("preview", &self.preview).finish()
     }
 }
 
 impl GetItemListed {
     /// Asks for the items with these ids, the first [`MAX_LISTED_ASKED`] of them that are ids.
     pub fn new(ids: &[String]) -> Self {
-        Self { ids: ids_to_ask(ids, MAX_LISTED_ASKED) }
+        Self { ids: ids_to_ask(ids, MAX_LISTED_ASKED), preview: false }
+    }
+
+    /// Asks for the preview and the flag too: of a server that knows them (Exchange 2013 and
+    /// later), which would otherwise be left out of what the list shows.
+    pub fn with_preview(self, preview: bool) -> Self {
+        Self { preview, ..self }
     }
 
     /// Whether there is nothing to ask.
@@ -458,7 +465,8 @@ impl GetItemListed {
         self.ids.is_empty()
     }
 
-    /// The operation as the schema has it: `ItemShape` (`IdOnly` and what a list shows), `ItemIds`.
+    /// The operation as the schema has it: `ItemShape` (`IdOnly` and what a list shows, with the
+    /// preview and the flag when [`GetItemListed::with_preview`]), `ItemIds`.
     pub fn element(&self) -> Element {
         const NAMED: [&str; 7] = [
             "item:Subject",
@@ -469,7 +477,8 @@ impl GetItemListed {
             "message:CcRecipients",
             "item:Categories",
         ];
-        let fields: Vec<&str> = LISTED.iter().chain(NAMED.iter()).copied().collect();
+        let preview: &[&str] = if self.preview { &["item:Preview", "item:Flag"] } else { &[] };
+        let fields: Vec<&str> = LISTED.iter().chain(NAMED.iter()).chain(preview).copied().collect();
         get_item_by_ids(&self.ids, &fields)
     }
 

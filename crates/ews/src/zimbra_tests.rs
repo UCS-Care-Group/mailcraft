@@ -214,4 +214,57 @@ fn the_list_fields_are_asked_without_the_body_and_read_by_the_id_asked() {
     );
     assert!(request.contains("item:IsDraft"), "a draft is listed as one");
     assert_eq!(request.matches("<t:ItemId ").count(), 2, "an id with a control character in it isn't asked");
+    let newer = GetItemListed::new(&["A1".to_owned()]).with_preview(true).element().write();
+    assert!(newer.contains("item:Preview") && newer.contains("item:Flag"), "a server that knows them is asked them");
+}
+
+/// A server that knows the preview and the flag (Exchange 2013 and later) but leaves the ids out
+/// of its changes: what a list shows of each message comes with them.
+#[test]
+fn the_preview_and_the_flag_come_with_each_message_of_a_server_that_knows_them() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.zimbra_ids = true;
+        let id = s.deliver("inbox", "Agenda", false);
+        let item = s.items.iter_mut().find(|i| i.id == id).unwrap();
+        (item.preview, item.flagged, item.flag) = ("Items to go over".into(), true, "Flagged".into());
+    }
+    let result = run(&standin);
+    assert!(result.whole, "{:?}", result.errors);
+    let messages: Vec<_> = result.pages.iter().flat_map(|p| &p.messages).collect();
+    let agenda = messages.iter().find(|m| m.subject == "Agenda").unwrap();
+    assert_eq!((agenda.preview.as_str(), agenda.server.flag), ("Items to go over", FlagStatus::Flagged));
+}
+
+/// An item the server always refuses (`GetItem` answers it with an error of its own) blocks its
+/// folder, as a page that can't be taken in: more such folders than the run stops after in a row
+/// are each blocked, and the folder after them is read.
+#[test]
+fn an_item_the_server_always_refuses_blocks_its_folder_and_the_others_go_on() {
+    let standin = StandIn::new();
+    let refused: Vec<String> = {
+        let mut s = standin.state();
+        s.zimbra_ids = true;
+        let mut refused = Vec::new();
+        for name in ["One", "Two", "Three", "Four"] {
+            let folder = s.add_folder(name);
+            let id = s.deliver(&folder, "Refused", false);
+            s.deliver(&folder, "Answered", false);
+            s.refused_in_get_item.push(id);
+            refused.push(folder);
+        }
+        let after = s.add_folder("After");
+        s.deliver(&after, "Agenda", false);
+        refused
+    };
+    let result = run(&standin);
+    let mut blocked = result.blocked.clone();
+    blocked.sort();
+    let mut expected = refused.clone();
+    expected.sort();
+    assert_eq!(blocked, expected);
+    let messages: Vec<_> = result.pages.iter().flat_map(|p| &p.messages).collect();
+    assert!(messages.iter().any(|m| m.subject == "Agenda"), "the folder after them is read");
+    assert!(messages.iter().all(|m| m.subject != "Answered" && m.subject != "Refused"), "a blocked folder's page is held back");
 }
