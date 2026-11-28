@@ -15,7 +15,7 @@ use mailcraft_model::sync::{GraphMessage, ReadState, ServerMessage, ThreadOf};
 use mailcraft_model::{Address, FlagStatus, Importance};
 
 use crate::b64;
-use crate::error::Error;
+use crate::error::{Error, ResponseCode};
 use crate::folder::valid_id;
 use crate::reply::Reply;
 use crate::soap::{Element, MESSAGES, TYPES};
@@ -57,6 +57,11 @@ pub enum Shape {
     /// (Exchange 2007 and 2010 answer `ErrorInvalidPropertyForOperation`, #1349). The recipients
     /// are then asked with `GetItem` ([`GetItemRecipients`]), where Microsoft documents them.
     Bare,
+    /// The ids alone: for a server whose `SyncFolderItems` leaves an item's `ItemId` out when any
+    /// other property is asked for (Zimbra's EWS does, in the `Default` and `AllProperties`
+    /// shapes; it gives the id in `IdOnly`, with nothing else asked). What a list shows is then
+    /// asked item by item with `GetItem` ([`GetItemListed`]).
+    Ids,
 }
 
 /// The request `SyncFolderItems` of one folder.
@@ -124,7 +129,11 @@ impl SyncFolderItems {
         if self.shape == Shape::Full {
             extra = extra.child(uri("item:Preview")).child(uri("item:Flag"));
         }
-        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("Default")).child(extra);
+        let shape = if self.shape == Shape::Ids {
+            Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly"))
+        } else {
+            Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("Default")).child(extra)
+        };
         let folder = Element::new("m:SyncFolderId").child(Element::new("t:FolderId").attr("Id", &self.folder));
         let mut operation = Element::new("m:SyncFolderItems").child(shape).child(folder);
         if !self.state.is_empty() {
@@ -234,9 +243,15 @@ pub(crate) fn conversation_of(item: &Node) -> String {
 
 /// The message in an item element, when it has an id.
 fn read_item(item: &Node) -> Option<GraphMessage> {
-    let id_node = item.child_in(TYPES, "ItemId")?;
-    let id = id_node.attribute("Id").filter(|id| valid_id(id))?;
-    let change_key = id_node.attribute("ChangeKey").filter(|key| valid_id(key)).unwrap_or_default();
+    read_item_as(item, None)
+}
+
+/// [`read_item`], the item taken to be `known` when it doesn't say its own id: one asked for by
+/// that id with `GetItem`, answered in the order asked ([`GetItemListed`]).
+fn read_item_as(item: &Node, known: Option<&str>) -> Option<GraphMessage> {
+    let id_node = item.child_in(TYPES, "ItemId");
+    let id = id_node.and_then(|n| n.attribute("Id")).filter(|id| valid_id(id)).or(known.filter(|id| valid_id(id)))?;
+    let change_key = id_node.and_then(|n| n.attribute("ChangeKey")).filter(|key| valid_id(key)).unwrap_or_default();
     let importance = match item.child_in(TYPES, "Importance").map_or("", |n| n.text.trim()) {
         "Low" => Importance::Low,
         "High" => Importance::High,
@@ -318,6 +333,49 @@ impl std::fmt::Debug for Recipients {
     }
 }
 
+/// A `GetItem` of the items with these ids in the `IdOnly` shape, with these properties asked for
+/// by name: what [`GetItemRecipients`] and [`GetItemListed`] send.
+fn get_item_by_ids(ids: &[String], fields: &[&str]) -> Element {
+    let extra = fields.iter().fold(Element::new("t:AdditionalProperties"), |all, name| all.child(Element::new("t:FieldURI").attr("FieldURI", name)));
+    let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly")).child(extra);
+    let ids = ids.iter().fold(Element::new("m:ItemIds"), |all, id| all.child(Element::new("t:ItemId").attr("Id", id)));
+    Element::new("m:GetItem").child(shape).child(ids)
+}
+
+/// The first `most` of `ids` that are ids.
+fn ids_to_ask(ids: &[String], most: usize) -> Vec<String> {
+    ids.iter().filter(|id| valid_id(id)).take(most).cloned().collect()
+}
+
+/// What a `GetItem` answered of one item.
+enum Answered<'n> {
+    Item(&'n Node),
+    /// `ErrorItemNotFound`: it went after it was listed.
+    Gone,
+    /// Another error of its own, or an answer with no item in it.
+    Unanswered,
+}
+
+/// What a `GetItem` answered of each of `ids`, in the order asked. A busy server is
+/// [`Error::Busy`] for the lot.
+fn answered<'i, 'n>(ids: &'i [String], reply: &'n Reply) -> Result<Vec<(&'i str, Answered<'n>)>, Error> {
+    let messages = reply.messages("GetItem")?;
+    let mut out = Vec::with_capacity(ids.len());
+    for (id, message) in ids.iter().zip(&messages) {
+        let answer = match message.ok() {
+            Ok(node) => node
+                .child_in(MESSAGES, "Items")
+                .and_then(|items| items.children.iter().find(|c| *c.namespace == *TYPES))
+                .map_or(Answered::Unanswered, Answered::Item),
+            Err(busy @ Error::Busy { .. }) => return Err(busy),
+            Err(Error::Server(ResponseCode::ItemNotFound)) => Answered::Gone,
+            Err(_) => Answered::Unanswered,
+        };
+        out.push((id.as_str(), answer));
+    }
+    Ok(out)
+}
+
 /// The request `GetItem` for the recipients of several items: for a server whose `SyncFolderItems`
 /// won't give them ([`Shape::Bare`], #1349), or leaves them out (Exchange 2013 to 2019, #1151).
 #[derive(Clone, PartialEq, Eq)]
@@ -334,7 +392,7 @@ impl std::fmt::Debug for GetItemRecipients {
 impl GetItemRecipients {
     /// Asks for the items with these ids, the first [`MAX_RECIPIENTS_ASKED`] of them that are ids.
     pub fn new(ids: &[String]) -> Self {
-        Self { ids: ids.iter().filter(|id| valid_id(id)).take(MAX_RECIPIENTS_ASKED).cloned().collect() }
+        Self { ids: ids_to_ask(ids, MAX_RECIPIENTS_ASKED) }
     }
 
     /// Whether there is nothing to ask.
@@ -344,32 +402,97 @@ impl GetItemRecipients {
 
     /// The operation as the schema has it: `ItemShape` (`IdOnly` and the two lists), `ItemIds`.
     pub fn element(&self) -> Element {
-        let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
-        let extra = Element::new("t:AdditionalProperties").child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
-        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly")).child(extra);
-        let ids = self.ids.iter().fold(Element::new("m:ItemIds"), |all, id| all.child(Element::new("t:ItemId").attr("Id", id)));
-        Element::new("m:GetItem").child(shape).child(ids)
+        get_item_by_ids(&self.ids, &["message:ToRecipients", "message:CcRecipients"])
     }
 
     /// The recipients of each item the server answered for, in the order asked; an item it answered
     /// with an error of its own (gone since, say) is left out. A busy server is [`Error::Busy`] for
     /// the lot.
     pub fn answer(&self, reply: &Reply) -> Result<Vec<Recipients>, Error> {
-        let messages = reply.messages("GetItem")?;
-        let mut out = Vec::with_capacity(self.ids.len());
-        for (id, message) in self.ids.iter().zip(&messages) {
-            match message.ok() {
-                Ok(node) => {
-                    let Some(item) = node.child_in(MESSAGES, "Items").and_then(|items| items.children.iter().find(|c| *c.namespace == *TYPES)) else {
-                        continue;
-                    };
-                    let listed = |name: &str| item.child_in(TYPES, name).map_or(0, |list| list.children.len());
-                    let (to, cc) = (people(item, "ToRecipients"), people(item, "CcRecipients"));
-                    let cut = to.len() < listed("ToRecipients") || cc.len() < listed("CcRecipients");
-                    out.push(Recipients { id: id.clone(), to, cc, cut });
-                }
-                Err(busy @ Error::Busy { .. }) => return Err(busy),
-                Err(_) => {}
+        let found = answered(&self.ids, reply)?.into_iter().filter_map(|(id, answer)| {
+            let Answered::Item(item) = answer else { return None };
+            let listed = |name: &str| item.child_in(TYPES, name).map_or(0, |list| list.children.len());
+            let (to, cc) = (people(item, "ToRecipients"), people(item, "CcRecipients"));
+            let cut = to.len() < listed("ToRecipients") || cc.len() < listed("CcRecipients");
+            Some(Recipients { id: id.to_owned(), to, cc, cut })
+        });
+        Ok(found.collect())
+    }
+}
+
+/// Most items one `GetItem` asks for what a list shows of ([`GetItemListed`]).
+pub const MAX_LISTED_ASKED: usize = 100;
+
+/// What [`GetItemListed`] read: the messages the server answered for, and the ids it said are gone.
+#[derive(Default)]
+pub struct Listed {
+    /// The messages the server answered for, in the order asked.
+    pub messages: Vec<GraphMessage>,
+    /// The ids it answered `ErrorItemNotFound` for: gone since they were listed.
+    pub gone: Vec<String>,
+}
+
+/// The request `GetItem` for what a list shows of several items (their subject, sender, times,
+/// size, read and draft state, recipients and categories): for a server that gives only their ids
+/// in a folder's changes ([`Shape::Ids`]). `IdOnly` and the properties by name, so that no body
+/// comes with them, and only what Exchange 2010's schema has (no preview, no flag).
+#[derive(Clone, PartialEq, Eq)]
+pub struct GetItemListed {
+    ids: Vec<String>,
+    preview: bool,
+}
+
+impl std::fmt::Debug for GetItemListed {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("GetItemListed").field("ids", &self.ids.len()).field("preview", &self.preview).finish()
+    }
+}
+
+impl GetItemListed {
+    /// Asks for the items with these ids, the first [`MAX_LISTED_ASKED`] of them that are ids.
+    pub fn new(ids: &[String]) -> Self {
+        Self { ids: ids_to_ask(ids, MAX_LISTED_ASKED), preview: false }
+    }
+
+    /// Asks for the preview and the flag too: of a server that knows them (Exchange 2013 and
+    /// later), which would otherwise be left out of what the list shows.
+    pub fn with_preview(self, preview: bool) -> Self {
+        Self { preview, ..self }
+    }
+
+    /// Whether there is nothing to ask.
+    pub fn is_empty(&self) -> bool {
+        self.ids.is_empty()
+    }
+
+    /// The operation as the schema has it: `ItemShape` (`IdOnly` and what a list shows, with the
+    /// preview and the flag when [`GetItemListed::with_preview`]), `ItemIds`.
+    pub fn element(&self) -> Element {
+        const NAMED: [&str; 7] = [
+            "item:Subject",
+            "message:IsRead",
+            "item:IsDraft",
+            "item:HasAttachments",
+            "message:ToRecipients",
+            "message:CcRecipients",
+            "item:Categories",
+        ];
+        let preview: &[&str] = if self.preview { &["item:Preview", "item:Flag"] } else { &[] };
+        let fields: Vec<&str> = LISTED.iter().chain(NAMED.iter()).chain(preview).copied().collect();
+        get_item_by_ids(&self.ids, &fields)
+    }
+
+    /// The messages the server answered for, in the order asked, each by the id it was asked by
+    /// when it doesn't say its own, and the ids it said are gone (`ErrorItemNotFound`). One it
+    /// answered with another error of its own is in neither. A busy server is [`Error::Busy`] for
+    /// the lot.
+    pub fn answer(&self, reply: &Reply) -> Result<Listed, Error> {
+        let mut out = Listed::default();
+        for (id, answer) in answered(&self.ids, reply)? {
+            match answer {
+                Answered::Item(item) => out.messages.extend(read_item_as(item, Some(id))),
+                Answered::Gone => out.gone.push(id.to_owned()),
+                Answered::Unanswered => {}
             }
         }
         Ok(out)

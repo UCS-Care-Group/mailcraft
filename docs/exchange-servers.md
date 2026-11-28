@@ -91,6 +91,23 @@ stand-in that refuses what the tester saw refused.
 Without the preview, a message from such a server shows no preview line in the message list, and its
 flag isn't read from the server.
 
+## Zimbra
+
+**Seen:** an organisation's own Zimbra Network Edition server, whose EWS answers as Exchange 2010
+SP2 (version 14), by the person who reported #2045, with their own mailbox and a build of this
+change (November 2026), Basic over TLS. Before the change none of its mail came down ("15 folders
+hold a change that can't be taken in"); after it, 4,207 messages did, the Inbox's count the same as
+the server's, and a message sent to the account came down with its sender, subject and preview.
+
+| What the server does | What MailCraft does now |
+|---|---|
+| Leaves each item's `ItemId` out of a folder's changes (`SyncFolderItems`) when anything else is asked for with the ids, `BaseShape` `Default` or any `AdditionalProperties` | A page that comes without its ids steps that folder's listing down to the ids alone (`IdOnly`), then asks what a list shows of the messages with `GetItem`, a hundred to a request. If the ids alone don't make the page readable either, the folder is blocked and the other folders are listed as they were |
+| Gives the ids and the fields in `GetItem` and `FindItem` | `GetItem` is asked by id; a message the server says is gone since it was listed is left out, and a page with a message the server won't answer for is held back and its folder blocked, so that it is read again |
+| Answers in Exchange 2010 SP2's version (no preview, no follow-up flag) | As for Exchange Server 2010 above: the recipients are asked with `GetItem`, and there is no preview line or flag from the server |
+
+Its calendar and contacts are not reached through EWS; the same server's CalDAV and CardDAV
+(`/dav/<address>/`) were seen reading its calendar.
+
 ## Not yet tried
 
 Exchange Server Subscription Edition, SmarterMail, changes sent up and sending against Exchange Server itself, NTLM against a real server, Kerberos
