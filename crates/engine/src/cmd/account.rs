@@ -2315,7 +2315,8 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
 /// its mail and follows the same mailbox, and [`adopt_listed`] moves it into that mailbox's place
 /// in the tree, under its name there. Its job goes to the folder of the account's own mailbox
 /// the listing gives that job, when that is an ordinary folder (moved to the top when it is
-/// under another, as a standard folder is at the top); else to a new, empty
+/// under another, as a standard folder is at the top, the folder giving the job up stepping
+/// aside when it has the same name there); else to a new, empty
 /// folder, which the account's own mailbox of that kind, when it has none yet, then fills. A
 /// job that can't be handed on (no name is free for the new folder) stays where it is. Returns
 /// the folders that gave theirs up, and the new folders with the jobs and the names they are to
@@ -2345,27 +2346,50 @@ fn jobs_given_up(mb: &mut Mailbox, account: Id, listed: &[mailcraft_model::sync:
         if kinds.get(remote.as_str()) != Some(&FolderKind::Custom) {
             continue;
         }
+        // It gives its job up first: as an ordinary folder it can step aside below.
+        let was = mb.folder(id).map(|f| f.name.clone()).unwrap_or_default();
+        if let Ok(f) = mb.folder_mut(id) {
+            f.kind = FolderKind::Custom;
+        }
         // The account's own mailbox's folder, wherever it is: one under the Inbox (`INBOX.Sent`
         // on a server whose own folders are under `INBOX.`) moves to the top first, where a
         // standard folder is ([`Mailbox::folder_of_kind`]) and where a first run would have put
-        // the job's folder for that mailbox. A name taken there leaves it where it is, and the
-        // job goes to a new folder.
-        let heir = doing
+        // the job's folder for that mailbox. When its name is taken there by the folder giving
+        // the job up (`INBOX.Sent Items` beside the old Sent Items), that one, which moves into
+        // the other user's tree anyway, steps aside under a numbered name ([`adopt_listed`]
+        // gives it the server's name there). A name still taken leaves it where it is, the
+        // other's name as it was, and the job goes to a new folder.
+        let own = doing
             .get(&kind)
             .and_then(|own| mb.folders.iter().find(|f| f.account == account && f.remote == *own))
             .filter(|f| f.kind == FolderKind::Custom)
-            .map(|f| (f.id, f.parent.is_none()))
-            .and_then(|(id, at_top)| (at_top || mb.move_folder(id, None).is_ok()).then_some(id));
+            .map(|f| (f.id, f.parent.is_none(), f.name.to_lowercase()));
+        let heir = own.and_then(|(own, at_top, name)| {
+            if at_top || mb.move_folder(own, None).is_ok() {
+                return Some(own);
+            }
+            if name != was.to_lowercase() || !(2..=50).any(|n| mb.rename_folder(id, &format!("{was} ({n})")).is_ok()) {
+                return None;
+            }
+            if mb.move_folder(own, None).is_ok() {
+                return Some(own);
+            }
+            // Its old name is free again: nothing took it in between.
+            let _ = mb.rename_folder(id, &was);
+            None
+        });
         let heir = heir.or_else(|| {
             let base = kind.default_name();
             let id = (1..=50).find_map(|n| mb.add_folder(account, None, &if n == 1 { base.to_string() } else { format!("{base} ({n})") }).ok())?;
             made.push((id, base.to_string()));
             Some(id)
         });
-        let Some(heir) = heir else { continue };
-        if let Ok(f) = mb.folder_mut(id) {
-            f.kind = FolderKind::Custom;
-        }
+        let Some(heir) = heir else {
+            if let Ok(f) = mb.folder_mut(id) {
+                f.kind = kind;
+            }
+            continue;
+        };
         if let Ok(f) = mb.folder_mut(heir) {
             f.kind = kind;
         }
