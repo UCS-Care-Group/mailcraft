@@ -38,6 +38,7 @@ mailcraft-jmap-types = { path = "crates/jmap-types" }
 mailcraft-jmap = { path = "crates/jmap" }
 mailcraft-dav = { path = "crates/dav" }
 mailcraft-ews = { path = "crates/ews" }
+mailcraft-zimbra = { path = "crates/zimbra" }
 mailcraft-net = { path = "crates/net" }
 mailcraft-engine = { path = "crates/engine" }
 mailcraft-mcp = { path = "crates/mcp" }

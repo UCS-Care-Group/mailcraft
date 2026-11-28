@@ -1965,6 +1965,12 @@ msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "Küldés/fogadás alkalmazása a Microsoft Graph-al"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Send/Receive with Zimbra"
+msgstr "Zimbra küldés/fogadás alkalmazása"
+
+#. command label
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "Apply Sent Calendar Changes"
@@ -5207,6 +5213,12 @@ msgstr "Képek letöltése az All Mail-ben"
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "Képek automatikus letöltése a Mail-ben"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Download Zimbra Messages in Full"
+msgstr "Zimbra-üzenetek teljes letöltése"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -15136,7 +15148,7 @@ msgid "Send & Receive"
 msgstr "Küldés/fogadás"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zimbra_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Küldés/fogadás"
@@ -15454,6 +15466,12 @@ msgstr "Küldés/fogadás JMAP-pal"
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Microsoft Graph- pel történő üzenetküldés/ fogadás"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Send/Receive with Zimbra"
+msgstr "Küldés/fogadás Zimbrával"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -22344,6 +22362,42 @@ msgstr "A saját neved."
 msgid "Z on top"
 msgstr "Z felül"
 
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
+msgstr "A Zimbra-fiókok tesztelés alatt állnak: indítsa a MailCraftot MAILCRAFT_ZIMBRA=1 beállítással a kipróbálásukhoz"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+msgstr "A Zimbra-fiókokkal még nem lehet küldeni és fogadni: ez a rész még nincs elkészítve"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr "A Zimbra-fiókok még nem tudnak levelet küldeni: ez a rész még nem készült el"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step yet: this part is not built"
+msgstr "Zimbra {host} · még nincs szinkronban: ez a rész még nincs elkészítve"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
+msgstr "Zimbra {host} · nincs szinkronban: a Zimbra-fiókok ki vannak kapcsolva (indítsa a MailCraftot MAILCRAFT_ZIMBRA=1 beállítással a kipróbáláshoz)"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra · no usable server address"
+msgstr "Zimbra · nincs használható kiszolgálócím"
+
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -22469,6 +22523,12 @@ msgstr "A Microsoft- vagy Exchange-fiók csak annyi más címről küldhet, amen
 #, fuzzy
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr "a Microsoft-bejelentkezés csak a Microsoft saját levelezőszervereivel használható: ez a fiók egy másik kiszolgálót nevez meg"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr "a Zimbra-fiók kiszolgálója, címe és felhasználóneve nem módosítható, amint a levelei itt vannak: távolítsa el, és adja hozzá a másikat"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22787,6 +22847,12 @@ msgstr "a S/MIME tanúsítvány megbízható a hitelesítési hatóság és ninc
 #, fuzzy
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
 msgstr "a JMAP használatára vagy a JMAP-ról csak a fiók eltávolításával és újbóli hozzáadásával lehet váltani"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
+msgstr "egy fiók csak eltávolítással és újbóli hozzáadással válik Zimbra-fiókká, illetve szűnik meg annak lenni"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23608,6 +23674,12 @@ msgid "no account here keeps its rules on its server"
 msgstr "nincs fiókja, ami a szerverén tartja a szabályait."
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "no account is a Zimbra account"
+msgstr "nincs Zimbra-fiók"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
@@ -23644,7 +23716,7 @@ msgid "no account with id {account}"
 msgstr "nincs ilyen azonosítójú fiók: {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nincs ilyen azonosítójú fiók: {id}"
@@ -24953,13 +25025,25 @@ msgid "the request was lost"
 msgstr "a kérés elveszett"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "the result is for another Zimbra server"
+msgstr "az eredmény egy másik Zimbra-kiszolgálóhoz tartozik"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "the result is for another account"
+msgstr "az eredmény egy másik fiókhoz tartozik"
+
+#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "the result would make this account keep more sync state than is taken in"
 msgstr "az eredmény miatt a fiók a megengedettnél több szinkronizálási adatot tárolna"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "az eredmény {why}"
@@ -26480,6 +26564,12 @@ msgid "{name} has no JMAP server address that can be used"
 msgstr "{name} nem rendelkezik JMAP kiszolgálóval, ami használható"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} has no Zimbra server address that can be used"
+msgstr "{name} nem rendelkezik használható Zimbra-kiszolgálócimmel"
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -26574,6 +26664,12 @@ msgstr "A {name} nem Microsoft-fiók, amit IMAP vezetett."
 #, fuzzy
 msgid "{name} isn't a Microsoft or Exchange server account"
 msgstr "A {name} nem Microsoft vagy Exchange szerver fiók"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} isn't a Zimbra account"
+msgstr "{name} nem Zimbra-fiók"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -28014,6 +28110,12 @@ msgstr "{why}, tehát a beiratkozás nem jut eszembe: MailCraft minden egyes alk
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}, a {n} változtatásai itt várnak a gépen."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{why}: send this message from another account, or save it as a draft"
+msgstr "{why}: küldje ezt az üzenetet egy másik fiókból, vagy mentse piszkozatként"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

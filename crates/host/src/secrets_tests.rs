@@ -14,6 +14,65 @@ fn errors_say_nothing_of_the_secret() {
     assert!(SecretError::TooLong.to_string().contains("too long"));
 }
 
+fn zimbra_account() -> Account {
+    Account {
+        kind: AccountKind::Zimbra,
+        email: "ada@example.org".into(),
+        zimbra: Some(mailcraft_model::ZimbraServer { url: "https://mail.example.org".into(), username: "ada".into(), ..Default::default() }),
+        ..Default::default()
+    }
+}
+
+#[test]
+fn an_old_ambiguous_zimbra_entry_is_not_read_by_a_pinned_account() {
+    let mut account = zimbra_account();
+    let pin = "ab".repeat(32);
+    account.zimbra.as_mut().unwrap().trusted = pin.clone();
+    let old_unpinned_user = format!("ada|pin={pin}");
+    let old_key = format!("password:ada@example.org|zimbra=https://mail.example.org|user={old_unpinned_user}");
+    let entries = std::collections::BTreeMap::from([(old_key, "synthetic-value")]);
+    assert_eq!(entries.get(&secret_key("password", &account)), None);
+    assert_eq!(entries.len(), 1);
+}
+
+#[test]
+fn native_server_accounts_never_adopt_unbound_legacy_entries() {
+    let mut account = zimbra_account();
+    for kind in [AccountKind::Zimbra, AccountKind::Exchange, AccountKind::Jmap, AccountKind::Microsoft] {
+        account.kind = kind;
+        for secret in ["password", "refresh"] {
+            let expected = match kind {
+                AccountKind::Zimbra | AccountKind::Exchange => None,
+                _ => Some(legacy_secret_key(secret, &account.email)),
+            };
+            assert_eq!(crate::secrets::legacy_secret_key_for(secret, &account), expected);
+        }
+    }
+}
+
+#[test]
+fn versioned_zimbra_keys_remain_bound_to_server_login_and_pin() {
+    let account = zimbra_account();
+    let key = secret_key("password", &account);
+    assert!(key.starts_with("password:ada@example.org|zimbra-v2="));
+    let mut keys = std::collections::BTreeSet::from([key.clone()]);
+    for (url, user, pin) in [
+        ("https://other.example.org", "ada", String::new()),
+        ("https://mail.example.org", "grace", String::new()),
+        ("https://mail.example.org", "ada", "ab".repeat(32)),
+        ("https://mail.example.org", "ada|pin=ab", String::new()),
+        ("https://mail.example.org", "ada%7Cpin=ab", String::new()),
+    ] {
+        let mut changed = account.clone();
+        let server = changed.zimbra.as_mut().unwrap();
+        server.url = url.into();
+        server.username = user.into();
+        server.trusted = pin;
+        assert!(keys.insert(secret_key("password", &changed)));
+    }
+    assert_eq!(secret_key("password", &account), key);
+}
+
 #[test]
 fn a_microsoft_account_is_named_by_its_address_alone() {
     let account = Account { kind: AccountKind::Microsoft, email: " Ada@Lumen.Example ".to_string(), ..Default::default() };

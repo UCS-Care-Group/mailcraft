@@ -1966,6 +1966,12 @@ msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "გაგზავნა/მიღების გამოყენება Microsoft Graph-ით"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Send/Receive with Zimbra"
+msgstr "Zimbra-ით გაგზავნის/მიღების გამოყენება"
+
+#. command label
 #: crates/engine/src/cmd/remote.rs
 #, fuzzy
 msgid "Apply Sent Calendar Changes"
@@ -5220,6 +5226,12 @@ msgstr "სურათების ჩამოტვირთვა მთე�
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "ფოსტაში სურათების ავტომატურად ჩამოტვირთვა"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Download Zimbra Messages in Full"
+msgstr "Zimbra-ის შეტყობინებების სრულად ჩამოტვირთვა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -15172,7 +15184,7 @@ msgid "Send & Receive"
 msgstr "გაგზავნა და მიღება"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zimbra_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "გაგზავნა / მიღება"
@@ -15492,6 +15504,12 @@ msgstr "გაგზავნა/მიღება JMAP-ით"
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
 msgstr "გაგზავნა/მიღება Microsoft Graph-ით"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Send/Receive with Zimbra"
+msgstr "გაგზავნა/მიღება Zimbra-ით"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -22397,6 +22415,42 @@ msgstr "თქვენი სახელი."
 msgid "Z on top"
 msgstr "ჯერ Z"
 
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
+msgstr "Zimbra-ის ანგარიშები მოწმდება: გაუშვით MailCraft MAILCRAFT_ZIMBRA=1-ით, რომ სცადოთ"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+msgstr "Zimbra-ის ანგარიშებით ჯერ ვერ იგზავნება და ვერ მიიღება: ეს ნაწილი ჯერ არ არის აგებული"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr "Zimbra ანგარიშებს ჯერ ფოსტის გაგზავნა არ შეუძლიათ: ეს ნაწილი ჯერ არ არის შექმნილი"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step yet: this part is not built"
+msgstr "Zimbra {host} · ჯერ არ სინქრონიზდება: ეს ნაწილი ჯერ არ არის აგებული"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
+msgstr "Zimbra {host} · არ სინქრონიზდება: Zimbra-ის ანგარიშები გამორთულია (გაუშვით MailCraft MAILCRAFT_ZIMBRA=1-ით, რომ სცადოთ)"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra · no usable server address"
+msgstr "Zimbra · გამოყენებადი სერვერის მისამართი არ არის"
+
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -22522,6 +22576,12 @@ msgstr "Microsoft-ის ან Exchange-ის ანგარიში სხ�
 #, fuzzy
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr "Microsoft-ით შესვლა მხოლოდ Microsoft-ის საკუთარ საფოსტო სერვერებთან გამოიყენება: ეს ანგარიში სხვა სერვერს ასახელებს"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr "Zimbra-ის ანგარიშის სერვერის, მისამართისა და მომხმარებლის სახელის შეცვლა შეუძლებელია, როცა მისი ფოსტა უკვე აქ არის: წაშალეთ და დაამატეთ მეორე"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22840,6 +22900,12 @@ msgstr "S/MIME სერტიფიკატი სანდოა თავი
 #, fuzzy
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
 msgstr "ანგარიში JMAP ანგარიში ხდება ან აღარ არის ასეთი მხოლოდ წაშლითა და ხელახლა დამატებით"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
+msgstr "ანგარიში Zimbra-ის ანგარიში ხდება ან წყვეტს ასეთი ყოფნა მხოლოდ წაშლითა და ხელახლა დამატებით"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23661,6 +23727,12 @@ msgid "no account here keeps its rules on its server"
 msgstr "აქ არცერთი ანგარიში თავის წესებს სერვერზე არ ინახავს"
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "no account is a Zimbra account"
+msgstr "არც ერთი ანგარიში არ არის Zimbra-ის ანგარიში"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
@@ -23697,7 +23769,7 @@ msgid "no account with id {account}"
 msgstr "ანგარიში id-ით {account} არ არსებობს"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "ანგარიში id-ით {id} არ არსებობს"
@@ -25009,13 +25081,25 @@ msgid "the request was lost"
 msgstr "მოთხოვნა დაიკარგა"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "the result is for another Zimbra server"
+msgstr "შედეგი სხვა Zimbra სერვერს ეკუთვნის"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "the result is for another account"
+msgstr "შედეგი სხვა ანგარიშისთვისაა"
+
+#. what a command says
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "the result would make this account keep more sync state than is taken in"
 msgstr "შედეგის გამო ეს ანგარიში იმაზე მეტ სინქრონიზაციის მდგომარეობას შეინახავდა, ვიდრე მიიღება"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "შედეგი {why}"
@@ -26537,6 +26621,12 @@ msgid "{name} has no JMAP server address that can be used"
 msgstr "{name}: JMAP სერვერის გამოსადეგი მისამართი არ არის"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} has no Zimbra server address that can be used"
+msgstr "{name}-ს არ აქვს გამოყენებადი Zimbra-ის სერვერის მისამართი"
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -26631,6 +26721,12 @@ msgstr "{name} არ არის IMAP-ით სინქრონიზებ
 #, fuzzy
 msgid "{name} isn't a Microsoft or Exchange server account"
 msgstr "{name} არ არის Microsoft ან Exchange სერვერის ანგარიში"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} isn't a Zimbra account"
+msgstr "{name} არ არის Zimbra-ის ანგარიში"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -28071,6 +28167,12 @@ msgstr "{why}, ამიტომ შესვლები არ ინახ�
 #, fuzzy
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. მასში აქ შეტანილი ცვლილებები ({n}) ამ კომპიუტერზე ელოდება."
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{why}: send this message from another account, or save it as a draft"
+msgstr "{why}: გაგზავნეთ ეს შეტყობინება სხვა ანგარიშიდან ან შეინახეთ მონახაზად"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

@@ -492,3 +492,5 @@ mod sync_driver_tests;
 mod tests;
 #[cfg(test)]
 mod undo_removes_mail_tests;
+#[cfg(test)]
+mod zimbra_account_tests;
