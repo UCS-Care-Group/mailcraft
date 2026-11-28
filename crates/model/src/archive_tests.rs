@@ -319,3 +319,19 @@ fn a_move_into_the_archive_of_mail_the_server_says_is_gone_isnt_put_back() {
     mb.remove_archive(archive).unwrap();
     assert!(mb.message(kickoff).is_none(), "not put back");
 }
+
+/// A move between the mailbox and its archive whose copy a read was still to bring is forgotten
+/// when the account it went into goes: hidden (taken away) or removed. A later message of that
+/// Message-ID is then no moved one (#1834 review).
+#[test]
+fn moves_awaiting_their_copy_are_forgotten_with_the_account_they_went_into() {
+    let (mut mb, owner) = mailbox();
+    let archive = mb.add_archive(owner).unwrap();
+    mb.moved_across.insert((archive, "into-archive@example.org".into()), 41);
+    mb.moved_across.insert((owner, "out-of-archive@example.org".into()), 42);
+    mb.remove_archive(archive).unwrap();
+    assert_eq!(mb.take_moved_across(archive, "into-archive@example.org"), None, "the archive is gone: none will come");
+    assert_eq!(mb.moved_across.len(), 1, "a move into the owner still awaits its copy");
+    mb.remove_account(owner).unwrap();
+    assert!(mb.moved_across.is_empty());
+}

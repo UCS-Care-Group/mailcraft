@@ -1717,6 +1717,9 @@ impl Mailbox {
         }
         let going: HashSet<Id> =
             self.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id) || a.archive_of == Some(id)).map(|a| a.id).collect();
+        // Moves into these accounts whose copies a read was still to bring: none will come now, and
+        // a later message of the same Message-ID is no moved one (#1834 review).
+        self.moved_across.retain(|(account, _), _| !going.contains(account));
         // Its to-dos stay, and use the shared list from now on: what they carry comes across.
         let carried: Vec<Category> = self
             .tasks
