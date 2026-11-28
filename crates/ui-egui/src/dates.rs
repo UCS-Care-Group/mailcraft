@@ -30,6 +30,7 @@ fn lang() -> &'static Lang {
         Lang::Czech => &Lang::Czech,
         Lang::ChineseSimplified => &Lang::ChineseSimplified,
         Lang::Georgian => &Lang::Georgian,
+        Lang::Korean => &Lang::Korean,
         Lang::Pseudo => &Lang::Pseudo,
     }
 }

@@ -7,7 +7,9 @@ use super::*;
 impl<S: Read + Write> Imap<S> {
     /// Prefer the server's advertised PLAIN mechanism; otherwise use LOGIN. The host must
     /// secure the stream first. Unknown capabilities are queried here; known ones are reused.
-    /// A refusal never triggers a second attempt with another mechanism.
+    /// A `NO` refusal never triggers a second attempt with another mechanism (the password was
+    /// judged). A `BAD` answer to `AUTHENTICATE PLAIN` means the server listed the capability
+    /// but has no such command, which some servers do; LOGIN is tried then.
     pub fn authenticate_password(&mut self, user: &str, password: &str) -> Result<(), ProtoError> {
         if password.is_empty() {
             return Err(ProtoError::Auth(said!("enter a password to sign in")));
@@ -62,6 +64,9 @@ impl<S: Read + Write> Imap<S> {
             Status::Ok if !sent => Err(ProtoError::Protocol(said!("the server accepted a password that was not sent"))),
             Status::Ok => self.signed_in(&verdict),
             Status::No => Err(ProtoError::Auth(self.refusal(&verdict))),
+            // BAD is the server saying it has no such command, not that the password is wrong:
+            // some servers list AUTH=PLAIN without implementing AUTHENTICATE. LOGIN is tried.
+            Status::Bad => self.login(user, password),
             _ => Err(ProtoError::Rejected(self.refusal(&verdict))),
         }
     }

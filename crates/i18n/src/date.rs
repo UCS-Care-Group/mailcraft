@@ -108,6 +108,9 @@ impl Lang {
             Lang::Polish => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
             Lang::Czech => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
             Lang::Hungarian | Lang::ChineseSimplified => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: false },
+            // Korean writes `오후 9:30`, its weeks start on Sunday, and `2026. 10. 3.` is
+            // written without padding.
+            Lang::Korean => Conventions { twelve_hour: true, week_start: 6, pad_numeric: false, day_first: false },
         }
     }
 }
@@ -509,5 +512,6 @@ mod tests {
         assert_eq!(said(Lang::Romanian), ("duminică, 11 octombrie 2026".into(), "03.10.2025".into(), "21:05".into()));
         assert_eq!(said(Lang::Hungarian), ("2026. október 11., vasárnap".into(), "2025. 10. 03.".into(), "21:05".into()));
         assert_eq!(said(Lang::Georgian), ("კვირა, 11 ოქტომბერი, 2026".into(), "03.10.2025".into(), "21:05".into()));
+        assert_eq!(said(Lang::Korean), ("2026년 10월 11일 일요일".into(), "2025. 10. 3.".into(), "21:05".into()));
     }
 }
