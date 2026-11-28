@@ -67,6 +67,23 @@ fn a_manual_line_break_stays_inside_its_paragraph() {
 }
 
 #[test]
+fn backspace_after_a_manual_line_break_in_a_list_deletes_the_break() {
+    let mut b = RichBody::from_plain(&format!("Agenda{LINE_BREAK}see notes"));
+    b.toggle_list(ListKind::Numbered).unwrap();
+    let at = "Agenda".chars().count() + 1;
+    b.select(at, at).unwrap();
+    b.backspace().unwrap();
+    assert_eq!(b.text().paragraphs().len(), 1);
+    assert_eq!(b.text().list_at(0), ListKind::Numbered);
+    assert_eq!(b.text().text(), "Agendasee notes");
+    // At the item's real start, Backspace still ends the list before it joins anything.
+    b.select(0, 0).unwrap();
+    b.backspace().unwrap();
+    assert_eq!(b.text().list_at(0), ListKind::None);
+    assert_eq!(b.text().text(), "Agendasee notes");
+}
+
+#[test]
 fn links_are_any_well_formed_scheme_but_the_unsafe_ones() {
     for ok in [
         "https://example.org",
