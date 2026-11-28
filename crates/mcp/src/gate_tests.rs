@@ -187,6 +187,37 @@ fn files_dir_keeps_agents_inside() {
 }
 
 #[test]
+fn save_attachment_keeps_the_files_rule() {
+    let base = temp("save-attachment");
+    let root = base.join("files");
+    std::fs::create_dir_all(&root).unwrap();
+    let mut h = Headless::new(sample(), Vec::new());
+    let message = h.session.mailbox.messages.values().find(|m| !m.attachments.is_empty()).unwrap();
+    let (id, index) = (message.id, 0);
+    let expected = message.attachments[index].data.to_vec();
+
+    let no_files = Policy::default();
+    assert!(
+        err(&mut h, &no_files, "save_attachment", json!({"id": id, "index": index, "path": "notes.txt"}))
+            .is_some_and(|e| e.contains("don't name files"))
+    );
+    assert!(!root.join("notes.txt").exists());
+
+    let pol = Policy { files: Some(FilesDir::new(&root).unwrap()), allow: Vec::new() };
+    let r = call_tool(&mut h, &pol, "save_attachment", &json!({"id": id, "index": index, "path": "notes.txt"}));
+    assert!(!r.is_error, "{r:?}");
+    let out: Value = serde_json::from_str(r.content[0]["text"].as_str().unwrap()).unwrap();
+    assert_eq!((out["path"].as_str(), out["bytes"].as_u64()), (Some("notes.txt"), Some(expected.len() as u64)));
+    assert_eq!(std::fs::read(root.join("notes.txt")).unwrap(), expected);
+
+    let why = err(&mut h, &pol, "save_attachment", json!({"id": id, "index": index, "path": "notes.txt"}));
+    assert!(why.as_deref().is_some_and(|e| e.contains("already exists")), "{why:?}");
+    assert!(err(&mut h, &pol, "save_attachment", json!({"id": id, "index": index, "path": "../notes.txt"})).is_some());
+    assert!(!base.join("notes.txt").exists());
+    let _ = std::fs::remove_dir_all(&base);
+}
+
+#[test]
 fn never_and_unknown_commands_are_refused() {
     let mut h = Headless::new(sample(), Class::ALL.to_vec());
     let pol = Policy { files: None, allow: Class::ALL.to_vec() };

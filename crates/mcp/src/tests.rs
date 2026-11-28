@@ -101,6 +101,26 @@ fn resources() {
 }
 
 #[test]
+fn save_attachment_is_a_tool_and_returns_the_files_bytes() {
+    let session = mailcraft_engine::Session::new(mailcraft_engine::sample::mailbox(1_791_993_600, 0));
+    let message = session.mailbox.messages.values().find(|m| !m.attachments.is_empty()).expect("the sample has an attachment");
+    let (id, index) = (message.id, 0);
+    let expected = message.attachments[index].data.to_vec();
+    let mut s = Server::new(Box::new(Headless::new(session, Vec::new())));
+
+    let tools = call(&mut s, 1, "tools/list", json!({}));
+    let save = tools["result"]["tools"].as_array().unwrap().iter().find(|t| t["name"] == "save_attachment").expect("the tool is listed");
+    assert_eq!(save["annotations"]["readOnlyHint"], true);
+    assert_eq!(save["inputSchema"]["required"], json!(["id", "index"]));
+
+    let saved = tool(&mut s, "save_attachment", json!({"id": id, "index": index}));
+    assert_eq!(saved["name"], "homepage-round-3-notes.txt");
+    assert_eq!(saved["bytes"], expected.len() as u64);
+    let data = saved["data"].as_str().unwrap();
+    assert_eq!(mailcraft_engine::cmd::base64_decode(data).unwrap(), expected);
+}
+
+#[test]
 fn list_tasks_shows_every_account_whatever_the_window_shows() {
     let allow = vec![crate::Class::Accounts, crate::Class::Send];
     let mut s = Server::new(Box::new(Headless::new(mailcraft_engine::Session::empty(), allow)));
