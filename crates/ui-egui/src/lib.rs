@@ -48,6 +48,8 @@ macro_rules! tl_later {
 
 #[cfg(test)]
 mod accent_custom_tests;
+#[cfg(test)]
+mod account_card_tests;
 mod account_setup;
 pub mod address_book;
 mod advanced_search;
@@ -175,6 +177,8 @@ mod keep_offline;
 mod key_chain_tests;
 pub mod keys;
 #[cfg(test)]
+mod label_columns_tests;
+#[cfg(test)]
 #[path = "late_work_tests.rs"]
 mod late_work_tests;
 #[cfg(test)]
@@ -241,6 +245,8 @@ pub mod scheduling;
 mod search_pills;
 #[cfg(test)]
 mod search_pills_tests;
+#[cfg(test)]
+mod search_scope_tests;
 mod search_suggest;
 mod secret_field;
 #[cfg(test)]
@@ -382,7 +388,7 @@ pub struct Services {
     /// Files delivered asynchronously otherwise (dropped in the browser): each goes where its
     /// kind says, to the message with the keyboard, whatever a picker was last opened for.
     pub inbox: Option<Inbox>,
-    /// Desktop: open an attachment the owner asked to open (`mail.openAttachment`) with the
+    /// Desktop: open an attachment the owner asked to open with the
     /// system's own program for its kind: the host writes it, under the name given (already
     /// made safe, and made safe again there), into a folder of MailCraft's own that only this
     /// user can read and that is emptied when MailCraft quits, and asks the system to open it.
@@ -701,6 +707,10 @@ impl Services {
 pub trait RichClipboard {
     /// Put `html` on the clipboard with `text` beside it for programs that take text.
     fn put(&self, html: &str, text: &str) -> Result<(), String>;
+    /// Put plain text on the clipboard when the source document has no HTML.
+    fn put_text(&self, _text: &str) -> Result<(), String> {
+        Err("the clipboard cannot write plain text".into())
+    }
     /// The HTML on the clipboard, when what is on it has HTML.
     fn html(&self) -> Option<String>;
     /// The picture on the clipboard as PNG, when what is on it is a picture.
@@ -1438,6 +1448,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.open", "Open Mailbox", "File › Open & Export", "{}"),
     ("ui.import", "Import", "File › Open & Export", "{}"),
     ("ui.attach", "Attach File", "Message › Include", "{}"),
+    (
+        "ui.openDraftAttachment",
+        "Open Draft Attachment",
+        "Message › Include",
+        r#"{"compose": id, "index": zero-based, "confirmed"?: bool} — open a copy of the attachment in that draft, or download it in the browser"#,
+    ),
     ("ui.toggleFolder", "Expand or Collapse Folder", "Folder", r#"{"id": number}"#),
     (
         "ui.openWindow",
@@ -2369,6 +2385,10 @@ impl MailApp {
             // still the ones it took, and a time picked to put them at. A hint only, as above.
             None if id == "ui.calendarPaste" => calendar_view::paste_ready(self),
             None if id == "ui.openDataFolder" => self.services.data_folder.is_some() && !self.data_removed,
+            None if id == attachment_open::OPEN_DRAFT => {
+                self.session.compose.as_ref().is_some_and(|c| !c.attachments.is_empty())
+                    && (self.services.open_file.is_some() || self.services.download.is_some())
+            }
             None => UI_COMMANDS.iter().any(|c| c.0 == id),
         }
     }
@@ -2583,9 +2603,13 @@ impl MailApp {
         {
             self.recipient_focus_wanted = answer.get("compose").and_then(Value::as_u64);
         }
+        // Formatting keeps the keyboard where the owner is typing. If a header field has it,
+        // the ribbon still formats the body without moving the keyboard out of that field.
+        let format_body = id.starts_with("format.")
+            && self.ctx.as_ref().zip(self.session.compose_id()).is_none_or(|(ctx, compose)| compose::focused_header(ctx, compose).is_none());
         // What was done to the text being written leaves the keyboard in it.
         if r.is_ok()
-            && (id.starts_with("format.")
+            && (format_body
                 || matches!(id, "compose.link" | "compose.undo" | "compose.redo" | "edit.paste" | "compose.formatHtml" | "compose.formatPlain"))
         {
             self.want_body_focus();
@@ -6165,7 +6189,7 @@ const MAX_PROBLEM: usize = 600;
 pub(crate) fn refusal_worth_a_box(id: &str, error: &str) -> bool {
     let quiet = ["not available:", "unknown command", "bad parameters:", "nothing "];
     let lower = error.trim_start().to_lowercase();
-    !id.starts_with("ui.") && !error.trim().is_empty() && !quiet.iter().any(|q| lower.starts_with(q))
+    (!id.starts_with("ui.") || id == attachment_open::OPEN_DRAFT) && !error.trim().is_empty() && !quiet.iter().any(|q| lower.starts_with(q))
 }
 
 fn feedback(id: &str, v: &Value) -> Option<String> {

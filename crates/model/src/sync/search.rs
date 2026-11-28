@@ -10,6 +10,7 @@
 //! The query is the owner's own words: it is never written into a log line, and neither request
 //! nor result shows it, or anything of a message, in debug output.
 
+use mailcraft_time::Timestamp;
 use serde::{Deserialize, Serialize};
 
 use super::{GraphMessage, SharedRefusal, is_false};
@@ -36,6 +37,9 @@ pub struct GraphSearchRequest {
     /// server; the rest is checked here against what comes back
     /// ([`crate::search::Query::for_server`]).
     pub query: String,
+    /// UTC bounds for a received-date-only search: inclusive start, exclusive end.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub received: Option<(Option<Timestamp>, Option<Timestamp>)>,
     /// Where the next page is, as the server named it; empty for the first.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub next: String,
