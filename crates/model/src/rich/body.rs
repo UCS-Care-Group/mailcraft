@@ -128,9 +128,12 @@ impl RichBody {
         &self.text
     }
 
-    /// The text without formatting (positions count its characters).
+    /// The text without formatting (positions count its characters). A manual line break is a
+    /// newline here, one character for one, so the text an agent reads (`composing.body`) is
+    /// ordinary text. The rich text still holds the line-break character.
     pub fn plain(&self) -> String {
-        self.text.text()
+        let text = self.text.text();
+        if text.contains(super::LINE_BREAK) { text.replace(super::LINE_BREAK, "\n") } else { text }
     }
 
     pub fn selection(&self) -> Selection {

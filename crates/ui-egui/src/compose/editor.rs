@@ -1152,7 +1152,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         }
         for table in &p.tables {
             let rect = table.rect.translate(at.to_vec2());
-            table.grid.paint(painter, rect.min, &t);
+            table.grid.paint(painter, rect.min, &t, app.ui.show_formatting_marks.then_some(t.blue));
             let index = p.start + table.local;
             if sel.start() <= index && sel.end() > index {
                 painter.rect_stroke(rect, 0.0, Stroke::new(2.0, fill), egui::StrokeKind::Inside);
@@ -1309,13 +1309,28 @@ fn marked_space(c: char) -> bool {
 
 /// Formatting marks over one paragraph: a dot in each space, an arrow in each tab, a return
 /// mark at each manual line break, and a paragraph mark at the paragraph's end. Painted, not
-/// written into the text.
+/// written into the text. A picture or a table is drawn past the placeholder character, so the
+/// mark at the end of that row stands to the right of it.
 fn paint_marks(painter: &egui::Painter, p: &Para, at: egui::Pos2, ink: egui::Color32) {
+    let mut objects = Vec::with_capacity(p.pictures.len() + p.tables.len());
+    objects.extend(p.pictures.iter().map(|b| b.rect));
+    objects.extend(p.tables.iter().map(|b| b.rect));
+    paint_galley_marks(painter, &p.galley, at, ink, &objects);
+}
+
+/// Formatting marks over a laid-out galley. `objects` are pictures and tables in the galley's
+/// coordinates; a row that holds one ends after it. Rows outside the clip are left alone.
+fn paint_galley_marks(painter: &egui::Painter, galley: &Galley, at: egui::Pos2, ink: egui::Color32, objects: &[Rect]) {
     let stroke = Stroke::new(1.25, ink);
-    let rows = p.galley.rows.len();
-    for (i, row) in p.galley.rows.iter().enumerate() {
+    let clip = painter.clip_rect();
+    let rows = galley.rows.len();
+    for (i, row) in galley.rows.iter().enumerate() {
         let base = at + row.pos.to_vec2();
         let height = row.size.y.max(BASE_SIZE);
+        let top = base.y;
+        if top + height < clip.min.y || top > clip.max.y {
+            continue;
+        }
         for g in &row.glyphs {
             let left = base.x + g.pos.x;
             let baseline = base.y + g.pos.y;
@@ -1327,7 +1342,14 @@ fn paint_marks(painter: &egui::Painter, p: &Para, at: egui::Pos2, ink: egui::Col
                 painter.circle_filled(pos2(left + g.advance_width * 0.5, mid_y), r, ink);
             }
         }
-        let end_x = row.glyphs.last().map(|g| base.x + g.max_x()).unwrap_or(base.x);
+        let row_box = row.rect();
+        let mut end = row.glyphs.last().map(|g| row.pos.x + g.max_x()).unwrap_or(row.pos.x);
+        for object in objects {
+            if object.min.y < row_box.max.y && object.max.y > row_box.min.y {
+                end = end.max(object.max.x);
+            }
+        }
+        let end_x = at.x + end;
         let mid = base.y + height * 0.5;
         let mark = height.clamp(11.0, 18.0);
         if row.ends_with_newline {

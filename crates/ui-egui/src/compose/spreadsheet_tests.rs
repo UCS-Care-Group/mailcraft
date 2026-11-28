@@ -47,7 +47,7 @@ fn centered_and_right_aligned_text_stay_inside_their_cells() {
     let ctx = egui::Context::default();
     let mut frame = ctx.run_ui(egui::RawInput::default(), |ui| {
         let tokens = Tokens::light();
-        table::TableLayout::new(ui.ctx(), source, &tokens, 240.0).paint(ui.painter(), pos2(40.0, 40.0), &tokens);
+        table::TableLayout::new(ui.ctx(), source, &tokens, 240.0).paint(ui.painter(), pos2(40.0, 40.0), &tokens, None);
     });
     frame.textures_delta.clear();
     let shapes = frame.shapes.iter().filter_map(|clipped| match &clipped.shape {
@@ -103,7 +103,7 @@ fn plain_mode_draws_the_actual_table_text_in_one_object() {
         let para = Layout::default().lay(ui.ctx(), paragraph, 0, true, &[], &tokens, 240.0, &mut crate::fonts::Chooser::none());
         chars = para.chars;
         let table = para.tables.first().unwrap();
-        table.grid.paint(ui.painter(), pos2(40.0, 40.0), &tokens);
+        table.grid.paint(ui.painter(), pos2(40.0, 40.0), &tokens, None);
     });
     frame.textures_delta.clear();
     assert_eq!(chars, 1);

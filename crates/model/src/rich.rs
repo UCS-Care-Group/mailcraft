@@ -491,7 +491,9 @@ pub fn safe_link(url: &str) -> Option<String> {
 
 /// Text as a body may hold it: no control characters but the tab, no line breaks (they split
 /// paragraphs, see [`lines`]), and no [`OBJECT`] (only a picture run holds one). A manual line
-/// break ([`LINE_BREAK`]) stays: it is one character of the paragraph, not a new paragraph.
+/// break is named beside the tab so it is obvious that it stays. It is not a control character,
+/// so the filter would keep it without that name. It is one character of the paragraph, not a
+/// new paragraph.
 fn clean_line(s: &str) -> String {
     s.chars().filter(|c| (*c == '\t' || *c == LINE_BREAK || !c.is_control()) && *c != OBJECT).collect()
 }

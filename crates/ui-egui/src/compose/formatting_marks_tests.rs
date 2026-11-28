@@ -54,8 +54,10 @@ fn the_switch_does_not_change_the_message() {
     let body = h.state().session.compose.as_ref().unwrap().body.text().clone();
     assert_eq!(body.paragraphs().len(), 2);
     // The editor's own text keeps the break as one character, so the caret's positions stay put.
-    // What is sent is a real new line, with none of the marks.
-    assert_eq!(plain(&h), format!("Hello  \t{LINE_BREAK}next\npara"));
+    // What an agent reads, and what is sent, is a real new line, with none of the marks.
+    assert!(body.text().contains(LINE_BREAK));
+    assert_eq!(body.text().chars().count(), plain(&h).chars().count());
+    assert_eq!(plain(&h), "Hello  \t\nnext\npara");
     assert_eq!(body.to_plain(), "Hello  \t\nnext\npara");
     let html = mailcraft_mime_model::rich::to_html(&body);
     assert!(!marked(&html), "{html}");
@@ -100,6 +102,20 @@ fn the_signature_editor_has_the_same_switch() {
     w.run_steps(2);
     assert!(!w.state().ui.show_formatting_marks);
     assert_eq!(w.state().session.signature_edit.as_ref().unwrap().body.text().text(), before);
+}
+
+/// The switch is one of the window settings, so it is still on the next time the window opens.
+#[test]
+fn the_switch_is_kept_with_the_window_settings() {
+    let mut h = writing();
+    h.state_mut().execute("ui.showFormattingMarks", json!({"value": true})).unwrap();
+    let saved = serde_json::to_value(h.state().prefs()).unwrap();
+    assert_eq!(saved["showFormattingMarks"], true);
+    let restored: crate::UiState = serde_json::from_value(saved).unwrap();
+    assert!(restored.show_formatting_marks);
+    let off = serde_json::json!({"tab": "Home"});
+    let old: crate::UiState = serde_json::from_value(off).unwrap();
+    assert!(!old.show_formatting_marks);
 }
 
 /// What the marks look like, when `MAILCRAFT_SHOTS_DIR` is set: spaces, a tab, a line break,

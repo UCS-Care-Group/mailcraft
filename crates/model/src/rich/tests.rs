@@ -21,6 +21,7 @@ pub(super) fn check(t: &RichText) {
         assert!(p.list == ListKind::None || p.align == Align::Left, "a list item is left: {t:?}");
         for r in &p.runs {
             assert!(!r.text.is_empty(), "{t:?}");
+            // A tab stays. Naming the manual line break matches `!is_control` for U+2028.
             assert!(r.text.chars().all(|c| c == '\t' || c == LINE_BREAK || !c.is_control()), "{t:?}");
             assert_eq!(r.style.clone().clean(), r.style);
         }
@@ -52,6 +53,11 @@ fn a_manual_line_break_stays_inside_its_paragraph() {
     assert_eq!(typed.paragraphs().len(), 1);
     assert_eq!(typed.text(), format!("one{LINE_BREAK}two"));
     assert_eq!(typed.to_plain(), "one\ntwo");
+    // U+2028 is not a control character, so naming it in `clean_line` does not change the filter.
+    // The text an agent reads is a newline of the same length.
+    assert!(!LINE_BREAK.is_control());
+    assert_eq!(RichBody::new(typed.clone()).plain(), "one\ntwo");
+    assert_eq!(RichBody::new(typed.clone()).plain().chars().count(), typed.len());
     check(&typed);
     let mut t = RichText::from_plain("one");
     let n = t.insert(t.len(), &LINE_BREAK.to_string(), &Style::default()).unwrap();

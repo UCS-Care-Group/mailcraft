@@ -899,8 +899,9 @@ pub struct UiState {
     /// The ribbon's layout: one row of commands (simplified, the default), or three rows in groups.
     pub ribbon_mode: ribbon::Mode,
     /// Format Text › Show/Hide ¶ (#1278): paragraph marks, spaces, tabs and manual line breaks
-    /// while a message or a signature is edited. Off unless the owner turns it on. The marks
-    /// are painted over the text; they are not part of the message and are not sent.
+    /// while a message or a signature is edited. Off until the owner turns it on, and kept with
+    /// the other window settings. The marks are painted over the text; they are not part of the
+    /// message and are not sent.
     pub show_formatting_marks: bool,
     /// Interface theme: light, dark, or follow the OS appearance.
     pub theme: theme::Appearance,
@@ -2547,7 +2548,16 @@ impl MailApp {
         // What was done to the text being written leaves the keyboard in it.
         if r.is_ok()
             && (id.starts_with("format.")
-                || matches!(id, "compose.link" | "compose.undo" | "compose.redo" | "edit.paste" | "compose.formatHtml" | "compose.formatPlain"))
+                || matches!(
+                    id,
+                    "compose.link"
+                        | "compose.undo"
+                        | "compose.redo"
+                        | "edit.paste"
+                        | "compose.formatHtml"
+                        | "compose.formatPlain"
+                        | "ui.showFormattingMarks"
+                ))
         {
             self.want_body_focus();
         }
