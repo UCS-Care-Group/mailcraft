@@ -2376,6 +2376,9 @@ impl Mailbox {
     pub fn add_message(&mut self, mut m: Message) -> Result<Id, ModelError> {
         let folder = self.folder(m.folder).ok_or(not_found("folder", m.folder))?;
         m.account = folder.account;
+        if (!m.read_header.is_empty() || m.read_header_cut) && !self.keeps_header_as_it_came(m.account) {
+            (m.read_header, m.read_header_cut) = (String::new(), false);
+        }
         // Within what the mailbox keeps of originals in all (#30).
         if m.original.as_ref().is_some_and(|o| !self.room_for_original(o.size())) {
             m.original = None;
@@ -3327,6 +3330,20 @@ impl Mailbox {
     /// through Graph, not a shared mailbox (whose mail the rules leave alone).
     pub fn keeps_rules(&self, account: Id) -> bool {
         self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
+    }
+
+    /// Whether a rule for `account`'s mail (its own or every account's, switched on or off, kept
+    /// here or on its server) looks for words in the header (#566): only then is a message's header
+    /// kept as it came ([`crate::Message::read_header`], up to 64 KB a message), so that the
+    /// mailbox doesn't grow with it for the mail of an account no such rule reads: never a shared
+    /// mailbox's, which the rules leave alone ([`Mailbox::rules_reach`]). Of mail that came before
+    /// such a rule, a word not found can't be told ([`crate::Condition::unread_in`]).
+    pub fn keeps_header_as_it_came(&self, account: Id) -> bool {
+        self.rules_reach(account)
+            && self
+                .rules
+                .iter()
+                .any(|r| r.is_for(account) && r.conditions.iter().chain(&r.exceptions).any(|c| matches!(c, crate::Condition::HeaderContains(_))))
     }
 
     /// Whether the rule reads the words of a sender or a recipient in their addresses alone: one
@@ -5393,6 +5410,7 @@ impl Mailbox {
         let mut on_server: HashSet<(Id, u32)> = HashSet::new();
         let mut untied = 0;
         let mut cut_hidden = 0;
+        let mut cut_lines = 0;
         for m in self.messages.values_mut() {
             // What the sender hid is kept to a few KB; a hostile file's is cut at a character.
             if m.hidden_text.len() > crate::MAX_HIDDEN_TEXT {
@@ -5403,6 +5421,20 @@ impl Mailbox {
                 }
                 m.hidden_text.truncate(end);
                 cut_hidden += 1;
+            }
+            // So are the header lines kept as they came, after the last whole line that fits; a
+            // hostile file's are said to be cut, as a message's are when they are read
+            // ([`crate::Message::read_header_cut`]), so a rule with words in the header can't tell.
+            if m.read_header.len() > crate::MAX_READ_HEADER {
+                let m = Arc::make_mut(m);
+                let mut end = crate::MAX_READ_HEADER;
+                while end > 0 && !m.read_header.is_char_boundary(end) {
+                    end -= 1;
+                }
+                let end = m.read_header.get(..end).and_then(|kept| kept.rfind('\n')).map_or(0, |n| n + 1);
+                m.read_header.truncate(end);
+                m.read_header_cut = true;
+                cut_lines += 1;
             }
             let twice = m.uid != 0 && !on_server.insert((m.folder, m.uid));
             if twice || m.synced.is_some_and(|s| s.uid != m.uid) {
@@ -5416,6 +5448,9 @@ impl Mailbox {
         }
         if cut_hidden > 0 {
             fixed.push(format!("{cut_hidden} message(s) with too much hidden text cut"));
+        }
+        if cut_lines > 0 {
+            fixed.push(format!("{cut_lines} message(s) with too many header lines kept cut"));
         }
         if untied > 0 {
             fixed.push(format!("{untied} message(s) untied from the mail server's copy"));

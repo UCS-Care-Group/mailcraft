@@ -651,6 +651,9 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         read.original = None;
         no_room = needs.max(1);
     }
+    // Its header as it came, only for the mail of an account a rule looks for words in its header
+    // for (#566).
+    let keeps_header = mb.message(here).is_some_and(|m| mb.keeps_header_as_it_came(m.account));
     let m = mb.message_mut(here).ok()?;
     // Check again asked for the bytes it came as alone (#30), or a move asked the copy it came
     // from for them: nothing else of it changes. Unless the server has had another version of it
@@ -708,6 +711,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     }
     m.parts_removed = false;
     (m.headers, m.header_block, m.fresh_stamps) = (read.headers, read.header_block, read.fresh_stamps);
+    (m.read_header, m.read_header_cut) = if keeps_header { (read.read_header, read.read_header_cut) } else { (String::new(), false) };
     // (What a listing left out of its categories stays left out: they are the server's still,
     // [`Message::categories_cut`].)
     m.headers_cut = read.headers_cut || listing_cut;

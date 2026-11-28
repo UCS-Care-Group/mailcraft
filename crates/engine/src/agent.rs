@@ -709,6 +709,7 @@ const NEVER: &[&str] = &[
     "ui.calendarPaste",
     // A file from a message opened with another program: only ever the owner's own doing.
     "mail.openAttachment",
+    "ui.openDraftAttachment",
     "ui.previewAttachment",
     // Installing a new version, or going back to the one before: only the owner's click.
     "ui.restartToUpdate",

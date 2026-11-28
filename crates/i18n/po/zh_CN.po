@@ -2395,6 +2395,11 @@ msgid "Attachments"
 msgstr "附件"
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+msgid "Attachments can't be opened here."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Attachments can't be opened here: save it with Save As instead."
@@ -5116,8 +5121,18 @@ msgstr "完成：已是最新状态"
 msgid "Done: {n} new"
 msgstr "完成：{n} 项新增"
 
-#. android, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to download {name}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to open {name}"
+msgstr ""
+
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Download"
 msgstr "下载"
@@ -7068,6 +7083,12 @@ msgstr "将回复发送至"
 msgid "Have replies sent to other addresses"
 msgstr "将回复发送到其他地址"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "邮件头包含"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -8989,6 +9010,11 @@ msgstr "MailCraft 现在可以像 Outlook 网页版一样，通过 Microsoft Gra
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "MailCraft 无法在服务器上保存此账户的规则"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "MailCraft can't open {name} because of its file type."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11603,7 +11629,7 @@ msgid "Nothing was done: what the agent asked about changed after you were asked
 msgstr "未执行任何操作：在征求您的确认后，智能体询问的内容发生了变化。"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Nothing was done: what you were asked about has changed since. Ask again."
 msgstr "未执行任何操作：询问您的内容此后已发生变化。请重试。"
@@ -12041,7 +12067,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "仅在 MailCraft 不是前台窗口时通知，且只适用于您自己账户的收件箱。"
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Open"
 msgstr "打开"
@@ -12091,6 +12117,11 @@ msgstr "打开对话框"
 #, fuzzy
 msgid "Open Draft"
 msgstr "打开草稿"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Open Draft Attachment"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -13601,7 +13632,7 @@ msgid "Remove Account"
 msgstr "移除账户"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Remove Attachment"
 msgstr "移除附件"
@@ -17956,6 +17987,11 @@ msgstr "域名 {domain} 指定了自动设置 (Autodiscover) 所用的服务器�
 #, fuzzy
 msgid "The download was called off."
 msgstr "下载已取消。"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "The draft isn't open any more"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -22936,6 +22972,12 @@ msgstr "有附件"
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "文件过多：其余文件未删除"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "邮件头包含 {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

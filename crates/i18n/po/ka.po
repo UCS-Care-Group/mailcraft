@@ -2392,6 +2392,11 @@ msgid "Attachments"
 msgstr "დანართები"
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+msgid "Attachments can't be opened here."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Attachments can't be opened here: save it with Save As instead."
@@ -5104,8 +5109,18 @@ msgstr "მზადაა: განახლებულია"
 msgid "Done: {n} new"
 msgstr "მზადაა: ახალი {n}"
 
-#. android, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to download {name}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to open {name}"
+msgstr ""
+
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Download"
 msgstr "ჩამოტვირთვა"
@@ -7062,6 +7077,12 @@ msgstr "პასუხები გაიგზავნოს"
 msgid "Have replies sent to other addresses"
 msgstr "პასუხები სხვა მისამართებზე გაიგზავნოს"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "სათაური შეიცავს"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -8972,6 +8993,11 @@ msgstr "MailCraft-ს ახლა შეუძლია {account} Microsoft-თ
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "MailCraft ვერ ინახავს ამ ანგარიშის წესებს მის სერვერზე"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "MailCraft can't open {name} because of its file type."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11579,7 +11605,7 @@ msgid "Nothing was done: what the agent asked about changed after you were asked
 msgstr "არაფერი გაკეთებულა: ის, რასაც აგენტი ეკითხებოდა, შეიცვალა მას შემდეგ, რაც გკითხეს."
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Nothing was done: what you were asked about has changed since. Ask again."
 msgstr "არაფერი გაკეთებულა: ის, რაზეც გკითხეთ, მას შემდეგ შეიცვალა. სცადეთ თავიდან."
@@ -12017,7 +12043,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "მხოლოდ მაშინ, როცა MailCraft წინა პლანზე არ არის, და მხოლოდ თქვენი საკუთარი ანგარიშების „შემოსულებისთვის“."
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Open"
 msgstr "გახსნა"
@@ -12067,6 +12093,11 @@ msgstr "დიალოგის გახსნა"
 #, fuzzy
 msgid "Open Draft"
 msgstr "მონახაზის გახსნა"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Open Draft Attachment"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -13563,7 +13594,7 @@ msgid "Remove Account"
 msgstr "ანგარიშის წაშლა"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Remove Attachment"
 msgstr "დანართის წაშლა"
@@ -17899,6 +17930,11 @@ msgstr "დომენი {domain} ავტომატური დაყე�
 #, fuzzy
 msgid "The download was called off."
 msgstr "ჩამოტვირთვა გაუქმდა."
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "The draft isn't open any more"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -22881,6 +22917,12 @@ msgstr "აქვს დანართი"
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "ზედმეტად ბევრი ფაილია: დანარჩენი არ წაშლილა"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "სათაური შეიცავს {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

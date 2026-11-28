@@ -9,6 +9,8 @@ use serde_json::json;
 use crate::theme::{Tokens, paint_clipped, regular};
 use crate::{MailApp, icons};
 
+#[cfg(test)]
+mod attachment_tests;
 pub(crate) mod editor;
 #[cfg(test)]
 mod font_tests;
@@ -178,6 +180,7 @@ fn recipient_field(app: &mut MailApp, ui: &mut Ui, key: &str, label: &str, text:
 /// What the window shows of the message being written besides its body (copied out of the
 /// session once a frame, so the commands it runs can change the message meanwhile).
 struct Shown {
+    id: u64,
     mode: ComposeMode,
     dirty: bool,
     draft: bool,
@@ -200,6 +203,7 @@ impl Shown {
     fn of(app: &MailApp) -> Option<Shown> {
         let c = app.session.compose.as_ref()?;
         Some(Shown {
+            id: c.id,
             mode: c.mode,
             send_at: c.send_at,
             dirty: c.dirty,
@@ -263,33 +267,13 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
         header(app, ui, &c, focus_to);
     }
 
-    // Attachments, each with a way to take it off again.
+    // Attachments, with separate targets to open and remove each one.
     if !c.attachments.is_empty() {
         egui::Frame::NONE.inner_margin(egui::Margin { left: 16, right: 12, top: 6, bottom: 6 }).show(ui, |ui| {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing = vec2(6.0, 6.0);
                 for (i, (name, size)) in c.attachments.iter().enumerate() {
-                    let label = format!("{name}  ({size})");
-                    let w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(label.clone(), regular(12.0), t.text).size().x).min(260.0);
-                    let (r, _) = ui.allocate_exact_size(vec2(w + 52.0, 26.0), Sense::hover());
-                    ui.painter().rect(r, 5.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
-                    icons::paint(
-                        ui.painter(),
-                        Rect::from_center_size(pos2(r.min.x + 13.0, r.center().y), vec2(16.0, 16.0)),
-                        "attach",
-                        t.icon,
-                        t.accent,
-                    );
-                    paint_clipped(ui.painter(), pos2(r.min.x + 26.0, r.center().y), w, &label, regular(12.0), t.text);
-                    let x = Rect::from_center_size(pos2(r.max.x - 12.0, r.center().y), vec2(18.0, 18.0));
-                    let xr = ui.interact(x, ui.scope_id().with(("unattach", i)), Sense::click());
-                    if xr.hovered() {
-                        ui.painter().rect_filled(x, 3.0, t.hover);
-                    }
-                    icons::paint(ui.painter(), x.shrink(4.0), "close", t.text_dim, t.accent);
-                    if xr.on_hover_text(tl!("Remove")).clicked() {
-                        let _ = app.execute("compose.removeAttachment", json!({"index": i}));
-                    }
+                    attachment_chip(app, ui, &t, c.id, i, name, size);
                 }
             });
         });
@@ -320,6 +304,63 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
             }
         });
     });
+}
+
+fn attachment_chip(app: &mut MailApp, ui: &mut Ui, t: &Tokens, compose: u64, index: usize, name: &str, size: &str) {
+    let command = crate::attachment_open::OPEN_DRAFT;
+    let can_open = app.enabled(command);
+    let download = app.services.open_file.is_none();
+    let label = format!("{name}  ({size})");
+    let w = ui.ctx().fonts_mut(|f| f.layout_no_wrap(label.clone(), regular(12.0), t.text).size().x).min(260.0);
+    let (rect, _) = ui.allocate_exact_size(vec2(w + 52.0, 26.0), Sense::hover());
+    let x = Rect::from_center_size(pos2(rect.max.x - 12.0, rect.center().y), vec2(18.0, 18.0));
+    let main = Rect::from_min_max(rect.min, pos2(x.min.x, rect.max.y));
+    let id = ui.scope_id().with(("draftAttachment", compose, index));
+    let file = ui.interact(main, id, if can_open { Sense::click() } else { Sense::hover() });
+    let remove = ui.interact(x, id.with("remove"), Sense::click());
+    app.hit.add("draftAttachment", index as u64, main);
+    app.hit.add("draftAttachmentRemove", index as u64, x);
+
+    ui.painter().rect(rect, 5.0, t.panel, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
+    if can_open {
+        crate::widgets::bg(ui, main.shrink(1.0), &file, file.has_focus(), t);
+    }
+    icons::paint(ui.painter(), Rect::from_center_size(pos2(rect.min.x + 13.0, rect.center().y), vec2(16.0, 16.0)), "attach", t.icon, t.accent);
+    paint_clipped(ui.painter(), pos2(rect.min.x + 26.0, rect.center().y), w, &label, regular(12.0), t.text);
+    crate::widgets::bg(ui, x, &remove, remove.has_focus(), t);
+    icons::paint(ui.painter(), x.shrink(4.0), "close", t.text_dim, t.accent);
+    remove.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, tl!("Remove Attachment")));
+    if remove.on_hover_text(tl!("Remove")).clicked() {
+        let _ = app.execute("compose.removeAttachment", json!({"compose": compose, "index": index}));
+    }
+
+    let hint = if !can_open {
+        tl!("Attachments can't be opened here.")
+    } else if download {
+        tl!("Double-click to download {name}")
+    } else {
+        tl!("Double-click to open {name}")
+    };
+    let file = file.on_hover_text(crate::i18n::fmt(hint, &[("name", name)]));
+    file.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, can_open, &label));
+    let params = || json!({"compose": compose, "index": index});
+    let pointer_clicked = file.clicked_by(egui::PointerButton::Primary);
+    if pointer_clicked {
+        file.request_focus();
+    }
+    // `clicked` also includes keyboard and accessibility activation, which don't need two clicks.
+    if can_open && (file.double_clicked() || (file.clicked() && !pointer_clicked)) {
+        let _ = app.run(command, params());
+    }
+    if can_open {
+        file.context_menu(|ui| {
+            if download {
+                crate::widgets::mi(ui, app, "Download", command, params());
+            } else {
+                crate::widgets::mi(ui, app, "Open", command, params());
+            }
+        });
+    }
 }
 
 /// What the message is and its actions, over its lines in the reading pane. The actions use
