@@ -7071,6 +7071,12 @@ msgstr "პასუხები გაიგზავნოს"
 msgid "Have replies sent to other addresses"
 msgstr "პასუხები სხვა მისამართებზე გაიგზავნოს"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "სათაური შეიცავს"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -22893,6 +22899,12 @@ msgstr "აქვს დანართი"
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "ზედმეტად ბევრი ფაილია: დანარჩენი არ წაშლილა"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "სათაური შეიცავს {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

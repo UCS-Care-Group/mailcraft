@@ -7099,6 +7099,12 @@ msgstr "Odpovědi posílat na"
 msgid "Have replies sent to other addresses"
 msgstr "Odpovědi posílat na jiné adresy"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "Záhlaví obsahuje"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -23029,6 +23035,12 @@ msgstr "má přílohu"
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "obsahuje příliš mnoho souborů: zbytek nebyl odstraněn"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "záhlaví obsahuje {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

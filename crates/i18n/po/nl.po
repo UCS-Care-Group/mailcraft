@@ -6821,6 +6821,12 @@ msgstr "Antwoorden laten verzenden naar"
 msgid "Have replies sent to other addresses"
 msgstr "Antwoorden laten verzenden naar andere adressen"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "Koptekst bevat"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -22366,6 +22372,12 @@ msgstr "heeft een bijlage"
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "heeft te veel bestanden: de rest is niet verwijderd"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "de koptekst bevat {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

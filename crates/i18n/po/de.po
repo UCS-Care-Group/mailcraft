@@ -6681,6 +6681,12 @@ msgstr "Antworten senden an"
 msgid "Have replies sent to other addresses"
 msgstr "Antworten an andere Adressen senden lassen"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "Kopfzeile enthält"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -21662,6 +21668,12 @@ msgstr "hat einen Anhang"
 #: crates/ui-egui/src/data_removal.rs
 msgid "has too many files: the rest was not removed"
 msgstr "enthält zu viele Dateien: Der Rest wurde nicht entfernt"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "die Kopfzeile enthält {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

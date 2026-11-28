@@ -5889,6 +5889,11 @@ msgstr ""
 msgid "Have replies sent to other addresses"
 msgstr ""
 
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Header contains"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 msgid "Height"
@@ -19078,6 +19083,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "has too many files: the rest was not removed"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "header contains {words}"
 msgstr ""
 
 #. interface

@@ -264,6 +264,10 @@ pub fn size_label_in(lang: mailcraft_i18n::Lang, bytes: u64) -> String {
 /// The most text of what a sender hid ([`Message::hidden_text`]) that is kept, in bytes.
 pub const MAX_HIDDEN_TEXT: usize = 16 * 1024;
 
+/// Most bytes [`Message::read_header`] keeps: past them, the message says those lines were cut
+/// ([`Message::read_header_cut`]).
+pub const MAX_READ_HEADER: usize = 64 * 1024;
+
 /// A message body. `text` is always there (readers derive it from the HTML when a message has no
 /// plain part); `html` is the original HTML when the message has one.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -352,6 +356,25 @@ pub struct Message {
     /// the mailbox file and read when the message is written out ([`crate::headers`]).
     #[serde(skip_serializing_if = "HeaderBlock::none_in_memory")]
     pub header_block: HeaderBlock,
+    /// The lines of its header MailCraft reads into the message itself (From, To, Cc, Bcc,
+    /// Reply-To, Subject, Message-ID, In-Reply-To, References, Date, MIME-Version, the Content-
+    /// lines, Importance, X-Priority, Keywords, Status, X-Status) or keeps among its other lines
+    /// only decoded (a line with encoded words), as they came, one `name: value` to a line (a
+    /// folded line joined), at most [`MAX_READ_HEADER`] bytes: with the others
+    /// ([`Message::headers`], [`Message::header_block`]), the header as it came, for a rule with
+    /// words in the header alone, and never written into a message (#566). Kept for mail read
+    /// while a rule for its account looks for words in the header
+    /// ([`crate::Mailbox::keeps_header_as_it_came`]), and left as it is when that rule goes. Empty
+    /// for a message read before it was kept or while no such rule was there, or made here: a
+    /// header rule can't tell of such a message ([`crate::Condition::unread_in`]).
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub read_header: String,
+    /// [`Message::read_header`] ran past [`MAX_READ_HEADER`] as it was read: a rule with words in
+    /// the header can't tell of a word it doesn't find there (#566). Kept and dropped with the
+    /// lines. What else of the header was left out is [`Message::headers_cut`], which every rule
+    /// that reads it reads.
+    #[serde(skip_serializing_if = "is_false")]
+    pub read_header_cut: bool,
     /// Whether Exchange's stamps in [`Message::headers`] were read from the message by a MailCraft
     /// that leaves them behind when mail goes to another account (#781). Only then are they
     /// believed: one saved before may be a sender's own, carried in from another account.
@@ -894,6 +917,44 @@ impl Message {
                     && line.get(7..).is_some_and(|m| m.trim().eq_ignore_ascii_case("REQUEST"))
             })
         })
+    }
+
+    /// The lines of its header a rule with words in the header looks in
+    /// ([`crate::Condition::HeaderContains`]), in lower case: made once for all the words looked
+    /// for. The header as it came, but for MailCraft's own lines (`X-MailCraft-…`, such as where a
+    /// .pst import found it), which it wasn't sent with. Those read into the message as they came
+    /// ([`Message::read_header`]) and those kept beside it, of a field not read so, its block
+    /// among them while it is in memory ([`Message::all_headers`]); for a message read before they
+    /// were kept, or made here, those it models written as it has them instead (a rule can't tell
+    /// of what isn't among them, nor of a block kept outside memory,
+    /// [`crate::Condition::unread_in`]).
+    pub fn header_lines_lowered(&self) -> Vec<String> {
+        let line = |name: &str, value: &str| format!("{name}: {value}").to_lowercase();
+        let ours = |name: &str| name.get(..12).is_some_and(|p| p.eq_ignore_ascii_case("x-mailcraft-"));
+        let all = self.all_headers();
+        if !self.read_header.is_empty() {
+            let read: Vec<String> = self.read_header.lines().map(str::to_lowercase).collect();
+            let names: std::collections::HashSet<&str> = read.iter().filter_map(|l| l.split_once(':').map(|(name, _)| name)).collect();
+            let kept =
+                all.iter().filter(|(name, _)| !ours(name) && !names.contains(name.to_lowercase().as_str())).map(|(name, value)| line(name, value));
+            let kept: Vec<String> = kept.collect();
+            return read.into_iter().chain(kept).collect();
+        }
+        let people = |list: &[Address]| list.iter().map(Address::full).collect::<Vec<_>>().join(", ");
+        let modelled = [
+            ("From", self.from.full()),
+            ("To", people(&self.to)),
+            ("Cc", people(&self.cc)),
+            ("Bcc", people(&self.bcc)),
+            ("Reply-To", people(&self.reply_to)),
+            ("Subject", self.subject.clone()),
+            ("Message-ID", self.message_id.clone()),
+            ("In-Reply-To", self.in_reply_to.clone()),
+            ("References", self.references.iter().map(|r| format!("<{r}>")).collect::<Vec<_>>().join(" ")),
+        ];
+        let modelled = modelled.iter().filter(|(_, value)| !value.is_empty()).map(|(name, value)| line(name, value));
+        let kept = all.iter().filter(|(name, _)| !ours(name)).map(|(name, value)| line(name, value));
+        modelled.chain(kept).collect()
     }
 }
 

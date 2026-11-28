@@ -7108,6 +7108,12 @@ msgstr "Răspunsurile să fie trimise la"
 msgid "Have replies sent to other addresses"
 msgstr "Răspunsurile să fie trimise la alte adrese"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "Antetul conține"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -23054,6 +23060,12 @@ msgstr "are un atașament"
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "are prea multe fișiere: restul nu a fost eliminat"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "antetul conține {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

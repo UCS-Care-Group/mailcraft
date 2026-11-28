@@ -7080,6 +7080,12 @@ msgstr "Küldjenek választ a"
 msgid "Have replies sent to other addresses"
 msgstr "Válaszok fogadása más címeken"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "A fejléc tartalmazza"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -22975,6 +22981,12 @@ msgstr "van mellékletje"
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "túl sok fájlja van: a többit nem távolították el"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "a fejléc tartalmazza: {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

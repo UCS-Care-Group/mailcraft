@@ -7077,6 +7077,12 @@ msgstr "将回复发送至"
 msgid "Have replies sent to other addresses"
 msgstr "将回复发送到其他地址"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "邮件头包含"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -22948,6 +22954,12 @@ msgstr "有附件"
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "文件过多：其余文件未删除"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "邮件头包含 {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

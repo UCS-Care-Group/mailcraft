@@ -7083,6 +7083,12 @@ msgstr "Enviar las respuestas a"
 msgid "Have replies sent to other addresses"
 msgstr "Enviar las respuestas a otras direcciones"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "El encabezado contiene"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -22974,6 +22980,12 @@ msgstr "tiene un archivo adjunto"
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "tiene demasiados archivos: el resto no se quitó"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "el encabezado contiene {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

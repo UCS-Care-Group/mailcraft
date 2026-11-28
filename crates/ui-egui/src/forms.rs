@@ -4536,6 +4536,7 @@ pub(crate) mod rules {
         Subject,
         Body,
         SubjectOrBody,
+        Header,
         Attachment,
         Importance,
         Sensitivity,
@@ -4548,7 +4549,7 @@ pub(crate) mod rules {
     }
 
     impl When {
-        const ALL: [When; 21] = [
+        const ALL: [When; 22] = [
             When::Person,
             When::From,
             When::SentTo,
@@ -4561,6 +4562,7 @@ pub(crate) mod rules {
             When::Subject,
             When::Body,
             When::SubjectOrBody,
+            When::Header,
             When::Attachment,
             When::Importance,
             When::Sensitivity,
@@ -4586,6 +4588,7 @@ pub(crate) mod rules {
                 When::Subject => "Subject contains",
                 When::Body => "Body contains",
                 When::SubjectOrBody => "Subject or body contains",
+                When::Header => "Header contains",
                 When::Attachment => "Has an attachment",
                 When::Importance => "Importance is",
                 When::Sensitivity => "Sensitivity is",
@@ -4627,6 +4630,7 @@ pub(crate) mod rules {
                 When::Subject => "subjectContains",
                 When::Body => "bodyContains",
                 When::SubjectOrBody => "subjectOrBodyContains",
+                When::Header => "headerContains",
                 When::Attachment => "hasAttachment",
                 When::Importance => "importance",
                 When::Sensitivity => "sensitivity",
@@ -4642,7 +4646,7 @@ pub(crate) mod rules {
         /// The condition is words to look for, or people's addresses: several, any one of
         /// which is enough, set apart by semicolons.
         fn takes_text(self) -> bool {
-            matches!(self, When::Person | When::From | When::SentTo | When::To | When::Subject | When::Body | When::SubjectOrBody)
+            matches!(self, When::Person | When::From | When::SentTo | When::To | When::Subject | When::Body | When::SubjectOrBody | When::Header)
         }
 
         /// It takes people's whole addresses.
@@ -5089,6 +5093,7 @@ pub(crate) mod rules {
             Condition::ToOrCcMe => tl!("my address is in To or Cc").to_string(),
             Condition::NotToMe => tl!("my address isn't in To").to_string(),
             Condition::SubjectOrBodyContains(t) => one(tl!("subject or body contains {words}"), t),
+            Condition::HeaderContains(t) => one(tl!("header contains {words}"), t),
             Condition::Sensitivity(s) => {
                 let level = match s {
                     Sensitivity::Normal => tl!("normal"),
