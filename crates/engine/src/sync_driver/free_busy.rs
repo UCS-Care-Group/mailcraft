@@ -239,7 +239,7 @@ impl Session {
             }
         };
         let due = known.is_none_or(|known| now - known.asked >= if known.error.is_empty() { REFRESH_MS } else { RETRY_MS });
-        if !due || facts.busy.blocks(Start::FreeBusy) {
+        if !due || facts.busy.blocks(Start::FreeBusy, account.id) {
             return (look, None);
         }
         let (from, to) = stretch(day);

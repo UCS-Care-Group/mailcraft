@@ -75,6 +75,7 @@ internal data class InboxRow(
     val flagged: Boolean = false,
     val hasAttachments: Boolean = false,
     val important: Boolean = false,
+    val lowImportance: Boolean = false,
     /** Messages the row stands for: more than one for a conversation. */
     val members: Int = 1,
     /** The ids of those messages (capped by the core), which a command on the row names. */
@@ -114,6 +115,15 @@ internal class ListSnapshot(
 ) {
     fun row(index: Int): InboxRow? =
         if (index < 0) null else pages[index / PAGE_SIZE]?.getOrNull(index % PAGE_SIZE)
+
+    /** The place of the row that is, or holds, message [id] among the rows read so far; null if not among them. */
+    fun indexOf(id: ULong): Int? {
+        for ((page, rows) in pages) {
+            val at = rows.indexOfFirst { it.id == id || id in it.memberIds }
+            if (at >= 0) return page * PAGE_SIZE + at
+        }
+        return null
+    }
 
     /** Which of the pages that [first] to [last] touch are not here yet. */
     fun missing(first: Int, last: Int): List<Int> = pagesOf(first, last, total).filter { it !in pages }
@@ -255,5 +265,30 @@ internal data class SwipeConfig(
                 SwipeAction.entries.firstOrNull { it.code == end } ?: d.end,
             )
         }
+    }
+}
+
+/** The rows either side of the open message, and where it is: what a swipe in the reading view moves to. */
+internal class Neighbours(val at: Int, val previous: InboxRow?, val next: InboxRow?)
+
+/**
+ * Finds the message the owner is reading in the list it was opened from. When it has left that list
+ * (reading it marked it read, in the Unread filter) its place is kept, so that the rows around it still
+ * are the ones either side of where it was.
+ */
+internal class SwipeOrder {
+    private var at = -1
+    private var gone = false
+
+    fun around(snapshot: ListSnapshot, id: ULong): Neighbours {
+        val found = snapshot.indexOf(id)
+        if (found != null) {
+            at = found
+            gone = false
+        } else if (at >= 0) {
+            gone = true
+        }
+        if (at < 0) return Neighbours(-1, null, null)
+        return Neighbours(at, snapshot.row(at - 1), snapshot.row(if (gone) at else at + 1))
     }
 }

@@ -2009,6 +2009,24 @@ fn the_quote_of_a_reply_fetches_when_the_switch_is_on() {
     assert_eq!(host.asked().len(), 1);
 }
 
+/// The quoted original of a reply reaches the contacts' switch through the same lookup as the
+/// reading pane (#891): a contact's mail brings its pictures, the server's word is still asked.
+#[test]
+fn the_quote_of_a_reply_to_a_contact_fetches_when_the_server_vouches() {
+    let mut forged = web_message(1, "ada@kite.example", "Not vouched", &web_pictures("b.kite.example", 1));
+    forged.headers = vec![("Authentication-Results".into(), "mx.example.org; dmarc=fail header.from=kite.example".into())];
+    for (message, id, fetched) in [(web_message(0, "ada@kite.example", "Offer", &web_pictures("a.kite.example", 1)), 0, 1), (forged, 1, 0)] {
+        let (mut app, ids) = app_with(vec![message]);
+        app.ui.download_pictures_from_contacts = true;
+        with_contacts(&mut app, &["ada@kite.example"]);
+        let host = Host::answering(&mut app, |_| Ok(png(40, 30)));
+        app.execute("mail.reply", json!({"id": ids[0]})).unwrap();
+        let mut harness = window(app, (1280.0, 900.0));
+        harness.run_steps(10);
+        assert_eq!(host.asked().len(), fetched, "message {id}: {:?}", host.asked());
+    }
+}
+
 #[test]
 fn only_what_is_shown_as_a_picture_is_asked_for() {
     // The message that tries every way to phone home, with the owner's say-so for all mail:
@@ -4333,6 +4351,7 @@ mod remote_bar_why;
 mod remote_server;
 mod responsive;
 mod rtl;
+mod spacing;
 mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its

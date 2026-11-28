@@ -3,6 +3,7 @@
 //! Downloads merged into the sample mailbox. The server's side is written out by hand, as
 //! `mailcraft-net` brings it from Microsoft Graph.
 
+use mailcraft_model::contact_sync::ContactChangeKind;
 use mailcraft_model::remote::{
     ContactsDownload, EventChange, EventChangeKind, EventFields, EventOp, EventOutcome, EventReminder, EventRepeat, EventResult, EventTime,
     EventWall, EventsDownload, EventsUpload, EventsUploaded, RemoteContact, RemoteEvent, RemoteEventKind,
@@ -85,7 +86,7 @@ fn person(id: &str, first: &str, email: &str) -> RemoteContact {
 }
 
 fn everybody(account: Id, contacts: Vec<RemoteContact>) -> ContactsDownload {
-    ContactsDownload { account, email: "ada@example.org".into(), complete: true, contacts }
+    ContactsDownload { account, email: "ada@example.org".into(), complete: true, contacts, ..Default::default() }
 }
 
 /// The events that came from `account`'s server, by start.
@@ -122,6 +123,10 @@ fn names(s: &Session, account: Id) -> Vec<String> {
 fn contact_called(s: &Session, account: Id, remote: &str) -> Contact {
     let found = s.mailbox.contacts.values().find(|c| c.origin.account == account && c.origin.id == remote);
     found.map(|c| c.as_ref().clone()).unwrap_or_else(|| panic!("no contact {remote}"))
+}
+
+fn names_of(s: &Session, name: &str) -> Id {
+    s.mailbox.contacts.values().find(|c| c.name() == name).map(|c| c.id).unwrap_or_else(|| panic!("no contact {name}"))
 }
 
 fn counts(merged: &Value) -> (u64, u64, u64, u64, u64) {
@@ -1386,6 +1391,8 @@ fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
             birthday: Date::new(1815, 12, 10),
             notes: "Met at the Royal Society.".into(),
             origin: Origin { account, id: "c-ada".into(), change_key: "ck-c-ada-1".into(), ..Default::default() },
+            // In the account's main contacts folder, made for it.
+            folder: s.mailbox.main_contact_folder(account).unwrap(),
             ..Default::default()
         }
     );
@@ -1394,21 +1401,22 @@ fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
     let found = run(&mut s, "people.list", json!({"query": "Lovelace"}));
     assert_eq!(found["contacts"][0]["email"], "ada@example.org");
 
-    // A contact from the server isn't changed or deleted here…
-    let why =
-        "This contact is kept by the server of ada@example.org. Changes made here are not sent back yet, so it can't be changed or deleted here.";
-    let snapshot = s.mailbox.clone();
-    assert_eq!(refused(&mut s, "people.edit", json!({"id": kept.id, "first": "Augusta"})), why);
-    assert_eq!(refused(&mut s, "people.delete", json!({"id": kept.id})), why);
-    run(&mut s, "people.select", json!({"id": kept.id}));
-    assert_eq!(refused(&mut s, "people.delete", json!({})), why);
-    assert!(s.mailbox == snapshot);
-    // …but what is only kept here is: its categories, and whether it is a favourite.
+    // A contact from the server is changed here, and the change waits to go up (#1917): an
+    // edit taken back is none.
+    run(&mut s, "people.edit", json!({"id": kept.id, "first": "Augusta"}));
+    assert_eq!(s.mailbox.contact_changes.len(), 1);
+    run(&mut s, "people.edit", json!({"id": kept.id, "first": "Ada"}));
+    assert!(s.mailbox.contact_changes.is_empty());
+    // Its categories go up too; whether it is a favourite is kept here.
     run(&mut s, "people.categorize", json!({"id": kept.id, "category": "Red category"}));
     run(&mut s, "people.favorite", json!({"id": kept.id, "value": true}));
+    assert_eq!(
+        s.mailbox.contact_changes.iter().map(|c| c.fields.iter().copied().collect::<Vec<_>>()).collect::<Vec<_>>(),
+        [[mailcraft_model::contact_sync::ContactField::Categories]]
+    );
     assert_eq!(run(&mut s, "people.get", json!({"id": kept.id}))["company"], "Analytical Engines Ltd");
     // And the mailbox's own contacts are changed as ever.
-    let mine = run(&mut s, "people.new", json!({"first": "Dee", "email": "dee@example.org"}))["id"].as_u64().unwrap();
+    let mine = run(&mut s, "people.new", json!({"first": "Dee", "email": "dee@example.org", "folder": 0}))["id"].as_u64().unwrap();
     run(&mut s, "people.edit", json!({"id": mine, "last": "Park"}));
     let before = own(&s);
 
@@ -1452,10 +1460,12 @@ fn contacts_are_merged_and_those_from_a_server_are_not_changed_here() {
     assert!(merge_contacts(&mut s.mailbox, &everybody(424_242, Vec::new())).is_err());
     assert!(s.mailbox == snapshot);
     // An empty list that is all there is: everybody from the server goes, the one that is
-    // selected too, and nobody else.
-    run(&mut s, "people.select", json!({"id": kept.id}));
-    assert_eq!(counts(&apply_contacts(&mut s, &everybody(account, Vec::new())).unwrap()), (0, 0, 4, 0, 0));
-    assert!(names(&s, account).is_empty() && s.sel.contact.is_none());
+    // selected too, and nobody else; but one changed here (Ada's categories) is made again.
+    let cy = names_of(&s, "Cy");
+    run(&mut s, "people.select", json!({"id": cy}));
+    assert_eq!(counts(&apply_contacts(&mut s, &everybody(account, Vec::new())).unwrap()), (0, 1, 3, 0, 0));
+    assert!(names(&s, account) == ["Ada Lovelace"] && s.sel.contact.is_none());
+    assert_eq!(s.mailbox.contact_changes.iter().map(|c| (c.contact, c.kind)).collect::<Vec<_>>(), [(kept.id, ContactChangeKind::Create)]);
     assert_eq!(own(&s), before);
     assert!(s.mailbox.clone().repair().is_empty());
 }

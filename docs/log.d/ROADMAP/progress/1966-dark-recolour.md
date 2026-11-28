@@ -1,0 +1,1 @@
+| 2026-11-26 | MR8: Android reading view: in the dark theme with the light page off, a message's own backgrounds turn dark and its text light, brand colours kept readable, pictures untouched (#1966) |

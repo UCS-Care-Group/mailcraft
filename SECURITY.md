@@ -6,7 +6,7 @@ security problem is treated before feature work.
 ## Reporting a vulnerability
 
 **Please don't open a public issue.** Report it privately through GitHub:
-[Report a vulnerability](https://github.com/UCS-Care-Group/mailcraft/security/advisories/new)
+[Report a vulnerability](https://github.com/UCSLabs/mailcraft/security/advisories/new)
 (the repository's Security tab, "Report a vulnerability").
 
 Say what you found, the version (File › About, or Copy Diagnostics), the platform, and how to
@@ -38,7 +38,7 @@ example:
 
 ## Known limits (not vulnerabilities)
 
-- S/MIME and OpenPGP signatures are checked where a message is read, but a certificate's revocation is not; signing and encrypting the mail you send, and opening encrypted mail, are not built yet ([#30](https://github.com/UCS-Care-Group/mailcraft/issues/30)).
+- S/MIME and OpenPGP signatures are checked where a message is read, but a certificate's revocation is not; signing and encrypting the mail you send, and opening encrypted mail, are not built yet ([#30](https://github.com/UCSLabs/mailcraft/issues/30)).
 - The mailbox file on disk isn't encrypted by MailCraft; it relies on the operating system's disk
   encryption (BitLocker, FileVault, LUKS).
 - Anyone who can run programs as you on your computer can read your mailbox; MailCraft doesn't
