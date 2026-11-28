@@ -54,6 +54,9 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
+/// A replacement the owner chose of a script that has changed again since.
+const CHANGED_AGAIN: &str = "MailCraft's Sieve script on the server changed again since you chose to replace it: look at it again before replacing it.";
+
 /// What is known of an account's Sieve scripts, as its server last said. Never saved.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct SieveKnown {
@@ -114,11 +117,18 @@ pub(super) fn set(s: &Session, account: Id, status: AutoReplyStatus, audience: O
         return Err(fail(NO_VACATION));
     }
     // A script changed elsewhere is replaced only when the owner asks for that, and only as the
-    // server had it when it was read: what changed there since is left alone all the same.
+    // server had it when it was read: what changed there since is left alone all the same. Asked
+    // with the digest of the script as the owner saw it, only that one (#2058).
     let replace = match v.get("replace") {
         None | Some(Value::Null | Value::Bool(false)) => false,
         Some(Value::Bool(true)) => true,
-        Some(_) => return Err(bad("`replace` is true or false")),
+        Some(Value::String(seen)) => {
+            if !sieve.now.as_deref().unwrap_or_default().eq_ignore_ascii_case(seen) {
+                return Err(fail(CHANGED_AGAIN));
+            }
+            true
+        }
+        Some(_) => return Err(bad("`replace` is true or false, or the digest of the script as seen")),
     };
     if sieve.changed_elsewhere && !replace {
         return Err(fail(CHANGED_ELSEWHERE));

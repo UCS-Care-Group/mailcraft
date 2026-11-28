@@ -631,8 +631,9 @@ pub struct Draft {
     pub error: String,
     /// The replies are a Sieve script on an IMAP account's server (#2057), not Microsoft's.
     pub sieve: bool,
-    /// The owner chose to replace MailCraft's script, changed elsewhere, with what is set here.
-    pub replace: bool,
+    /// The owner chose to replace MailCraft's script, changed elsewhere, with what is set here: the
+    /// digest of the script as it was when the owner chose, which alone is replaced (#2058).
+    pub replace: Option<String>,
     /// The first field takes the keyboard once.
     focus: bool,
 }
@@ -666,7 +667,7 @@ impl Draft {
             filled: false,
             error: String::new(),
             sieve: app.sieve_account(account),
-            replace: false,
+            replace: None,
             focus: false,
         };
         draft.default_range(app);
@@ -729,8 +730,8 @@ impl Draft {
             params["start"] = json!(kit::stamp(&self.start_date, &self.start_time));
             params["end"] = json!(kit::stamp(&self.end_date, &self.end_time));
         }
-        if self.replace {
-            params["replace"] = json!(true);
+        if let Some(seen) = &self.replace {
+            params["replace"] = json!(seen);
         }
         params
     }
@@ -786,7 +787,7 @@ impl Draft {
             notice(ui, &t, &text, |_| {});
         }
         let sieve_trouble = self.sieve && (app.sieve.trouble.contains_key(&self.account) || sieve.as_ref().is_some_and(|s| !s.takes_replies()));
-        let sieve_blocked = sieve_trouble || sieve.as_ref().is_some_and(|s| s.changed_elsewhere && !self.replace);
+        let sieve_blocked = sieve_trouble || sieve.as_ref().is_some_and(|s| s.changed_elsewhere && self.replace.is_none());
         if !self.filled && trouble.is_none() && !sieve_blocked {
             ui.label(RichText::new(tl!("Reading your automatic replies from the server…")).color(t.text_dim));
         } else if app.offline() {
@@ -899,7 +900,7 @@ impl Draft {
             let Some(sieve) = app.session.sieve.get(&self.account) else { return false };
             return self.filled
                 && sieve.takes_replies()
-                && (!sieve.changed_elsewhere || self.replace)
+                && (!sieve.changed_elsewhere || self.replace.is_some())
                 && !matches!(app.sieve.trouble.get(&self.account), Some(SieveTrouble::Unavailable | SieveTrouble::SignIn))
                 && !app.offline();
         }
@@ -944,7 +945,7 @@ impl Draft {
             (None, Some(s)) if !s.takes_replies() => {
                 tl!("This server keeps Sieve scripts, but they can't send automatic replies (it has no vacation extension).").to_string()
             }
-            (None, Some(s)) if s.changed_elsewhere && !self.replace => {
+            (None, Some(s)) if s.changed_elsewhere && self.replace.is_none() => {
                 let text = tl!(
                     "MailCraft's Sieve script on the server was changed elsewhere since MailCraft wrote it, so MailCraft leaves it as it is. To set your automatic replies here, replace it with MailCraft's: what was changed in it elsewhere is lost."
                 );
@@ -952,7 +953,7 @@ impl Draft {
                     let button = ui.button(tl!("Replace with MailCraft's"));
                     app.hit.add("sieveReplace", self.account, button.rect);
                     if button.clicked() {
-                        self.replace = true;
+                        self.replace = Some(s.now.clone().unwrap_or_default());
                         self.filled = true;
                     }
                 });

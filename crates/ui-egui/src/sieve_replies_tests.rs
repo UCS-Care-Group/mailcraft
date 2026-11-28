@@ -267,9 +267,16 @@ fn a_script_changed_elsewhere_is_replaced_only_by_the_owners_click() {
     assert!(!draft(&h).editable(h.state()));
     h.get_by_label("Replace with MailCraft's").click();
     h.run_steps(2);
-    assert!(draft(&h).replace && draft(&h).editable(h.state()));
-    assert_eq!(draft(&h).params()["replace"], true);
+    assert!(draft(&h).replace.is_some() && draft(&h).editable(h.state()));
+    // Bound to the script as the owner saw it (#2058).
+    assert_eq!(draft(&h).params()["replace"], mailcraft_engine::sieve::digest("keep;"));
     assert!(h.query_by_label("Replace with MailCraft's").is_none());
+    // Changed elsewhere again before OK: the engine refuses to write over what the owner didn't see.
+    let params = draft(&h).params();
+    let app = h.state_mut();
+    read(app, account, &answers, SieveResult { state: Some(state(&ALL, Some(SCRIPT_NAME), Some("discard;"))), ..Default::default() });
+    let e = app.session.run("account.setAutomaticReplies", &params).unwrap_err().to_string();
+    assert!(e.contains("changed again"), "{e}");
 }
 
 const RULES: [&str; 6] = ["vacation", "date", "relational", "fileinto", "copy", "imap4flags"];
