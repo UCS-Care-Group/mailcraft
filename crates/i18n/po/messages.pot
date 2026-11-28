@@ -21856,6 +21856,11 @@ msgid "{name} is already in {folder}."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "{name} is being sent and received now. Use Stop."
 msgstr ""

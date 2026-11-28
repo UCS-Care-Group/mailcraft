@@ -26216,6 +26216,12 @@ msgid "{name} is already in {folder}."
 msgstr "{name} უკვე არის {folder}-ში."
 
 #. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr "{name} მიმაგრდა: ტექსტში ჩასმა შეუძლებელია ({why})"
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{name} is being sent and received now. Use Stop."

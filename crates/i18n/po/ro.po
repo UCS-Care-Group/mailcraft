@@ -26387,6 +26387,12 @@ msgid "{name} is already in {folder}."
 msgstr "{name} este deja în {folder}."
 
 #. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr "{name} a fost atașat: nu poate fi inserat în text ({why})"
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{name} is being sent and received now. Use Stop."
