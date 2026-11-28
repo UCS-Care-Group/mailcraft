@@ -2318,6 +2318,11 @@ msgid "Attachments"
 msgstr "Bijlagen"
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+msgid "Attachments can't be opened here."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/attachment_open.rs
 #, fuzzy
 msgid "Attachments can't be opened here: save it with Save As instead."
@@ -4943,8 +4948,18 @@ msgstr "Gereed: bijgewerkt"
 msgid "Done: {n} new"
 msgstr "Gereed: {n} nieuw"
 
-#. android, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to download {name}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to open {name}"
+msgstr ""
+
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
 msgid "Download"
 msgstr "Downloaden"
 
@@ -6805,6 +6820,12 @@ msgstr "Antwoorden laten verzenden naar"
 #: crates/ui-egui/src/ribbon.rs
 msgid "Have replies sent to other addresses"
 msgstr "Antwoorden laten verzenden naar andere adressen"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "Koptekst bevat"
 
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
@@ -8678,6 +8699,11 @@ msgstr "MailCraft kan {account} nu bijhouden bij Microsoft via Microsoft Graph, 
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "MailCraft kan de regels van dit account niet op de server ervan bewaren"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "MailCraft can't open {name} because of its file type."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11225,7 +11251,7 @@ msgid "Nothing was done: what the agent asked about changed after you were asked
 msgstr "Er werd niets gedaan: waar de agent om vroeg, is veranderd nadat u werd gevraagd."
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Nothing was done: what you were asked about has changed since. Ask again."
 msgstr "Er is niets gedaan: waar u naar gevraagd werd, is sindsdien veranderd. Probeer het opnieuw."
@@ -11659,7 +11685,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "Alleen wanneer MailCraft niet het voorste venster is, en alleen voor de Postvakken IN van uw eigen accounts."
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 msgid "Open"
 msgstr "Openen"
 
@@ -11702,6 +11728,11 @@ msgstr "Dialoogvenster openen"
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs
 msgid "Open Draft"
 msgstr "Concept openen"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Open Draft Attachment"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -13167,7 +13198,7 @@ msgid "Remove Account"
 msgstr "Account verwijderen"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/reading.rs
 msgid "Remove Attachment"
 msgstr "Bijlage verwijderen"
 
@@ -17403,6 +17434,11 @@ msgstr "Het domein {domain} noemt een server voor de automatische instelling (Au
 #, fuzzy
 msgid "The download was called off."
 msgstr "De download is afgebroken."
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "The draft isn't open any more"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -22348,6 +22384,12 @@ msgstr "heeft een bijlage"
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "heeft te veel bestanden: de rest is niet verwijderd"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "de koptekst bevat {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

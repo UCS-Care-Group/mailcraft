@@ -412,26 +412,30 @@ fn a_copy_into_another_account_that_waits_for_a_download_that_never_comes_leaves
     assert!(s.mailbox.messages.values().all(|m| m.rules_waiting.is_none()));
 }
 
-/// A rule deletes new mail, except if the sender marked it private. A message whose header fields
-/// run past what is kept of them (a mailing list's long trace, say) can't be told by the
-/// exception: the rule leaves it alone, though the one with the header near the top is told by it
-/// as ever.
+/// A rule deletes new mail, except if a header holds a word or the sender marked it
+/// private. A message whose header fields run past what is kept of them (a mailing list's long
+/// trace, say) can't be told by the exception: the rule leaves it alone, though the one with the
+/// header near the top is told by it as ever.
 #[test]
 fn an_exception_in_a_header_past_what_is_kept_doesnt_let_the_rule_delete() {
     let mut s = Session::empty();
     let (account, _, _) = microsoft_with(&mut s, "Kept");
     let gone = json!({"name": "Plans", "server": false, "conditions": [{"type": "subjectContains", "value": "Plan"}],
-        "exceptions": [{"type": "sensitivity", "value": "private"}],
+        "exceptions": [{"type": "headerContains", "value": "x-keep: yes"}, {"type": "sensitivity", "value": "private"}],
         "actions": [{"type": "delete"}]});
     s.run("rules.add", &gone).unwrap();
-    let page =
-        MessagePage { folder: "F-in".into(), messages: ["N1", "N2"].iter().map(|id| listed(id, "F-in", "Plan")).collect(), ..Default::default() };
+    let page = MessagePage {
+        folder: "F-in".into(),
+        messages: ["N1", "N2", "N3"].iter().map(|id| listed(id, "F-in", "Plan")).collect(),
+        ..Default::default()
+    };
     graph_mail::apply_graph_mail(&mut s, GraphMailResult { account, email: ME.into(), pages: vec![page], partial: true, ..Default::default() })
         .unwrap();
     let padding: String = (0..200).map(|i| format!("X-Trace-{i}: hop {i}\r\n")).collect();
     let fetched = vec![
-        whole("N1", "Plan", "Sensitivity: Private\r\n", "Its header is near the top."),
-        whole("N2", "Plan", &format!("{padding}Sensitivity: Private\r\n"), "The same header, after the trace."),
+        whole("N1", "Plan", "X-Keep: yes\r\n", "Its header is near the top."),
+        whole("N2", "Plan", &format!("{padding}X-Keep: yes\r\n"), "The same header, after the trace."),
+        whole("N3", "Plan", &format!("{padding}Sensitivity: Private\r\n"), "Private, after the trace."),
     ];
     graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
     assert!(here(&s, account, "N2").headers_cut && !here(&s, account, "N1").headers_cut);
@@ -719,6 +723,39 @@ fn a_move_that_waited_past_a_rule_that_couldnt_tell_is_made_once_downloaded() {
     graph_mail::apply_graph_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched, ..Default::default() }).unwrap();
     let plan: Vec<(Id, bool)> = s.mailbox.messages.values().filter(|m| m.subject == "Plan").map(|m| (m.folder, m.unfetched)).collect();
     assert_eq!(plan, [(to, false)], "moved into Blake's Inbox once the first rule had its say");
+}
+
+/// Run Rules Now over an IMAP Inbox holding mail downloaded before its header lines were kept
+/// (before a header rule, or by 0.15.0 and earlier): a stop rule on a header can't tell, so a
+/// later rule copies nothing into another account (#566).
+#[test]
+fn run_rules_now_copies_nothing_into_another_account_past_a_header_rule_that_cant_tell() {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    let mut s = Session::empty();
+    let servers = json!({"email": "ada@mail.example", "incoming": {"host": "imap.mail.example"}, "outgoing": {"host": "imap.mail.example"}});
+    let a = s.run("account.add", &servers).unwrap()["id"].as_u64().unwrap();
+    let delta = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 9, complete: true, ..Default::default() };
+    crate::cmd::account::apply_sync(&mut s, SyncResult { account: a, folders: vec![delta], ..Default::default() }).unwrap();
+    let inbox = s.mailbox.folder_of_kind(a, FolderKind::Inbox).unwrap();
+    let (theirs, _) = imap_inbox(&mut s);
+    let m = Message {
+        folder: inbox,
+        uid: 5,
+        from: Address::new("Zoe", "zoe@example.org"),
+        subject: "Plan".into(),
+        message_id: "plan@example.org".into(),
+        ..Default::default()
+    };
+    let id = s.mailbox.add_message(m).unwrap();
+    assert!(s.mailbox.message(id).unwrap().read_header.is_empty());
+    let private = json!({"name": "Private stays", "account": a, "stop": true,
+        "conditions": [{"type": "headerContains", "value": "x-private"}], "actions": [{"type": "flag"}]});
+    s.run("rules.add", &private).unwrap();
+    let zoe = json!({"name": "Zoe to Blake", "account": a,
+        "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "copyTo", "value": theirs}]});
+    s.run("rules.add", &zoe).unwrap();
+    s.run("rules.run", &json!({"folder": inbox})).unwrap();
+    assert_eq!(s.mailbox.messages.values().filter(|m| m.folder == theirs).count(), 0, "copied onto Blake's server past a rule that couldn't tell");
 }
 
 /// A rule the Microsoft server has, made in Outlook with a part not known here (it forwards) and
@@ -1439,6 +1476,7 @@ fn a_downloaded_draft_relisted_keeps_what_it_was_and_no_rule_decides_on_it_until
         Condition::SizeBetween { min: 0, max: 100_000 },
         Condition::MeetingRequest,
         Condition::AutomaticReply,
+        Condition::HeaderContains(vec!["carl@example.org".into()]),
         Condition::Category(vec!["Blue".into()]),
         Condition::Flagged,
         Condition::ReceivedBetween { from: None, to: None },
@@ -1464,9 +1502,10 @@ fn a_downloaded_draft_relisted_keeps_what_it_was_and_no_rule_decides_on_it_until
         Condition::SizeBetween { .. } => 15,
         Condition::MeetingRequest => 16,
         Condition::AutomaticReply => 17,
-        Condition::Category(_) => 18,
-        Condition::Flagged => 19,
-        Condition::ReceivedBetween { .. } => 20,
+        Condition::HeaderContains(_) => 18,
+        Condition::Category(_) => 19,
+        Condition::Flagged => 20,
+        Condition::ReceivedBetween { .. } => 21,
     };
     assert_eq!(conditions.iter().map(kind).collect::<Vec<_>>(), (0..conditions.len()).collect::<Vec<_>>());
     for sent in [false, true] {
@@ -1476,6 +1515,10 @@ fn a_downloaded_draft_relisted_keeps_what_it_was_and_no_rule_decides_on_it_until
         let rule = json!({"name": "Budget", "account": account, "server": false,
             "conditions": [{"type": "bodyContains", "value": "budget"}], "actions": [{"type": "delete"}]});
         s.run("rules.add", &rule).unwrap();
+        // (And one with words in the header, so that the header lines as they came are kept.)
+        let carl = json!({"name": "Carl", "account": account, "server": false,
+            "conditions": [{"type": "headerContains", "value": "carl@example.org"}], "actions": [{"type": "delete"}]});
+        s.run("rules.add", &carl).unwrap();
         let (to, b) = imap_inbox(&mut s);
         let copy = json!({"name": "Ada to Blake", "account": account, "server": false,
             "conditions": [{"type": "fromContains", "value": "ada"}], "actions": [{"type": "copyTo", "value": to}]});
@@ -1514,7 +1557,9 @@ Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encod
         let whole = GraphFetched { id: "D1".into(), mime: mime("Hi Ben. The budget is attached.") };
         ews_mail::apply_ews_fetch(&mut s, GraphFetchResult { account, email: ME.into(), fetched: vec![whole], ..Default::default() }).unwrap();
         let m = here(&s, account, "D1");
-        assert!(!m.unfetched && !m.stale && m.body.text.contains("budget") && m.has_attachments() && !m.bcc.is_empty());
+        assert!(
+            !m.unfetched && !m.stale && m.body.text.contains("budget") && m.has_attachments() && !m.bcc.is_empty() && m.read_header.contains("carl@")
+        );
         // What it is now, as the server lists it: to me alone, no file.
         let (into, change_key) = if sent { ("F3", "CK1") } else { ("F2", "CK2") };
         let mut now = GraphMessage { draft: Some(!sent), from: Address::new("Ada", ME), ..listed("D1", into, "Plan") };
@@ -1525,7 +1570,14 @@ Content-Disposition: attachment; filename=\"plan.pdf\"\r\nContent-Transfer-Encod
         let m = here(&s, account, "D1");
         assert!(m.unfetched && m.stale, "sent {sent}");
         // Nothing of it is dropped meanwhile.
-        assert!(m.body.text.contains("budget") && m.has_attachments() && !m.bcc.is_empty() && m.has_header("Sensitivity"), "sent {sent}: {m:?}");
+        assert!(
+            m.body.text.contains("budget")
+                && m.has_attachments()
+                && !m.bcc.is_empty()
+                && m.has_header("Sensitivity")
+                && m.read_header.contains("carl@"),
+            "sent {sent}: {m:?}"
+        );
         let how = Matching { addresses_only: false, me: ME, zone: s.zone() };
         for c in &conditions {
             assert!(!c.holds_in(m, &how) && c.unread_in(m), "sent {sent}: {c:?}");
