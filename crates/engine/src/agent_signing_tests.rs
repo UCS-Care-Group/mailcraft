@@ -57,3 +57,19 @@ fn the_question_about_sending_says_how_it_is_signed() {
     let d = describe(&s, "compose.send", &json!({}));
     assert!(d.contains("can't be yet"), "{d}");
 }
+
+/// Review of #1036: Sign turned off for a message named by its `compose` id is asked about by
+/// that message, not by the one that is current.
+#[test]
+fn sign_off_for_a_message_named_by_its_id_is_asked_about_by_that_message() {
+    let mut s = writing(true);
+    let rota = s.compose_id().unwrap();
+    let other = s.run("mail.new", &json!({"to": "maya@lumen.example", "subject": "Lunch"})).unwrap()["compose"].as_u64().unwrap();
+    s.run("compose.sign", &json!({"compose": other, "value": false})).unwrap();
+    assert_eq!(s.compose_id(), Some(other), "the unsigned one is current");
+    let params = json!({"compose": rota, "value": false});
+    assert_eq!(classify(&s, "compose.sign", &params), Access::Asked(Class::Send));
+    let what = describe(&s, "compose.sign", &params);
+    assert!(what.contains("Rota") && what.contains("without a Digital signature"), "{what}");
+    assert_eq!(classify(&s, "compose.sign", &json!({"compose": other, "value": false})), Access::Safe, "already off");
+}

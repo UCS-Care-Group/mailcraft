@@ -2757,10 +2757,11 @@ fn item_text(s: &Session, item: &crate::SelectedEvent) -> String {
     }
 }
 
-/// Whether `compose.sign` with `params` turns Sign off for the message being written: it would be
-/// Digitally signed now, and `value` is false, or absent (the other way round).
+/// Whether `compose.sign` with `params` turns Sign off for the message being written that it names
+/// (`compose`, else the current one): it would be Digitally signed now, and `value` is false, or
+/// absent (the other way round).
 fn sign_turns_off(s: &Session, params: &Value) -> bool {
-    let Some(c) = s.compose.as_ref() else { return false };
+    let Some(c) = s.compose_named(params) else { return false };
     let now = s.mailbox.account(c.account).or(s.mailbox.default_account()).is_some_and(|a| a.signing.signs(c.sign));
     let on = match params.get("value") {
         None | Some(Value::Null) => !now,
@@ -2888,7 +2889,7 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             }
             None => "send the message being written".to_string(),
         },
-        "compose.sign" => match s.compose.as_ref() {
+        "compose.sign" => match s.compose_named(params) {
             Some(c) if sign_turns_off(s, params) => {
                 format!("turn Sign off for {}: it will be sent without a Digital signature", quoted(&c.subject))
             }
