@@ -6,9 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -17,18 +15,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import uniffi.mailcraft_mobile.BlockKindView
 import uniffi.mailcraft_mobile.BlockView
+import kotlin.math.roundToInt
 
 /** The text of a block's spans. */
 internal fun plainText(block: BlockView): String = block.spans.joinToString("") { it.text }.trim()
@@ -42,9 +43,9 @@ internal fun BodyEnv.stateOf(kind: BlockKindView.Image): PictureState? = picture
 /**
  * A picture in a message. Where it is: the picture, as wide as the message says (or as it is) and no
  * wider than the column. Where it is not (not allowed, waiting, on its way, failed): a plain box of the
- * declared size, clamped to the column, with the picture's description, or the description alone when
- * the message gives no size. A muted surface, nothing animated, nothing to tap. A picture with no
- * description, or declared 2 px or smaller, says nothing to a screen reader.
+ * declared size, clamped to the column and to [MAX_PLACEHOLDER_HEIGHT], with the picture's description,
+ * or the description alone when the message gives no size. A muted surface, nothing animated, nothing
+ * to tap. A picture with no description, or declared 2 px or smaller, says nothing to a screen reader.
  */
 @Composable
 internal fun PictureBlock(block: BlockView, kind: BlockKindView.Image, env: BodyEnv, paper: Paper, room: Dp) {
@@ -68,25 +69,28 @@ internal fun PictureBlock(block: BlockView, kind: BlockKindView.Image, env: Body
         Modifier.semantics { contentDescription = alt }
     }
     val decoded = rememberDecoded((state as? PictureState.Ready)?.bytes)
-    Box(modifier = tap.then(described)) {
+    val density = LocalDensity.current.density
+    val wanted = decoded?.let { shownWidth(ref, it.width / density, it.height / density) }
+        ?: ref.width?.toFloat() ?: 0f
+    val pad = paddingAround(block.imagePadding, wanted, room.value)
+    val inner = (room - (pad.left + pad.right).dp).coerceAtLeast(1.dp)
+    Box(modifier = tap.then(described).padding(pad.left.dp, pad.top.dp, pad.right.dp, pad.bottom.dp)) {
         if (decoded != null) {
-            ShownPicture(decoded, ref, room, alt)
+            ShownPicture(decoded, wanted.dp, shownTall(ref, decoded.width, decoded.height), inner, alt)
         } else {
-            Placeholder(ref, alt, room, paper)
+            Placeholder(ref, alt, inner, paper)
         }
     }
 }
 
 @Composable
-private fun ShownPicture(decoded: Decoded, ref: PictureRef, room: Dp, alt: String) {
-    val density = LocalDensity.current.density
-    val natural = (decoded.width / density).dp
-    val wanted = (ref.width?.dp ?: natural).coerceAtMost(room).coerceAtLeast(1.dp)
+private fun ShownPicture(decoded: Decoded, width: Dp, tall: Float, room: Dp, alt: String) {
+    val wanted = width.coerceAtMost(room).coerceAtLeast(1.dp)
     Image(
         bitmap = decoded.bitmap,
         contentDescription = alt.ifBlank { null },
-        contentScale = ContentScale.Fit,
-        modifier = Modifier.width(wanted).aspectRatio(decoded.width.toFloat() / decoded.height.coerceAtLeast(1)),
+        contentScale = ContentScale.FillBounds,
+        modifier = Modifier.pictureBox(wanted, tall, null),
     )
 }
 
@@ -98,9 +102,9 @@ private fun Placeholder(ref: PictureRef, alt: String, room: Dp, paper: Paper) {
     val w = ref.width
     val h = ref.height
     if (w != null && h != null) {
-        val shown = w.dp.coerceAtMost(room).coerceAtLeast(1.dp)
+        val box = Modifier.pictureBox(w.dp.coerceAtMost(room), h.toFloat() / w.coerceAtLeast(1), MAX_PLACEHOLDER_HEIGHT)
         Box(
-            modifier = Modifier.width(shown).aspectRatio(w.toFloat() / h.coerceAtLeast(1)).background(muted),
+            modifier = box.background(muted),
             contentAlignment = Alignment.Center,
         ) {
             if (alt.isNotBlank()) AltText(alt, ink, MaterialTheme.typography.labelSmall, Modifier.padding(BoxPad))
@@ -108,6 +112,41 @@ private fun Placeholder(ref: PictureRef, alt: String, room: Dp, paper: Paper) {
     } else if (alt.isNotBlank()) {
         AltText(alt, ink, MaterialTheme.typography.labelMedium, Modifier.background(muted).padding(ChipPad, ChipPadV))
     }
+}
+
+/** The most height a picture that is not shown takes, in dp: a tall one does not push the message away. */
+internal val MAX_PLACEHOLDER_HEIGHT = 120.dp
+
+/**
+ * A picture's box in pixels: [wanted] wide but no wider than [room], [tall] high for each unit of width,
+ * no higher than [cap], never nothing, and never more than [MAX_BOX_WIDTH] by [MAX_BOX_HEIGHT], which
+ * `Constraints.fixed` always takes. (It throws past what it can pack: a width under 8192 px leaves room
+ * for a height of 262143 px. A message's picture can be 1 by 40 million pixels.)
+ */
+internal fun boxSize(wanted: Int, room: Int, tall: Float, cap: Int, keepShape: Boolean = false): IntSize {
+    val w = wanted.coerceAtMost(room).coerceIn(1, MAX_BOX_WIDTH)
+    val h = (w * tall.toDouble()).takeUnless { it.isNaN() } ?: 1.0
+    val most = cap.coerceIn(1, MAX_BOX_HEIGHT).toDouble()
+    // A picture drawn to fill its box is narrowed as far as it is held lower, so it is not stretched.
+    val narrowed = if (keepShape && h > most) (w * most / h).roundToInt().coerceIn(1, w) else w
+    return IntSize(narrowed, h.coerceIn(1.0, most).roundToInt())
+}
+
+/** The widest and tallest box a measure is given, in pixels: what `Constraints.fixed` always takes. */
+internal const val MAX_BOX_WIDTH = 8_000
+internal const val MAX_BOX_HEIGHT = 200_000
+
+/**
+ * A picture's box sized from the width there really is, unlike `width().aspectRatio()`: a tinted row
+ * measures its cells' least height at the row's whole width, and a shape alone answered with a box
+ * that wide, an empty space screens tall under a row of small icons (#1966). Asked the same way, this
+ * answers what it draws.
+ */
+private fun Modifier.pictureBox(wanted: Dp, tall: Float, cap: Dp?): Modifier = layout { measurable, constraints ->
+    val most = cap?.roundToPx() ?: Int.MAX_VALUE
+    val size = boxSize(wanted.roundToPx(), constraints.maxWidth, tall, most, keepShape = cap == null)
+    val placeable = measurable.measure(Constraints.fixed(size.width, size.height))
+    layout(size.width, size.height) { placeable.place(0, 0) }
 }
 
 @Composable

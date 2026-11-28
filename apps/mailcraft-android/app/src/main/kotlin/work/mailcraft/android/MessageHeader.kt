@@ -8,12 +8,16 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.widthIn
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
@@ -24,6 +28,8 @@ import uniffi.mailcraft_mobile.AddressRecord
 import uniffi.mailcraft_mobile.MessageView
 
 private val DateGap = 8.dp
+private val MarkGap = 4.dp
+private val MarkSize = 16.dp
 
 /**
  * The subject, then the sender with the date and time at the right. Shut, that is one line and the
@@ -33,11 +39,7 @@ private val DateGap = 8.dp
 @Composable
 internal fun MessageHeader(texts: Texts, view: MessageView, open: Boolean, onToggle: (Boolean) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-        Text(
-            view.subject.ifBlank { texts.t("(no subject)") },
-            style = MaterialTheme.typography.titleLarge,
-            modifier = Modifier.semantics { heading() },
-        )
+        Subject(texts, view)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -111,4 +113,27 @@ private fun HeaderLine(label: String, people: List<AddressRecord>) {
         style = MaterialTheme.typography.bodyMedium,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
     )
+}
+
+/** The subject, and under it the mark and words when the sender marked it High or Low importance. */
+@Composable
+private fun Subject(texts: Texts, view: MessageView) {
+    Text(
+        view.subject.ifBlank { texts.t("(no subject)") },
+        style = MaterialTheme.typography.titleLarge,
+        modifier = Modifier.semantics { heading() },
+    )
+    if (view.important) {
+        ImportanceLine(ListIcons.Important, MaterialTheme.colorScheme.error, texts.t("High importance"))
+    } else if (view.lowImportance) {
+        ImportanceLine(ListIcons.LowImportance, MaterialTheme.colorScheme.onSurfaceVariant, texts.t("Low importance"))
+    }
+}
+
+@Composable
+private fun ImportanceLine(icon: ImageVector, tint: Color, label: String) {
+    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(MarkGap)) {
+        Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(MarkSize))
+        Text(label, style = MaterialTheme.typography.labelLarge)
+    }
 }

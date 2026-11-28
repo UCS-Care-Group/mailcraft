@@ -93,6 +93,8 @@ internal class ShellData(
     val nowMillis: Long = 0L,
     /** The two swipes the owner chose on the mail list. */
     val swipe: SwipeConfig = SwipeConfig(),
+    /** The buttons the owner chose for new-mail notifications. */
+    val noticeButtons: NoticeButtons = NoticeButtons(),
     /** What the owner chose about reading: the light page in the dark theme, the header open or shut. */
     val readingPrefs: ReadingPrefs = ReadingPrefs(),
     /** The message being read, and how its pictures are coming. */
@@ -137,12 +139,13 @@ internal class ShellActions(
     val settings: SettingsActions = SettingsActions(),
     val mail: MailListActions = MailListActions.None,
     val onSwipe: (SwipeConfig) -> Unit = {},
-    val onReadingPrefs: (ReadingPrefs) -> Unit = {},
+    val onReadingPrefs: (ReadingEdit) -> Unit = {},
     val reading: ReadingActions = ReadingActions.None,
     val onPictures: (PicturePrefs) -> Unit = {},
     val onClearPictures: () -> Unit = {},
     val writing: WritingActions = WritingActions(),
     val organiser: OrganiserActions = OrganiserActions(),
+    val onNoticeButtons: (NoticeButtons) -> Unit = {},
 )
 
 /** What the People and Tasks tabs (and Today's cards that open them) ask of the app. */
@@ -612,7 +615,7 @@ private fun isDraft(data: ShellData): Boolean {
 private fun ShellActions.copy(mail: MailListActions) =
     ShellActions(
         onFolder, onLanguage, accounts, settings, mail, onSwipe, onReadingPrefs, reading, onPictures,
-        onClearPictures, writing, organiser,
+        onClearPictures, writing, organiser, onNoticeButtons,
     )
 
 @Composable

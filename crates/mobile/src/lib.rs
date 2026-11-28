@@ -88,6 +88,8 @@ mod links_tests;
 #[cfg(test)]
 mod list_tests;
 #[cfg(test)]
+mod long_text_tests;
+#[cfg(test)]
 mod people_tasks_tests;
 #[cfg(test)]
 mod pictures_tests;
@@ -98,15 +100,21 @@ mod queue_tests;
 #[cfg(test)]
 mod quote_choice_tests;
 #[cfg(test)]
+mod refresh_tests;
+#[cfg(test)]
 mod reminders_tests;
 #[cfg(test)]
 mod review_tests;
 #[cfg(test)]
 mod settings_tests;
 #[cfg(test)]
+mod spacing_tests;
+#[cfg(test)]
 mod sync_stop_tests;
 #[cfg(test)]
 mod sync_tests;
+#[cfg(test)]
+mod tables_rtl_tests;
 #[cfg(test)]
 mod tests;
 #[cfg(test)]
@@ -123,7 +131,7 @@ pub use error::{CoreError, HostError};
 pub use events::{Event, EventSink, StorageNotice};
 pub use fetch::{FetchFailure, OpenState, ServerSearchAnswer};
 pub use limits::{DeviceStorage, DownloadSettings, KeepWindow};
-pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, Platform, RedirectKind, SecretStore, TroubleKind};
+pub use platform::{NetworkKind, NotificationRecord, NotificationTopic, NotifiedMessage, Platform, RedirectKind, SecretStore, TroubleKind};
 pub use records::*;
 pub use reminders::{MAX_SCHEDULED, MAX_SKIPPED, ReminderKind, ReminderSchedule, ScheduledReminder};
 pub use settings::{AccountSignature, DeviceSettings, KeepOfflineChange, OfflineFreed, ThinResult};

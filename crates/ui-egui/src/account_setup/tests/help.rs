@@ -178,7 +178,9 @@ fn the_waiting_page_says_what_to_do_about_an_approval_without_waiting() {
     // Some systems can't say that no browser started, so the page says what to do if none did.
     assert!(says(&h, "If no browser opened, check that this computer has a default browser"));
     // Nothing is said of a step about Outlook's Favorites: there is none.
-    assert!(!says(&h, "First you sign in at Microsoft") && !says(&h, "Favorites"));
+    // (The folder pane behind the window has a heading of that name, read out since #1950.)
+    let of_favorites = h.query_all_by_label_contains("Favorites").filter(|n| n.accesskit_node().label().is_none_or(|l| l != "Favorites")).count();
+    assert!(!says(&h, "First you sign in at Microsoft") && of_favorites == 0);
     // And what to do if that page says no: why, in plain words, and the things to do, in view.
     for said in [
         "If that page says you need admin approval",

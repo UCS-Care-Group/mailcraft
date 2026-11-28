@@ -4,6 +4,8 @@
 
 package work.mailcraft.android
 
+import uniffi.mailcraft_mobile.ComposeStart
+
 /** The most files one share takes; more are refused, and said so. */
 internal const val MAX_SHARED_FILES = 20
 
@@ -27,11 +29,21 @@ private const val ACTION_SEND_MULTIPLE = "android.intent.action.SEND_MULTIPLE"
 
 /** What another app asked MailCraft to do, in the app's own terms and without any Android type. */
 internal sealed interface Incoming {
+    /** The message it starts at once; null for a share, whose files are read first. */
+    val start: ComposeStart? get() = null
+
     /** A `mailto:` link; the core reads it (RFC 6068) and only ever starts a message from it. */
-    class Mailto(val link: String) : Incoming
+    class Mailto(val link: String) : Incoming {
+        override val start get() = ComposeStart.New(0uL, link)
+    }
 
     /** Text, a link, and files (as the addresses the system gave) to start a message with. */
     class Share(val subject: String?, val text: String?, val files: List<String>) : Incoming
+
+    /** A new-mail notification's Reply: a reply to [message], ready to write (never sent by itself). */
+    class Reply(val message: ULong) : Incoming {
+        override val start get() = ComposeStart.Reply(message)
+    }
 }
 
 /**

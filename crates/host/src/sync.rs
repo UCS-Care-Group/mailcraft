@@ -137,6 +137,8 @@ struct Running {
     stopped: bool,
     /// Lines for the owner's log from the pieces taken so far.
     errors: Vec<String>,
+    /// The run reads every folder (its plan's full sweep).
+    full: bool,
 }
 
 /// What [`SendReceive::adopt_tokens`] did.
@@ -254,6 +256,17 @@ impl SendReceive {
     /// Whether a run is under way.
     pub fn busy(&self) -> bool {
         self.running.is_some()
+    }
+
+    /// The account whose run is under way, if one is.
+    pub fn running_account(&self) -> Option<Id> {
+        self.running.as_ref().map(|r| r.account)
+    }
+
+    /// Whether the run under way reads every folder (a full sweep), as its plan said; false when
+    /// none is under way.
+    pub fn running_full_sweep(&self) -> bool {
+        self.running.as_ref().is_some_and(|r| r.full)
     }
 
     /// Call the run under way off at its next safe place; the rest of the round with it.
@@ -528,6 +541,7 @@ impl SendReceive {
         };
         // What it sends is marked so, on disk, before it leaves (AU3-26).
         let going: Vec<Id> = plan.mail.sends.iter().map(|up| up.message).collect();
+        let full = plan.mail.full;
         if let Some(rev) = session.send_marking(account, &going)
             && let Some(persist) = ctx.persist
             && let Err(e) = persist(session, rev)
@@ -576,6 +590,7 @@ impl SendReceive {
             called_off: false,
             stopped: false,
             errors: Vec::new(),
+            full,
         });
         Step::Started { account }
     }
