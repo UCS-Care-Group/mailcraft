@@ -23,6 +23,9 @@ use crate::dialogs::Dialog;
 use crate::widgets::key_text;
 use crate::{MailApp, RichClipboard, Services};
 
+#[path = "text_menu_fallback_tests.rs"]
+mod fallback;
+
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
 /// What the tests type where a password goes. It opens nothing.
@@ -56,6 +59,9 @@ impl RichClipboard for Board {
     fn put(&self, html: &str, text: &str) -> Result<(), String> {
         self.0.borrow_mut().put.push((html.to_string(), text.to_string()));
         Ok(())
+    }
+    fn put_text(&self, text: &str) -> Result<(), String> {
+        self.put("", text)
     }
     fn html(&self) -> Option<String> {
         self.0.borrow().html.clone()

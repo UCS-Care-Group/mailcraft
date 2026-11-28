@@ -44,7 +44,8 @@ fn shortcut(key: Key, modifiers: egui::Modifiers) -> Option<Shortcut> {
     }
 }
 
-/// Replace the key presses that are clipboard shortcuts by their events.
+/// Replace the key presses that are clipboard shortcuts by their events. Read only through
+/// the host's bounded, timed reader; never request egui-winit's unbounded native paste.
 pub fn translate(events: &mut Vec<Event>, board: Option<&dyn RichClipboard>) {
     if !events.iter().any(|e| matches!(e, Event::Key { pressed: true, key, modifiers, .. } if shortcut(*key, *modifiers).is_some())) {
         return;
@@ -59,7 +60,8 @@ pub fn translate(events: &mut Vec<Event>, board: Option<&dyn RichClipboard>) {
             Some(Shortcut::Cut) => out.push(Event::Cut),
             Some(Shortcut::Copy) => out.push(Event::Copy),
             Some(Shortcut::Paste) => {
-                let text = board.and_then(|b| b.text()).map(|t| t.replace("\r\n", "\n")).unwrap_or_default();
+                let Ok(text) = board.map_or(Ok(None), |b| b.paste_text()) else { continue };
+                let text = text.unwrap_or_default().replace("\r\n", "\n");
                 if !text.is_empty() {
                     out.push(Event::Paste(text));
                 } else if board.is_some_and(|b| b.has_image()) {
@@ -70,6 +72,25 @@ pub fn translate(events: &mut Vec<Event>, board: Option<&dyn RichClipboard>) {
         }
     }
     *events = out;
+}
+
+/// Route copies through the host clipboard on Wayland, including where neither data-control
+/// nor X11 exists. Leave failed copies for the window's clipboard to try.
+pub(crate) fn copy_output(ctx: &egui::Context, board: Option<&dyn RichClipboard>) {
+    let Some(board) = board else { return };
+    ctx.output_mut(|output| {
+        output.commands.retain(|command| {
+            if let egui::OutputCommand::CopyText(text) = command {
+                if let Err(e) = board.put_text(text) {
+                    log::debug!("passing the failed copy to the window's clipboard: {e}");
+                    return true;
+                }
+                false
+            } else {
+                true
+            }
+        });
+    });
 }
 
 #[cfg(test)]

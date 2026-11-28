@@ -1351,6 +1351,9 @@ fn show_native(app: &mut MailApp, ctx: &egui::Context, window: &mut Open, last: 
             app.windows.dialog_shown = true;
         }
         crate::text_menu::finish(&ctx, menus);
+        if app.services.clipboard_keys {
+            crate::paste_keys::copy_output(&ctx, app.services.clipboard.as_deref());
+        }
     });
     close
 }

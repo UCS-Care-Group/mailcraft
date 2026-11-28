@@ -30,9 +30,7 @@ mailcraft-net = { workspace = true }
 mailcraft-ews = { workspace = true }
 # OpenPGP keys kept in GnuPG (#30): the conversation with gpg-agent; finding and opening its socket is `gpg_agent.rs`.
 mailcraft-assuan = { workspace = true }
-# `clipboard`: since 0.37 eframe has copy and paste behind a feature of its own (on by default, and
-# we turn the defaults off); without it nothing is copied, on any platform.
-eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "clipboard"] }
+eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11"] }
 egui = { workspace = true }
 # The monitors connected now, which egui doesn't list, so that a window restored onto a monitor
 # that is gone opens on the main one (#719): read from the window eframe made. Already in the
@@ -62,6 +60,10 @@ mailcraft-charset = { workspace = true }
 [build-dependencies]
 # Icon + VERSIONINFO for mailcraft.exe; build.rs only uses it when the target is Windows.
 winresource = "0.1.34"
+
+[target.'cfg(not(any(target_os = "linux", target_os = "freebsd")))'.dependencies]
+# The normal clipboard on platforms without our bounded Wayland reader.
+eframe = { workspace = true, features = ["clipboard"] }
 
 [target.'cfg(target_os = "macos")'.dependencies]
 # Finder double-click, Open With, Dock drops and `open -a MailCraft note.eml` arrive as a
@@ -149,6 +151,11 @@ windows = { version = "0.62", features = [
 base64 = { workspace = true }
 
 [target.'cfg(any(target_os = "linux", target_os = "freebsd"))'.dependencies]
+# Enable egui's arboard backend for X11 and copying, without smithay-clipboard. That reader
+# binds a second wl_data_device on winit's connection, which can take selections away from
+# winit's bounded reader on compositors that send them to only one device (#1217, #1708).
+# This is the same crate eframe uses; no additional clipboard implementation is introduced.
+egui-winit = { version = "0.37", default-features = false, features = ["arboard"] }
 # Probe X11 before choosing it for close-to-tray, so a stale DISPLAY keeps native Wayland.
 # Already part of winit's X11 backend; the pure Rust connector performs authentication too.
 x11rb = { version = "0.14", default-features = false }

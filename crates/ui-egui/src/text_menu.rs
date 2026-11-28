@@ -477,19 +477,19 @@ fn paste(app: &MailApp, takes: Takes) -> (Vec<Event>, Option<Captured>) {
     // What the system's backend hands egui for Ctrl+V (egui-winit), from the same reads: the text
     // when there is some, line ends as `\n`; nothing for an empty one; the picture only when there
     // is no text at all. The body then reads the HTML beside the text, as for Ctrl+V.
-    match board.text() {
-        Some(text) => {
+    match board.paste_text() {
+        Ok(Some(text)) => {
             let text = text.replace("\r\n", "\n");
             if text.is_empty() {
                 return (Vec::new(), None);
             }
-            let captured = (takes != Takes::Text).then(|| Captured { html: board.html().filter(|html| !html.trim().is_empty()) });
+            let captured = (takes != Takes::Text).then(|| Captured { html: board.html_for_text(&text).filter(|html| !html.trim().is_empty()) });
             (vec![Event::Paste(text)], captured)
         }
         // (Only a signature or a message's body takes a picture: anywhere else egui's
         // `PasteImage` changes nothing.)
-        None if takes == Takes::Pictures => (board.image().and_then(|png| picture(&png)).into_iter().collect(), None),
-        None => (Vec::new(), None),
+        Ok(None) if takes == Takes::Pictures => (board.image().and_then(|png| picture(&png)).into_iter().collect(), None),
+        Ok(None) | Err(_) => (Vec::new(), None),
     }
 }
 

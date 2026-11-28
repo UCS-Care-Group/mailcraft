@@ -1107,7 +1107,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                         Some(found) => (found.html, None),
                         None => {
                             let board = app.services.clipboard.as_ref();
-                            let html = board.and_then(|b| b.html()).filter(|h| !h.trim().is_empty());
+                            let html = board.and_then(|b| b.html_for_text(&text)).filter(|h| !h.trim().is_empty());
                             // Into the message, a picture only when nothing else is on the clipboard (#547),
                             // or when the HTML is that picture alone: a browser's Copy Image puts an
                             // `<img>` of its web address beside the picture itself, which would paste

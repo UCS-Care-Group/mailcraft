@@ -714,6 +714,10 @@ pub trait RichClipboard {
     }
     /// The HTML on the clipboard, when what is on it has HTML.
     fn html(&self) -> Option<String>;
+    /// The HTML accompanying text already read for this paste.
+    fn html_for_text(&self, _text: &str) -> Option<String> {
+        self.html()
+    }
     /// The picture on the clipboard as PNG, when what is on it is a picture.
     fn image(&self) -> Option<Vec<u8>> {
         None
@@ -727,6 +731,11 @@ pub trait RichClipboard {
     /// does with what the system read.
     fn text(&self) -> Option<String> {
         None
+    }
+    /// Text for a paste, distinguishing absent text from a failed transfer. Neither absence
+    /// nor a failed transfer may bypass the host's size and time limits through another reader.
+    fn paste_text(&self) -> std::io::Result<Option<String>> {
+        Ok(self.text())
     }
 }
 
@@ -5943,6 +5952,9 @@ impl MailApp {
         self.frame_ms = now_ms() - t0;
         self.report_dirty();
         text_menu::finish(&ctx, menus);
+        if self.services.clipboard_keys {
+            paste_keys::copy_output(&ctx, self.services.clipboard.as_deref());
+        }
     }
 
     /// The window's close button. MailCraft saves by itself, so closing only waits for a message

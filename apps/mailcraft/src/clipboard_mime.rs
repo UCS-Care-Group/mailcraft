@@ -10,6 +10,11 @@
 
 use mailcraft_ui_egui::MAX_PICTURE_SIDE;
 
+/// The text formats accepted by winit's reader at rev 1477b126a8c3d3d2add446c93492454ba833074d,
+/// for its offer query. Keep in step with `TEXT_MIME_TYPES` in that fork's
+/// `src/platform_impl/linux/wayland/clipboard.rs` when changing the pin in `Cargo.toml`.
+pub const TEXT_MIMES: [&str; 5] = ["text/plain;charset=utf-8", "UTF8_STRING", "text/plain", "TEXT", "STRING"];
+
 /// HTML, in the order asked for.
 pub const HTML_MIMES: [&str; 2] = ["text/html;charset=utf-8", "text/html"];
 
