@@ -2155,7 +2155,7 @@ fn a_run_that_is_called_off_stops_before_the_next_command_and_says_goodbye() {
     with_mail.outbox = vec![hello()];
     with_mail.ops = vec![flags("INBOX", 1, Some(true), None, None)];
     sync_as(&with_mail, batches_of(50), Host::default(), &cancel, &mut |piece| all.push(piece));
-    assert_eq!(all, [SyncResult { account: 7, email: "ada@example.org".into(), stopped: true, ..Default::default() }]);
+    assert_eq!(all, [SyncResult { account: 7, email: "ada@example.org".into(), auth_refused: Some(false), stopped: true, ..Default::default() }]);
     assert_eq!((imap.world().connections, smtp.world().connections), (2, 0));
 
     // Called off while mail goes out: the next message waits, and nothing else is begun. But a
