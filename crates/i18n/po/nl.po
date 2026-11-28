@@ -9303,15 +9303,16 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr "MailCraft ondersteunt POP nog niet. Gebruik in plaats daarvan de IMAP-server van uw provider (meestal imap.<uw domein>, poort 993)."
 
 #. interface
-#: crates/ui-egui/src/dav_job.rs
-#, fuzzy
-msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
-msgstr "MailCraft bewaart van de agendaserver van {account} zoveel als het kan: sommige agenda's of afspraken zijn weggelaten."
-
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "MailCraft finds no mistakes in it."
 msgstr "MailCraft vindt er geen fouten in."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "MailCraft bewaart van de agendaserver van {account} zoveel als het kan: sommige agenda's of afspraken zijn weggelaten."
 
 #. interface
 #: crates/ui-egui/src/software.rs
@@ -13611,17 +13612,14 @@ msgstr "Favorieten uit Outlook nu opnieuw lezen"
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "Lezen met de aanmelding van {owner}, zolang u die bewaart: de persoon moet diens agenda met u hebben gedeeld. De agenda wordt alleen op deze computer bewaard: die verschijnt niet in Outlook of op uw andere apparaten. Microsoft vraagt u één keer om MailCraft de agenda's van anderen te laten lezen."
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
-
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "Read your script from the server again, in place of the text here"
 msgstr "Uw script opnieuw van de server lezen, in plaats van de tekst hier"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Reading"
 msgstr "Lezen"
@@ -17699,15 +17697,16 @@ msgid "The Sieve script can't be read."
 msgstr "Het Sieve-script kan niet worden gelezen."
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
-msgstr "De naam en het logo van UCS Labs zijn handelsmerken van UCS Care Group Limited; zie TRADEMARKS.md."
-
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The Sieve server is a host name, with a port after a colon if it isn't 4190"
 msgstr "De Sieve-server is een hostnaam, met een poort na een dubbele punt als die niet 4190 is"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
+msgstr "De naam en het logo van UCS Labs zijn handelsmerken van UCS Care Group Limited; zie TRADEMARKS.md."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -19880,12 +19879,6 @@ msgid "This account's server keeps no Sieve scripts."
 msgstr "De server van dit account bewaart geen Sieve-scripts."
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-msgstr "De server van dit account bewaart deze contactpersoon. Wijzigingen die hier worden gemaakt, worden nog niet teruggestuurd, dus deze kan hier niet worden bewerkt of verwijderd. Favoriet en categorieën worden op deze computer bewaard."
-
-#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "This attachment could not be previewed."
@@ -20046,6 +20039,12 @@ msgstr "Deze categorie staat op meer afspraken in agenda's op een server dan er 
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr "De sleutel van dit certificaat is van een soort die MailCraft niet gebruikt: hier wordt alleen ECDSA op P-256 of P-384 geïmporteerd."
 
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This change is on this computer and goes to the server at the next Send/Receive."
+msgstr "Deze wijziging staat op deze computer en gaat bij de volgende Verzenden/Ontvangen naar de server."
+
 #. what a command says
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
@@ -20057,12 +20056,6 @@ msgstr "Dit teken betekent hier niets."
 #, fuzzy
 msgid "This comment has no */ to end it."
 msgstr "Dit commentaar heeft geen */ om het te sluiten."
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This change is on this computer and goes to the server at the next Send/Receive."
-msgstr "Deze wijziging staat op deze computer en gaat bij de volgende Verzenden/Ontvangen naar de server."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -26672,6 +26665,7 @@ msgstr "dit bericht is nog niet gedownload: open het zodra u online bent en verz
 msgid "this read was made under the calendar server's earlier settings"
 msgstr "deze lezing is gedaan met de eerdere instellingen van de agendaserver"
 
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "this rule is in your Sieve script \"{script}\" on the server, made in another program: MailCraft shows it and never changes it"
@@ -27440,6 +27434,12 @@ msgstr "{name} is een opdracht; hier hoort een test."
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} is een gedeeld postvak waarvan het account is verdwenen: verwijder het en voeg het opnieuw toe"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is a test; a command belongs here."
+msgstr "{name} is een test; hier hoort een opdracht."
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt crates/ui-egui/src/move_contacts.rs
 #, fuzzy
@@ -27451,12 +27451,6 @@ msgstr "{name} staat al in {folder}."
 #, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
 msgstr "{name} is bijgevoegd: het kan niet in de tekst worden ingevoegd ({why})"
-
-#. what a command says
-#: crates/engine/src/sieve_check.rs
-#, fuzzy
-msgid "{name} is a test; a command belongs here."
-msgstr "{name} is een test; hier hoort een opdracht."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27477,15 +27471,16 @@ msgid "{name} is larger than {mb} MB"
 msgstr "{name} is groter dan {mb} MB"
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_move.rs
-#, fuzzy
-msgid "{name} is still being sent to its server: try again shortly."
-msgstr "{name} wordt nog naar de server verzonden: probeer het zo opnieuw."
-
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
 msgid "{name} is missing an argument."
 msgstr "{name} mist een argument."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} wordt nog naar de server verzonden: probeer het zo opnieuw."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -29091,6 +29086,10 @@ msgid "−Lines"
 msgstr "−Regels"
 
 #, fuzzy
+#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+#~ msgstr "De server van dit account bewaart deze contactpersoon. Wijzigingen die hier worden gemaakt, worden nog niet teruggestuurd, dus deze kan hier niet worden bewerkt of verwijderd. Favoriet en categorieën worden op deze computer bewaard."
+
+#, fuzzy
 #~ msgid "Read-only"
 #~ msgstr "Alleen-lezen"
 
@@ -29103,10 +29102,6 @@ msgstr "−Regels"
 #~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
 #~ msgstr[0] "{n} contact staat weer alleen op deze computer: te veel wijzigingen wachten op verzending."
 #~ msgstr[1] "{n} contacten staan weer alleen op deze computer: te veel wijzigingen wachten op verzending."
-
-#, fuzzy
-#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-#~ msgstr "De server van dit account bewaart deze contactpersoon. Wijzigingen die hier worden gemaakt, worden nog niet teruggestuurd, dus deze kan hier niet worden bewerkt of verwijderd. Favoriet en categorieën worden op deze computer bewaard."
 
 #, fuzzy
 #~ msgid "contact"

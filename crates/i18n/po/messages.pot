@@ -7987,11 +7987,13 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/dav_job.rs
-msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
-
 #: crates/ui-egui/src/sieve_editor.rs
 msgid "MailCraft finds no mistakes in it."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
 msgstr ""
 
 #. interface
@@ -11649,18 +11651,14 @@ msgstr ""
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr ""
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
-msgid "Reading"
-
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 msgid "Read your script from the server again, in place of the text here"
 msgstr ""
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
-msgid "Read-only"
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+msgid "Reading"
 msgstr ""
 
 #. ribbon
@@ -15149,11 +15147,13 @@ msgid "The Sieve script can't be read."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
-msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
-
 #: crates/ui-egui/src/account_setup.rs
 msgid "The Sieve server is a host name, with a port after a colon if it isn't 4190"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
 msgstr ""
 
 #. what a command says
@@ -16971,11 +16971,6 @@ msgid "This account's server keeps no Sieve scripts."
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
-msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-msgstr ""
-
-#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 msgid "This attachment could not be previewed."
 msgstr ""
@@ -17110,6 +17105,11 @@ msgstr ""
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/people_view.rs
+msgid "This change is on this computer and goes to the server at the next Send/Receive."
+msgstr ""
+
 #. what a command says
 #: crates/engine/src/sieve_check.rs
 msgid "This character has no meaning here."
@@ -17118,11 +17118,6 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/sieve_check.rs
 msgid "This comment has no */ to end it."
-msgstr ""
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-msgid "This change is on this computer and goes to the server at the next Send/Receive."
 msgstr ""
 
 #. interface
@@ -18235,6 +18230,7 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
 msgid "Unfolded"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/sieve_check.rs
@@ -22666,7 +22662,9 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/dav_sync.rs
 msgid "this read was made under the calendar server's earlier settings"
+msgstr ""
 
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 msgid "this rule is in your Sieve script \"{script}\" on the server, made in another program: MailCraft shows it and never changes it"
 msgstr ""
@@ -23312,6 +23310,11 @@ msgstr ""
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr ""
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+msgid "{name} is a test; a command belongs here."
+msgstr ""
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt crates/ui-egui/src/move_contacts.rs
 msgid "{name} is already in {folder}."
@@ -23320,10 +23323,6 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/files.rs
 msgid "{name} is attached: it can't go in the text ({why})"
-
-#. what a command says
-#: crates/engine/src/sieve_check.rs
-msgid "{name} is a test; a command belongs here."
 msgstr ""
 
 #. interface
@@ -23342,11 +23341,13 @@ msgid "{name} is larger than {mb} MB"
 msgstr ""
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_move.rs
-msgid "{name} is still being sent to its server: try again shortly."
-
 #: crates/engine/src/sieve_check.rs
 msgid "{name} is missing an argument."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+msgid "{name} is still being sent to its server: try again shortly."
 msgstr ""
 
 #. interface

@@ -9648,15 +9648,16 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr "MailCraft nie obsługuje jeszcze POP. Użyj zamiast tego serwera IMAP dostawcy (zwykle imap.<twoja domena>, port 993)."
 
 #. interface
-#: crates/ui-egui/src/dav_job.rs
-#, fuzzy
-msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
-msgstr "MailCraft przechowuje z serwera kalendarzy konta {account} tyle, ile może: niektóre kalendarze lub wydarzenia zostały pominięte."
-
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "MailCraft finds no mistakes in it."
 msgstr "MailCraft nie znajduje w nim błędów."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "MailCraft przechowuje z serwera kalendarzy konta {account} tyle, ile może: niektóre kalendarze lub wydarzenia zostały pominięte."
 
 #. interface
 #: crates/ui-egui/src/software.rs
@@ -14070,17 +14071,14 @@ msgstr "Odczytaj teraz ponownie Ulubione z Outlooka"
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "Odczytywany przy użyciu logowania użytkownika {owner}, dopóki go zachowasz: ta osoba musi udostępnić Ci swój kalendarz. Jest przechowywany tylko na tym komputerze: nie pojawi się w Outlooku ani na innych urządzeniach. Microsoft raz zapyta, czy pozwolić programowi MailCraft odczytywać kalendarze innych osób."
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
-
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "Read your script from the server again, in place of the text here"
 msgstr "Wczytaj skrypt ponownie z serwera w miejsce tekstu tutaj"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Reading"
 msgstr "Czytanie"
@@ -18307,15 +18305,16 @@ msgid "The Sieve script can't be read."
 msgstr "Nie można odczytać skryptu Sieve."
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
-msgstr "Nazwa i logo UCS Labs są znakami towarowymi UCS Care Group Limited; zobacz TRADEMARKS.md."
-
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The Sieve server is a host name, with a port after a colon if it isn't 4190"
 msgstr "Serwer Sieve to nazwa hosta, z portem po dwukropku, jeśli nie jest to 4190"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
+msgstr "Nazwa i logo UCS Labs są znakami towarowymi UCS Care Group Limited; zobacz TRADEMARKS.md."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -20504,12 +20503,6 @@ msgid "This account's server keeps no Sieve scripts."
 msgstr "Serwer tego konta nie przechowuje skryptów Sieve."
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-msgstr "Ten kontakt przechowuje serwer tego konta. Zmiany wprowadzone tutaj nie są jeszcze odsyłane, więc nie można go tu edytować ani usuwać. Ulubione i kategorie są przechowywane na tym komputerze."
-
-#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "This attachment could not be previewed."
@@ -20671,6 +20664,12 @@ msgstr "Ta kategoria jest przypisana do większej liczby wydarzeń w kalendarzac
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr "Klucz tego certyfikatu jest rodzaju, którego MailCraft nie używa: importowany jest tutaj tylko ECDSA na P-256 lub P-384."
 
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This change is on this computer and goes to the server at the next Send/Receive."
+msgstr "Ta zmiana jest na tym komputerze i trafi na serwer przy następnym Wyślij/Odbierz."
+
 #. what a command says
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
@@ -20682,12 +20681,6 @@ msgstr "Ten znak nic tu nie znaczy."
 #, fuzzy
 msgid "This comment has no */ to end it."
 msgstr "Ten komentarz nie ma zamykającego */."
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This change is on this computer and goes to the server at the next Send/Receive."
-msgstr "Ta zmiana jest na tym komputerze i trafi na serwer przy następnym Wyślij/Odbierz."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -27371,6 +27364,7 @@ msgstr "ta wiadomość nie została pobrana: otwórz ją, gdy będziesz online, 
 msgid "this read was made under the calendar server's earlier settings"
 msgstr "ten odczyt wykonano przy wcześniejszych ustawieniach serwera kalendarza"
 
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "this rule is in your Sieve script \"{script}\" on the server, made in another program: MailCraft shows it and never changes it"
@@ -28145,6 +28139,12 @@ msgstr "{name} to polecenie; tu powinien być test."
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} to udostępniona skrzynka pocztowa, której konta już nie ma: usuń ją i dodaj ponownie"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is a test; a command belongs here."
+msgstr "{name} to test; tu powinno być polecenie."
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt crates/ui-egui/src/move_contacts.rs
 #, fuzzy
@@ -28156,12 +28156,6 @@ msgstr "{name} jest już w {folder}."
 #, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
 msgstr "Załączono {name}: nie można go wstawić do tekstu ({why})"
-
-#. what a command says
-#: crates/engine/src/sieve_check.rs
-#, fuzzy
-msgid "{name} is a test; a command belongs here."
-msgstr "{name} to test; tu powinno być polecenie."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -28182,15 +28176,16 @@ msgid "{name} is larger than {mb} MB"
 msgstr "{name} jest większy niż {mb} MB"
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_move.rs
-#, fuzzy
-msgid "{name} is still being sent to its server: try again shortly."
-msgstr "{name} jest wciąż wysyłany na swój serwer: spróbuj ponownie za chwilę."
-
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
 msgid "{name} is missing an argument."
 msgstr "{name} brakuje argumentu."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} jest wciąż wysyłany na swój serwer: spróbuj ponownie za chwilę."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -29925,6 +29920,10 @@ msgid "−Lines"
 msgstr "−Wiersze"
 
 #, fuzzy
+#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+#~ msgstr "Ten kontakt przechowuje serwer tego konta. Zmiany wprowadzone tutaj nie są jeszcze odsyłane, więc nie można go tu edytować ani usuwać. Ulubione i kategorie są przechowywane na tym komputerze."
+
+#, fuzzy
 #~ msgid "Read-only"
 #~ msgstr "Tylko do odczytu"
 
@@ -29938,10 +29937,6 @@ msgstr "−Wiersze"
 #~ msgstr[0] "{n} kontakt wraca tylko na ten komputer: zbyt wiele zmian czeka na wysłanie."
 #~ msgstr[1] "{n} kontakty wracają tylko na ten komputer: zbyt wiele zmian czeka na wysłanie."
 #~ msgstr[2] "{n} kontaktów wraca tylko na ten komputer: zbyt wiele zmian czeka na wysłanie."
-
-#, fuzzy
-#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-#~ msgstr "Ten kontakt przechowuje serwer tego konta. Zmiany wprowadzone tutaj nie są jeszcze odsyłane, więc nie można go tu edytować ani usuwać. Ulubione i kategorie są przechowywane na tym komputerze."
 
 #, fuzzy
 #~ msgid "contact"

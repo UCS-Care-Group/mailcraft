@@ -9611,15 +9611,16 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr "MailCraft még nem támogatja a POP-t. Használja a szolgáltató IMAP szerverét helyette (általában az imap. < domain>, port 993)."
 
 #. interface
-#: crates/ui-egui/src/dav_job.rs
-#, fuzzy
-msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
-msgstr "A MailCraft annyit tárol {account} naptárkiszolgálójáról, amennyit tud: néhány naptár vagy esemény kimaradt."
-
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "MailCraft finds no mistakes in it."
 msgstr "A MailCraft nem talál benne hibát."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "A MailCraft annyit tárol {account} naptárkiszolgálójáról, amennyit tud: néhány naptár vagy esemény kimaradt."
 
 #. interface
 #: crates/ui-egui/src/software.rs
@@ -14026,17 +14027,14 @@ msgstr "Olvassa el újra a kedvenceket az Outlook-ból"
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "Olvass {owner} bejelentkezésével, amíg megtartod: az illetőnek meg kell osztania a naptárát veled. Csak ezen a számítógépen van tartva: nem jelenik meg az Outlook-ban vagy más eszközein. A Microsoft egyszer megkér, hogy hagyd, hogy MailCraft olvassa el mások naptárait."
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
-
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "Read your script from the server again, in place of the text here"
 msgstr "A szkript újraolvasása a kiszolgálóról az itteni szöveg helyett"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Reading"
 msgstr "Olvasás"
@@ -18249,15 +18247,16 @@ msgid "The Sieve script can't be read."
 msgstr "A Sieve-szkript nem olvasható."
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
-msgstr "Az UCS Labs név és logó a UCS Care Group Limited védjegye; lásd: TRADEMARKS.md."
-
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The Sieve server is a host name, with a port after a colon if it isn't 4190"
 msgstr "A Sieve-szerver egy gépnév, kettőspont után a porttal, ha az nem 4190"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
+msgstr "Az UCS Labs név és logó a UCS Care Group Limited védjegye; lásd: TRADEMARKS.md."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -20437,12 +20436,6 @@ msgid "This account's server keeps no Sieve scripts."
 msgstr "A fiók kiszolgálója nem tárol Sieve-szkripteket."
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-msgstr "Ez a fiók szerver tartja ezt a kapcsolatot. Az itt végzett változtatások még nem küldhetők vissza, így nem lehet szerkeszteni vagy törölni itt. Kedvenc és kategóriákat tartanak ezen a számítógépen."
-
-#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "This attachment could not be previewed."
@@ -20604,6 +20597,12 @@ msgstr "Ez a kategória a kiszolgálón tárolt naptárak több eseményén szer
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr "A tanúsítvány kulcsa olyan fajta, amit a MailCraft nem használ: csak a P-256 vagy P-384 ECDSA-t importálják ide."
 
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This change is on this computer and goes to the server at the next Send/Receive."
+msgstr "Ez a módosítás ezen a számítógépen van, és a következő Küldés/Fogadáskor kerül a kiszolgálóra."
+
 #. what a command says
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
@@ -20615,12 +20614,6 @@ msgstr "Ennek a karakternek itt nincs jelentése."
 #, fuzzy
 msgid "This comment has no */ to end it."
 msgstr "Ennek a megjegyzésnek nincs lezáró */ jele."
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This change is on this computer and goes to the server at the next Send/Receive."
-msgstr "Ez a módosítás ezen a számítógépen van, és a következő Küldés/Fogadáskor kerül a kiszolgálóra."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -27279,6 +27272,7 @@ msgstr "Ez az üzenet nincs letöltve: nyissa meg, ha már online van, majd kül
 msgid "this read was made under the calendar server's earlier settings"
 msgstr "ez az olvasás a naptárkiszolgáló korábbi beállításaival történt"
 
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "this rule is in your Sieve script \"{script}\" on the server, made in another program: MailCraft shows it and never changes it"
@@ -28050,6 +28044,12 @@ msgstr "A(z) {name} parancs; ide teszt kell."
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "A(z) {name} megosztott postafiókhoz tartozó fiók már nincs meg. Távolítsa el a megosztott postafiókot, majd adja hozzá újra."
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is a test; a command belongs here."
+msgstr "A(z) {name} teszt; ide parancs kell."
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt crates/ui-egui/src/move_contacts.rs
 #, fuzzy
@@ -28061,12 +28061,6 @@ msgstr "{name} már itt van: {folder}."
 #, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
 msgstr "{name} csatolva lett: nem lehet a szövegbe beszúrni ({why})"
-
-#. what a command says
-#: crates/engine/src/sieve_check.rs
-#, fuzzy
-msgid "{name} is a test; a command belongs here."
-msgstr "A(z) {name} teszt; ide parancs kell."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -28087,15 +28081,16 @@ msgid "{name} is larger than {mb} MB"
 msgstr "A {name} nagyobb, mint a {mb} MB"
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_move.rs
-#, fuzzy
-msgid "{name} is still being sent to its server: try again shortly."
-msgstr "{name} küldése a kiszolgálójára még folyamatban van: próbálja újra hamarosan."
-
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
 msgid "{name} is missing an argument."
 msgstr "A(z) {name} egy argumentuma hiányzik."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} küldése a kiszolgálójára még folyamatban van: próbálja újra hamarosan."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -29700,6 +29695,10 @@ msgid "−Lines"
 msgstr "−Sorok"
 
 #, fuzzy
+#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+#~ msgstr "Ez a fiók szerver tartja ezt a kapcsolatot. Az itt végzett változtatások még nem küldhetők vissza, így nem lehet szerkeszteni vagy törölni itt. Kedvenc és kategóriákat tartanak ezen a számítógépen."
+
+#, fuzzy
 #~ msgid "Read-only"
 #~ msgstr "Csak olvasható"
 
@@ -29712,10 +29711,6 @@ msgstr "−Sorok"
 #~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
 #~ msgstr[0] "{n} névjegy csak ezen a számítógépen marad: túl sok módosítás vár küldésre."
 #~ msgstr[1] "{n} névjegy csak ezen a számítógépen marad: túl sok módosítás vár küldésre."
-
-#, fuzzy
-#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-#~ msgstr "Ez a fiók szerver tartja ezt a kapcsolatot. Az itt végzett változtatások még nem küldhetők vissza, így nem lehet szerkeszteni vagy törölni itt. Kedvenc és kategóriákat tartanak ezen a számítógépen."
 
 #, fuzzy
 #~ msgid "contact"

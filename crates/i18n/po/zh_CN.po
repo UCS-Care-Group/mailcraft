@@ -9609,15 +9609,16 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr "MailCraft 尚不支持 POP。请改用服务提供商的 IMAP 服务器（通常为 imap.<your domain>，端口 993）。"
 
 #. interface
-#: crates/ui-egui/src/dav_job.rs
-#, fuzzy
-msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
-msgstr "MailCraft 已尽可能保存 {account} 的日历服务器中的内容：部分日历或事件未被保存。"
-
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "MailCraft finds no mistakes in it."
 msgstr "MailCraft 未发现错误。"
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "MailCraft 已尽可能保存 {account} 的日历服务器中的内容：部分日历或事件未被保存。"
 
 #. interface
 #: crates/ui-egui/src/software.rs
@@ -14021,17 +14022,14 @@ msgstr "立即从 Outlook 重新读取收藏夹"
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "使用 {owner} 的登录信息读取，直到您移除该日历：对方须先与您共享日历。此日历仅保存在本机，不会出现在 Outlook 或其他设备上。Microsoft 会询问您是否允许 MailCraft 读取他人的日历。"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
-
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "Read your script from the server again, in place of the text here"
 msgstr "从服务器重新读取您的脚本，替换此处的文本"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Reading"
 msgstr "阅读"
@@ -18246,15 +18244,16 @@ msgid "The Sieve script can't be read."
 msgstr "无法读取 Sieve 脚本。"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
-msgstr "UCS Labs 的名称和标志是 UCS Care Group Limited 的商标；请参阅 TRADEMARKS.md。"
-
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The Sieve server is a host name, with a port after a colon if it isn't 4190"
 msgstr "Sieve 服务器是主机名；若端口不是 4190，请在冒号后写明端口"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
+msgstr "UCS Labs 的名称和标志是 UCS Care Group Limited 的商标；请参阅 TRADEMARKS.md。"
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -20425,12 +20424,6 @@ msgid "This account's server keeps no Sieve scripts."
 msgstr "此账户的服务器不保存 Sieve 脚本。"
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-msgstr "此联系人由该账户的服务器保存。在此处所做的更改尚不能发送回服务器，因此不能在此编辑或删除。收藏状态和类别保存在此计算机上。"
-
-#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "This attachment could not be previewed."
@@ -20592,6 +20585,12 @@ msgstr "服务器上保存的日历中带有此类别的日程过多，无法同
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr "MailCraft 不支持此证书的密钥类型；此处仅导入 P-256 或 P-384 曲线上的 ECDSA 密钥。"
 
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This change is on this computer and goes to the server at the next Send/Receive."
+msgstr "此更改保存在这台计算机上，将在下次发送/接收时发送到服务器。"
+
 #. what a command says
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
@@ -20603,12 +20602,6 @@ msgstr "此字符在这里没有意义。"
 #, fuzzy
 msgid "This comment has no */ to end it."
 msgstr "此注释没有结束的 */。"
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This change is on this computer and goes to the server at the next Send/Receive."
-msgstr "此更改保存在这台计算机上，将在下次发送/接收时发送到服务器。"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -27258,6 +27251,7 @@ msgstr "此邮件尚未下载：请联网后打开，再重新发送"
 msgid "this read was made under the calendar server's earlier settings"
 msgstr "此次读取是在日历服务器之前的设置下进行的"
 
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "this rule is in your Sieve script \"{script}\" on the server, made in another program: MailCraft shows it and never changes it"
@@ -28026,6 +28020,12 @@ msgstr "{name} 是命令；此处应为测试。"
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} 是共享邮箱，其所属账户已不存在：请将其删除并重新添加"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is a test; a command belongs here."
+msgstr "{name} 是测试；此处应为命令。"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt crates/ui-egui/src/move_contacts.rs
 #, fuzzy
@@ -28037,12 +28037,6 @@ msgstr "{name} 已在 {folder} 中。"
 #, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
 msgstr "已附加 {name}：无法将其插入文本（{why}）"
-
-#. what a command says
-#: crates/engine/src/sieve_check.rs
-#, fuzzy
-msgid "{name} is a test; a command belongs here."
-msgstr "{name} 是测试；此处应为命令。"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -28063,15 +28057,16 @@ msgid "{name} is larger than {mb} MB"
 msgstr "{name} 大于 {mb} MB"
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_move.rs
-#, fuzzy
-msgid "{name} is still being sent to its server: try again shortly."
-msgstr "{name} 仍在发送到其服务器：请稍后再试。"
-
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
 msgid "{name} is missing an argument."
 msgstr "{name} 缺少一个参数。"
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} 仍在发送到其服务器：请稍后再试。"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -29546,6 +29541,10 @@ msgid "−Lines"
 msgstr "−行"
 
 #, fuzzy
+#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+#~ msgstr "此联系人由该账户的服务器保存。在此处所做的更改尚不能发送回服务器，因此不能在此编辑或删除。收藏状态和类别保存在此计算机上。"
+
+#, fuzzy
 #~ msgid "Read-only"
 #~ msgstr "只读"
 
@@ -29557,10 +29556,6 @@ msgstr "−行"
 #~ msgid "{n} contact is put back on this computer only: too many changes are waiting to be sent."
 #~ msgid_plural "{n} contacts are put back on this computer only: too many changes are waiting to be sent."
 #~ msgstr[0] "{n} 个联系人已恢复为仅保存在此计算机上：等待发送的更改过多。"
-
-#, fuzzy
-#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-#~ msgstr "此联系人由该账户的服务器保存。在此处所做的更改尚不能发送回服务器，因此不能在此编辑或删除。收藏状态和类别保存在此计算机上。"
 
 #, fuzzy
 #~ msgid "contact"

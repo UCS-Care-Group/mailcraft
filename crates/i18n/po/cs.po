@@ -9633,15 +9633,16 @@ msgid "MailCraft doesn't support POP yet. Use your provider's IMAP server instea
 msgstr "MailCraft zatím nepodporuje POP. Použijte místo toho IMAP server svého poskytovatele (obvykle imap.<vaše doména>, port 993)."
 
 #. interface
-#: crates/ui-egui/src/dav_job.rs
-#, fuzzy
-msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
-msgstr "MailCraft uchovává z kalendářového serveru účtu {account} tolik, kolik může: některé kalendáře nebo události byly vynechány."
-
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "MailCraft finds no mistakes in it."
 msgstr "MailCraft v něm nenachází žádné chyby."
+
+#. interface
+#: crates/ui-egui/src/dav_job.rs
+#, fuzzy
+msgid "MailCraft holds as much from the calendar server of {account} as it can: some calendars or events were left out."
+msgstr "MailCraft uchovává z kalendářového serveru účtu {account} tolik, kolik může: některé kalendáře nebo události byly vynechány."
 
 #. interface
 #: crates/ui-egui/src/software.rs
@@ -14048,17 +14049,14 @@ msgstr "Znovu teď načíst oblíbené z Outlooku"
 msgid "Read with {owner}'s sign-in, for as long as you keep it: the person has to have shared their calendar with you. It is kept on this computer only: it won't appear in Outlook or on your other devices. Microsoft asks you once to let MailCraft read other people's calendars."
 msgstr "Čte se s přihlášením účtu {owner}, dokud ho ponecháte: dotyčný s vámi musí svůj kalendář sdílet. Uchovává se jen v tomto počítači: nezobrazí se v Outlooku ani na vašich dalších zařízeních. Microsoft se vás jednou zeptá, zda MailCraft smí číst kalendáře jiných lidí."
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
-
 #. interface
 #: crates/ui-egui/src/sieve_editor.rs
 #, fuzzy
 msgid "Read your script from the server again, in place of the text here"
 msgstr "Znovu načíst skript ze serveru místo zdejšího textu"
 
-#. interface
-#: crates/ui-egui/src/people_view.rs
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
 #, fuzzy
 msgid "Reading"
 msgstr "Čtení"
@@ -18281,15 +18279,16 @@ msgid "The Sieve script can't be read."
 msgstr "Skript Sieve nelze přečíst."
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
-#, fuzzy
-msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
-msgstr "Název a logo UCS Labs jsou ochranné známky společnosti UCS Care Group Limited; viz TRADEMARKS.md."
-
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The Sieve server is a host name, with a port after a colon if it isn't 4190"
 msgstr "Server Sieve je název hostitele, s portem za dvojtečkou, pokud to není 4190"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "The UCS Labs name and logo are trademarks of UCS Care Group Limited; see TRADEMARKS.md."
+msgstr "Název a logo UCS Labs jsou ochranné známky společnosti UCS Care Group Limited; viz TRADEMARKS.md."
 
 #. what a command says
 #: crates/mobile/src/sync_api.rs
@@ -20476,12 +20475,6 @@ msgid "This account's server keeps no Sieve scripts."
 msgstr "Server tohoto účtu neuchovává žádné skripty Sieve."
 
 #. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-msgstr "Tento kontakt uchovává server tohoto účtu. Změny provedené zde se zatím neodesílají zpět, takže ho zde nelze upravit ani odstranit. Oblíbené a kategorie se uchovávají v tomto počítači."
-
-#. interface
 #: crates/ui-egui/src/attachment_preview.rs
 #, fuzzy
 msgid "This attachment could not be previewed."
@@ -20643,6 +20636,12 @@ msgstr "Tato kategorie je u více událostí kalendářů na serveru, než kolik
 msgid "This certificate's key is of a kind MailCraft doesn't use: only ECDSA on P-256 or P-384 is imported here."
 msgstr "Klíč tohoto certifikátu je druhu, který MailCraft nepoužívá: importuje se sem jen ECDSA na P-256 nebo P-384."
 
+#. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "This change is on this computer and goes to the server at the next Send/Receive."
+msgstr "Tato změna je v tomto počítači a na server odejde při příštím Odeslat/Přijmout."
+
 #. what a command says
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
@@ -20654,12 +20653,6 @@ msgstr "Tento znak zde nemá význam."
 #, fuzzy
 msgid "This comment has no */ to end it."
 msgstr "Tento komentář nemá ukončující */."
-
-#. interface
-#: crates/ui-egui/src/people_view.rs
-#, fuzzy
-msgid "This change is on this computer and goes to the server at the next Send/Receive."
-msgstr "Tato změna je v tomto počítači a na server odejde při příštím Odeslat/Přijmout."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -27339,6 +27332,7 @@ msgstr "tato zpráva není stažená: otevřete ji, až budete online, a pak ji 
 msgid "this read was made under the calendar server's earlier settings"
 msgstr "toto čtení proběhlo s dřívějším nastavením kalendářového serveru"
 
+#. what a command says
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "this rule is in your Sieve script \"{script}\" on the server, made in another program: MailCraft shows it and never changes it"
@@ -28113,6 +28107,12 @@ msgstr "{name} je příkaz; sem patří test."
 msgid "{name} is a shared mailbox whose account is gone: remove it and add it again"
 msgstr "{name} je sdílená poštovní schránka, jejíž účet už neexistuje: odeberte ji a přidejte znovu"
 
+#. what a command says
+#: crates/engine/src/sieve_check.rs
+#, fuzzy
+msgid "{name} is a test; a command belongs here."
+msgstr "{name} je test; sem patří příkaz."
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MovePerson.kt crates/ui-egui/src/move_contacts.rs
 #, fuzzy
@@ -28124,12 +28124,6 @@ msgstr "{name} už je v {folder}."
 #, fuzzy
 msgid "{name} is attached: it can't go in the text ({why})"
 msgstr "{name} byl připojen: nelze ho vložit do textu ({why})"
-
-#. what a command says
-#: crates/engine/src/sieve_check.rs
-#, fuzzy
-msgid "{name} is a test; a command belongs here."
-msgstr "{name} je test; sem patří příkaz."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -28150,15 +28144,16 @@ msgid "{name} is larger than {mb} MB"
 msgstr "{name} je větší než {mb} MB"
 
 #. what a command says
-#: crates/engine/src/cmd/contacts_move.rs
-#, fuzzy
-msgid "{name} is still being sent to its server: try again shortly."
-msgstr "{name} se stále odesílá na svůj server: zkuste to za chvíli znovu."
-
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
 msgid "{name} is missing an argument."
 msgstr "{name} chybí argument."
+
+#. what a command says
+#: crates/engine/src/cmd/contacts_move.rs
+#, fuzzy
+msgid "{name} is still being sent to its server: try again shortly."
+msgstr "{name} se stále odesílá na svůj server: zkuste to za chvíli znovu."
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -29890,6 +29885,10 @@ msgid "−Lines"
 msgstr "−Řádky"
 
 #, fuzzy
+#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
+#~ msgstr "Tento kontakt uchovává server tohoto účtu. Změny provedené zde se zatím neodesílají zpět, takže ho zde nelze upravit ani odstranit. Oblíbené a kategorie se uchovávají v tomto počítači."
+
+#, fuzzy
 #~ msgid "Read-only"
 #~ msgstr "Jen pro čtení"
 
@@ -29907,10 +29906,6 @@ msgstr "−Řádky"
 #~ msgstr[0] "{n} kontakt je vrácen jen do tohoto počítače: na odeslání čeká příliš mnoho změn."
 #~ msgstr[1] "{n} kontakty jsou vráceny jen do tohoto počítače: na odeslání čeká příliš mnoho změn."
 #~ msgstr[2] "{n} kontaktů je vráceno jen do tohoto počítače: na odeslání čeká příliš mnoho změn."
-
-#, fuzzy
-#~ msgid "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-#~ msgstr "Tento kontakt uchovává server tohoto účtu. Změny provedené zde se zatím neodesílají zpět, takže ho zde nelze upravit ani odstranit. Oblíbené a kategorie se uchovávají v tomto počítači."
 
 #, fuzzy
 #~ msgid "contact"
