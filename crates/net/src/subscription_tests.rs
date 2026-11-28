@@ -418,3 +418,12 @@ fn a_webcal_address_is_read_over_https() {
         },
     );
 }
+
+#[test]
+fn a_webcal_address_the_check_refuses_is_not_asked_for() {
+    // #1724: the same checks as an https address (user name, length), on the webcal spelling too.
+    let long = format!("webcal://calendar.example/{}", "a".repeat(3000));
+    for address in ["webcal://user:pw@calendar.example/c.ics", "webcal://calendar.example/a b.ics", long.as_str()] {
+        assert_eq!(look(address, "", ""), SubscriptionOutcome::Failed { failure: "address".into() }, "{address}");
+    }
+}
