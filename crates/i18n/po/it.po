@@ -2878,6 +2878,12 @@ msgstr "Verifica connessione calendario"
 msgid "Calendar Listed Twice"
 msgstr "Calendario elencato due volte"
 
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Calendar Server Password"
+msgstr "Password del server del calendario"
+
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
 #, fuzzy
@@ -5682,6 +5688,12 @@ msgid "Ends on a day"
 msgstr "Termina in un giorno"
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Enter Password…"
+msgstr "Inserisci password…"
+
+#. interface
 #: crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Enter a date and a time."
@@ -6806,6 +6818,12 @@ msgstr "La pagina di GitHub è aperta: controllala, poi invia. MailCraft non ha 
 #, fuzzy
 msgid "Give it a title first"
 msgstr "Prima dagli un titolo"
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Give the password of this account's calendars and contacts. Nothing is sent until the server asks for it."
+msgstr "Inserisci la password dei calendari e dei contatti di questo account. Non viene inviato nulla finché il server non la chiede."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -9175,6 +9193,12 @@ msgid "MailCraft is open source, under the MIT and Apache 2.0 licences."
 msgstr "MailCraft è open source, con le licenze MIT e Apache 2.0."
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "MailCraft is still removing the old password for this server. Try OK again in a moment."
+msgstr "MailCraft sta ancora rimuovendo la vecchia password di questo server. Riprova OK tra un momento."
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "MailCraft is tested on real mail, by people who use it every day and tell us what goes wrong. Thank you."
@@ -9199,7 +9223,7 @@ msgid "MailCraft keeps at most {n} keys imported here, and has that many: remove
 msgstr "MailCraft conserva al massimo {n} chiavi importate qui, e le ha già: rimuovine una che non usi, poi importa questa."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft keeps it in memory until you close the app. It is never written to disk."
 msgstr "MailCraft la conserva in memoria fino alla chiusura dell'app. Non viene mai scritta su disco."
@@ -11776,7 +11800,7 @@ msgid "Numbering"
 msgstr "Elenco numerato"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -11942,6 +11966,12 @@ msgstr "Dopo l'approvazione di un amministratore, riprovare: l'accesso andrà a 
 #, fuzzy
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
 msgstr "Dopo che ha funzionato, l'archivio credenziali del sistema la conserva per la volta successiva. Non viene mai scritta nella cassetta postale."
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Once the server has taken it, MailCraft keeps it in your system's credential store, as File › Options lets it."
+msgstr "Una volta accettata dal server, MailCraft la conserva nell’archivio delle credenziali del sistema, come consente File › Opzioni."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -12767,6 +12797,12 @@ msgstr "Password"
 #, fuzzy
 msgid "Password for {account}"
 msgstr "Password per {account}"
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Password for {server}"
+msgstr "Password per {server}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -17852,6 +17888,12 @@ msgstr ""
 "Rimuovere la copia aperta per indirizzo? L'altra resta e sul server non cambia nulla."
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "The calendar server needs its password."
+msgstr "Il server del calendario ha bisogno della sua password."
+
+#. interface
 #: crates/ui-egui/src/dav_job.rs
 #, fuzzy
 msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
@@ -17874,6 +17916,12 @@ msgstr "Il server del calendario di {account} non ha accettato l’accesso. Mail
 #, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
 msgstr "Il calendario {name} e i suoi eventi conservati su questo computer verranno rimossi, così come l'indirizzo conservato per esso. Non viene inviato nulla; puoi iscriverti di nuovo con l'indirizzo."
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "The calendars and contacts of {account} have a password of their own."
+msgstr "I calendari e i contatti di {account} hanno una password propria."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs

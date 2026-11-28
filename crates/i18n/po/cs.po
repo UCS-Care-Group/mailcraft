@@ -2878,6 +2878,12 @@ msgstr "Kontrola připojení kalendáře"
 msgid "Calendar Listed Twice"
 msgstr "Kalendář uveden dvakrát"
 
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Calendar Server Password"
+msgstr "Heslo kalendářového serveru"
+
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
 #, fuzzy
@@ -5686,6 +5692,12 @@ msgid "Ends on a day"
 msgstr "Končí v určitý den"
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Enter Password…"
+msgstr "Zadat heslo…"
+
+#. interface
 #: crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Enter a date and a time."
@@ -6819,6 +6831,12 @@ msgstr "Stránka GitHubu je otevřená: zkontrolujte ji a pak odešlete. MailCra
 #, fuzzy
 msgid "Give it a title first"
 msgstr "Nejprve zadejte název"
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Give the password of this account's calendars and contacts. Nothing is sent until the server asks for it."
+msgstr "Zadejte heslo ke kalendářům a kontaktům tohoto účtu. Nic se neodešle, dokud o něj server nepožádá."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -9197,6 +9215,12 @@ msgid "MailCraft is open source, under the MIT and Apache 2.0 licences."
 msgstr "MailCraft je open source, pod licencemi MIT a Apache 2.0."
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "MailCraft is still removing the old password for this server. Try OK again in a moment."
+msgstr "MailCraft ještě odstraňuje staré heslo tohoto serveru. Za chvíli zkuste OK znovu."
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "MailCraft is tested on real mail, by people who use it every day and tell us what goes wrong. Thank you."
@@ -9221,7 +9245,7 @@ msgid "MailCraft keeps at most {n} keys imported here, and has that many: remove
 msgstr "MailCraft uchovává nejvýše {n} zde importovaných klíčů a tolik jich už má: odeberte jeden, který nepoužíváte, a pak importujte tento."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft keeps it in memory until you close the app. It is never written to disk."
 msgstr "MailCraft ho uchovává v paměti, dokud aplikaci nezavřete. Nikdy se nezapisuje na disk."
@@ -11801,7 +11825,7 @@ msgid "Numbering"
 msgstr "Číslování"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -11967,6 +11991,12 @@ msgstr "Až to správce schválí, zkuste to znovu: přihlášení pak projde."
 #, fuzzy
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
 msgstr "Jakmile to bude fungovat, úložiště přihlašovacích údajů systému si ho uchová pro příště. Nikdy se nezapisuje do poštovní schránky."
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Once the server has taken it, MailCraft keeps it in your system's credential store, as File › Options lets it."
+msgstr "Jakmile ho server přijme, MailCraft ho uloží do úložiště přihlašovacích údajů vašeho systému, jak to dovolí Soubor › Možnosti."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -12790,6 +12820,12 @@ msgstr "Heslo"
 #, fuzzy
 msgid "Password for {account}"
 msgstr "Heslo pro {account}"
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Password for {server}"
+msgstr "Heslo pro {server}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -17895,6 +17931,12 @@ msgstr ""
 "Odebrat kopii otevřenou podle adresy? Druhá zůstane a na serveru se nic nezmění."
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "The calendar server needs its password."
+msgstr "Kalendářový server potřebuje své heslo."
+
+#. interface
 #: crates/ui-egui/src/dav_job.rs
 #, fuzzy
 msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
@@ -17917,6 +17959,12 @@ msgstr "Kalendářový server účtu {account} odmítl přihlášení. MailCraft
 #, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
 msgstr "Kalendář {name} a jeho události uchovávané v tomto počítači budou odstraněny, stejně jako adresa, která se pro něj uchovává. Nikam se nic neodešle; k odběru se můžete znovu přihlásit pomocí adresy."
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "The calendars and contacts of {account} have a password of their own."
+msgstr "Kalendáře a kontakty účtu {account} mají vlastní heslo."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs

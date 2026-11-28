@@ -2887,6 +2887,12 @@ msgstr "კალენდრის კავშირის შემოწმ�
 msgid "Calendar Listed Twice"
 msgstr "კალენდარი ორჯერაა სიაში"
 
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Calendar Server Password"
+msgstr "კალენდრის სერვერის პაროლი"
+
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
 #, fuzzy
@@ -5698,6 +5704,12 @@ msgid "Ends on a day"
 msgstr "მთავრდება გარკვეულ დღეს"
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Enter Password…"
+msgstr "პაროლის შეყვანა…"
+
+#. interface
 #: crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "Enter a date and a time."
@@ -6824,6 +6836,12 @@ msgstr "GitHub-ის გვერდი გახსნილია: შეა�
 #, fuzzy
 msgid "Give it a title first"
 msgstr "ჯერ სათაური მიუთითეთ"
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Give the password of this account's calendars and contacts. Nothing is sent until the server asks for it."
+msgstr "შეიყვანეთ ამ ანგარიშის კალენდრებისა და კონტაქტების პაროლი. არაფერი გაიგზავნება, სანამ სერვერი არ მოითხოვს."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -9202,6 +9220,12 @@ msgid "MailCraft is open source, under the MIT and Apache 2.0 licences."
 msgstr "MailCraft ღია კოდისაა, MIT და Apache 2.0 ლიცენზიებით."
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "MailCraft is still removing the old password for this server. Try OK again in a moment."
+msgstr "MailCraft ჯერ კიდევ შლის ამ სერვერის ძველ პაროლს. ცოტა ხანში კვლავ დააჭირეთ OK-ს."
+
+#. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
 msgid "MailCraft is tested on real mail, by people who use it every day and tell us what goes wrong. Thank you."
@@ -9226,7 +9250,7 @@ msgid "MailCraft keeps at most {n} keys imported here, and has that many: remove
 msgstr "MailCraft აქ იმპორტირებულ მაქსიმუმ {n} გასაღებს ინახავს და ამდენი უკვე აქვს: წაშალეთ ერთი, რომელსაც არ იყენებთ, შემდეგ კი ეს იმპორტირეთ."
 
 #. interface
-#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "MailCraft keeps it in memory until you close the app. It is never written to disk."
 msgstr "MailCraft მას მეხსიერებაში ინახავს, სანამ აპლიკაციას დახურავთ. დისკზე ის არასოდეს იწერება."
@@ -11808,7 +11832,7 @@ msgid "Numbering"
 msgstr "დანომვრა"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dav_password_ask.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -11974,6 +11998,12 @@ msgstr "ადმინისტრატორის დამტკიცე�
 #, fuzzy
 msgid "Once it has worked, your system's credential store keeps it for next time. It is never written to the mailbox."
 msgstr "როგორც კი იმუშავებს, თქვენი სისტემის ავტორიზაციის მონაცემების საცავი მას შემდეგი ჯერისთვის შეინახავს. საფოსტო ყუთში ის არასოდეს იწერება."
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Once the server has taken it, MailCraft keeps it in your system's credential store, as File › Options lets it."
+msgstr "როცა სერვერი მას მიიღებს, MailCraft შეინახავს მას თქვენი სისტემის ავტორიზაციის მონაცემთა საცავში, როგორც ამას ფაილი › პარამეტრები დაუშვებს."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -12800,6 +12830,12 @@ msgstr "პაროლი"
 #, fuzzy
 msgid "Password for {account}"
 msgstr "პაროლი: {account}"
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "Password for {server}"
+msgstr "პაროლი {server}-ისთვის"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -17914,6 +17950,12 @@ msgstr ""
 "წაიშალოს მისამართით გახსნილი ასლი? მეორე რჩება და სერვერზე არაფერი იცვლება."
 
 #. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "The calendar server needs its password."
+msgstr "კალენდრის სერვერს თავისი პაროლი სჭირდება."
+
+#. interface
 #: crates/ui-egui/src/dav_job.rs
 #, fuzzy
 msgid "The calendar server of {account} answered with errors, so some events may be out of date. MailCraft will try again later."
@@ -17936,6 +17978,12 @@ msgstr "{account}-ის კალენდრის სერვერმა �
 #, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
 msgstr "კალენდარი {name} და ამ კომპიუტერზე შენახული მისი ღონისძიებები წაიშლება, ასევე მისთვის შენახული მისამართიც. არსად არაფერი იგზავნება; მისამართით შეგიძლიათ ხელახლა გამოიწეროთ."
+
+#. interface
+#: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
+msgid "The calendars and contacts of {account} have a password of their own."
+msgstr "{account}-ის კალენდრებსა და კონტაქტებს საკუთარი პაროლი აქვთ."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs

@@ -362,6 +362,12 @@ fn the_secret_cache_and_the_old_names_are_used_only_where_they_are_listed() {
         // A calendar server's password for one origin, found by the name that holds the account's
         // address, the origin, the user name and the pin (`dav_password`, #209): one read.
         ("dav_job.rs", "secret_cache.get(", 1),
+        // Whether that password is still to be read from the store by the DAV job, where it is
+        // used (`dav_names_to_read`, #209): one look, never a read of the value.
+        ("dav_secret_read.rs", "secret_cache.contains_key(", 1),
+        // Whether the store holds the password a server just took already, before it is written
+        // (`remember_dav_password`): one look.
+        ("dav_secret_read.rs", "secret_cache.get(", 1),
     ];
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let mut stack = vec![root.clone()];

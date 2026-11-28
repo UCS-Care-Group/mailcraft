@@ -103,6 +103,12 @@ pub mod dates;
 mod dav_job;
 #[cfg(test)]
 mod dav_job_tests;
+mod dav_password_ask;
+#[cfg(test)]
+mod dav_password_ask_tests;
+mod dav_secret_read;
+#[cfg(test)]
+mod dav_secret_read_tests;
 #[cfg(test)]
 mod dav_secrets_tests;
 #[cfg(test)]
@@ -1741,6 +1747,9 @@ pub struct MailApp {
     dav_forgetting: Vec<(Receiver<(Vec<String>, Option<StoreTrouble>)>, Vec<String>)>,
     /// Names waiting for one of those threads.
     dav_forget_queue: Vec<String>,
+    /// Of those, the names of a remembered password a server refused: removed although the
+    /// settings still give them.
+    dav_forget_refused: std::collections::HashSet<String>,
     /// The folders of an Exchange server account the last run could not read (named as the owner
     /// knows them; no id), for File › Info. Not saved.
     pub(crate) ews_unreadable: std::collections::HashMap<Id, Vec<String>>,
@@ -2112,6 +2121,7 @@ impl MailApp {
             dav_passwords: Default::default(),
             dav_forgetting: Vec::new(),
             dav_forget_queue: Vec::new(),
+            dav_forget_refused: Default::default(),
             ews_unreadable: Default::default(),
             ews_signed_in: Default::default(),
             ews_certificate: Default::default(),
@@ -3418,9 +3428,23 @@ impl MailApp {
         if self.services.secrets.is_none() {
             return;
         }
+        // (A read of the store under way brought these from before the forget: not taken in.)
+        if self.dav.secrets.is_reading() {
+            self.dav.secrets.forgotten.extend(keys.iter().cloned());
+        }
         let room = QUEUED.saturating_sub(self.dav_forget_queue.len());
         self.dav_forget_queue.extend(keys.into_iter().take(room));
         self.dispatch_dav_forgetting();
+    }
+
+    /// Remove from the credential store the remembered passwords a server refused, under these
+    /// names, so that a later start doesn't send them again ([`Self::forget_dav_entries`]).
+    pub(crate) fn forget_refused_dav_entries(&mut self, keys: Vec<String>) {
+        if keys.is_empty() || self.services.secrets.is_none() {
+            return;
+        }
+        self.dav_forget_refused.extend(keys.iter().cloned());
+        self.forget_dav_entries(keys);
     }
 
     /// Start threads for the names waiting, while fewer than [`Self::DAV_FORGETTERS`] are under way.
@@ -3432,8 +3456,10 @@ impl MailApp {
             let mut keys: Vec<String> = self.dav_forget_queue.drain(..BATCH.min(self.dav_forget_queue.len())).collect();
             // A name the settings give again, or a password is held under, since it was queued is
             // not forgotten: it stays noted, and is never removed from the store.
+            // (A refused one goes all the same: the settings give its name, but what is under it
+            // is no good.)
             let in_use = self.dav_keys_in_use();
-            keys.retain(|key| !in_use.contains(key));
+            keys.retain(|key| !in_use.contains(key) || self.dav_forget_refused.contains(key));
             if keys.is_empty() {
                 continue;
             }
@@ -3453,9 +3479,14 @@ impl MailApp {
                 let _ = send.send((confirmed, store.take_trouble()));
             });
             match job {
-                Ok(_) => self.dav_forgetting.push((receive, started)),
+                Ok(_) => {
+                    for key in &started {
+                        self.dav_forget_refused.remove(key);
+                    }
+                    self.dav_forgetting.push((receive, started));
+                }
                 Err(e) => {
-                    // (Put back: tried again when a thread can be had.)
+                    // (Put back, refused marks and all: tried again when a thread can be had.)
                     log::warn!("couldn't start forgetting a credential: {e}");
                     self.dav_forget_queue.splice(0..0, retry);
                     return;
@@ -3605,6 +3636,11 @@ impl MailApp {
         }
         keys.sort();
         keys.dedup();
+        // A read of the store under way brought these from before the forget: not taken in, as
+        // `forget_dav_entries` has it.
+        if self.dav.secrets.is_reading() {
+            self.dav.secrets.forgotten.extend(keys.iter().cloned());
+        }
         let Some(store) = &self.services.secrets else { return Vec::new() };
         let mut left = Vec::new();
         for key in keys {
@@ -3655,6 +3691,11 @@ impl MailApp {
         let Some(store) = &self.services.secrets else { return };
         let mut gone = Vec::new();
         let dav = if with_dav { Self::dav_secret_keys(a) } else { Vec::new() };
+        // A read of the store under way brought these from before the forget: not taken in, as
+        // `forget_dav_entries` has it (an Undo of the removal would otherwise bring them back).
+        if self.dav.secrets.is_reading() {
+            self.dav.secrets.forgotten.extend(dav.iter().cloned());
+        }
         let named = ["password", "refresh"].into_iter().flat_map(|kind| Self::secret_keys_of(kind, a)).chain(dav);
         for key in named {
             store.delete(&key);
@@ -4168,8 +4209,9 @@ impl MailApp {
         if opening != self.secrets_opening {
             self.secrets_opening = opening;
             // A question about the mailbox that was open goes with it: it names messages and
-            // accounts by ids, which the other mailbox may have too (#503).
-            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. })) {
+            // accounts by ids, which the other mailbox may have too (#503). So does a calendar
+            // server's password being typed: it would be held for the other mailbox's account.
+            if matches!(self.dialog, Some(dialogs::Dialog::Confirm { .. } | dialogs::Dialog::DavPassword(..))) {
                 self.set_dialog(None);
             }
             // An agent's too.

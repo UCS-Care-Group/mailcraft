@@ -415,3 +415,80 @@ fn r6_an_account_that_is_full_is_said_once_while_it_stays_so_and_neither_it_nor_
     assert!(run(&mut a, P::ServerErrors).contains("errors"));
     assert!(run(&mut a, P::ServerErrors).is_empty(), "said once");
 }
+
+/// A job whose answer, `problem` and the origins that took their password, waits until the test
+/// lets it go; and the passwords each job was given.
+fn held_job(a: &mut MailApp, problem: mailcraft_model::DavProblem, took: &[&str]) -> (Jobs, std::sync::mpsc::Sender<()>) {
+    type Answer = (std::sync::mpsc::Sender<DavDone>, DavDownload);
+    let jobs: Jobs = Arc::default();
+    let seen = jobs.clone();
+    let (go, wait) = std::sync::mpsc::channel::<()>();
+    let waiting: Arc<Mutex<Vec<Answer>>> = Arc::default();
+    let took: Vec<String> = took.iter().map(|o| o.to_string()).collect();
+    let answers = waiting.clone();
+    std::thread::spawn(move || {
+        while wait.recv().is_ok() {
+            for (send, download) in answers.lock().unwrap().drain(..) {
+                let _ = send.send(DavDone { download });
+            }
+        }
+    });
+    a.services.dav = Some(Box::new(move |job: DavJob| {
+        seen.lock().unwrap().push(job.passwords.clone());
+        let (send, receive) = std::sync::mpsc::channel();
+        let download = DavDownload {
+            account: job.ask.account,
+            email: job.ask.email.clone(),
+            server: job.ask.server.clone(),
+            generation: job.ask.generation,
+            problem,
+            signed_in: took.clone(),
+            ..Default::default()
+        };
+        waiting.lock().unwrap().push((send, download));
+        receive
+    }));
+    (jobs, go)
+}
+
+type Jobs = Arc<Mutex<Vec<std::collections::HashMap<String, String>>>>;
+
+/// Tick until the refusal of the job let go has been taken in.
+fn until_taken_in(a: &mut MailApp, id: Id) {
+    for _ in 0..2_000 {
+        a.dav_tick();
+        if a.dav.refused.contains_key(&id) {
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(1));
+    }
+    panic!("the refusal was never taken in");
+}
+
+#[test]
+fn a_password_given_while_the_refused_job_was_out_is_kept() {
+    let (mut a, id) = app(true);
+    let (jobs, go) = held_job(&mut a, mailcraft_model::DavProblem::WrongPassword, &[]);
+    a.dav_passwords.insert((id, HOME.into()), "old".into());
+    a.dav_tick();
+    assert_eq!(jobs.lock().unwrap().len(), 1, "the job is out with the old password");
+    // The owner gives another before its answer comes.
+    assert!(a.hold_dav_password(id, HOME, "new"));
+    go.send(()).unwrap();
+    until_taken_in(&mut a, id);
+    assert_eq!(a.dav_password(id, HOME).as_deref(), Some("new"), "what was refused was the old one, not this");
+}
+
+#[test]
+fn a_server_that_took_its_password_keeps_it_when_another_refuses() {
+    let (mut a, id) = app(true);
+    a.execute("account.davSet", json!({"id": id, "contactHomes": [format!("{OTHER}/card/ada/")]})).unwrap();
+    let (_, go) = held_job(&mut a, mailcraft_model::DavProblem::WrongPassword, &[HOME]);
+    a.dav_passwords.insert((id, HOME.into()), "calendars".into());
+    a.dav_passwords.insert((id, OTHER.into()), "contacts".into());
+    a.dav_tick();
+    go.send(()).unwrap();
+    until_taken_in(&mut a, id);
+    assert_eq!(a.dav_password(id, HOME).as_deref(), Some("calendars"), "taken, and still held");
+    assert_eq!(a.dav_password(id, OTHER), None, "refused: not held");
+}

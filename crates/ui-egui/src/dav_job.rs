@@ -12,7 +12,8 @@
 //! ([`mailcraft_model::DavServer::may_use_mail_password`]), the account's mail password. The host
 //! sends one only in answer to that origin's own challenge. A password that was accepted is held
 //! for the session under its origin, unless a forget is pending for its name
-//! ([`MailApp::dav_forget_pending`]); nothing is written to the credential store here. A password
+//! ([`MailApp::dav_forget_pending`]), and kept in the credential store when the owner lets
+//! sign-ins be remembered (`MailApp::remember_dav_password`, `dav_secret_read.rs`). A password
 //! the server refused is not kept to compare with: only a keyed hash of it, with the settings it
 //! was sent under, so that the same password under the same settings is not sent again (a
 //! lockout) and a password or user name put right is.
@@ -93,6 +94,8 @@ pub(crate) struct DavSync {
     /// their settings then: said once while runs keep finding it so, again after a run that
     /// didn't or once the settings were put away or changed.
     full_said: HashMap<Id, u64>,
+    /// The reads of the store for the passwords the jobs need (`dav_secret_read.rs`).
+    pub(crate) secrets: crate::dav_secret_read::DavSecretRead,
 }
 
 impl DavSync {
@@ -108,12 +111,11 @@ impl DavSync {
 impl MailApp {
     /// The password the account has for `origin` ([`mailcraft_model::origin_of`] form), by the rules
     /// in the module's note. `None` when the owner has to be asked.
-    #[cfg(test)]
     pub(crate) fn dav_password(&self, account: Id, origin: &str) -> Option<String> {
         self.dav_password_from(account, origin).map(|(password, _)| password)
     }
 
-    /// As `MailApp::dav_password` (the tests' look at it), and whether it is the account's mail password (which is
+    /// As `MailApp::dav_password` (the tests' look at it, and what Enter Password asks for), and whether it is the account's mail password (which is
     /// asked again at every job, under the rule as it stands, and never held).
     fn dav_password_from(&self, account: Id, origin: &str) -> Option<(String, bool)> {
         let a = self.session.mailbox.account(account)?;
@@ -190,6 +192,10 @@ impl MailApp {
             || self.offline()
             || self.services.dav.is_none()
         {
+            return;
+        }
+        // (A password of their own that the store may have is read first, off the window's thread.)
+        if self.dav_secrets_first() {
             return;
         }
         self.dav.next = now + EVERY;
@@ -274,18 +280,45 @@ impl MailApp {
             }
         };
         // A password the server took is held for the session (the one that was sent, not what
-        // would be found now), unless it is the mail password: that one is looked up at every
-        // job, by the rule as it stands.
-        for origin in signed_in {
-            if let Some((password, false)) = sent.get(&origin) {
-                self.hold_dav_password(account, &origin, password);
+        // would be found now), and remembered when the owner lets it be, unless it is the mail
+        // password: that one is looked up at every job, by the rule as it stands.
+        for origin in &signed_in {
+            if let Some((password, false)) = sent.get(origin)
+                && self.hold_dav_password(account, origin, password)
+            {
+                self.remember_dav_password(account, origin, password);
             }
         }
         let now = now_ms();
         if problem == DavProblem::WrongPassword {
             // Not held, not sent again (at every back-off: a lockout) until the owner gives
-            // another, or for hours (a password changed on the server, a mistaken refusal).
-            self.dav_passwords.retain(|(held, _), _| *held != account);
+            // another, or for hours (a password changed on the server, a mistaken refusal). Only
+            // what was sent and not taken: a server that took its password keeps it, and one the
+            // owner gave while the job was out hasn't been tried yet.
+            let refused = |origin: &str, password: &str| {
+                !signed_in.iter().any(|taken| taken == origin) && sent.get(origin).is_some_and(|(sent, _)| sent == password)
+            };
+            self.dav_passwords.retain(|(held, origin), password| *held != account || !refused(origin, password));
+            // A remembered one that was refused isn't offered again, this session or the next: it
+            // goes from the store too, so a server that counts failed sign-ins isn't tried with it
+            // at every start. File › Info asks for another.
+            let mut refused_kept = Vec::new();
+            if let Some(a) = self.session.mailbox.account(account).cloned() {
+                for (origin, (password, mail)) in &sent {
+                    let Some(key) = Self::dav_secret_key(&a, origin) else { continue };
+                    if !*mail
+                        && refused(origin, password)
+                        && let Some(kept) = self.secret_cache.remove(&key)
+                    {
+                        if kept == *password {
+                            refused_kept.push(key);
+                        } else {
+                            self.secret_cache.insert(key, kept);
+                        }
+                    }
+                }
+            }
+            self.forget_refused_dav_entries(refused_kept);
             let mark = self.dav.mark(&sent_under, &sent);
             self.dav.refused.insert(account, (mark, now));
         }
