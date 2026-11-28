@@ -308,6 +308,8 @@ pub(crate) struct ImapWorld {
     pub(crate) offer_starttls: bool,
     /// Know UID MOVE (RFC 6851), and say so.
     pub(crate) can_move: bool,
+    /// Keep the original in the source mailbox after a MOVE, as some servers do.
+    pub(crate) move_keeps_source: bool,
     /// Know UID EXPUNGE and tell where copied and appended messages went (RFC 4315), and say so.
     pub(crate) uidplus: bool,
     /// What separates the levels of a mailbox name; `/` when not set.
@@ -919,6 +921,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 let mut parts = args.splitn(3, ' ');
                 let (what, set, rest) = (parts.next().unwrap_or("").to_ascii_uppercase(), parts.next().unwrap_or(""), parts.next().unwrap_or(""));
                 let (can_move, uidplus, copyuid) = (world.can_move, world.uidplus, world.copyuid.clone());
+                let move_keeps_source = world.move_keeps_source;
                 let known = matches!(what.as_str(), "STORE" | "COPY") || (what == "MOVE" && can_move) || (what == "EXPUNGE" && uidplus);
                 let changes = what != "COPY";
                 match open.filter(|_| known) {
@@ -983,7 +986,9 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                                         reply.extend(format!("* OK {code}moved\r\n").bytes());
                                     }
                                     // Gmail: a label is added, and the message stays in all mail.
-                                    if !from_all || to_trash {
+                                    // A server that keeps the original (the 1510 one does) only
+                                    // copies it, so the client has to mark it deleted itself.
+                                    if (!from_all || to_trash) && !move_keeps_source {
                                         world.mailboxes[at].remove(|m| in_set(set, m.uid));
                                         reply.extend("* 1 EXPUNGE\r\n".repeat(from_uids.len()).bytes());
                                     }

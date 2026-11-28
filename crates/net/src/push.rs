@@ -253,7 +253,7 @@ impl<'a> Push<'a> {
                 Err(e) => return Err(stop(result, said!("Couldn't read \"{name}\"", name), &e.into())),
             }
         }
-        self.moves(imap, name, ops, &present, result)?;
+        self.moves(imap, remote, name, ops, &present, result)?;
         self.deletes(imap, remote, name, ops, &present, result)
     }
 
@@ -297,11 +297,19 @@ impl<'a> Push<'a> {
     fn moves(
         &mut self,
         imap: &mut Imap<Stream<'_>>,
+        remote: &str,
         name: &str,
         ops: &[&RemoteOp],
         present: &HashSet<u32>,
         result: &mut SyncResult,
     ) -> Result<(), bool> {
+        // Gmail's All Mail keeps a message moved out of it by design; marking it deleted
+        // there would take it from the account, not just from the source label.
+        let source_all = self
+            .mailboxes
+            .iter()
+            .find(|m| kinds::selectable(m) && kinds::remote_name(m) == remote)
+            .is_some_and(|m| m.has_flag("\\All"));
         // By destination, in the order they are first spoken of.
         let mut batches: Vec<(Id, Vec<&RemoteOp>)> = Vec::new();
         for op in ops {
@@ -339,34 +347,83 @@ impl<'a> Push<'a> {
                 // They are in their new mailbox, whatever comes next.
                 self.note_moved(&by_uid, &uids, &copied, &destination, result);
                 if self.can_move {
-                    continue;
-                }
-                // Copied: now the originals go, as far as this server lets a single message go.
-                match self.remove(imap, &set) {
-                    Ok(()) => {}
-                    // A copy that can't be taken back is no reason to copy again next time: the
-                    // move is done, and the original stays for the owner to see to.
-                    Err(Removal::Unmarked(e)) => {
+                    if source_all {
+                        continue;
+                    }
+                    // Some IMAP servers say MOVE and keep the original in the source
+                    // mailbox. Ask which of the moved UIDs are still there and mark those
+                    // deleted, so a later run doesn't bring them back.
+                    let mut still_there: Vec<u32> = Vec::new();
+                    for (check_set, _) in uid_sets(&uids) {
+                        match imap.uid_fetch_flags(&check_set) {
+                            Ok(listed) => {
+                                still_there.extend(
+                                    listed.iter().filter(|m| !has(&m.flags, "\\Deleted")).map(|m| m.uid),
+                                );
+                            }
+                            Err(ProtoError::Rejected(_)) => {}
+                            Err(e) => {
+                                return Err(stop(result, said!("Couldn't read \"{name}\"", name), &e.into()));
+                            }
+                        }
+                    }
+                    for (still_set, _) in uid_sets(&still_there) {
                         let what = said!(
                             "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well",
                             name,
                             to = shown(&destination.remote)
                         );
-                        if !stop(result, what, &e.into()) {
+                        let (_, fatal) = self.remove_or_report(imap, &still_set, name, what, result);
+                        if fatal {
                             return Err(false);
                         }
                     }
-                    // Marked as deleted and still there: only a lost connection is worth a word.
-                    Err(Removal::Marked(e)) => {
-                        let e = NetError::from(e);
-                        if e.is_fatal() {
-                            return Err(stop(result, said!("Couldn't bring \"{name}\" up to date", name), &e));
-                        }
-                    }
+                    continue;
+                }
+                if source_all {
+                    continue;
+                }
+                // Copied: now the originals go, as far as this server lets a single message go.
+                let what = said!(
+                    "Messages moved from \"{name}\" to \"{to}\" are still in \"{name}\" as well",
+                    name,
+                    to = shown(&destination.remote)
+                );
+                let (_, fatal) = self.remove_or_report(imap, &set, name, what, result);
+                if fatal {
+                    return Err(false);
                 }
             }
         }
         Ok(())
+    }
+
+    /// Mark the messages of `set` as deleted and remove them where the server can; report a
+    /// refusal with `what`. Answers whether they were left marked and whether the connection
+    /// is gone.
+    fn remove_or_report(
+        &mut self,
+        imap: &mut Imap<Stream<'_>>,
+        set: &str,
+        name: &str,
+        what: Text,
+        result: &mut SyncResult,
+    ) -> (bool, bool) {
+        match self.remove(imap, set) {
+            Ok(()) => (false, false),
+            Err(Removal::Unmarked(e)) => {
+                let fatal = !stop(result, what, &e.into());
+                (true, fatal)
+            }
+            Err(Removal::Marked(e)) => {
+                let e = NetError::from(e);
+                let fatal = e.is_fatal();
+                if fatal {
+                    stop(result, said!("Couldn't bring \"{name}\" up to date", name), &e);
+                }
+                (false, fatal)
+            }
+        }
     }
 
     /// Note the moves of `uids` as finished, each with its UID in `destination` when `copied` says.
@@ -406,22 +463,18 @@ impl<'a> Push<'a> {
             return self.delete_through(imap, remote, name, &uids, trash, result);
         }
         for (set, uids) in uid_sets(&uids) {
-            let removed = self.remove(imap, &set);
+            let what = said!("Couldn't delete messages from \"{name}\"", name);
+            let (unmarked, fatal) = self.remove_or_report(imap, &set, name, what, result);
             // Marked as deleted is as good as gone: no mail program shows it, and the server
             // drops it with its next clean-up.
-            if !matches!(removed, Err(Removal::Unmarked(_))) {
+            if !unmarked {
                 result.deleted.extend(uids.iter().map(|uid| Deleted { from: remote.to_string(), uid: *uid }));
             }
-            match removed {
-                Ok(()) => {}
-                Err(Removal::Unmarked(e)) => return Err(stop(result, said!("Couldn't delete messages from \"{name}\"", name), &e.into())),
-                // Marked and still there: only a lost connection is worth a word.
-                Err(Removal::Marked(e)) => {
-                    let e = NetError::from(e);
-                    if e.is_fatal() {
-                        return Err(stop(result, said!("Couldn't bring \"{name}\" up to date", name), &e));
-                    }
-                }
+            if unmarked {
+                return Err(!fatal);
+            }
+            if fatal {
+                return Err(false);
             }
         }
         Ok(())
