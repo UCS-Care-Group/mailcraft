@@ -1857,7 +1857,7 @@ mod tests {
     /// space French puts before a colon) has a glyph in every weight of the bundled fonts.
     #[test]
     fn the_catalogues_are_drawn_with_the_bundled_fonts() {
-        // Chinese needs a system CJK fallback; the bundled fonts do not cover its characters.
+        // Chinese and Japanese need a system CJK fallback; the bundled fonts do not cover their characters.
         let catalogues = [
             ("fr", include_str!("../../i18n/po/fr.po")),
             ("de", include_str!("../../i18n/po/de.po")),

@@ -39,6 +39,8 @@ mod chinese_tests;
 #[cfg(test)]
 mod czech_tests;
 #[cfg(test)]
+mod japanese_tests;
+#[cfg(test)]
 mod polish_tests;
 #[cfg(test)]
 mod said_tests;
@@ -77,6 +79,7 @@ pub enum Lang {
     Czech,
     ChineseSimplified,
     Georgian,
+    Japanese,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -84,7 +87,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 14] = [
+    pub const ALL: [Lang; 15] = [
         Lang::English,
         Lang::French,
         Lang::German,
@@ -98,6 +101,7 @@ impl Lang {
         Lang::Czech,
         Lang::ChineseSimplified,
         Lang::Georgian,
+        Lang::Japanese,
         Lang::Pseudo,
     ];
 
@@ -117,6 +121,7 @@ impl Lang {
             Lang::Czech => "cs",
             Lang::ChineseSimplified => "zh_CN",
             Lang::Georgian => "ka",
+            Lang::Japanese => "ja",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -159,6 +164,7 @@ impl Lang {
             "sl" => Some(Lang::Slovenian),
             "cs" => Some(Lang::Czech),
             "ka" => Some(Lang::Georgian),
+            "ja" => Some(Lang::Japanese),
             _ => None,
         }
     }
@@ -179,6 +185,7 @@ impl Lang {
             Lang::Czech => "Čeština",
             Lang::ChineseSimplified => "简体中文",
             Lang::Georgian => "ქართული",
+            Lang::Japanese => "日本語",
             Lang::Pseudo => "Pseudo",
         }
     }
@@ -199,6 +206,7 @@ impl Lang {
                 | Lang::Czech
                 | Lang::ChineseSimplified
                 | Lang::Georgian
+                | Lang::Japanese
         )
     }
 
@@ -219,7 +227,7 @@ impl Lang {
     /// A catalogue can be used for the interface when its glyphs are available on the target.
     /// The browser has no system CJK fallback font yet.
     fn supported_on(self, browser: bool) -> bool {
-        self.has_catalogue() && !(browser && self == Lang::ChineseSimplified)
+        self.has_catalogue() && !(browser && matches!(self, Lang::ChineseSimplified | Lang::Japanese))
     }
 
     fn supported(self) -> bool {
@@ -501,6 +509,9 @@ mod tests {
             expected.push("简体中文（预览）");
         }
         expected.push("ქართული (საცდელი)");
+        if !cfg!(target_arch = "wasm32") {
+            expected.push("日本語 (プレビュー)");
+        }
         assert_eq!(names, expected);
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
