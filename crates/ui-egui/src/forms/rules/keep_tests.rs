@@ -269,7 +269,7 @@ fn a_word_longer_than_rules_add_takes_is_said_not_cut() {
     let mut f = RulesForm::new(&s, &json!({}));
     f.name = "Old reports".into();
     let word = "x".repeat(200);
-    for kind in [When::From, When::To, When::Subject, When::Body, When::SubjectOrBody, When::Header] {
+    for kind in [When::From, When::To, When::Subject, When::Body, When::SubjectOrBody, When::HeaderWords] {
         f.conds = vec![Cond { kind, text: format!("short; {word}-2026"), ..Default::default() }];
         assert_eq!(f.lacks(), Some(tl!("A word to look for is at most 200 characters.")), "{kind:?}");
         let (command, params) = f.command();
@@ -298,7 +298,7 @@ fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
     f.unless = vec![
         Cond { kind: When::Sensitivity, sensitivity: Sensitivity::Private, ..Default::default() },
         Cond { kind: When::Category, category: "Red category".into(), ..Default::default() },
-        Cond { kind: When::Header, text: "X-Spam-Flag: YES".into(), ..Default::default() },
+        Cond { kind: When::HeaderWords, text: "X-Spam-Flag: YES".into(), ..Default::default() },
     ];
     f.acts = vec![
         Act { kind: Do::Copy, folder: receipts, ..f.fresh_action() },

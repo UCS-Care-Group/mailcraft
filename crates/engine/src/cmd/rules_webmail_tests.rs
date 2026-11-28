@@ -541,12 +541,12 @@ fn a_filter_with_settings_too_long_to_read_again_is_refused() {
 /// trimmed): the value stays byte for byte (#2058).
 #[test]
 fn a_rename_keeps_a_value_with_spaces_as_it_is() {
-    let spaced = SPAM.replace("\"Value\":\"YES\"", "\"Value\":\" YES \"");
-    let sieve = SPAM_SIEVE.replace("\"YES\"", "\" YES \"");
+    let spaced = SPAM.replace("\"Value\":\"YES\"", "\"Value\":\" YES \"").replace("\"Value\":\"Yes\"", "\"Value\":\" YES \"");
+    let sieve = SPAM_SIEVE.replace("\"YES\"", "\" YES \"").replace("\"Yes\"", "\" YES \"");
     let text = format!("{HEAD}{}\n", block(SPAM_ID, &spaced, &sieve));
     let (mut s, account, junk, _) = session(&text);
     let r = rules(&s, account);
-    assert!(super::rules_webmail::read_only(&s, r[0].id).is_none(), "the filter is known");
+    assert_eq!(super::rules_webmail::read_only(&s, r[0].id), None, "the filter is known");
     // The condition as the builder shows it, its words trimmed.
     let Condition::Header { names, words, exact } = r[0].conditions[0].clone() else { panic!("{:?}", r[0].conditions) };
     let words: Vec<String> = words.iter().map(|w| w.trim().to_string()).collect();

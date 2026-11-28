@@ -310,10 +310,12 @@ fn a_webmail_filter_without_its_end_is_shown_and_not_changed() {
 #[test]
 fn a_chain_across_a_filters_end_is_not_changed() {
     let (text, _) = rainloop();
-    let text = text.replace("    stop;\n}\n/* END:FILTER */\n", "    stop;\n}\n/* END:FILTER */\nelse {\n    keep;\n}\n");
+    let crossing = text.replace("    stop;\n}\n\n/* END:FILTER */\n", "    stop;\n}\n\n/* END:FILTER */\nelse {\n    keep;\n}\n");
+    assert_ne!(crossing, text);
+    let text = crossing;
     let (mut s, account, _) = session(&text);
     let shown = rules(&s, account);
-    assert!(shown.len() >= 2, "{shown:?}");
+    assert!(shown.iter().any(|r| find(&s, r.id).is_some()), "{shown:?}");
     for r in &shown {
         if let Some(f) = find(&s, r.id) {
             assert!(!f.span.whole, "{:?}", r.name);

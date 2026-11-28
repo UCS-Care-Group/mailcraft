@@ -159,7 +159,8 @@ fn a_sieve_rule_changed_is_written_again_under_its_id_and_moves_here_when_the_se
     let here = run(&mut s, "rules.edit", attach);
     assert_eq!(here["keep"], "here");
     assert_eq!(here["why"], "the server's Sieve scripts can't look at attachments");
-    assert!(rule(&s, a).server.is_none() && rule(&s, a).keep == Keep::Here);
+    // Kept here, and still the server's until the script without it is there (#2058).
+    assert!(rule(&s, a).on_server() && rule(&s, a).keep == Keep::Here);
     assert!(!script_due(&s, account, false).unwrap()["text"].as_str().unwrap().contains(&format!("# rule {a}")));
     written(&mut s, account);
     assert_eq!(kept(&s.mailbox, rule(&s, a)).0, "here");

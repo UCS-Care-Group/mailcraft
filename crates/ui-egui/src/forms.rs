@@ -52,6 +52,7 @@ impl Form {
                 let mut f = rules::RulesForm::new(s, params);
                 // Opened on Change Rule for a rule: the same editor as its pencil opens (#2058).
                 if params.get("folder").and_then(Value::as_u64).is_none()
+                    && !f.modal()
                     && let Some(rule) = params.get("edit").and_then(Value::as_u64)
                 {
                     f.change_rule(app, rule, false);
@@ -5671,10 +5672,14 @@ pub(crate) mod rules {
             if let Some(folder) = params.get("folder").and_then(Value::as_u64) {
                 f.fill_from_message(s, folder, params.get("id").and_then(Value::as_u64).or(s.sel.focus()));
             } else if let Some(rule) = params.get("edit").and_then(Value::as_u64) {
-                // Opened on Change Rule for that rule, on its account's list (the editor is
-                // opened by [`RulesForm::change_rule`], as the rule's pencil opens it).
+                // Opened on Change Rule for that rule, on its account's list. (With the window at
+                // hand, what this can't open is opened by [`RulesForm::change_rule`], as the
+                // rule's pencil opens it.)
                 if let Some(account) = s.mailbox.rules.iter().find(|r| r.id == rule).map(|r| r.account).filter(|a| *a != 0) {
                     f.choose(&s.mailbox, account);
+                }
+                if !f.edit_filter(s, rule) && !f.edit(&s.mailbox, rule) {
+                    f.sieve = crate::sieve_editor::SieveEditor::open(&s.mailbox, rule);
                 }
             }
             f
