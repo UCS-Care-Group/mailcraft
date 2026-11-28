@@ -142,7 +142,7 @@ impl TableLayout {
         Self { size: vec2(total * scale, heights.iter().sum()), cells, plain: None }
     }
 
-    pub fn paint(&self, painter: &Painter, at: Pos2, tokens: &Tokens) {
+    pub fn paint(&self, painter: &Painter, at: Pos2, tokens: &Tokens, marks: Option<Color32>) {
         if let Some(text) = &self.plain {
             painter.galley(at, text.clone(), tokens.text);
             return;
@@ -158,7 +158,12 @@ impl TableLayout {
                 egui::Align::Center => rect.center().x,
                 egui::Align::Max => rect.right() - PADDING,
             };
-            painter.with_clip_rect(rect).galley(pos2(x, rect.top() + PADDING), cell.text.clone(), tokens.text);
+            let origin = pos2(x, rect.top() + PADDING);
+            let cell_painter = painter.with_clip_rect(rect);
+            cell_painter.galley(origin, cell.text.clone(), tokens.text);
+            if let Some(ink) = marks {
+                super::paint_galley_marks(&cell_painter, &cell.text, origin, ink, &[]);
+            }
         }
     }
 }

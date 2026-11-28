@@ -8,7 +8,8 @@
 //! The widget only draws and listens. Every change, the caret and the selection included, is a
 //! command (`compose.select`, `compose.type`, `compose.delete`, `format.*`, `compose.link`,
 //! `edit.paste`, `compose.undo`/`redo`), so the keyboard, the ribbon, a script and an agent do the
-//! same thing to the same text.
+//! same thing to the same text. Formatting marks (Format Text › Show/Hide ¶) are painted over
+//! that text while editing; they are not characters of it.
 //!
 //! Each paragraph is laid out once and kept with what it was laid out from ([`Layout`]); a
 //! change lays out again only the paragraphs it touched, and a frame paints only the paragraphs
@@ -28,7 +29,7 @@ use egui::epaint::text::CharIndex;
 use egui::text::{CCursor, LayoutJob, TextFormat};
 use egui::{Align2, Event, FontId, Galley, Key, Modifiers, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2};
 use mailcraft_model::RichBody;
-use mailcraft_model::rich::{ListKind, OBJECT, Paragraph, Selection, Style, numbers};
+use mailcraft_model::rich::{LINE_BREAK, ListKind, OBJECT, Paragraph, Selection, Style, numbers};
 use mailcraft_model::signature::Picture;
 use serde_json::{Value, json};
 
@@ -382,7 +383,10 @@ impl Layout {
                         k += 1;
                     }
                     None => {
-                        job.append(&run.text, carry, text_format(&run.style, plain, t, fonts));
+                        // A manual line break is one character, laid out as a line break, so the
+                        // caret's positions stay the text's.
+                        let laid = layout_text(&run.text);
+                        job.append(&laid, carry, text_format(&run.style, plain, t, fonts));
                         carry = 0.0;
                     }
                 }
@@ -1126,6 +1130,9 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             paint_selection(painter, p, at, sel, fill);
         }
         painter.galley(at, p.galley.clone(), t.text);
+        if app.ui.show_formatting_marks {
+            paint_marks(painter, p, at, t.blue);
+        }
         if let (Some(locale), Some(host)) = (spelling_locale.as_deref(), app.services.spelling.as_deref()) {
             if p.needs_spelling(locale, spelling_time) {
                 if checks < 8 {
@@ -1150,7 +1157,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         }
         for table in &p.tables {
             let rect = table.rect.translate(at.to_vec2());
-            table.grid.paint(painter, rect.min, &t);
+            table.grid.paint(painter, rect.min, &t, app.ui.show_formatting_marks.then_some(t.blue));
             let index = p.start + table.local;
             if sel.start() <= index && sel.end() > index {
                 painter.rect_stroke(rect, 0.0, Stroke::new(2.0, fill), egui::StrokeKind::Inside);
@@ -1295,6 +1302,102 @@ fn settle(app: &MailApp, ui: &Ui, which: Which, st: &mut State) {
     }
 }
 
+/// The text as it is laid out: a manual line break is a line break of one character.
+fn layout_text(text: &str) -> std::borrow::Cow<'_, str> {
+    if text.contains(LINE_BREAK) { std::borrow::Cow::Owned(text.replace(LINE_BREAK, "\n")) } else { std::borrow::Cow::Borrowed(text) }
+}
+
+/// A space the editor marks with a dot. A tab and a line break have their own marks.
+fn marked_space(c: char) -> bool {
+    c != '\t' && c != '\n' && c != '\r' && c != LINE_BREAK && c.is_whitespace()
+}
+
+/// Formatting marks over one paragraph: a dot in each space, an arrow in each tab, a return
+/// mark at each manual line break, and a paragraph mark at the paragraph's end. Painted, not
+/// written into the text. A picture or a table is drawn past the placeholder character, so the
+/// mark at the end of that row stands to the right of it.
+fn paint_marks(painter: &egui::Painter, p: &Para, at: egui::Pos2, ink: egui::Color32) {
+    let mut objects = Vec::with_capacity(p.pictures.len() + p.tables.len());
+    objects.extend(p.pictures.iter().map(|b| b.rect));
+    objects.extend(p.tables.iter().map(|b| b.rect));
+    paint_galley_marks(painter, &p.galley, at, ink, &objects);
+}
+
+/// Formatting marks over a laid-out galley. `objects` are pictures and tables in the galley's
+/// coordinates; a row that holds one ends after it. Rows outside the clip are left alone.
+fn paint_galley_marks(painter: &egui::Painter, galley: &Galley, at: egui::Pos2, ink: egui::Color32, objects: &[Rect]) {
+    let stroke = Stroke::new(1.25, ink);
+    let clip = painter.clip_rect();
+    let rows = galley.rows.len();
+    for (i, row) in galley.rows.iter().enumerate() {
+        let base = at + row.pos.to_vec2();
+        let height = row.size.y.max(BASE_SIZE);
+        let top = base.y;
+        if top + height < clip.min.y || top > clip.max.y {
+            continue;
+        }
+        for g in &row.glyphs {
+            let left = base.x + g.pos.x;
+            let baseline = base.y + g.pos.y;
+            let mid_y = baseline - g.font_ascent * 0.36;
+            if g.chr == '\t' {
+                paint_tab(painter, left, left + g.advance_width, mid_y, stroke);
+            } else if marked_space(g.chr) && g.advance_width >= 1.0 {
+                let r = (g.font_ascent * 0.13).clamp(1.15, 2.4);
+                painter.circle_filled(pos2(left + g.advance_width * 0.5, mid_y), r, ink);
+            }
+        }
+        let row_box = row.rect();
+        let mut end = row.glyphs.last().map(|g| row.pos.x + g.max_x()).unwrap_or(row.pos.x);
+        for object in objects {
+            if object.min.y < row_box.max.y && object.max.y > row_box.min.y {
+                end = end.max(object.max.x);
+            }
+        }
+        let end_x = at.x + end;
+        let mid = base.y + height * 0.5;
+        let mark = height.clamp(11.0, 18.0);
+        if row.ends_with_newline {
+            paint_return(painter, pos2(end_x + 1.0, mid), mark, stroke);
+        }
+        if i + 1 == rows {
+            paint_pilcrow(painter, pos2(end_x + 1.0, mid), mark, stroke);
+        }
+    }
+}
+
+/// A tab: a line and an arrow head across the room the tab takes.
+fn paint_tab(painter: &egui::Painter, left: f32, right: f32, y: f32, stroke: Stroke) {
+    let tip = right - 1.0;
+    if !(tip > left + 3.0 && y.is_finite()) {
+        return;
+    }
+    painter.line_segment([pos2(left + 1.0, y), pos2(tip - 3.0, y)], stroke);
+    painter.line_segment([pos2(tip - 3.5, y - 2.4), pos2(tip, y)], stroke);
+    painter.line_segment([pos2(tip - 3.5, y + 2.4), pos2(tip, y)], stroke);
+}
+
+/// A paragraph mark: a bowl and two stems, drawn rather than taken from a typeface.
+fn paint_pilcrow(painter: &egui::Painter, at: egui::Pos2, size: f32, stroke: Stroke) {
+    let bowl = pos2(at.x + size * 0.34, at.y - size * 0.06);
+    painter.circle_stroke(bowl, size * 0.26, stroke);
+    let stem = at.x + size * 0.56;
+    painter.line_segment([pos2(stem, at.y - size * 0.40), pos2(stem, at.y + size * 0.40)], stroke);
+    painter.line_segment([pos2(stem + size * 0.16, at.y - size * 0.40), pos2(stem + size * 0.16, at.y + size * 0.40)], stroke);
+}
+
+/// A manual line break: a stroke down, then left, with an arrow head.
+fn paint_return(painter: &egui::Painter, at: egui::Pos2, size: f32, stroke: Stroke) {
+    let x = at.x + size * 0.55;
+    let top = pos2(x, at.y - size * 0.36);
+    let corner = pos2(x, at.y + size * 0.26);
+    let left = pos2(at.x + size * 0.08, corner.y);
+    painter.line_segment([top, corner], stroke);
+    painter.line_segment([corner, left], stroke);
+    painter.line_segment([left, pos2(left.x + size * 0.16, left.y - size * 0.14)], stroke);
+    painter.line_segment([left, pos2(left.x + size * 0.16, left.y + size * 0.14)], stroke);
+}
+
 /// The selection's part of a paragraph, behind its text.
 fn paint_selection(painter: &egui::Painter, p: &Para, at: egui::Pos2, sel: Selection, fill: egui::Color32) {
     let a = sel.start().saturating_sub(p.start).min(p.chars);
@@ -1420,6 +1523,8 @@ fn key_press(layout: &Layout, st: &mut State, sel: Selection, plain: bool, key: 
         Key::PageDown => return (to(vertical(st, page)), true),
         Key::Home => to(if m.ctrl || m.command { 0 } else { layout.line_ends(head).0 }),
         Key::End => to(if m.ctrl || m.command { len } else { layout.line_ends(head).1 }),
+        // Shift+Enter is a line break inside the paragraph; Enter starts another paragraph.
+        Key::Enter if m.shift && !m.command && !m.alt => ask("compose.type", json!({"text": LINE_BREAK.to_string()})),
         Key::Enter if !m.command && !m.alt => ask("compose.type", json!({"text": "\n"})),
         Key::Backspace if sel.is_empty() && word && head > 0 => ask("compose.delete", json!({"from": layout.word_left(head), "to": head})),
         Key::Backspace => ask("compose.delete", json!({})),
@@ -1461,6 +1566,10 @@ mod wide_picture_tests;
 #[cfg(test)]
 #[path = "spreadsheet_tests.rs"]
 mod spreadsheet_tests;
+
+#[cfg(test)]
+#[path = "formatting_marks_tests.rs"]
+mod formatting_marks_tests;
 
 /// The HTML is one picture and nothing else that reads (a browser's Copy Image, #1217). A table
 /// or a rule (whose words `Block::text` doesn't hold) or a second picture is more than the one

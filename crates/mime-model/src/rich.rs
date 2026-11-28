@@ -24,8 +24,8 @@
 
 use mailcraft_html::{Block, BlockKind, Marker, Span};
 use mailcraft_model::rich::{
-    Align, CellAlignment, CellText, Font, ListKind, MAX_LEVEL, MAX_PASTED_CELLS, MAX_PASTED_COLUMNS, MAX_PASTED_ROWS, MAX_PASTED_SPANS, MAX_SIZE,
-    MIN_SIZE, OBJECT, Paragraph, PastedTable, RichText, Run, Style, TableCell, safe_color, safe_link,
+    Align, CellAlignment, CellText, Font, LINE_BREAK, ListKind, MAX_LEVEL, MAX_PASTED_CELLS, MAX_PASTED_COLUMNS, MAX_PASTED_ROWS, MAX_PASTED_SPANS,
+    MAX_SIZE, MIN_SIZE, OBJECT, Paragraph, PastedTable, RichText, Run, Style, TableCell, safe_color, safe_link,
 };
 use mailcraft_model::signature::{Layout, Picture, Signature};
 
@@ -338,6 +338,8 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
                 ' ' if after_space || index == total => out.push_str("&nbsp;"),
                 ' ' => out.push(' '),
                 '\t' => out.push_str("&nbsp;&nbsp;&nbsp;&nbsp;"),
+                // A manual line break stays inside the paragraph (`<br>`), never a mark.
+                LINE_BREAK => out.push_str("<br>"),
                 '&' => out.push_str("&amp;"),
                 '<' => out.push_str("&lt;"),
                 '>' => out.push_str("&gt;"),
@@ -346,7 +348,7 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
                 c if c.is_control() => {}
                 c => out.push(c),
             }
-            after_space = c == ' ' || c == '\t';
+            after_space = c == ' ' || c == '\t' || c == LINE_BREAK;
         }
         for end in close.iter().rev() {
             out.push_str(end);
@@ -360,12 +362,12 @@ fn runs(out: &mut String, p: &Paragraph, pictures: &dyn Fn(u32) -> Option<Img>) 
 /// [`to_html`] writes them (`<div><br></div>`): a reader shows nothing there, but the owner put
 /// them there.
 pub fn from_html(html: &str) -> RichText {
-    read(html, false, false)
+    read(html, false, false, false)
 }
 
 /// Paste into a message body, keeping the cells of a table as an editor object.
 pub fn from_html_for_compose(html: &str) -> RichText {
-    read(html, false, true)
+    read(html, false, true, false)
 }
 
 /// An `<img src="cid:…">` of an HTML draft this program wrote.
@@ -384,10 +386,12 @@ pub struct ImgRef {
 /// run. Any other picture is left out, as in [`from_html`].
 ///
 /// The HTML is the owner's own, so a link keeps any address [`safe_link`] accepts (a link to
-/// `ms-settings:` they wrote comes back); [`from_html`] holds to what a reader follows. Never for
-/// received mail.
+/// `ms-settings:` they wrote comes back); [`from_html`] holds to what a reader follows. A `<br>`
+/// inside a block stays a manual line break in that paragraph (a list item stays one item);
+/// a block that is only `<br>` stays an empty paragraph. [`from_html`] still starts a paragraph
+/// at each `<br>`. Never for received mail.
 pub fn from_html_with_pictures(html: &str, claim: &mut dyn FnMut(&ImgRef) -> Option<u32>) -> RichText {
-    read(&mark_pictures(html, claim), true, true)
+    read(&mark_pictures(html, claim), true, true, true)
 }
 
 /// `html` with each picture `claim` takes written as `OBJECT id OBJECT` in its place, and no
@@ -502,12 +506,12 @@ fn img_ref(attrs: &str) -> Option<ImgRef> {
     Some(img)
 }
 
-fn read(html: &str, pictures: bool, tables: bool) -> RichText {
+fn read(html: &str, pictures: bool, tables: bool, keep_breaks: bool) -> RichText {
     // The look and the text only: pictures written into the HTML are not decoded for this.
     let blocks = if tables { mailcraft_html::parse_text_with_tables(html, pictures.then_some(safe_link)) } else { mailcraft_html::parse_text(html) };
     let read = html.len().min(mailcraft_html::MAX_INPUT_WITH_PICTURES);
     let copies = read.saturating_mul(COPY_ALLOWANCE).saturating_add(COPY_FLOOR);
-    let mut reader = Reader { out: Vec::new(), pictures, copies, tables };
+    let mut reader = Reader { out: Vec::new(), pictures, copies, tables, keep_breaks };
     reader.blocks(&blocks);
     let (lead, trail) = edge_blank_lines(html);
     let found = !reader.out.is_empty();
@@ -559,6 +563,9 @@ struct Reader {
     /// What the runs still to be made may repeat of links ([`COPY_ALLOWANCE`]).
     copies: usize,
     tables: bool,
+    /// A `<br>` inside a block stays [`LINE_BREAK`] in that paragraph. A table's cells always
+    /// split on `<br>`, because that is how one cell holds several lines.
+    keep_breaks: bool,
 }
 
 impl Reader {
@@ -620,7 +627,7 @@ impl Reader {
         for row in &source.rows {
             let mut cells = Vec::with_capacity(row.cells.len());
             for cell in &row.cells {
-                let mut reader = Reader { out: Vec::new(), pictures: self.pictures, copies, tables: false };
+                let mut reader = Reader { out: Vec::new(), pictures: self.pictures, copies, tables: false, keep_breaks: false };
                 reader.blocks(&cell.blocks);
                 copies = reader.copies;
                 spans += reader.out.iter().map(|p| p.runs.len()).sum::<usize>();
@@ -668,6 +675,20 @@ impl Reader {
                 highlight: span.background.map(|c| format!("#{:02x}{:02x}{:02x}", c.0, c.1, c.2)),
             };
             let text = span.text.replace('\u{a0}', " ");
+            if self.keep_breaks {
+                // A `<br>` the HTML reader left as `\n` inside this block is a manual line break,
+                // not another paragraph (and not another item of the same list).
+                let style = self.charged(&style);
+                let mut started = false;
+                for line in text.split('\n') {
+                    if started {
+                        push_text(&mut cur, &LINE_BREAK.to_string(), &style);
+                    }
+                    started = true;
+                    self.push_line(&mut cur, line, &style);
+                }
+                continue;
+            }
             for (i, line) in text.split('\n').enumerate() {
                 if i > 0 {
                     if self.out.len() >= mailcraft_model::rich::MAX_PARAGRAPHS {
@@ -675,24 +696,31 @@ impl Reader {
                     }
                     self.out.push(Paragraph::new(std::mem::take(&mut cur), list).at_level(level).aligned(align));
                 }
-                if self.pictures && line.contains(OBJECT) {
-                    // (Text, a picture's id, text, an id, text…: the marks come in pairs.)
-                    for (n, part) in line.split(OBJECT).enumerate() {
-                        match (n % 2, part.parse::<u32>()) {
-                            (1, Ok(id)) => cur.push(Run::picture(id, self.charged(&style))),
-                            (1, Err(_)) => {}
-                            _ if part.is_empty() => {}
-                            _ => cur.push(Run::new(part, self.charged(&style))),
-                        }
-                    }
-                    continue;
-                }
-                cur.push(Run::new(line, self.charged(&style)));
+                let style = self.charged(&style);
+                self.push_line(&mut cur, line, &style);
             }
         }
         if self.out.len() < mailcraft_model::rich::MAX_PARAGRAPHS {
             self.out.push(Paragraph::new(cur, list).at_level(level).aligned(align));
         }
+    }
+
+    /// One line of a span: a picture run for each id, otherwise the line as one run (an empty
+    /// line included, so a `<br>` that splits paragraphs leaves the empty paragraph).
+    fn push_line(&mut self, cur: &mut Vec<Run>, line: &str, style: &Style) {
+        if self.pictures && line.contains(OBJECT) {
+            // (Text, a picture's id, text, an id, text…: the marks come in pairs.)
+            for (n, part) in line.split(OBJECT).enumerate() {
+                match (n % 2, part.parse::<u32>()) {
+                    (1, Ok(id)) => cur.push(Run::picture(id, style.clone())),
+                    (1, Err(_)) => {}
+                    _ if part.is_empty() => {}
+                    _ => cur.push(Run::new(part, style.clone())),
+                }
+            }
+            return;
+        }
+        cur.push(Run::new(line, style.clone()));
     }
 
     /// `style` for one more run, when what its link repeats fits in what is left
@@ -705,6 +733,19 @@ impl Reader {
         } else {
             Style { link: None, ..style.clone() }
         }
+    }
+}
+
+/// `text` on the run being built when it looks the same, otherwise a run of its own.
+fn push_text(cur: &mut Vec<Run>, text: &str, style: &Style) {
+    if let Some(run) = cur.last_mut()
+        && run.picture.is_none()
+        && run.table.is_none()
+        && run.style == *style
+    {
+        run.text.push_str(text);
+    } else {
+        cur.push(Run::new(text, style.clone()));
     }
 }
 
@@ -726,5 +767,7 @@ fn cut(text: &str, max: usize) -> &str {
     text.get(..end).unwrap_or("")
 }
 
+#[cfg(test)]
+mod line_break_tests;
 #[cfg(test)]
 mod tests;

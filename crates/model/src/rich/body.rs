@@ -128,9 +128,12 @@ impl RichBody {
         &self.text
     }
 
-    /// The text without formatting (positions count its characters).
+    /// The text without formatting (positions count its characters). A manual line break is a
+    /// newline here, one character for one, so the text an agent reads (`composing.body`) is
+    /// ordinary text. The rich text still holds the line-break character.
     pub fn plain(&self) -> String {
-        self.text.text()
+        let text = self.text.text();
+        if text.contains(super::LINE_BREAK) { text.replace(super::LINE_BREAK, "\n") } else { text }
     }
 
     pub fn selection(&self) -> Selection {
@@ -351,7 +354,9 @@ impl RichBody {
             return self.delete(sel.start(), sel.end());
         }
         let at = sel.head;
-        let at_start = at == 0 || self.plain().chars().nth(at - 1) == Some('\n');
+        // The paragraph's own start, not a newline in the plain view: a manual line break is a
+        // newline there, and Backspace deletes that break rather than ending the list item.
+        let at_start = self.text.paragraph_span(at).is_some_and(|(start, _)| start == at);
         if at_start && self.text.list_at(at) != ListKind::None {
             return self.edit(false, |t, _| t.set_list(at, at, ListKind::None));
         }

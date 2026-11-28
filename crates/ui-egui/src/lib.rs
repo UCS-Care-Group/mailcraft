@@ -923,6 +923,11 @@ pub struct UiState {
     pub ribbon_collapsed: bool,
     /// The ribbon's layout: one row of commands (simplified, the default), or three rows in groups.
     pub ribbon_mode: ribbon::Mode,
+    /// Format Text › Show/Hide ¶ (#1278): paragraph marks, spaces, tabs and manual line breaks
+    /// while a message or a signature is edited. Off until the owner turns it on, and kept with
+    /// the other window settings. The marks are painted over the text; they are not part of the
+    /// message and are not sent.
+    pub show_formatting_marks: bool,
     /// Interface theme: light, Classic Light (#1203), dark, or follow the OS appearance.
     pub theme: theme::Appearance,
     /// High contrast: a stronger version of whichever theme is in use.
@@ -1078,6 +1083,7 @@ impl Default for UiState {
             backstage_page: "info".into(),
             ribbon_collapsed: false,
             ribbon_mode: ribbon::Mode::default(),
+            show_formatting_marks: false,
             theme: theme::Appearance::default(),
             high_contrast: false,
             animations: motion::Motion::default(),
@@ -1167,6 +1173,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.backstage", "File", "Ribbon", r#"{"value"?: bool, "page"?: "info"|"open"|"options"|"about"}"#),
     ("ui.collapseRibbon", "Collapse the Ribbon", "Ribbon", r#"{"value"?: bool}"#),
     ("ui.ribbonMode", "Ribbon Layout", "View › Layout", r#"{"value": "simplified"|"classic"}"#),
+    (
+        "ui.showFormattingMarks",
+        "Show/Hide formatting marks",
+        "Format Text › Paragraph",
+        r#"{"value"?: bool} — on draws paragraph marks, spaces, tabs and manual line breaks while a message or a signature is edited; off hides them. They are not part of the message"#,
+    ),
     (
         "ui.dialog",
         "Open Dialog",
@@ -2583,9 +2595,10 @@ impl MailApp {
         {
             self.recipient_focus_wanted = answer.get("compose").and_then(Value::as_u64);
         }
-        // Formatting keeps the keyboard where the owner is typing. If a header field has it,
-        // the ribbon still formats the body without moving the keyboard out of that field.
-        let format_body = id.starts_with("format.")
+        // Formatting keeps the keyboard where the owner is typing, and so does Show/Hide ¶.
+        // If a header field has it, the ribbon still does that work without moving the keyboard
+        // out of that field.
+        let format_body = (id.starts_with("format.") || id == "ui.showFormattingMarks")
             && self.ctx.as_ref().zip(self.session.compose_id()).is_none_or(|(ctx, compose)| compose::focused_header(ctx, compose).is_none());
         // What was done to the text being written leaves the keyboard in it.
         if r.is_ok()
@@ -2907,6 +2920,14 @@ impl MailApp {
             "ui.collapseRibbon" => {
                 self.ui.ribbon_collapsed = b("value").unwrap_or(!self.ui.ribbon_collapsed);
                 Ok(json!({"value": self.ui.ribbon_collapsed}))
+            }
+            "ui.showFormattingMarks" => {
+                let value = match switched(p, self.ui.show_formatting_marks) {
+                    Ok(value) => value,
+                    Err(e) => return Some(Err(e)),
+                };
+                self.ui.show_formatting_marks = value;
+                Ok(json!({"value": value}))
             }
             "ui.ribbonMode" => match s("value").and_then(ribbon::Mode::from_code) {
                 Some(mode) => {

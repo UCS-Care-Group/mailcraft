@@ -6454,7 +6454,7 @@ msgid "Format Painter"
 msgstr "Kopírovat formát"
 
 #. ribbon location
-#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs
+#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Format Text"
 msgstr "Formátovat text"
@@ -12659,8 +12659,8 @@ msgstr "Stránka {page} z {pages}"
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "Takové stránky se otevírají v prohlížeči, kde se spouštějí skripty, které obsahují. Otevřete ji, jen pokud víte, kdo ji poslal, a očekáváte ji."
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. ribbon, ribbon location
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Paragraph"
 msgstr "Odstavec"
@@ -16031,6 +16031,18 @@ msgstr "Zobrazovat uživatelská jména, zobrazovaná jména nebo skutečná jm�
 #, fuzzy
 msgid "Show week numbers in the Month view and the date navigator"
 msgstr "Zobrazovat čísla týdnů v zobrazení Měsíc a v navigátoru data"
+
+#. command label, interface, ribbon
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide formatting marks"
+msgstr "Zobrazit nebo skrýt značky formátování"
+
+#. interface, ribbon
+#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide ¶"
+msgstr "Zobrazit/skrýt ¶"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

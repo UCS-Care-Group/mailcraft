@@ -6461,7 +6461,7 @@ msgid "Format Painter"
 msgstr "Descriptor de formate"
 
 #. ribbon location
-#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs
+#: crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Format Text"
 msgstr "Formatare text"
@@ -12676,8 +12676,8 @@ msgstr "Pagina {page} din {pages}"
 msgid "Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it."
 msgstr "Paginile de acest tip se deschid în browser, unde rulează scripturile din ele. Deschideți-o doar dacă știți cine a trimis-o și o așteptați."
 
-#. ribbon
-#: crates/ui-egui/src/ribbon.rs
+#. ribbon, ribbon location
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Paragraph"
 msgstr "Paragraf"
@@ -16053,6 +16053,18 @@ msgstr "Afișare nume de utilizator, nume afișate sau nume reale"
 #, fuzzy
 msgid "Show week numbers in the Month view and the date navigator"
 msgstr "Afișați numerele săptămânilor în vizualizarea Lună și în navigatorul de date"
+
+#. command label, interface, ribbon
+#: crates/ui-egui/src/lib.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide formatting marks"
+msgstr "Afișează sau ascunde semnele de formatare"
+
+#. interface, ribbon
+#: crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Show/Hide ¶"
+msgstr "Afișare/Ascundere ¶"
 
 #. interface
 #: crates/ui-egui/src/forms.rs

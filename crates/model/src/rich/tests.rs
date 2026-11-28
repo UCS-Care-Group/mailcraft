@@ -21,7 +21,8 @@ pub(super) fn check(t: &RichText) {
         assert!(p.list == ListKind::None || p.align == Align::Left, "a list item is left: {t:?}");
         for r in &p.runs {
             assert!(!r.text.is_empty(), "{t:?}");
-            assert!(r.text.chars().all(|c| c == '\t' || !c.is_control()), "{t:?}");
+            // A tab stays. Naming the manual line break matches `!is_control` for U+2028.
+            assert!(r.text.chars().all(|c| c == '\t' || c == LINE_BREAK || !c.is_control()), "{t:?}");
             assert_eq!(r.style.clone().clean(), r.style);
         }
         for w in p.runs.windows(2) {
@@ -44,6 +45,42 @@ fn plain_text_is_one_paragraph_per_line() {
     check(&t);
     assert_eq!(RichText::from_plain("").paragraphs().len(), 1);
     assert!(RichText::new().is_empty());
+}
+
+#[test]
+fn a_manual_line_break_stays_inside_its_paragraph() {
+    let typed = RichText::from_plain(&format!("one{LINE_BREAK}two"));
+    assert_eq!(typed.paragraphs().len(), 1);
+    assert_eq!(typed.text(), format!("one{LINE_BREAK}two"));
+    assert_eq!(typed.to_plain(), "one\ntwo");
+    // U+2028 is not a control character, so naming it in `clean_line` does not change the filter.
+    // The text an agent reads is a newline of the same length.
+    assert!(!LINE_BREAK.is_control());
+    assert_eq!(RichBody::new(typed.clone()).plain(), "one\ntwo");
+    assert_eq!(RichBody::new(typed.clone()).plain().chars().count(), typed.len());
+    check(&typed);
+    let mut t = RichText::from_plain("one");
+    let n = t.insert(t.len(), &LINE_BREAK.to_string(), &Style::default()).unwrap();
+    t.insert(n, "two", &Style::default()).unwrap();
+    assert_eq!(t.text(), typed.text());
+    check(&t);
+}
+
+#[test]
+fn backspace_after_a_manual_line_break_in_a_list_deletes_the_break() {
+    let mut b = RichBody::from_plain(&format!("Agenda{LINE_BREAK}see notes"));
+    b.toggle_list(ListKind::Numbered).unwrap();
+    let at = "Agenda".chars().count() + 1;
+    b.select(at, at).unwrap();
+    b.backspace().unwrap();
+    assert_eq!(b.text().paragraphs().len(), 1);
+    assert_eq!(b.text().list_at(0), ListKind::Numbered);
+    assert_eq!(b.text().text(), "Agendasee notes");
+    // At the item's real start, Backspace still ends the list before it joins anything.
+    b.select(0, 0).unwrap();
+    b.backspace().unwrap();
+    assert_eq!(b.text().list_at(0), ListKind::None);
+    assert_eq!(b.text().text(), "Agendasee notes");
 }
 
 #[test]

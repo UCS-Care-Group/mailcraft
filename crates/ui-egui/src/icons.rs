@@ -1265,6 +1265,12 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.line(&[(5.5, 9.0), (5.0, 12.5), (7.0, 13.5), (10.5, 12.0)]);
             pen.frect_r(3.5, 14.5, 16.5, 17.5, 1.0, a);
         }
+        // Format Text › Show/Hide ¶: a paragraph mark, a bowl and two stems.
+        "formattingMarks" => {
+            pen.circle(8.0, 7.2, 3.1, c);
+            pen.line(&[(10.4, 4.2), (10.4, 16.2)]);
+            pen.line(&[(13.0, 4.2), (13.0, 16.2)]);
+        }
         // Format Painter: a brush, its bristles the accent.
         "formatPainter" => {
             pen.rect(3.5, 3.0, 15.5, 7.5, c);
@@ -1512,6 +1518,7 @@ pub const NAMES: &[&str] = &[
     "symbol",
     "increaseIndent",
     "decreaseIndent",
+    "formattingMarks",
     "showPassword",
     "hidePassword",
 ];
