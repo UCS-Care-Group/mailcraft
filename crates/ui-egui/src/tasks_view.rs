@@ -44,16 +44,26 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
     let lists = lists(app, ui.ctx());
     filter_pane(app, ui, &lists.counts);
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
+    // The pane at the window's right edge has the rounded corners: the details when they are shown.
+    let mut details_shown = None;
     if let Some(task) = app.session.sel.task.and_then(|id| app.session.mailbox.tasks.get(&id).cloned()) {
         let max = (ui.available_width() - 320.0).max(260.0);
-        egui::Panel::right("task_details")
+        let shown = egui::Panel::right("task_details")
             .default_size(340.0f32.min(max))
             .size_range(260.0..=max)
             .resizable(true)
-            .frame(frame)
+            .frame(
+                frame
+                    .corner_radius(crate::nav::right_corner(true))
+                    .inner_margin(egui::Margin { bottom: crate::nav::SHEET_CORNER as i8, ..Default::default() }),
+            )
             .show(ui, |ui| details(app, ui, &task));
+        details_shown = Some(shown.response.rect);
     }
-    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| list(app, ui, &lists));
+    // (The list's own corners are square beside the details.)
+    let central = if details_shown.is_some() { egui::Frame::NONE.fill(t.surface) } else { crate::nav::right_frame(&t, true) };
+    let list_shown = egui::CentralPanel::default().frame(central).show(ui, |ui| list(app, ui, &lists));
+    crate::nav::sheet_right(ui.painter(), details_shown.unwrap_or(list_shown.response.rect), &t, true);
 }
 
 // ---- grouping ----
@@ -282,9 +292,8 @@ fn keyboard(app: &mut MailApp, ui: &Ui, layout: &Layout<Heading>) {
 
 fn filter_pane(app: &mut MailApp, ui: &mut Ui, counts: &[usize; 5]) {
     let t = Tokens::get(ui.ctx());
-    let frame = egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border));
-    egui::Panel::left("task_filters").default_size(200.0).size_range(160.0..=320.0).resizable(true).frame(frame).show(ui, |ui| {
-        crate::nav::module_foot(app, ui);
+    let side = crate::nav::side_panel(app).show_separator_line(t.pane_rule).frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
+        crate::nav::left_sheet(app, ui, &t, t.panel);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         ui.add_space(6.0);
         widgets::pane_heading(ui, tl!("My Tasks"));
@@ -334,6 +343,7 @@ fn filter_pane(app: &mut MailApp, ui: &mut Ui, counts: &[usize; 5]) {
             }
         }
     });
+    crate::nav::keep_side_width(app, side.response.rect);
 }
 
 // ---- the list ----

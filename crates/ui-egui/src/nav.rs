@@ -46,7 +46,7 @@ const ROW_HIGHLIGHT_INSET: f32 = 1.0;
 /// A line of text is centred by its line box; the eye centres it by its lower-case letters, which
 /// sit this much below the middle of the box.
 /// How round the pane's corner is where it meets the module bar and the ribbon.
-const SHEET_CORNER: u8 = 8;
+pub(crate) const SHEET_CORNER: u8 = 8;
 /// How wide the strip is that stays when the pane is hidden.
 const STRIP_W: f32 = 30.0;
 
@@ -227,9 +227,12 @@ pub fn module_foot(app: &mut MailApp, ui: &mut Ui) {
         return;
     }
     let t = Tokens::get(ui.ctx());
-    egui::Panel::bottom("modules_foot").exact_size(FOOT_H).resizable(false).show_separator_line(false).frame(egui::Frame::NONE.fill(t.nav)).show(
-        ui,
-        |ui| {
+    egui::Panel::bottom("modules_foot")
+        .exact_size(FOOT_H)
+        .resizable(false)
+        .show_separator_line(false)
+        .frame(egui::Frame::NONE.fill(t.nav).corner_radius(CornerRadius { nw: 0, ne: 0, sw: SHEET_CORNER, se: 0 }))
+        .show(ui, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
             let room = ui.max_rect();
             let each = (room.width() / 4.0).max(1.0);
@@ -245,7 +248,9 @@ pub fn module_foot(app: &mut MailApp, ui: &mut Ui) {
                 let resp = ui.interact(r, ui.scope_id().with(("module_foot", icon)), Sense::click());
                 let active = app.session.view.module == m;
                 if active {
-                    let line = Rect::from_min_size(pos2(r.min.x + 4.0, r.max.y - 2.0), vec2((r.width() - 8.0).max(0.0), 2.0));
+                    // (The first one starts after the pane's rounded corner, not on it.)
+                    let start = if i == 0 { f32::from(SHEET_CORNER) } else { 4.0 };
+                    let line = Rect::from_min_size(pos2(r.min.x + start, r.max.y - 2.0), vec2((r.width() - start - 4.0).max(0.0), 2.0));
                     ui.painter().rect_filled(line, 1.0, t.accent);
                 } else if resp.hovered() {
                     ui.painter().rect_filled(r.shrink(3.0), 4.0, if resp.is_pointer_button_down_on() { t.pressed } else { t.hover });
@@ -273,8 +278,7 @@ pub fn module_foot(app: &mut MailApp, ui: &mut Ui) {
                     let _ = app.run(id, json!({}));
                 }
             }
-        },
-    );
+        });
 }
 
 /// How deep the pane follows subfolders, and how many rows it lists for one account: a mailbox
@@ -432,22 +436,17 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
     let color = app.session.mailbox.account(id).and_then(|a| a.color).filter(|_| id != FAVORITES && id != ALL_ACCOUNTS);
     let room = if color.is_some() { ACCOUNT_DOT_ROOM } else { 0.0 };
     // Folded, the unread mail under it, on the line of the name; open, its rows show it (#1950).
+    // (The dot has its column at the pane's right, so the count and the name end before it.)
     let count = if open { Count::Nothing } else { folded };
-    let line = Rect::from_center_size(pos2(r.center().x, y), vec2(r.width(), ROW_H));
-    let name_end = if count == Count::Nothing { r.max.x - 8.0 } else { count_pill(ui, &t, line, count, false) };
+    let line = Rect::from_min_max(pos2(r.min.x, y - ROW_H / 2.0), pos2(r.max.x - room, y + ROW_H / 2.0));
+    let name_end = if count == Count::Nothing { r.max.x - 8.0 - room } else { count_pill(ui, &t, line, count, false) };
     if count != Count::Nothing {
-        app.hit.add("headingCount", id, Rect::from_min_max(pos2(name_end, line.min.y), pos2(r.max.x, line.max.y)));
+        app.hit.add("headingCount", id, Rect::from_min_max(pos2(name_end, line.min.y), pos2(line.max.x, line.max.y)));
     }
-    let w = paint_clipped(
-        ui.painter(),
-        pos2(r.min.x + NAME_LEFT, y),
-        (name_end - r.min.x - NAME_LEFT - room).max(0.0),
-        name,
-        regular(HEADING_SIZE),
-        t.text,
-    );
+    let _ = paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, y), (name_end - r.min.x - NAME_LEFT).max(0.0), name, regular(HEADING_SIZE), t.text);
     if let Some(color) = color {
-        let center = pos2(r.min.x + NAME_LEFT + w + ACCOUNT_DOT_ROOM / 2.0 + 1.0, y + 1.0);
+        // At the pane's right, in one column for every account (under the button that puts the pane away).
+        let center = pos2(r.max.x - 14.0, y + 1.0);
         ui.painter().circle_filled(center, ACCOUNT_DOT_RADIUS, crate::theme::c32(color));
         // (In High Contrast a ring in the text's colour, so that a mid-tone stays in sight.)
         if t.high_contrast {
@@ -1046,19 +1045,98 @@ fn favorites_note(app: &mut MailApp, ui: &mut Ui, account: Id, note: &Note) {
 
 /// The pane as a sheet lying on the window: the panel colour with a line along its top and left,
 /// rounded where the two meet beside the module bar and under the ribbon.
-fn sheet(painter: &Painter, r: Rect, t: &Tokens) {
+fn sheet(painter: &Painter, r: Rect, t: &Tokens, fill: Color32) {
     let radius = f32::from(SHEET_CORNER);
-    painter.rect_filled(r, CornerRadius { nw: SHEET_CORNER, ne: 0, sw: 0, se: 0 }, t.panel);
-    // Up the left edge, round the corner, along the top: half a pixel in, so the line is crisp.
+    painter.rect_filled(r, CornerRadius { nw: SHEET_CORNER, ne: 0, sw: SHEET_CORNER, se: 0 }, fill);
+    // Up the left edge from where the bottom corner ends, round the corner, along the top: half a
+    // pixel in, so the line is crisp. ([`sheet_foot`] draws the bottom corner and the foot's line.)
     let (left, top) = (r.min.x + 0.5, r.min.y + 0.5);
     let centre = pos2(left + radius, top + radius);
-    let mut line = vec![pos2(left, r.max.y)];
+    let mut line = vec![pos2(left, r.max.y - 0.5 - radius)];
     line.extend((0..=8).map(|i| {
         let a = (180.0 + 90.0 * i as f32 / 8.0).to_radians();
         pos2(centre.x + radius * a.cos(), centre.y + radius * a.sin())
     }));
     line.push(pos2(r.max.x, top));
     painter.add(Shape::line(line, Stroke::new(1.0, t.border_strong)));
+}
+
+/// The start of a pane at the window's left, inside its panel (whose own frame is the window's
+/// colour): the sheet of its colour `fill` with its rounded corners and line, and the module bar
+/// at its foot. The pane's contents follow.
+pub(crate) fn left_sheet(app: &mut MailApp, ui: &mut Ui, t: &Tokens, fill: Color32) {
+    let whole = ui.max_rect();
+    // (Before the module bar: the pane's colour would paint over it.)
+    sheet(ui.painter(), whole, t, fill);
+    let foot = foot_in_use(&app.session);
+    if foot {
+        module_foot(app, ui);
+    } else {
+        // Without the bar the pane keeps the room of its corner at the foot, so that a row
+        // (selected or hovered) ends inside the curve, as the pane at the right does.
+        egui::Panel::bottom("sheet_corner_room")
+            .exact_size(f32::from(SHEET_CORNER))
+            .resizable(false)
+            .show_separator_line(false)
+            .frame(egui::Frame::NONE)
+            .show(ui, |_| {});
+    }
+    sheet_foot(ui.painter(), whole, t, if foot { FOOT_H } else { 0.0 });
+}
+
+/// The pane at the window's left, at its foot: the line along the bottom, rounded where it meets
+/// the left edge. Drawn after the module bar, which would paint over it.
+fn sheet_foot(painter: &Painter, r: Rect, t: &Tokens, foot: f32) {
+    let radius = f32::from(SHEET_CORNER);
+    let (left, bottom) = (r.min.x + 0.5, r.max.y - 0.5);
+    let centre = pos2(left + radius, bottom - radius);
+    let mut line = vec![pos2(r.max.x, bottom)];
+    line.extend((0..=8).map(|i| {
+        let a = (90.0 + 90.0 * i as f32 / 8.0).to_radians();
+        pos2(centre.x + radius * a.cos(), centre.y + radius * a.sin())
+    }));
+    // Up the left edge along the bar itself, which paints over the line [`sheet`] draws there.
+    if foot > radius {
+        line.push(pos2(left, bottom - foot));
+    }
+    painter.add(Shape::line(line, Stroke::new(1.0, t.border_strong)));
+}
+
+/// The line [`sheet`] draws for the pane at the window's left, for the one at its right: down its
+/// right edge and along its foot, rounded at the corners, and along its top (rounded) when `top`.
+/// (Its fill is the panel's own, rounded the same, see [`right_corner`].)
+pub(crate) fn sheet_right(painter: &Painter, r: Rect, t: &Tokens, top: bool) {
+    let radius = f32::from(SHEET_CORNER);
+    let (right, upper, bottom) = (r.max.x - 0.5, r.min.y + 0.5, r.max.y - 0.5);
+    let arc = |centre: Pos2, from: f32| {
+        (0..=8).map(move |i| {
+            let a = (from + 90.0 * i as f32 / 8.0).to_radians();
+            pos2(centre.x + radius * a.cos(), centre.y + radius * a.sin())
+        })
+    };
+    let mut line = Vec::new();
+    if top {
+        line.push(pos2(r.min.x, upper));
+        line.extend(arc(pos2(right - radius, upper + radius), 270.0));
+    } else {
+        line.push(pos2(right, r.min.y));
+    }
+    line.extend(arc(pos2(right - radius, bottom - radius), 0.0));
+    line.push(pos2(r.min.x, bottom));
+    painter.add(Shape::line(line, Stroke::new(1.0, t.border_strong)));
+}
+
+/// The rounding of the pane at the window's right: its bottom right corner, and its top right one
+/// when `top` (not for the pane under the list).
+pub(crate) fn right_corner(top: bool) -> CornerRadius {
+    CornerRadius { nw: 0, ne: if top { SHEET_CORNER } else { 0 }, sw: 0, se: SHEET_CORNER }
+}
+
+/// The frame of the pane at the window's right: its colour, its rounded corners, and the room of a
+/// corner at its foot, so that what is drawn to the edge of the pane (a scroll bar, the last cell
+/// of the month, a row's fill) ends inside the curve instead of over it.
+pub(crate) fn right_frame(t: &Tokens, top: bool) -> egui::Frame {
+    egui::Frame::NONE.fill(t.surface).corner_radius(right_corner(top)).inner_margin(egui::Margin { bottom: SHEET_CORNER as i8, ..Default::default() })
 }
 
 /// The top of the pane: the button that puts the pane away.
@@ -1084,7 +1162,10 @@ fn pane_top(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
 pub fn folder_pane_strip(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
     egui::Panel::left("folders_hidden").exact_size(STRIP_W).resizable(false).frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
-        sheet(ui.painter(), ui.max_rect(), &t);
+        let whole = ui.max_rect();
+        sheet(ui.painter(), whole, &t, t.panel);
+        // (No module bar at its foot: the line along the bottom is the strip's own.)
+        sheet_foot(ui.painter(), whole, &t, 0.0);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         ui.add_space(4.0);
         let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
@@ -1103,21 +1184,29 @@ pub fn folder_pane_strip(app: &mut MailApp, ui: &mut Ui) {
     });
 }
 
+/// The pane at the window's left, the same in every module (Mail, Calendar, People, Tasks): one
+/// panel, so it has the width the owner gave it wherever they go. The width is kept with
+/// [`keep_side_width`] after it is shown.
+pub(crate) fn side_panel(app: &MailApp) -> egui::Panel {
+    egui::Panel::left("folders").default_size(app.ui.folder_pane_width).size_range(160.0..=420.0).resizable(true)
+}
+
+/// The width the pane at the window's left was shown with, kept for the next start.
+pub(crate) fn keep_side_width(app: &mut MailApp, shown: Rect) {
+    app.ui.folder_pane_width = shown.width();
+}
+
 /// The folder pane: favourites, then every account's folders.
 pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    let panel = egui::Panel::left("folders")
-        .default_size(app.ui.folder_pane_width)
-        .size_range(160.0..=420.0)
-        .resizable(true)
+    let panel = side_panel(app)
         // In the dark the pane and the list beside it are told apart by their own colours; on a
         // light window they are nearly one white, and a line parts them.
         .show_separator_line(t.pane_rule)
         .frame(egui::Frame::NONE.fill(t.canvas));
     let shown = panel.show(ui, |ui| {
         // (After the sheet: the pane's background would paint over the row.)
-        sheet(ui.painter(), ui.max_rect(), &t);
-        module_foot(app, ui);
+        left_sheet(app, ui, &t, t.panel);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         pane_top(app, ui, &t);
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {

@@ -489,13 +489,14 @@ impl MailApp {
 /// of the one chosen.
 pub(crate) fn show(app: &mut MailApp, ui: &mut Ui) {
     let t = Tokens::get(ui.ctx());
-    let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
-    let max = (ui.available_width() - 320.0).max(260.0);
-    egui::Panel::left("people_list").default_size(320.0f32.min(max)).size_range(240.0..=max).resizable(true).frame(frame).show(ui, |ui| {
-        crate::nav::module_foot(app, ui);
+    // The same panes as the contacts' own: one width for the pane at the left, rounded corners.
+    let side = crate::nav::side_panel(app).show_separator_line(t.pane_rule).frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| {
+        crate::nav::left_sheet(app, ui, &t, t.surface);
         list(app, ui);
     });
-    egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| card(app, ui));
+    crate::nav::keep_side_width(app, side.response.rect);
+    let shown = egui::CentralPanel::default().frame(crate::nav::right_frame(&t, true)).show(ui, |ui| card(app, ui));
+    crate::nav::sheet_right(ui.painter(), shown.response.rect, &t, true);
 }
 
 /// The choice of what People lists, at the top of its pane: the contacts (of all accounts, of

@@ -5910,12 +5910,16 @@ impl MailApp {
             send_later::undo_bar(self, ui);
             nav::module_bar(self, ui);
             ribbon::show(self, ui);
-            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas)).show(ui, |ui| match self.session.view.module {
-                mailcraft_engine::Module::Mail => mail_view::show(self, ui),
-                mailcraft_engine::Module::Calendar => calendar_view::show(self, ui),
-                mailcraft_engine::Module::People => people_view::show(self, ui),
-                mailcraft_engine::Module::Tasks => tasks_view::show(self, ui),
-            });
+            // The panes keep the ribbon's gap (8) from the window's left and right edges.
+            egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.canvas).inner_margin(egui::Margin::symmetric(8, 0))).show(
+                ui,
+                |ui| match self.session.view.module {
+                    mailcraft_engine::Module::Mail => mail_view::show(self, ui),
+                    mailcraft_engine::Module::Calendar => calendar_view::show(self, ui),
+                    mailcraft_engine::Module::People => people_view::show(self, ui),
+                    mailcraft_engine::Module::Tasks => tasks_view::show(self, ui),
+                },
+            );
         }
         windows::compose_window::back(self, fronted);
         sync_panel::show(self, &ctx);

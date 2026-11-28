@@ -2764,7 +2764,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
         return;
     }
     let tab = describe(app);
-    band(app, ui, &tab, egui::Id::unique("ribbon"), 0);
+    band(app, ui, &tab, egui::Id::unique("ribbon"));
 }
 
 pub(crate) fn show_attachment_window(app: &mut MailApp, ui: &mut Ui, window: u64, message: mailcraft_model::Id) -> bool {
@@ -2775,7 +2775,7 @@ pub(crate) fn show_attachment_window(app: &mut MailApp, ui: &mut Ui, window: u64
         let _ = app.run("ui.showAttachmentMessage", no());
         return true;
     }
-    band(app, ui, &attachments(message, index), egui::Id::unique(("attachment-ribbon", window)), 0);
+    band(app, ui, &attachments(message, index), egui::Id::unique(("attachment-ribbon", window)));
     true
 }
 
@@ -2801,7 +2801,7 @@ pub(crate) fn show_window(app: &mut MailApp, ui: &mut Ui, window: u64, tab: &mut
     }
     described.groups.retain(|group| !group.items.is_empty());
     // Leave the same gutter at both edges of the composer window.
-    band(app, ui, &described, egui::Id::unique(("ribbon", window)), 8);
+    band(app, ui, &described, egui::Id::unique(("ribbon", window)));
 }
 
 /// The row of tabs, `current` the one in view, with Search commands at its right end; `id` names
@@ -2886,7 +2886,7 @@ fn strip(app: &mut MailApp, ui: &mut Ui, tabs: &[&'static str], current: &str, i
 }
 
 /// The commands of `tab` under the row of tabs, in the layout chosen; `id` names its panel.
-fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id, left_inset: i8) {
+fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id) {
     let t = Tokens::get(ui.ctx());
     let mode = app.ui.ribbon_mode;
     let sizes = Sizes::of(&t);
@@ -2896,12 +2896,9 @@ fn band(app: &mut MailApp, ui: &mut Ui, tab: &Tab, id: egui::Id, left_inset: i8)
         Mode::Classic => (CONTENT_H + LABEL_H + 10.0, 4.0),
         Mode::Simplified => (sizes.band, (sizes.band - sizes.button) / 2.0),
     };
-    let margin = egui::Margin {
-        left: 8 + left_inset,
-        right: (16.0 + MODE_W) as i8,
-        top: (edge + sizes.top_gap) as i8,
-        bottom: (edge + sizes.sheet_gap) as i8,
-    };
+    // (The sheet keeps the same gap from the window's edge at the left as at the right: 8, in the
+    // main window as in a separate one.)
+    let margin = egui::Margin { left: 16, right: (16.0 + MODE_W) as i8, top: (edge + sizes.top_gap) as i8, bottom: (edge + sizes.sheet_gap) as i8 };
     egui::Panel::top(id)
         .exact_size(height + sizes.top_gap + sizes.sheet_gap)
         .show_separator_line(false)

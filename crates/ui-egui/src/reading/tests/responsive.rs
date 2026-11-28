@@ -212,7 +212,7 @@ fn the_look_is_for_the_width_the_body_is_laid_out_at() {
         let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
         served_by_example_org(&mut mailbox);
         let inbox = mailbox.inbox().unwrap();
-        let lists: String = (0..390).map(|i| format!("@media (max-width:{}px){{p{{color:#036}}}}", 100 + i * 3)).collect();
+        let lists: String = (0..390).map(|i| format!("@media (max-width:{}px){{p{{color:#036}}}}", 40 + i * 3)).collect();
         let html = format!("<style>{lists}</style><style media = \"(max-width: 5000px)\">p{{margin:0}}</style><p>Wide enough to see</p>");
         let mut m = html_message(0, ("Saltmarsh Dairy", "news@saltmarsh.example"), "Lists", &html);
         m.folder = inbox;
@@ -232,7 +232,7 @@ fn the_look_is_for_the_width_the_body_is_laid_out_at() {
         let laid = view::kept(&harness.ctx, id, |laid, _| laid.width()).unwrap();
         // The first list that holds is the narrowest `max-width` at or above the width.
         let first = look.verdicts().iter().position(|v| *v).expect("a list holds");
-        let edge = (100 + first * 3) as f32;
+        let edge = (40 + first * 3) as f32;
         assert!(edge >= laid - 0.5 && edge - laid <= 3.5, "window {w}: lists say {edge}, body is {laid}");
     }
 }
