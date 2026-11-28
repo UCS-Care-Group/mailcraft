@@ -915,6 +915,16 @@ fn accounts_that_sign_in_on_the_providers_page() {
     let named = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "service": "Outlook.com"}));
     assert_eq!((named["via"].as_str(), named["outgoing"]["host"].as_str()), (Some("asked"), Some("smtp-mail.outlook.com")));
     assert_eq!(run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "service": "google"}))["service"], "Gmail");
+    let infomaniak = run(&mut s, "account.preset", json!({"email": "avery@lumen.example", "service": "infomaniak"}));
+    assert_eq!(
+        (
+            infomaniak["via"].as_str(),
+            infomaniak["service"].as_str(),
+            infomaniak["incoming"]["host"].as_str(),
+            infomaniak["outgoing"]["port"].as_u64()
+        ),
+        (Some("asked"), Some("Infomaniak"), Some("mail.infomaniak.com"), Some(587))
+    );
     assert!(s.run("account.preset", &json!({"email": "avery@lumen.example", "service": "nobody"})).is_err());
     // The provider's own domain needs nobody's exchangers.
     assert_eq!(run(&mut s, "account.preset", json!({"email": "a@outlook.com", "mx": ["aspmx.l.google.com"]}))["service"], "Outlook.com");
