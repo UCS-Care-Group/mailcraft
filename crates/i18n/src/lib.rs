@@ -74,6 +74,7 @@ pub enum Lang {
     Czech,
     ChineseSimplified,
     Georgian,
+    Norwegian,
     /// Accented look-alikes of the English text, for finding text that skips translation. Set by
     /// command only; never offered.
     Pseudo,
@@ -81,7 +82,7 @@ pub enum Lang {
 
 impl Lang {
     /// Every language there is a name for (whether or not it has a catalogue yet).
-    pub const ALL: [Lang; 13] = [
+    pub const ALL: [Lang; 14] = [
         Lang::English,
         Lang::French,
         Lang::German,
@@ -94,6 +95,7 @@ impl Lang {
         Lang::Czech,
         Lang::ChineseSimplified,
         Lang::Georgian,
+        Lang::Norwegian,
         Lang::Pseudo,
     ];
 
@@ -112,6 +114,7 @@ impl Lang {
             Lang::Czech => "cs",
             Lang::ChineseSimplified => "zh_CN",
             Lang::Georgian => "ka",
+            Lang::Norwegian => "no",
             Lang::Pseudo => "pseudo",
         }
     }
@@ -153,6 +156,9 @@ impl Lang {
             "pl" => Some(Lang::Polish),
             "cs" => Some(Lang::Czech),
             "ka" => Some(Lang::Georgian),
+            // Bokmal. `nn` is Nynorsk: a different written language, and no catalogue is
+            // served to a reader who asked for it.
+            "no" | "nb" => Some(Lang::Norwegian),
             _ => None,
         }
     }
@@ -172,6 +178,7 @@ impl Lang {
             Lang::Czech => "Čeština",
             Lang::ChineseSimplified => "简体中文",
             Lang::Georgian => "ქართული",
+            Lang::Norwegian => "Norsk bokmål",
             Lang::Pseudo => "Pseudo",
         }
     }
@@ -191,6 +198,7 @@ impl Lang {
                 | Lang::Czech
                 | Lang::ChineseSimplified
                 | Lang::Georgian
+                | Lang::Norwegian
         )
     }
 
@@ -492,6 +500,7 @@ mod tests {
             expected.push("简体中文（预览）");
         }
         expected.push("ქართული (საცდელი)");
+        expected.push("Norsk bokmål (forhåndsvisning)");
         assert_eq!(names, expected);
         assert_eq!(Lang::from_pref("auto", Some("de_AT.UTF-8")), Lang::German);
         assert_eq!(Lang::from_pref("auto", Some("es-MX")), Lang::Spanish);
