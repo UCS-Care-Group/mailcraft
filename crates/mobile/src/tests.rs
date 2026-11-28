@@ -5,7 +5,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::task::{Context, Poll, Waker};
 
 use mailcraft_engine::Session;
-use mailcraft_model::{Attachment, FolderKind, Message};
+use mailcraft_model::{Attachment, FolderKind, Importance, Message};
 use serde_json::{Value, json};
 
 use crate::blocks::{BlockKindView, BlockView};
@@ -384,4 +384,35 @@ fn a_message_with_a_big_attachment_reads_without_the_attachment() {
     assert!(!view.blocks.is_empty());
     assert_eq!(view.attachments.len(), 1);
     assert_eq!(view.attachments[0].size, 8 << 20);
+}
+
+#[test]
+fn a_message_opened_says_high_importance_as_its_row_does() {
+    let core = sample_core();
+    let rows = block_on(core.messages(inbox(&core), "all".into(), 0, 200)).unwrap().rows;
+    assert!(rows.iter().any(|r| r.important) && rows.iter().any(|r| !r.important));
+    for row in rows {
+        assert_eq!(block_on(core.message(row.id, 390.0, false)).unwrap().important, row.important, "{}", row.subject);
+    }
+}
+
+#[test]
+fn a_message_opened_says_low_importance_as_its_row_does() {
+    let core = Core::start(FakePlatform::new(), || {
+        let mut mb = mailcraft_model::Mailbox::with_local_account("Avery", "avery@example.org");
+        let account = mb.accounts[0].id;
+        let folder = mb.folder_of_kind(account, FolderKind::Inbox).unwrap();
+        for (subject, importance) in [("Low", Importance::Low), ("High", Importance::High), ("Normal", Importance::Normal)] {
+            mb.add_message(Message { account, folder, subject: subject.into(), importance, ..Message::default() }).unwrap();
+        }
+        Session::at(mb, now(), 0)
+    })
+    .unwrap();
+    let rows = block_on(core.messages(inbox(&core), "all".into(), 0, 5)).unwrap().rows;
+    assert_eq!(rows.len(), 3);
+    for row in rows {
+        let view = block_on(core.message(row.id, 390.0, false)).unwrap();
+        assert_eq!((row.low_importance, view.low_importance, row.important), (row.subject == "Low", row.subject == "Low", row.subject == "High"));
+        assert_eq!(view.important, row.important);
+    }
 }
