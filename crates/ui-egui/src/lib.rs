@@ -1228,7 +1228,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.language",
         "Interface Language",
         "File › Options",
-        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"sl"|"cs"|"zh_CN"|"ka"|"pseudo"}"#,
+        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"sl"|"cs"|"zh_CN"|"ka"|"tr"|"pseudo"}"#,
     ),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (
