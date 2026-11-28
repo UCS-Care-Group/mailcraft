@@ -566,3 +566,15 @@ fn a_header_condition_reads_the_lines_it_names() {
     assert_eq!(json, r#"{"type":"header","value":{"names":"X-Spam","words":["YES","Yes"],"exact":true}}"#);
     assert_eq!(serde_json::from_str::<Condition>(&json).unwrap(), c);
 }
+
+/// A rule with a header line by name reads the header block, which Run Rules Now brings in for it
+/// first, as for words in the header (#2058).
+#[test]
+fn a_header_line_condition_reads_the_header_block() {
+    let header = Condition::Header { names: vec!["X-Spam".into()], words: vec!["yes".into()], exact: true };
+    let rule = Rule { conditions: vec![header.clone()], ..Default::default() };
+    assert!(rule.reads_header());
+    let rule = Rule { conditions: vec![Condition::SubjectContains(vec!["x".into()])], exceptions: vec![header], ..Default::default() };
+    assert!(rule.reads_header());
+    assert!(!Rule { conditions: vec![Condition::SubjectContains(vec!["x".into()])], ..Default::default() }.reads_header());
+}

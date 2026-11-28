@@ -856,10 +856,14 @@ impl Rule {
     }
 
     /// Whether it reads the lines of a message's header block, which have to be in memory for it
-    /// ([`Message::header_block`]): words in the header, and an automatic reply's mark, which a
-    /// build from before it stayed on the message kept there.
+    /// ([`Message::header_block`]): words in the header, a header line by name (a rule of the
+    /// owner's own Sieve script, #2057), and an automatic reply's mark, which a build from before
+    /// it stayed on the message kept there.
     pub fn reads_header(&self) -> bool {
-        self.conditions.iter().chain(&self.exceptions).any(|c| matches!(c, Condition::HeaderContains(_) | Condition::AutomaticReply))
+        self.conditions
+            .iter()
+            .chain(&self.exceptions)
+            .any(|c| matches!(c, Condition::HeaderContains(_) | Condition::Header { .. } | Condition::AutomaticReply))
     }
 
     /// Whether it is for the arriving mail of `account`.
