@@ -285,10 +285,10 @@ fn tidy_rule(mut rule: Recurrence) -> Recurrence {
 }
 
 /// Category names from outside: one line each, none empty, none twice, a few at most.
-fn names(list: Vec<String>) -> Vec<String> {
+pub(crate) fn names(list: Vec<String>) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for name in list.iter().map(|name| line(name, MAX_NAME)).filter(|name| !name.is_empty()) {
-        if out.len() < MAX_ENTRIES && !out.iter().any(|have| have.eq_ignore_ascii_case(&name)) {
+        if out.len() < MAX_ENTRIES && !out.iter().any(|have| crate::sync::same_category(have, &name)) {
             out.push(name);
         }
     }
@@ -322,9 +322,37 @@ pub struct RemoteContact {
     pub notes: String,
     /// When it was last changed on the server (Unix seconds); 0 when the server didn't say.
     pub modified: Timestamp,
+    /// Its categories, by name; `None` when the server didn't say (they stay as they are here).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub categories: Option<Vec<String>>,
 }
 
 impl RemoteContact {
+    /// A contact of the mailbox as a server is told it: its fields that a server keeps, and
+    /// what the server calls it ([`Origin`]).
+    pub fn of(c: &crate::Contact) -> RemoteContact {
+        RemoteContact {
+            id: c.origin.id.clone(),
+            change_key: c.origin.change_key.clone(),
+            display_name: c.display_name.clone(),
+            first: c.first.clone(),
+            middle: c.middle.clone(),
+            last: c.last.clone(),
+            nickname: c.nickname.clone(),
+            company: c.company.clone(),
+            title: c.title.clone(),
+            department: c.department.clone(),
+            emails: c.emails.clone(),
+            phones: c.phones.clone(),
+            addresses: c.addresses.clone(),
+            websites: c.websites.clone(),
+            birthday: c.birthday,
+            notes: c.notes.clone(),
+            modified: 0,
+            categories: Some(c.categories.clone()),
+        }
+    }
+
     /// Cut everything to the size the mailbox keeps, as [`RemoteEvent::tidy`] does: names are
     /// one line, an e-mail address is one or it is left out, empty entries go, lists are capped.
     pub fn tidy(&mut self) {
@@ -376,6 +404,7 @@ impl RemoteContact {
             .filter(|site| !site.is_empty())
             .take(MAX_ENTRIES)
             .collect();
+        self.categories = self.categories.take().map(names);
     }
 }
 
@@ -441,6 +470,21 @@ pub struct ContactsDownload {
     /// Every contact the server has is here. When not, nothing is removed for not being here.
     pub complete: bool,
     pub contacts: Vec<RemoteContact>,
+    /// The contacts folder they are of; `None` for the account's own main one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<crate::contact_sync::RemoteContactFolder>,
+    /// Contacts the server says are deleted (what it calls them): a list of changes says so.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gone: Vec<String>,
+    /// Where the server's list of changes is read up to after this, kept with the folder
+    /// ([`crate::contact_sync::ContactFolder::delta`]); empty leaves it as it is.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub delta: String,
+    /// When the host started reading it from the server (Unix seconds, this computer's clock);
+    /// 0 when not said. Only a list read after a new contact was answered can say the server
+    /// didn't make it ([`crate::contact_sync::ContactChange::unconfirmed`]).
+    #[serde(skip_serializing_if = "is_zero_time")]
+    pub read_at: Timestamp,
 }
 
 impl ContactsDownload {
@@ -653,8 +697,8 @@ pub struct EventFields {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub wall: Option<EventWall>,
     /// With `time`, for a timed event that has zones of its own ([`Event::start_zone`]): their
-    /// names, for the server to keep the event in. `None` for an event without: it is told as
-    /// it always was (instants, and for a series the clock here).
+    /// names, for the server to keep the event in. `None` for an event without: it is told by
+    /// the clock here ([`EventsUpload::zone`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub zones: Option<EventZones>,
     /// How it repeats: for a new series, and for one whose rule or first day changed.
@@ -880,11 +924,17 @@ pub struct EventsUpload {
     pub email: String,
     pub ops: Vec<EventOp>,
     /// The zone the calendar is shown in, by its name (`Europe/Berlin`): the zone the days of a
-    /// whole-day event are days in, and the zone whose clock a series without a zone of its own
-    /// is told by ([`EventFields::wall`]). Empty when it has no name; whoever carries the upload
-    /// out then uses what it knows of this computer's zone.
+    /// whole-day event are days in, and the zone whose clock an event without a zone of its own
+    /// is told by (a series by its clock times, [`EventFields::wall`]). Empty when it has no
+    /// name; whoever carries the upload out then uses what it knows of this computer's zone.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub zone: String,
+    /// A category renamed here, for the events on the server that aren't kept here (#851): after
+    /// the changes, the server is asked for the events of the account's own calendars that carry
+    /// the old name and each is given the new one ([`crate::Mailbox::events_rename`]). Never for
+    /// a shared mailbox's calendars.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub rename: Option<CategoryRename>,
 }
 
 /// What a server made of one [`EventOp`].
@@ -978,6 +1028,9 @@ pub struct EventsUploaded {
     /// The server stopped taking the sign-in part-way: a new one is needed for the rest.
     #[serde(skip_serializing_if = "is_false")]
     pub token_refused: bool,
+    /// What the server made of the upload's rename of a category ([`EventsUpload::rename`], #851).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub renamed: Option<CategoryRenamed>,
 }
 
 impl EventsUpload {
@@ -1205,6 +1258,9 @@ pub struct CategoriesDownload {
     #[serde(skip_serializing_if = "String::is_empty")]
     pub email: String,
     pub categories: Vec<Category>,
+    /// Every category the server has is here. When not (a list longer than
+    /// [`MAX_REMOTE_CATEGORIES`]), none is taken for deleted there for not being here.
+    pub complete: bool,
 }
 
 impl CategoriesDownload {
@@ -1215,16 +1271,261 @@ impl CategoriesDownload {
         self
     }
 
-    /// Cut to size: names are one line, none is empty or there twice, the list is capped.
+    /// Cut to size: names are one line, none is empty or there twice, the list is capped (and is
+    /// then not the server's whole list).
     pub fn tidy(&mut self) {
         let mut kept: Vec<Category> = Vec::new();
         for category in std::mem::take(&mut self.categories) {
-            let name = line(&category.name, MAX_NAME);
-            if !name.is_empty() && kept.len() < MAX_REMOTE_CATEGORIES && !kept.iter().any(|have| have.name.eq_ignore_ascii_case(&name)) {
-                kept.push(Category { name, color: category.color });
+            let name = category_name(&category.name);
+            if name.is_empty() || kept.iter().any(|have| crate::sync::same_category(&have.name, &name)) {
+                continue;
             }
+            if kept.len() >= MAX_REMOTE_CATEGORIES {
+                self.complete = false;
+                break;
+            }
+            kept.push(Category { name, color: category.color });
         }
         self.categories = kept;
+    }
+}
+
+/// Most changes to a list of categories that one job tells its server (#661).
+pub const MAX_CATEGORY_CHANGES: usize = 100;
+
+/// Most renames of one account's categories that wait for the items on its server at once
+/// ([`crate::Mailbox::category_sweeps`]); the oldest gives way to one more.
+pub const MAX_CATEGORY_SWEEPS: usize = 32;
+/// Most items one run gives a renamed category's new name on a server; the rest go with later runs.
+pub const MAX_RENAMED_ITEMS: usize = 2_000;
+/// Most calendars one run asks for the events that carry a renamed category.
+pub const MAX_RENAMED_CALENDARS: usize = 64;
+
+/// A category renamed here whose old name items on the account's server may still carry (#851):
+/// mail and events that aren't kept on this computer, which the server is asked for and gives the
+/// new name. The old name is deleted from the server's list only after them
+/// ([`crate::Mailbox::category_upload`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategorySweep {
+    /// The old name, as the server has it.
+    pub from: String,
+    pub to: String,
+    /// The account's mail on its server has the new name (or can't be given it).
+    #[serde(skip_serializing_if = "is_false")]
+    pub mail_done: bool,
+    /// So have the events of its own calendars.
+    #[serde(skip_serializing_if = "is_false")]
+    pub events_done: bool,
+    /// Runs in a row that changed none of its mail (of its events) while the server answered "not
+    /// now" for some of them, or failed at the question: after [`MAX_RENAME_TRIES`] it is given up.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub mail_tries: u32,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub events_tries: u32,
+    /// Some of its mail or events on the server keep the old name for good (the server wouldn't
+    /// change them or say which they are, or they were left as they are): the old name isn't
+    /// deleted from the server's list, and is put back on the list here once both parts ended.
+    #[serde(skip_serializing_if = "is_false")]
+    pub kept: bool,
+    /// The owner was told that its events wait for the calendar's permission.
+    #[serde(skip_serializing_if = "is_false")]
+    pub events_told: bool,
+    /// How many of its messages (of its events) on the server the runs before gave the new name:
+    /// a rename of more than a run changes is said with all of them once it is done.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub mail_changed: u32,
+    #[serde(skip_serializing_if = "is_zero")]
+    pub events_changed: u32,
+}
+
+/// How many runs in a row may change nothing of a renamed category's items, the server answering
+/// "not now" for them or failing at the question each time, before those items are left with the
+/// old name. (A busy server and a lost connection are no such runs: they are waited out.)
+pub const MAX_RENAME_TRIES: u32 = 10;
+
+/// What a server is asked to do for a [`CategorySweep`]: give every item that carries `from` the
+/// name `to` in its place. For mail, the whole mailbox; for events, the account's main calendar
+/// and `calendars`, by what the server calls them.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoryRename {
+    pub from: String,
+    pub to: String,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub calendars: Vec<String>,
+}
+
+impl CategoryRename {
+    /// Cut to size: names are one line, the calendars are capped and are ids a server could give.
+    pub fn tidy(&mut self) {
+        self.from = line(&self.from, MAX_NAME);
+        self.to = line(&self.to, MAX_NAME);
+        self.calendars.truncate(MAX_RENAMED_CALENDARS);
+        for calendar in &mut self.calendars {
+            *calendar = clean_key(calendar);
+        }
+        self.calendars.retain(|calendar| !calendar.is_empty());
+    }
+}
+
+/// What a server made of a [`CategoryRename`].
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoryRenamed {
+    pub from: String,
+    pub to: String,
+    /// Nothing on the server carries the old name any more, but what it wouldn't change
+    /// (`skipped`) and what was left as it is (`passed`). Without it the rest goes with a later run.
+    #[serde(skip_serializing_if = "is_false")]
+    pub done: bool,
+    /// The sign-in doesn't cover it: asking again changes nothing.
+    #[serde(skip_serializing_if = "is_false")]
+    pub denied: bool,
+    /// The server wouldn't say which items carry the name: asking again changes nothing.
+    #[serde(skip_serializing_if = "is_false")]
+    pub refused: bool,
+    /// How many items were given the new name, and how many the server wouldn't change.
+    pub changed: u32,
+    pub skipped: u32,
+    /// How many it answered "not now" for (changed there meanwhile, its own trouble), or gave no
+    /// answer for when asked to change them: they wait for a later run.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub stuck: u32,
+    /// How many were left as they are, no change asked for: the change writes an item's whole
+    /// list of categories, and theirs is longer than is taken in, or holds what isn't a plain
+    /// name. They keep the old name.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub passed: u32,
+    /// The server failed at the question itself (its own trouble, a refusal part-way through
+    /// a list, or a run's fill listed of which none was changed and some were gone): not done, and unlike a busy server or a connection lost while the lists are read it counts as a try.
+    #[serde(skip_serializing_if = "is_false")]
+    pub failed: bool,
+    /// How many of the lists asked (calendars) the server wouldn't say it for, while it did for
+    /// others: their items keep the old name.
+    #[serde(skip_serializing_if = "is_zero")]
+    pub lists_refused: u32,
+    /// Done without the lists having been read to their ends: a run's fill was listed and none
+    /// of it could be changed, so more items than are counted may keep the old name.
+    #[serde(skip_serializing_if = "is_false")]
+    pub more: bool,
+}
+
+impl CategoryRenamed {
+    /// Cut to size: names are one line.
+    pub fn tidy(&mut self) {
+        self.from = line(&self.from, MAX_NAME);
+        self.to = line(&self.to, MAX_NAME);
+    }
+}
+
+/// What a change to an account's list of categories does on its server (#661).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CategoryChangeKind {
+    /// Make the category, in its colour. One the server has already is given that colour.
+    #[default]
+    Create,
+    /// Give the category its colour.
+    Color,
+    /// Delete the category (what carries it keeps the name).
+    Delete,
+}
+
+/// One change to tell a server of its list of categories, by name: a server knows a category by
+/// its name, and changes nothing of it but its colour.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoryChange {
+    pub kind: CategoryChangeKind,
+    pub name: String,
+    pub color: Rgb,
+}
+
+/// What an account's server is to be told of its list of categories ([`crate::Mailbox::category_upload`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoriesUpload {
+    pub account: Id,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub email: String,
+    pub changes: Vec<CategoryChange>,
+}
+
+impl CategoriesUpload {
+    /// Cut to size: names are one line and not empty, the list is capped.
+    pub fn tidy(&mut self) {
+        let mut kept = Vec::new();
+        for mut change in std::mem::take(&mut self.changes) {
+            change.name = line(&change.name, MAX_NAME);
+            if !change.name.is_empty() && kept.len() < MAX_CATEGORY_CHANGES {
+                kept.push(change);
+            }
+        }
+        self.changes = kept;
+    }
+}
+
+/// What a server did with one change to its list of categories.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum CategoryResult {
+    /// Taken (or nothing to do: a category it has made again, one it hasn't deleted again).
+    Done,
+    /// The account may not change its list (the sign-in doesn't cover it).
+    Denied,
+    /// Not now: try again later.
+    #[default]
+    Failed,
+    /// Refused for good.
+    Refused,
+}
+
+/// What a server said of one change to its list of categories.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoryOutcome {
+    pub kind: CategoryChangeKind,
+    pub name: String,
+    /// The colour it has there now (a creation, a change of colour).
+    pub color: Rgb,
+    pub result: CategoryResult,
+    /// The server's reason, in a few words, for a refusal.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub error: String,
+    /// A creation the server had a category of that name for already (#661): [`CategoryResult::Done`]
+    /// with what was there, which is the server's own and not made by this one.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub found: bool,
+}
+
+/// What a server did with a [`CategoriesUpload`].
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(default, rename_all = "camelCase")]
+pub struct CategoriesUploaded {
+    pub account: Id,
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub email: String,
+    pub outcomes: Vec<CategoryOutcome>,
+    /// The server wouldn't take the sign-in: what wasn't told goes with the next job.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub token_refused: bool,
+}
+
+impl CategoriesUploaded {
+    pub fn for_account(mut self, account: &Account) -> CategoriesUploaded {
+        self.account = account.id;
+        self.email = account.email.trim().to_string();
+        self
+    }
+
+    /// Cut to size: names and reasons are one line, outcomes are capped.
+    pub fn tidy(&mut self) {
+        self.outcomes.truncate(MAX_CATEGORY_CHANGES);
+        for outcome in &mut self.outcomes {
+            outcome.name = line(&outcome.name, MAX_NAME);
+            outcome.error = line(&outcome.error, MAX_NAME);
+        }
     }
 }
 
@@ -1431,6 +1732,12 @@ pub(crate) fn key(text: &str) -> String {
 
 /// One line of text from outside: line breaks and control characters read as spaces, and it is
 /// at most `max` characters long.
+/// A category's name as a server lists it, as it is kept here: one line, cut to size. A change
+/// sent there finds the category by this too (#661).
+pub fn category_name(name: &str) -> String {
+    line(name, MAX_NAME)
+}
+
 pub(crate) fn line(text: &str, max: usize) -> String {
     let flat: String = text.chars().map(|c| if c.is_control() { ' ' } else { c }).collect();
     let short: String = flat.trim().chars().take(max).collect();
@@ -1446,7 +1753,7 @@ pub(crate) fn text(text: &str, max: usize) -> String {
 
 /// An e-mail address from outside, or nothing when it isn't one (a server may name people of its
 /// own directory in other ways).
-fn mailbox(email: &str) -> String {
+pub(crate) fn mailbox(email: &str) -> String {
     let email = email.trim();
     let shaped = email.split_once('@').is_some_and(|(local, domain)| !local.is_empty() && !domain.is_empty() && !domain.contains('@'));
     let plain = email.len() <= 254 && !email.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>' | ',' | ';' | '"'));

@@ -38,8 +38,11 @@ fn nothing_is_due_while_the_host_cannot_or_something_else_goes_first() {
     assert_eq!(s.tasks_due(&facts(), tokens, 1e6), vec![a]);
     assert!(s.tasks_due(&TasksFacts { reachable: false, ..facts() }, tokens, 1e6).is_empty());
     assert!(s.tasks_due(&TasksFacts { running: true, ..facts() }, tokens, 1e6).is_empty());
-    let busy = Busy { signing_in: true, ..Default::default() };
+    let busy = Busy { signing_in: Some(a), ..Default::default() };
     assert!(s.tasks_due(&TasksFacts { busy, ..facts() }, tokens, 1e6).is_empty());
+    // Another account's sign-in doesn't hold this one's to-dos (#1557).
+    let busy = Busy { signing_in: Some(a + 1), ..Default::default() };
+    assert_eq!(s.tasks_due(&TasksFacts { busy, ..facts() }, tokens, 1e6), vec![a]);
     // Asked for: not again until the refresh time.
     s.tasks_started(a, 1e6);
     assert!(s.tasks_due(&facts(), tokens, 1e6 + 1_000.0).is_empty());
@@ -148,6 +151,25 @@ fn a_late_answer_for_a_removed_account_asks_nothing() {
     s.tasks_answered(a, 1_000.0, fingerprint("refresh"), &ran_for, Lang::English, &came);
     assert!(!s.driver.tasks.perm.contains_key(&a));
     assert_eq!(s.driver.tasks.to_ask(), Some(other));
+}
+
+#[test]
+fn a_job_that_came_to_nothing_waits_from_when_its_answer_was_read() {
+    // (#661: a job that ran long, or an answer read after the window went a while without a
+    // frame, is not made to have waited already.)
+    let wait = super::Pacing::TASKS.first_retry_ms;
+    let (mut s, a) = session();
+    s.driver.tasks.clock = 60_000.0;
+    answered(&mut s, a, &TasksCame::default());
+    assert!(s.tasks_due(&facts(), tokens, 1_000.0 + wait).is_empty());
+    assert!(s.tasks_due(&facts(), tokens, 60_000.0 + wait - 1.0).is_empty());
+    assert_eq!(s.tasks_due(&facts(), tokens, 60_000.0 + wait), vec![a]);
+    // And so does a renewed sign-in the server refused.
+    let (mut s, a) = session();
+    s.driver.tasks.clock = 60_000.0;
+    answered(&mut s, a, &TasksCame { sign_in_refused: true, new_tokens: true, ..Default::default() });
+    assert!(s.tasks_due(&facts(), tokens, 60_000.0 + wait - 1.0).is_empty());
+    assert_eq!(s.tasks_due(&facts(), tokens, 60_000.0 + wait), vec![a]);
 }
 
 #[test]

@@ -51,6 +51,10 @@ pub struct CalendarDriver {
     /// When each account's calendar was last asked for, the failures since the last answer and
     /// the changes waiting.
     pub book: JobBook,
+    /// The time as the front end's last look read it (milliseconds): a job's answer is taken in
+    /// within a frame of it, so a job that came to nothing waits from when it ended, however long
+    /// it ran (#661).
+    pub clock: f64,
     /// What an account's server was last told, and when: the very same again right away would
     /// mean that the telling doesn't settle anything, and is left for later.
     sent: HashMap<Id, (EventsUpload, f64)>,
@@ -60,6 +64,9 @@ pub struct CalendarDriver {
     pub directory: bool,
     /// Ask at once: the window came back to the front, or the owner switched to the calendar.
     pub due: bool,
+    /// The accounts the wish to ask at once was kept for while they were signing in (#1557): each
+    /// is asked at once when it can be, though another account's job has had the wish since.
+    pub due_for: HashSet<Id>,
     /// Whether the window had the focus and the calendar was in front at the last look.
     focused: bool,
     in_front: bool,
@@ -101,6 +108,7 @@ impl CalendarDriver {
         self.book.forget_accounts(gone);
         self.sent.retain(|account, _| !gone.contains(account));
         self.by_hand.retain(|account| !gone.contains(account));
+        self.due_for.retain(|account| !gone.contains(account));
         self.shown.retain(|account, _| !gone.contains(account));
         self.extras_missing.retain(|account| !gone.contains(account));
         self.settings_asked.retain(|account, _| !gone.contains(account));
@@ -116,6 +124,7 @@ impl CalendarDriver {
     pub fn forget_jobs(&mut self) {
         self.directory = false;
         self.by_hand.clear();
+        self.due_for.clear();
     }
 
     /// The window is looked at: whether it has the focus and whether the calendar is in front.
@@ -194,11 +203,13 @@ impl CalendarDriver {
     }
 
     /// Whether `account`'s days on screen are to be asked for at `now`: the owner or the window
-    /// asked (`elsewhere` counts) while the calendar is in front, or it is due by the clock (soon
-    /// after an unseen change, more often in front), or the wide stretch is (`wide`).
+    /// asked (`elsewhere` counts, and a wish kept for it while it was signing in) while the
+    /// calendar is in front, or it is due by the clock (soon after an unseen change, more often in
+    /// front), or the wide stretch is (`wide`).
     pub fn refresh_due(&self, account: Id, in_front: bool, unseen: bool, elsewhere: bool, wide: bool, now: f64) -> bool {
         let every = calendar_every_ms(unseen, in_front);
-        ((self.due || elsewhere) && in_front) || self.book.checked(account).is_none_or(|at| now - at >= every) || wide
+        let wished = self.due || self.due_for.contains(&account);
+        ((wished || elsewhere) && in_front) || self.book.checked(account).is_none_or(|at| now - at >= every) || wide
     }
 
     /// Whether the working hours are to come along with a job for `account` at `now`: once an
@@ -218,13 +229,15 @@ impl CalendarDriver {
             self.book.started(account, now);
             self.shown.insert(account, window);
             self.due = false;
+            self.due_for.remove(&account);
         }
     }
 
-    /// The job answered: it brought nothing (`nothing`, which the failures count), or it worked.
+    /// The job answered: it brought nothing (`nothing`, which the failures count, from when the
+    /// answer was read: [`clock`](Self::clock), and never before the job `started`), or it worked.
     pub fn answered(&mut self, account: Id, nothing: bool, started: f64) {
         if nothing {
-            self.book.failed(account, started);
+            self.book.failed(account, self.clock.max(started));
         } else {
             self.book.worked(account);
         }
@@ -280,7 +293,9 @@ impl Session {
         if self.driver.calendar.send_waits.contains(&account) {
             upload.ops.retain(|op| !op.mails_others());
         }
-        Some(upload).filter(|upload| !upload.ops.is_empty())
+        // (A category renamed here, for the events that aren't kept here, goes with them or by
+        // itself, #851.)
+        Some(upload).filter(|upload| !upload.ops.is_empty() || upload.rename.is_some())
     }
 
     /// The accounts whose calendar a Microsoft server keeps.

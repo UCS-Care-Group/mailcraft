@@ -1,1 +1,0 @@
-| 2026-11-16 | minor | Move Items, Copy Items and the Move to Folder and Copy to Folder menus: the folders of every account, the one in view's first and the others' under their names, not only that account's |

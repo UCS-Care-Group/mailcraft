@@ -31,7 +31,7 @@
 //! (`POST /me/calendars/{id}/events`), one changed here has what changed sent
 //! (`PATCH /me/events/{id}`), one deleted here is deleted (`DELETE /me/events/{id}`). Each is
 //! named by the id that came with it ([`mailcraft_model::Origin`]); a new one goes with a mark
-//! (`transactionId`) that keeps a second try from making a second event. Contacts are only read.
+//! (`transactionId`) that keeps a second try from making a second event.
 //!
 //! A series goes with its rule (`recurrence`) and its times by the clock in the owner's zone;
 //! one occurrence of a series is found by its time (`GET /me/events/{id}/instances`) and then
@@ -58,6 +58,9 @@
 //! it, with everything but letters, digits and `-._~` as `%XX` (an id may hold `=`, `/` and `+`).
 //! The ids are Graph's ordinary ones, which change when an item is moved to another calendar:
 //! a change that waits for such an item is answered "not found", and the mailbox says so.
+//!
+//! Contacts go both ways too, folder by folder, their changes read by Graph's lists of changes
+//! ([`read_contacts`], [`push_contacts`]; #1917).
 //!
 //! [`check_calendar`] makes, reads, changes, reads and deletes one appointment a year ahead, and
 //! says what Graph answered at each step: the one way to see for oneself that what is written
@@ -157,7 +160,7 @@ const NEAR: i64 = 90;
 const NEAR_DAY: i64 = 12 * 3_600 - 1;
 const CONTACT_FIELDS: &str = "id,changeKey,displayName,givenName,middleName,surname,nickName,companyName,jobTitle,department,emailAddresses,\
                               businessPhones,homePhones,mobilePhone,businessAddress,homeAddress,otherAddress,businessHomePage,birthday,\
-                              personalNotes,lastModifiedDateTime";
+                              personalNotes,lastModifiedDateTime,categories";
 /// How times and descriptions are asked for: in UTC, and as text rather than HTML.
 const EVENT_PREFERENCES: &str = "outlook.timezone=\"UTC\", outlook.body-content-type=\"text\"";
 /// The names UTC goes by in an answer.
@@ -1120,7 +1123,8 @@ fn zone_name(zone: &str) -> &str {
 /// `own` is set, which is how Graph keeps the zone an event was made in; without `own` (a second
 /// try, after Graph wouldn't have a zone) it goes as instants in UTC, which is the same moment,
 /// and a series that repeats by a zone's clock doesn't go at all: in UTC it would be another
-/// series.
+/// series. An event without zones of its own goes by the clock in `zone`, which is the zone
+/// Outlook then shows it in (#1130).
 fn event_body(fields: &EventFields, mark: &str, zone: &str, own: bool) -> Option<String> {
     let mut event = Map::new();
     if let Some(title) = &fields.title {
@@ -1161,10 +1165,18 @@ fn event_body(fields: &EventFields, mark: &str, zone: &str, own: bool) -> Option
                 event.insert("start".into(), json!({"dateTime": wall.start.iso(), "timeZone": zone}));
                 event.insert("end".into(), json!({"dateTime": wall.end.max(wall.start).iso(), "timeZone": zone}));
             }
-            _ => {
-                event.insert("start".into(), date_time(start, all_day, zone));
-                event.insert("end".into(), date_time(end, all_day, zone));
-            }
+            // An event that happens once: by the clock in the owner's zone too, else Outlook
+            // shows it in UTC (#1130). As instants in UTC when Graph has no name for that zone.
+            _ => match by_clock_in(zone, start, end).filter(|_| !all_day) {
+                Some((from, to, name)) => {
+                    event.insert("start".into(), json!({"dateTime": from.iso(), "timeZone": name}));
+                    event.insert("end".into(), json!({"dateTime": to.iso(), "timeZone": name}));
+                }
+                None => {
+                    event.insert("start".into(), date_time(start, all_day, zone));
+                    event.insert("end".into(), date_time(end, all_day, zone));
+                }
+            },
         }
         event.insert("isAllDay".into(), json!(all_day));
     }
@@ -1343,6 +1355,20 @@ fn push_events_at(base: &str, token: &str, upload: &EventsUpload, options: &Even
         }
     }
     log::debug!("calendar: {} of {} changes answered", uploaded.outcomes.len(), upload.ops.len());
+    // Then a renamed category, for the events that aren't kept here (#851): once every change was
+    // answered, in the owner's own calendars alone (never a shared mailbox's, nor a calendar
+    // opened by address).
+    let answered = uploaded.outcomes.len() >= upload.ops.len().min(MAX_EVENT_OPS) && !uploaded.token_refused;
+    if let Some(rename) = upload.rename.as_ref().filter(|_| answered && !graph.shared()) {
+        let mut lists = vec!["/v1.0/me/calendar/events".to_string()];
+        let own = rename.calendars.iter().map(|id| mailcraft_model::remote::clean_key(id));
+        for id in own.filter(|id| !id.is_empty() && people::address_of(id).is_none()).take(mailcraft_model::remote::MAX_RENAMED_CALENDARS) {
+            lists.push(format!("{CALENDARS}/{}/events", http::encode(&id)));
+        }
+        let came = recategorize::rename(&graph, &recategorize::Items { lists, item: "/me/events/".into() }, rename, None, &mut |_, _| {});
+        uploaded.token_refused = came.token_refused;
+        uploaded.renamed = Some(came.renamed);
+    }
     uploaded
 }
 
@@ -1414,13 +1440,18 @@ impl Graph<'_> {
         };
         let url = self.url(&path);
         let whole_day = op.fields.time.is_some_and(|time| time.all_day);
+        // A timed event that happens once, which goes by the clock in the owner's zone when
+        // Graph has a name for it ([`by_clock_in`]).
+        let once = op.fields.time.filter(|time| !time.all_day && op.fields.wall.is_none());
+        let by_clock = move |zone: &str| once.and_then(|time| by_clock_in(zone, time.start, time.end.max(time.start))).map(|(_, _, name)| name);
         let zoned = whole_day || op.fields.wall.is_some() || op.fields.repeat.is_some() || op.fields.zones.is_some();
         let mut zone = zone;
         // (Its own zones go with the first try; the second is without any.)
         let mut own = true;
         // The zone the times are said in, for whoever keeps a log: the event's own when it goes
-        // by that, the owner's for the days of a whole-day event and the hours of a series, UTC
-        // for everything else.
+        // by that, else the owner's (for the days of a whole-day event, the hours of a series
+        // and those of an event that happens once), UTC when the owner's has no name Graph
+        // knows.
         let timed = matches!(op.kind, EventChangeKind::Create | EventChangeKind::Update) && op.fields.time.is_some();
         let by_the_clock = whole_day || op.fields.wall.is_some();
         let own_name = op.fields.zones.as_ref().filter(|_| !whole_day).and_then(|zones| {
@@ -1434,7 +1465,7 @@ impl Graph<'_> {
             (false, ..) => String::new(),
             (true, Some(name), _) => name.clone(),
             (true, None, true) => zone.to_string(),
-            (true, None, false) => "UTC".to_string(),
+            (true, None, false) => by_clock(zone).unwrap_or_else(|| "UTC".to_string()),
         };
         // The event is to be held online. Graph may not have that for this account (a personal
         // one, a mailbox without Teams): it is then asked for the event without, and the
@@ -1449,7 +1480,7 @@ impl Graph<'_> {
         let mut new_times = asks_new_times;
         // A few times at most: again without what Graph may not let an update say, again
         // without the online meeting, should it not have one, and again in UTC, should it not
-        // know the zone a whole day is in.
+        // know the zone a whole day or an hour is in.
         for _ in 0..5 {
             let body = match op.kind {
                 EventChangeKind::Delete if op.cancel => Some(json!({"comment": op.comment}).to_string()),
@@ -1553,8 +1584,13 @@ impl Graph<'_> {
                     continue;
                 }
                 // A day or an hour in a zone Graph doesn't know: the same in UTC (and, as it
-                // may have been the zone that was wrong, with the online meeting once more).
-                (EventChangeKind::Create | EventChangeKind::Update, 400) if zoned && (!zone.is_empty() || (own && op.fields.zones.is_some())) => {
+                // may have been the zone that was wrong, with the online meeting once more). An
+                // event that happens once went in UTC before it went by the owner's clock, and
+                // is asked again only when Graph's refusal is about the zone.
+                (EventChangeKind::Create | EventChangeKind::Update, 400)
+                    if (zoned && (!zone.is_empty() || (own && op.fields.zones.is_some())))
+                        || (by_clock(zone).is_some() && names_a_zone(&reply.body)) =>
+                {
                     (zone, own) = ("", false);
                     online = asks_online;
                     continue;
@@ -1670,6 +1706,29 @@ fn graph_zone(name: &str) -> Option<(mailcraft_time::Zone, String)> {
         None => return None,
     };
     Some((zone, known))
+}
+
+/// Whether a refusal of Graph's is about a time zone (`TimeZoneNotSupportedException`, "A valid
+/// TimeZone value must be specified").
+fn names_a_zone(body: &[u8]) -> bool {
+    let words: String = String::from_utf8_lossy(body).chars().filter(|c| !c.is_whitespace()).collect();
+    words.to_ascii_lowercase().contains("timezone")
+}
+
+/// The clock times in `zone` (a name Graph knows; empty: none) of an event that happens once
+/// from `start` to `end`, with the name Graph has for the zone. `None` when it has none, and when
+/// either time is in the hour the clocks show twice as they go back: its clock time alone could
+/// be either of the two, and Graph may take the other one.
+fn by_clock_in(zone: &str, start: Timestamp, end: Timestamp) -> Option<(DateTime, DateTime, String)> {
+    let (clock, name) = graph_zone(zone)?;
+    let offset_at = |instant: Timestamp| clock.offset_at(instant);
+    let read = |instant: Timestamp| {
+        let wall = clock.wall(instant);
+        let first = mailcraft_model::zoned::instant_of(wall, false, &offset_at);
+        let second = mailcraft_model::zoned::instant_of(wall, true, &offset_at);
+        (first == instant && second == instant).then_some(wall)
+    };
+    Some((read(start)?, read(end)?, name))
 }
 
 /// The person in `{"emailAddress": {"name": "…", "address": "…"}}`, or in the inner object itself.
@@ -1936,6 +1995,11 @@ fn contact_of(entry: &Value) -> Option<RemoteContact> {
         birthday: Some(text(entry, "birthday")).filter(|day| day.len() <= MAX_DATE).and_then(mailcraft_time::parse_iso).map(|(day, _)| day.date),
         notes: text(entry, "personalNotes").to_string(),
         modified: instant(text(entry, "lastModifiedDateTime")).unwrap_or(0),
+        // (An answer that doesn't say leaves them as they are here.)
+        categories: entry
+            .get("categories")
+            .and_then(Value::as_array)
+            .map(|names| names.iter().take(MAX_ENTRIES).filter_map(Value::as_str).map(str::to_string).collect()),
     };
     // Entries with nothing in them (no mobile number, no home address) go here.
     contact.tidy();
@@ -2002,11 +2066,10 @@ fn calendar_color(name: &str) -> Option<Rgb> {
     COLORS.iter().find(|(known, _)| *known == name).map(|(_, color)| *color)
 }
 
-/// Our own colours for the numbered colours Graph gives a category (`preset0` to `preset24`,
-/// [`mailcraft_model::preset_category_color`]); grey for none or any other.
+/// Our own colour for the numbered colour Graph gives a category (`preset0` to `preset24`);
+/// grey for none or any other ([`mailcraft_model::outlook_colors`]).
 fn category_color(name: &str) -> Rgb {
-    let number = name.to_ascii_lowercase().strip_prefix("preset").and_then(|n| n.parse::<i64>().ok());
-    number.and_then(mailcraft_model::preset_category_color).unwrap_or(mailcraft_model::GREY_CATEGORY)
+    mailcraft_model::outlook_colors::outlook_color(name)
 }
 
 /// One calendar of a list as the mailbox can take it, in the group called `group`.
@@ -2097,7 +2160,7 @@ fn calendars_at(base: &str, token: &str, shared: Option<&str>) -> Result<Calenda
 fn categories_at(base: &str, token: &str) -> Result<CategoriesDownload, NetError> {
     let graph = Graph::at(base, token)?;
     let mut download = CategoriesDownload::default();
-    graph.list(Doing::Categories, graph.url(MASTER_CATEGORIES), &[], MAX_REMOTE_CATEGORIES, &mut |entry: &Value| {
+    download.complete = graph.list(Doing::Categories, graph.url(MASTER_CATEGORIES), &[], MAX_REMOTE_CATEGORIES, &mut |entry: &Value| {
         download.categories.push(Category { name: text(entry, "displayName").to_string(), color: category_color(text(entry, "color")) });
     })?;
     download.tidy();
@@ -2213,10 +2276,20 @@ mod people;
 pub use people::{Opened, open_calendar};
 
 mod tasks;
+
+mod contacts;
+pub use contacts::{ContactsRead, MAX_DEPTH, MAX_FOLDER_CONTACTS, push_contacts, read_contacts};
+#[cfg(test)]
+mod contacts_tests;
 pub use tasks::{push_tasks, tasks};
 
 mod rules;
 pub use rules::{MAX_FOLDER_LOOKUPS, push_rules, rules};
+
+mod categories;
+pub use categories::push_categories;
+
+mod recategorize;
 
 mod settings;
 pub use settings::{MailboxSettings, WorkingHours, mailbox_settings};
@@ -2241,7 +2314,11 @@ pub mod standin;
 #[cfg(test)]
 mod auto_replies_tests;
 #[cfg(test)]
+mod categories_tests;
+#[cfg(test)]
 mod people_tests;
+#[cfg(test)]
+mod recategorize_tests;
 #[cfg(test)]
 mod rules_tests;
 #[cfg(test)]

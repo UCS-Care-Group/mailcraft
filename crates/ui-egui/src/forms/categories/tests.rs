@@ -13,10 +13,10 @@ fn the_palette_has_twelve_colours_and_offers_a_free_one() {
     assert_eq!(distinct.len(), 12);
     // The six categories a mailbox starts with take red to green, blue and purple.
     let mut s = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
-    assert_eq!(unused_color(&s.mailbox.categories), Rgb(0x1A, 0x9B, 0xA6));
-    assert_eq!(unused_color(&[]), PALETTE[0]);
+    assert_eq!(free_in(&PALETTE, &s.mailbox.categories), Rgb(0x1A, 0x9B, 0xA6));
+    assert_eq!(free_in(&PALETTE, &[]), PALETTE[0]);
     let all: Vec<Category> = PALETTE.iter().map(|c| Category { name: c.hex(), color: *c }).collect();
-    assert_eq!(unused_color(&all), PALETTE[0]);
+    assert_eq!(free_in(&PALETTE, &all), PALETTE[0]);
     // The row at the bottom adds a category in that colour.
     let mut f = CategoriesForm::new(&s, &json!({})).unwrap();
     f.new_name = "Travel".into();
@@ -24,7 +24,7 @@ fn the_palette_has_twelve_colours_and_offers_a_free_one() {
     let (command, params) = f.add_command();
     s.run(command, &params).unwrap();
     assert_eq!(s.mailbox.category("travel").map(|c| c.color), Some(Rgb(0x1A, 0x9B, 0xA6)));
-    assert_eq!(unused_color(&s.mailbox.categories), Rgb(0xC2, 0x4E, 0x9A));
+    assert_eq!(free_in(&PALETTE, &s.mailbox.categories), Rgb(0xC2, 0x4E, 0x9A));
     // A hostile name is the command's to clean.
     f.new_name = "\u{0}\u{202e}é\n".repeat(40_000);
     let (command, params) = f.add_command();

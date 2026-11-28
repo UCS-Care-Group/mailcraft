@@ -785,3 +785,172 @@ fn ticking_completed_on_a_task_is_a_change() {
     assert!(now.is_none(), "asked first");
     assert_eq!(question(w.state()).map(|q| q.0), Some(Class::Delete));
 }
+
+#[test]
+fn an_undo_doesnt_ask_about_an_appointment_a_download_brought_since() {
+    use mailcraft_model::remote::{EventsDownload, RemoteEvent};
+    let mut w = testing::window("view.calendar");
+    let today = testing::now();
+    let s = &mut w.state_mut().session;
+    let added = s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"})).unwrap();
+    let account = added["id"].as_u64().unwrap();
+    let event = |id: &str, title: &str, start: i64| RemoteEvent {
+        id: id.into(),
+        change_key: format!("ck-{id}-1"),
+        title: title.into(),
+        start,
+        end: start + 900,
+        ..Default::default()
+    };
+    let download = |events: Vec<RemoteEvent>| {
+        let download = EventsDownload {
+            account,
+            email: "ada@example.org".into(),
+            from: today - 30 * 86_400,
+            to: today + 30 * 86_400,
+            complete: true,
+            events,
+            ..Default::default()
+        };
+        json!({ "download": download })
+    };
+    // The account's calendar has come down once.
+    s.run("sync.applyEvents", &download(vec![event("e-1", "Budget review", today - 86_400)])).unwrap();
+    s.forget_history();
+    // The owner makes an appointment; then the account's calendar comes down with a new one.
+    let made = w.state_mut().execute("calendar.new", json!({"title": "Made just now", "start": "2026-10-15T10:00"})).unwrap();
+    let made = made["id"].as_u64().unwrap();
+    let events = vec![event("e-1", "Budget review", today - 86_400), event("e-3", "Standup", today + 86_400)];
+    w.state_mut().session.run("sync.applyEvents", &download(events)).unwrap();
+    let brought = w.state().session.mailbox.events.values().find(|e| e.origin.account == account && e.origin.id == "e-3").map(|e| e.id).unwrap();
+    changing_in_a_window(&mut w, brought);
+    // Undoing the new appointment leaves the one that came down, and its window: nothing to ask.
+    let (now, _) = allowed(w.state_mut(), "edit.undo", json!({}), Class::ALL.to_vec());
+    let now = now.unwrap_or_else(|| panic!("asked: {:?}", question(w.state())));
+    assert_eq!(now["ok"], true);
+    assert!(w.state().session.mailbox.event(made).is_none());
+    assert!(w.state().session.mailbox.event(brought).is_some());
+    w.run_steps(3);
+    assert_eq!(w.state().windows.unsaved(), 1);
+}
+
+#[test]
+fn an_undo_after_the_computer_moved_zone_unseen_asks_about_the_window_it_closes() {
+    use mailcraft_model::remote::{EventsDownload, RemoteEvent};
+    let mut w = testing::window("view.calendar");
+    let today = testing::now();
+    // This computer's own zone, as the program runs (not a fixed offset).
+    {
+        let s = &mut w.state_mut().session;
+        s.clock.offset = None;
+        s.clock.zone = mailcraft_time::Zone::named("America/New_York");
+        s.settle_zone();
+    }
+    w.run_steps(2);
+    let s = &mut w.state_mut().session;
+    let added = s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"})).unwrap();
+    let account = added["id"].as_u64().unwrap();
+    let event = |id: &str, title: &str, start: i64| RemoteEvent {
+        id: id.into(),
+        change_key: format!("ck-{id}-1"),
+        title: title.into(),
+        start,
+        end: start + 900,
+        ..Default::default()
+    };
+    let download = |events: Vec<RemoteEvent>| {
+        let download = EventsDownload {
+            account,
+            email: "ada@example.org".into(),
+            from: today - 30 * 86_400,
+            to: today + 30 * 86_400,
+            complete: true,
+            events,
+            ..Default::default()
+        };
+        json!({ "download": download })
+    };
+    s.run("sync.applyEvents", &download(vec![event("e-1", "Budget review", today - 86_400)])).unwrap();
+    s.forget_history();
+    let made = w.state_mut().execute("calendar.new", json!({"title": "Made just now", "start": "2026-10-15T10:00"})).unwrap();
+    let made = made["id"].as_u64().unwrap();
+    let events = vec![event("e-1", "Budget review", today - 86_400), event("e-3", "Standup", today + 86_400)];
+    w.state_mut().session.run("sync.applyEvents", &download(events)).unwrap();
+    let brought = w.state().session.mailbox.events.values().find(|e| e.origin.account == account && e.origin.id == "e-3").map(|e| e.id).unwrap();
+    changing_in_a_window(&mut w, brought);
+    // The computer is carried to London, and the agent's request comes before the next frame
+    // (`MailApp::logic` handles it before `ui` follows the zone): the undo would put every
+    // event back as it was by New York's clock, and the appointment in the window would go.
+    w.state_mut().session.clock.zone = mailcraft_time::Zone::named("Europe/London");
+    let (now, _) = allowed(w.state_mut(), "edit.undo", json!({}), Class::ALL.to_vec());
+    assert!(now.is_none(), "asked first");
+    assert!(question(w.state()).unwrap().1.contains("(moved)\u{201d} is closed without saving"));
+    // The zone was followed before the gate read the session, as a frame follows it.
+    assert_eq!(w.state().session.mailbox.zone, "Europe/London");
+    answer(w.state_mut(), false);
+    assert!(w.state().session.mailbox.event(made).is_some());
+    assert!(w.state().session.mailbox.event(brought).is_some());
+    w.run_steps(3);
+    assert_eq!(w.state().windows.unsaved(), 1);
+}
+
+#[test]
+fn a_yes_after_the_zone_moved_while_the_question_was_up_is_asked_again_by_the_new_zone() {
+    use mailcraft_model::remote::{EventsDownload, RemoteEvent};
+    let mut w = testing::window("view.calendar");
+    let today = testing::now();
+    // This computer's own zone, as the program runs (not a fixed offset).
+    {
+        let s = &mut w.state_mut().session;
+        s.clock.offset = None;
+        s.clock.zone = mailcraft_time::Zone::named("America/New_York");
+        s.settle_zone();
+    }
+    w.run_steps(2);
+    let s = &mut w.state_mut().session;
+    let added = s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "outlook.example.org"}, "auth": "oauth2"})).unwrap();
+    let account = added["id"].as_u64().unwrap();
+    let event = |id: &str, title: &str, start: i64| RemoteEvent {
+        id: id.into(),
+        change_key: format!("ck-{id}-1"),
+        title: title.into(),
+        start,
+        end: start + 900,
+        ..Default::default()
+    };
+    let download = |events: Vec<RemoteEvent>| {
+        let download = EventsDownload {
+            account,
+            email: "ada@example.org".into(),
+            from: today - 30 * 86_400,
+            to: today + 30 * 86_400,
+            complete: true,
+            events,
+            ..Default::default()
+        };
+        json!({ "download": download })
+    };
+    s.run("sync.applyEvents", &download(vec![event("e-1", "Budget review", today - 86_400)])).unwrap();
+    s.forget_history();
+    // The owner adds a Safe Sender; then the account's calendar comes down with a new event.
+    w.state_mut().execute("junk.add", json!({"list": "safe", "entry": "friend@example.org"})).unwrap();
+    let events = vec![event("e-1", "Budget review", today - 86_400), event("e-3", "Standup", today + 86_400)];
+    w.state_mut().session.run("sync.applyEvents", &download(events)).unwrap();
+    let brought = w.state().session.mailbox.events.values().find(|e| e.origin.account == account && e.origin.id == "e-3").map(|e| e.id).unwrap();
+    // An agent's undo puts back the Safe Senders and keeps "Standup": asked as a change of settings.
+    let (now, rx) = agent(w.state_mut(), "edit.undo", json!({}));
+    assert!(now.is_none(), "asked first");
+    assert_eq!(question(w.state()).map(|q| q.0), Some(Class::Settings));
+    // The computer is carried to London while the question is up, and the owner says yes before
+    // a frame follows: asked again by London's clock, the undo would take "Standup" away for good,
+    // which the question didn't name.
+    w.state_mut().session.clock.zone = mailcraft_time::Zone::named("Europe/London");
+    answer(w.state_mut(), true);
+    let reply = rx.try_recv().unwrap();
+    assert_eq!(reply["ok"], false, "{reply}");
+    assert!(reply["error"].as_str().unwrap().contains("would now do more than the owner was asked about"), "{reply}");
+    assert!(w.state().session.mailbox.event(brought).is_some());
+    assert_eq!(w.state().session.undo_label(), Some("Add to Safe or Blocked Senders"));
+    // The answer followed the zone before it asked again, as a frame follows it.
+    assert_eq!(w.state().session.mailbox.zone, "Europe/London");
+}

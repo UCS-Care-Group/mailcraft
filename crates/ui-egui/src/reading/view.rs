@@ -144,9 +144,10 @@ impl Doc {
 
 /// Whether one of the pictures is written into the message or attached to it.
 fn shows_a_picture(blocks: &[Block], message: &Message) -> bool {
+    let parts = mailcraft_model::shown::PartIndex::new(&message.attachments);
     mailcraft_html::images(blocks).iter().any(|b| match &b.kind {
         BlockKind::Image { data: Some(_), .. } => true,
-        BlockKind::Image { src, .. } => super::images::attachment(message, src).is_some(),
+        BlockKind::Image { src, .. } => parts.find(src).is_some(),
         _ => false,
     })
 }
@@ -177,8 +178,10 @@ fn in_pieces(blocks: Vec<Block>) -> (Vec<Block>, Vec<Option<Glue>>) {
                 spans,
                 quote: block.quote,
                 align: block.align,
+                rtl: block.rtl,
                 space: if n == 0 { block.space } else { 0 },
                 beside: n == 0 && block.beside,
+                in_item: block.in_item,
                 gap: if n == 0 { block.gap } else { 0 },
                 line_height: block.line_height,
                 inset: block.inset,
@@ -228,6 +231,9 @@ struct Key {
     /// `dark` (the page's) stays as it was. In the light theme the page is the window's own, and
     /// turning the switch lays nothing out again.
     light: bool,
+    /// High contrast, which the colours of the text are worked out for and which leaves out the
+    /// pictures behind boxes ([`super::backdrop::tint`]): turning it on or off lays out again.
+    high_contrast: bool,
     /// The display scale and the height of a line of text, as bits: the fonts or the zoom changed.
     scale: u32,
     line: u32,
@@ -236,7 +242,7 @@ struct Key {
     /// How many of the message's pictures from the web had come when it was made; `None` while
     /// they are not shown at all.
     remote: Option<usize>,
-    /// The message fonts egui had ([`super::fonts::generation`]): a font the message asked for
+    /// The message fonts egui had ([`crate::fonts::generation`]): a font the message asked for
     /// came, or turned out not to be had.
     fonts: u64,
 }
@@ -478,6 +484,17 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     #[cfg(not(test))]
     let _ = made;
     let Some(entry) = store.entry(message, place, images::frame(&ctx), can_download, env) else { return };
+    // A reply or forward asked for here quotes it as it is read here: at this width and in this
+    // theme, its HTML or its text part, as shown. (Its text part is a choice only beside HTML: one
+    // drawn before its body came is not quoted as text once the HTML is there.)
+    let here = match place {
+        Place::Pane => Some(mailcraft_engine::ReadIn::Pane),
+        Place::Window(n) => Some(mailcraft_engine::ReadIn::Window(n)),
+        Place::Quote | Place::Preview => None,
+    };
+    if let Some(here) = here {
+        app.session.read_at(message.id, here, env, entry.doc.from_text && message.body.html.is_some());
+    }
     if entry.doc.blocks.is_empty() {
         ui.label(egui::RichText::new(tl!("This message has no text.")).color(t.text_dim));
         if let Some(state) = app.text_selection.state(place) {
@@ -495,13 +512,14 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         zoom: zoom.to_bits(),
         dark: t.dark,
         light: light && Tokens::get(&ctx).dark,
+        high_contrast: t.high_contrast,
         scale: ctx.pixels_per_point().to_bits(),
         line: ctx.fonts_mut(|f| f.row_height(&regular(super::layout::BASE_SIZE))).to_bits(),
         remote: showing.then(|| entry.doc.remote.iter().filter(|url| matches!(pictures.remote_peek(url), Some(Remote::Ready(_)))).count()),
         fonts: {
             // What the fonts' threads brought is taken in first (#600).
-            super::fonts::tick(&ctx);
-            super::fonts::generation(&ctx)
+            crate::fonts::tick(&ctx);
+            crate::fonts::generation(&ctx)
         },
     };
     if entry.key == Some(key) {
@@ -707,6 +725,8 @@ pub fn paint(
     let mut hover = None;
     let mut on_picture = false;
     let mut pictures = None;
+    // What is left of the copies of pictures behind boxes this frame may paint.
+    let mut copies_left = super::backdrop::MAX_FRAME_TILES;
     for item in &laid.items {
         let rect = item.rect.translate(origin);
         if !clip.intersects(rect) {
@@ -769,6 +789,18 @@ pub fn paint(
                 on_picture |= over.is_some();
                 if over.is_some() && (picture.link.is_some() || !picture.alt.is_empty()) {
                     hover = Some(Hover { link: picture.link.clone(), note: (!picture.alt.is_empty()).then(|| picture.alt.clone()) });
+                }
+            }
+            ItemKind::Backdrop(behind) => {
+                let store = pictures.get_or_insert_with(|| Pictures::of(&ctx));
+                let state = store.lock().unwrap_or_else(|e| e.into_inner()).texture(&ctx, &behind.data, behind.tile);
+                match state {
+                    Picture::Ready(texture) => {
+                        let painted = super::backdrop::paint(&painter, rect, clip, behind, texture.id(), copies_left.max(16));
+                        copies_left = copies_left.saturating_sub(painted);
+                    }
+                    Picture::Pending => ctx.request_repaint(),
+                    Picture::Failed => {}
                 }
             }
             ItemKind::Placeholder(placeholder) => {
@@ -980,7 +1012,7 @@ fn bullet(painter: &egui::Painter, rect: Rect, depth: u8, color: Color32) {
 /// picture's description, when it has one. For one that was asked for and could not be had
 /// (`failed`) the mark is struck through, in the colour of a warning.
 fn stand_in(painter: &egui::Painter, rect: Rect, label: &str, paper: Paper, t: &Tokens, failed: bool) {
-    let ink = Paper { fill: paper.shade(t), own: paper.own, asked: None }.text(t, true);
+    let ink = Paper { fill: paper.shade(t), own: paper.own, asked: None, picture: false }.text(t, true);
     let line = paper.line(t);
     painter.rect(rect, 4.0, paper.shade(t), Stroke::new(1.0, line), egui::StrokeKind::Inside);
     // The mark: a frame, a hill and a sun, drawn here (no artwork is taken from anywhere).

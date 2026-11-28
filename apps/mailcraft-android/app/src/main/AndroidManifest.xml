@@ -33,6 +33,7 @@
         android:fullBackupContent="@xml/backup_rules"
         android:networkSecurityConfig="@xml/network_security_config"
         android:usesCleartextTraffic="false"
+        android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:localeConfig="@xml/locales_config"
@@ -68,6 +69,12 @@
                 <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
+
+        <!-- A new-mail notification's buttons that act without opening the app (Delete, Archive,
+             Mark as read, Flag, Junk). Not exported: only the app's own notifications reach it. -->
+        <receiver
+            android:name=".NoticeActionReceiver"
+            android:exported="false" />
 
         <activity
             android:name=".MainActivity"
@@ -114,6 +121,13 @@
                 <data android:mimeType="*/*" />
             </intent-filter>
         </activity>
+
+        <!-- A new-mail notification's Reply opens the window through this alias, which no other app
+             can reach: the window takes a reply to a message from it alone. -->
+        <activity-alias
+            android:name=".NoticeReply"
+            android:exported="false"
+            android:targetActivity=".MainActivity" />
 
         <!-- The provider's page sends the owner back to the app's own scheme (RFC 8252 7.1). The
              scheme is the reverse of a domain the project owns and the host is the registered one

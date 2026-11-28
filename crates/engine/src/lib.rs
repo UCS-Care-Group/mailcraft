@@ -31,6 +31,8 @@ pub mod cmd;
 pub mod composing;
 mod conversations;
 pub mod counts;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod dav_raw;
 mod digital_signature;
 #[cfg(test)]
 mod digital_signature_tests;
@@ -42,11 +44,15 @@ pub mod io;
 mod launchable_tests;
 pub mod list;
 #[cfg(test)]
+mod load_where_tests;
+#[cfg(test)]
 mod mailbox_readers_tests;
 pub mod mark;
 #[cfg(test)]
 mod mark_tests;
 pub mod opening;
+#[cfg(test)]
+mod opening_kind_tests;
 #[cfg(test)]
 mod opening_tests;
 #[cfg(test)]
@@ -70,6 +76,9 @@ pub mod sync_driver;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 mod undo;
+pub mod unified;
+#[cfg(test)]
+mod unified_tests;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod words;
 
@@ -82,8 +91,9 @@ pub use mailcraft_mime_model as mime;
 pub use mailcraft_model as model;
 pub use mailcraft_time as time;
 pub use session::{
-    BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Drawn, Filter, InsertedSignature, Missing, Module, Pane, Part,
-    PeopleSort, Prefs, Quote, Scope, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter, TaskSort, ViewState, WordIndex,
+    BodyFormat, BodyLater, BodyRead, CalView, Clock, Compose, ComposeMode, Doc, Drawn, Filter, InsertedSignature, MAX_SELECTED_EVENTS, Missing,
+    Module, Pane, Part, PeopleSort, Prefs, Quote, ReadIn, Scope, SelectedEvent, Selection, Session, SignatureEdit, SortBy, Stays, TaskFilter,
+    TaskSort, ViewState, WordIndex,
 };
 
 /// What a message says instead of text that couldn't be read back from where the mailbox keeps
@@ -369,11 +379,13 @@ pub mod p {
         if v.is_object() || v.is_null() { Ok(()) } else { Err(CmdError::Params("the parameters are an object".into())) }
     }
     /// Refuses any parameter but `known`: a caller that names what the command doesn't take
-    /// means something by it that the command would not do.
+    /// means something by it that the command would not do. `confirmed` is always taken: it is
+    /// the window's note that the owner said yes to the question asked before the command, and
+    /// it changes nothing the command does (a yes to Remove Imported Duplicates was refused).
     pub fn only(v: &Value, known: &[&str]) -> Result<(), CmdError> {
         match v {
             Value::Null => Ok(()),
-            Value::Object(map) => match map.keys().find(|k| !known.contains(&k.as_str())) {
+            Value::Object(map) => match map.keys().find(|k| k.as_str() != "confirmed" && !known.contains(&k.as_str())) {
                 Some(k) => Err(CmdError::Params(format!(
                     "`{k}` isn't a parameter of this command (it takes {})",
                     known.iter().map(|k| format!("`{k}`")).collect::<Vec<_>>().join(", ")
@@ -427,6 +439,8 @@ mod composing_tests;
 #[cfg(test)]
 mod counts_tests;
 #[cfg(test)]
+mod draft_in_thread_tests;
+#[cfg(test)]
 mod ews_account_tests;
 #[cfg(test)]
 mod focus_stays_tests;
@@ -456,6 +470,8 @@ mod list_sort_tests;
 mod many_folders_tests;
 #[cfg(test)]
 mod pop_out_tests;
+#[cfg(test)]
+mod read_pane_off_tests;
 #[cfg(test)]
 mod send_warnings_tests;
 #[cfg(test)]

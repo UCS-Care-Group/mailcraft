@@ -73,6 +73,7 @@ Home|Respond|Reply All|mail.replyAll
 Home|Respond|Forward|mail.forward
 Home|Respond|Reply with Meeting|calendar.fromMessage
 Home|Respond|Forward as Attachment|mail.forwardAsAttachment
+Home|Respond|React|mail.react
 Home|Respond|Reply with IM|mail.replyIm
 Home|Action Shortcuts|Move to Folder Action Shortcut|mail.move
 Home|Action Shortcuts|Reply and Delete|mail.replyAndDelete
@@ -205,6 +206,7 @@ Insert|Illustrations|3D Models|insert.models3d
 Insert|Illustrations|Diagram|insert.diagram
 Insert|Illustrations|Chart|insert.chart
 Insert|Illustrations|Screenshot|insert.screenshot
+Picture Format|Size|Height and Width|compose.picture.set
 Insert|Links|Link|compose.link
 Insert|Links|Bookmark|insert.bookmark
 Insert|Text|Text Box|insert.textBox
@@ -314,6 +316,7 @@ People|Actions|Add to Favorites|people.favorite
 People|Actions|Forward Contact|people.forward
 People|Actions|Link Contacts|people.link
 People|Actions|Merge Duplicates|people.merge
+People|Actions|Move|people.moveToFolder
 People|Actions|Mail Merge|people.mailMerge
 People|Tags|Categorize|people.categorize
 People|Tags|Follow Up|people.followUp

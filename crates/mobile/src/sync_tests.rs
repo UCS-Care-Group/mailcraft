@@ -177,6 +177,19 @@ fn sync_now_brings_mail_in_and_the_app_learns_through_events() {
         .collect();
     assert_eq!(told.len(), 1, "{second:?}");
     assert_eq!((told[0].topic, told[0].title.as_str(), told[0].body.as_str()), (NotificationTopic::Mail, "Ada Lovelace", "Budget review"));
+    // One message told of names it, for the notification's buttons: the one the inbox now has.
+    let budget = block_on(core.call(|s| Ok(s.mailbox.messages.values().find(|m| m.subject == "Budget review").map(|m| (m.id, m.folder))))).unwrap();
+    let about = told[0].message.expect("one message told of names it");
+    assert_eq!(Some((about.id, about.folder)), budget);
+    // Its button acts while the message is where it was found, and never a second time.
+    assert!(matches!(block_on(core.notice_command(about.id, about.folder, "mail.deletePermanently".into())), Err(CoreError::BadRequest { .. })));
+    assert!(!block_on(core.notice_command(about.id, about.folder.wrapping_add(1), "mail.delete".into())).unwrap());
+    assert!(block_on(core.notice_command(about.id, about.folder, "mail.delete".into())).unwrap());
+    let moved = block_on(core.call(move |s| Ok(s.mailbox.message(about.id).map(|m| m.folder)))).unwrap();
+    assert!(moved.is_some_and(|f| f != about.folder), "deleted once, into Deleted Items: {moved:?}");
+    assert!(!block_on(core.notice_command(about.id, about.folder, "mail.delete".into())).unwrap());
+    assert!(block_on(core.call(move |s| Ok(s.mailbox.message(about.id).is_some()))).unwrap(), "a second Delete deletes nothing for good");
+    assert!(!block_on(core.notice_command(u64::MAX, about.folder, "mail.delete".into())).unwrap());
     assert!(second.iter().any(|e| matches!(e, Event::SyncFinished { new_mail: 1, finished: true })));
     // The stored sign-in was what the runs began with, and no secret went anywhere else.
     assert_eq!(*seen.lock().unwrap(), ["stored-refresh", "stored-refresh"]);
@@ -217,7 +230,8 @@ fn the_privacy_switch_makes_a_notification_say_new_mail_and_nothing_else() {
         .collect();
     assert_eq!(told.len(), 1, "{events:?}");
     assert_eq!((told[0].topic, told[0].title.as_str(), told[0].body.as_str()), (NotificationTopic::Mail, "New mail", ""));
-    // Nothing of the message is anywhere in what the app is told.
+    // Nothing of the message is anywhere in what the app is told, not even which one it is.
+    assert_eq!(told[0].message, None);
     let all = format!("{told:?}");
     assert!(!all.contains("Ada") && !all.contains("Budget"), "{all}");
 }
@@ -232,7 +246,14 @@ fn the_primary_switch_drops_the_arrivals_gmail_put_in_other_categories() {
         let ids: Vec<_> = s.mailbox.messages.keys().copied().collect();
         let found: Vec<_> = ids
             .iter()
-            .map(|id| mailcraft_engine::arrivals::Arrival { message: *id, account: 0, folder: 0, sender: String::new(), subject: String::new() })
+            .map(|id| mailcraft_engine::arrivals::Arrival {
+                message: *id,
+                account: 0,
+                folder: 0,
+                sender: String::new(),
+                subject: String::new(),
+                rule: false,
+            })
             .collect();
         assert_eq!(crate::sync::primary_only(&s.mailbox, &found).len(), found.len(), "no category: kept");
         for m in s.mailbox.messages.values_mut() {

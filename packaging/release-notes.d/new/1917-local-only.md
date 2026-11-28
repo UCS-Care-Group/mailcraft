@@ -1,0 +1,1 @@
+- A contact can have as many email addresses, phone numbers, addresses and web pages as you like. In a Microsoft account's contacts folder, those Microsoft has no place for are marked "On this computer only" on the card (on Android, "On this phone only"), with a note saying why; they are kept here and never lost ([#1917](https://github.com/GITHUB_REPOSITORY/issues/1917)).
