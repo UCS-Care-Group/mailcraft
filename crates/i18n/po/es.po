@@ -142,6 +142,12 @@ msgid "\"{title}\" is cancelled, so it can't be added to the selection."
 msgstr "«{title}» está cancelada, así que no se puede añadir a la selección."
 
 #. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "'{subject}' isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."
+msgstr "«{subject}» no se mueve: su servidor de correo lo ha movido o eliminado desde entonces, o la carpeta de destino ya no existe."
+
+#. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
@@ -27260,6 +27266,14 @@ msgid "{n} message is already here and is left out"
 msgid_plural "{n} messages are already here and are left out"
 msgstr[0] "{n} mensaje ya está aquí y se excluye"
 msgstr[1] "{n} mensajes ya están aquí y se excluyen"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} message isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."
+msgid_plural "{n} messages aren't moved: their mail server has moved or removed them since, or the folders they were to go to are gone."
+msgstr[0] "{n} mensaje no se mueve: su servidor de correo lo ha movido o eliminado desde entonces, o la carpeta de destino ya no existe."
+msgstr[1] "{n} mensajes no se mueven: su servidor de correo los ha movido o eliminado desde entonces, o las carpetas de destino ya no existen."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt

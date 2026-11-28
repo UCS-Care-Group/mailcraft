@@ -142,6 +142,12 @@ msgid "\"{title}\" is cancelled, so it can't be added to the selection."
 msgstr "„{title}” este anulată, deci nu poate fi adăugată la selecție."
 
 #. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "'{subject}' isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."
+msgstr "„{subject}” nu este mutat: serverul de e-mail l-a mutat sau l-a eliminat între timp, ori dosarul de destinație nu mai există."
+
+#. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
@@ -27409,6 +27415,15 @@ msgid_plural "{n} messages are already here and are left out"
 msgstr[0] "{n} mesaj este deja aici și este omis"
 msgstr[1] "{n} mesaje sunt deja aici și sunt omise"
 msgstr[2] "{n} de mesaje sunt deja aici și sunt omise"
+
+#. what a command says
+#: crates/engine/src/undo.rs
+#, fuzzy
+msgid "{n} message isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."
+msgid_plural "{n} messages aren't moved: their mail server has moved or removed them since, or the folders they were to go to are gone."
+msgstr[0] "{n} mesaj nu este mutat: serverul de e-mail l-a mutat sau l-a eliminat între timp, ori dosarul de destinație nu mai există."
+msgstr[1] "{n} mesaje nu sunt mutate: serverul de e-mail le-a mutat sau le-a eliminat între timp, ori dosarele de destinație nu mai există."
+msgstr[2] "{n} de mesaje nu sunt mutate: serverul de e-mail le-a mutat sau le-a eliminat între timp, ori dosarele de destinație nu mai există."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
