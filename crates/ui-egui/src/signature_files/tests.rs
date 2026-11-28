@@ -77,6 +77,13 @@ fn missing_invalid_and_oversized_files_use_the_usual_signature_and_warn() {
 }
 
 #[test]
+fn logo_only_html_file_shows_the_picture_description() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = write(&dir, "logo.html", b"<p><img src=\"cid:x\" alt=\"Example Logo\"></p>");
+    assert!(load(&path).unwrap().plain().contains("Example Logo"));
+}
+
+#[test]
 fn html_is_kept_as_html_and_utf8_text_is_not_interpreted_as_markup() {
     let dir = tempfile::tempdir().unwrap();
     let text = write(&dir, "signature.txt", "\u{feff}Привет <b>text</b>".as_bytes());
@@ -242,6 +249,7 @@ fn signature_picker_is_cancelled_when_the_original_target_is_removed_or_renamed(
         app.execute(command, json!({"name":"Usual","to":"Renamed"})).unwrap();
         app.execute("signature.set", json!({"name":"Usual","text":"Replacement"})).unwrap();
         assert!(app.file_dialog.is_none());
+        assert!(app.signature_note.as_ref().is_some_and(|n| n.error), "a dropped pick says so");
         assert!(!setting_for_name(&app, "Usual").enabled);
     }
 }

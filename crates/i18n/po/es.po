@@ -742,8 +742,9 @@ msgstr "Una nota breve con el enlace a esa página, para pegar en un correo o un
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "A text signature file is at most 10,000 characters."
-msgstr ""
+msgstr "Un archivo de firma de texto admite como máximo 10 000 caracteres."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1497,8 +1498,9 @@ msgstr "¿Un servidor Exchange o IMAP?"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "An HTML signature file is at most 64 KB."
-msgstr ""
+msgstr "Un archivo de firma HTML ocupa como máximo 64 KB."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3353,8 +3355,9 @@ msgstr "Elige el inicio de sesión con Google o selecciona Usar una contraseña 
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Choose Signature File"
-msgstr ""
+msgstr "Elegir archivo de firma"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3382,18 +3385,21 @@ msgstr "Elija una carpeta"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose a signature file"
-msgstr ""
+msgstr "Elegir un archivo de firma"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
-msgstr ""
+msgstr "Elija un archivo de firma de texto, HTML, PNG, JPEG o GIF."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose an absolute local path for the signature file."
-msgstr ""
+msgstr "Elija una ruta local absoluta para el archivo de firma."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3427,8 +3433,9 @@ msgstr "Elegir desde quién se envía"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose…"
-msgstr ""
+msgstr "Elegir…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5822,8 +5829,9 @@ msgstr "Los cuadros de diálogo de archivos no están disponibles aquí"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "File signature"
-msgstr ""
+msgstr "Firma de archivo"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -12394,8 +12402,9 @@ msgstr "Las imágenes siempre se descargan de ({n}):"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
-msgstr ""
+msgstr "Las imágenes no se incluyen en los mensajes de texto sin formato. Cambie a HTML para incluirlas."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12838,8 +12847,9 @@ msgstr "Leer invitación"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Read again for each new message. If unavailable, the usual signature is used."
-msgstr ""
+msgstr "Se vuelve a leer en cada mensaje nuevo. Si no está disponible, se usa la firma habitual."
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -13059,8 +13069,9 @@ msgstr "Actualizar"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Refresh Preview"
-msgstr ""
+msgstr "Actualizar vista previa"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15749,13 +15760,15 @@ msgstr "Archivo de firma:"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Signature files can only be configured by the owner in the desktop app."
-msgstr ""
+msgstr "Los archivos de firma solo puede configurarlos el propietario en la aplicación de escritorio."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Signature from File"
-msgstr ""
+msgstr "Firma desde archivo"
 
 #. android, command label, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
@@ -16405,8 +16418,9 @@ msgstr "Cambiar al inicio de sesión con Google"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Switch to HTML"
-msgstr ""
+msgstr "Cambiar a HTML"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
@@ -18437,8 +18451,9 @@ msgstr "Se rechazó el inicio de sesión."
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "The signature changed while the signature file picker was open."
-msgstr ""
+msgstr "La firma cambió mientras el selector de archivo de firma estaba abierto."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -18447,28 +18462,33 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file could not be read."
-msgstr ""
+msgstr "No se pudo leer el archivo de firma."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file is too large."
-msgstr ""
+msgstr "El archivo de firma es demasiado grande."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must be a regular file of at most 256 KB."
-msgstr ""
+msgstr "El archivo de firma debe ser un archivo normal de 256 KB como máximo."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must contain UTF-8 text."
-msgstr ""
+msgstr "El archivo de firma debe contener texto UTF-8."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature image could not be decoded."
-msgstr ""
+msgstr "No se pudo decodificar la imagen de la firma."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -26611,8 +26631,9 @@ msgstr "{read} de {total} MB"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "{reason} Using the account's usual signature instead."
-msgstr ""
+msgstr "{reason} Se usa en su lugar la firma habitual de la cuenta."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

@@ -270,7 +270,14 @@ pub(crate) fn load(path: &Path) -> Result<Signature, String> {
             if text.len() > MAX_HTML {
                 return Err(tl!("An HTML signature file is at most 64 KB.").into());
             }
-            signature.set_body(mailcraft_engine::mime::rich::from_html(text)).map_err(|e| e.to_string())?;
+            // As `signature.html` does: HTML with no words (a logo alone) shows its pictures' descriptions.
+            let rich = mailcraft_engine::mime::rich::from_html(text);
+            let rich = if rich.to_plain().trim().is_empty() {
+                mailcraft_model::rich::RichText::from_plain(mailcraft_html::to_text(text).trim())
+            } else {
+                rich
+            };
+            signature.set_body(rich).map_err(|e| e.to_string())?;
             signature.set_html(Some(text.to_string())).map_err(|e| e.to_string())?;
         } else {
             if text.chars().count() > MAX_TEXT {

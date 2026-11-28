@@ -739,8 +739,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "A text signature file is at most 10,000 characters."
-msgstr ""
+msgstr "ტექსტური ხელმოწერის ფაილი არაუმეტეს 10 000 სიმბოლოსაა."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1494,8 +1495,9 @@ msgstr "Exchange სერვერი თუ IMAP?"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "An HTML signature file is at most 64 KB."
-msgstr ""
+msgstr "HTML ხელმოწერის ფაილი არაუმეტეს 64 კბ-ია."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3344,8 +3346,9 @@ msgstr "აირჩიეთ Google-ით შესვლა ან მონ�
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Choose Signature File"
-msgstr ""
+msgstr "ხელმოწერის ფაილის არჩევა"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3373,18 +3376,21 @@ msgstr "აირჩიეთ საქაღალდე"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose a signature file"
-msgstr ""
+msgstr "ხელმოწერის ფაილის არჩევა"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
-msgstr ""
+msgstr "აირჩიეთ ტექსტური, HTML, PNG, JPEG ან GIF ხელმოწერის ფაილი."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose an absolute local path for the signature file."
-msgstr ""
+msgstr "აირჩიეთ ხელმოწერის ფაილის აბსოლუტური ლოკალური მისამართი."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3418,8 +3424,9 @@ msgstr "აირჩიეთ, ვისგან გაიგზავნოს
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose…"
-msgstr ""
+msgstr "არჩევა…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5809,8 +5816,9 @@ msgstr "ფაილის დიალოგები აქ მიუწვდ
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "File signature"
-msgstr ""
+msgstr "ფაილის ხელმოწერა"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -12354,8 +12362,9 @@ msgstr "სურათები ყოველთვის ჩამოიტ�
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
-msgstr ""
+msgstr "სურათები უბრალო ტექსტის შეტყობინებებში არ შედის. ჩასართავად გადართეთ HTML-ზე."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12794,8 +12803,9 @@ msgstr "მოწვევის წაკითხვა"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Read again for each new message. If unavailable, the usual signature is used."
-msgstr ""
+msgstr "ყოველ ახალ შეტყობინებაზე ხელახლა იკითხება. თუ მიუწვდომელია, გამოიყენება ჩვეულებრივი ხელმოწერა."
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -13014,8 +13024,9 @@ msgstr "განახლება"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Refresh Preview"
-msgstr ""
+msgstr "გადახედვის განახლება"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15684,13 +15695,15 @@ msgstr "ხელმოწერის ფაილი:"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Signature files can only be configured by the owner in the desktop app."
-msgstr ""
+msgstr "ხელმოწერის ფაილების მორგება მხოლოდ მფლობელს შეუძლია დესკტოპ აპში."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Signature from File"
-msgstr ""
+msgstr "ხელმოწერა ფაილიდან"
 
 #. android, command label, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
@@ -16336,8 +16349,9 @@ msgstr "Google-ით შესვლაზე გადასვლა"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Switch to HTML"
-msgstr ""
+msgstr "HTML-ზე გადართვა"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
@@ -18364,8 +18378,9 @@ msgstr "შესვლა უარყოფილია."
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "The signature changed while the signature file picker was open."
-msgstr ""
+msgstr "ხელმოწერა შეიცვალა, სანამ ხელმოწერის ფაილის ამომრჩევი ღია იყო."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -18374,28 +18389,33 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file could not be read."
-msgstr ""
+msgstr "ხელმოწერის ფაილის წაკითხვა ვერ მოხერხდა."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file is too large."
-msgstr ""
+msgstr "ხელმოწერის ფაილი ძალიან დიდია."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must be a regular file of at most 256 KB."
-msgstr ""
+msgstr "ხელმოწერის ფაილი უნდა იყოს ჩვეულებრივი ფაილი არაუმეტეს 256 კბ-ისა."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must contain UTF-8 text."
-msgstr ""
+msgstr "ხელმოწერის ფაილი უნდა შეიცავდეს UTF-8 ტექსტს."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature image could not be decoded."
-msgstr ""
+msgstr "ხელმოწერის სურათის დეკოდირება ვერ მოხერხდა."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -26524,8 +26544,9 @@ msgstr "{read} / {total} მბ"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "{reason} Using the account's usual signature instead."
-msgstr ""
+msgstr "{reason} ნაცვლად გამოიყენება ანგარიშის ჩვეულებრივი ხელმოწერა."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

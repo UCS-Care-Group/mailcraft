@@ -740,8 +740,9 @@ msgstr "Een korte notitie met de link naar die pagina, om in e-mail of chat te p
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "A text signature file is at most 10,000 characters."
-msgstr ""
+msgstr "Een tekstbestand voor een handtekening mag maximaal 10.000 tekens bevatten."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1457,8 +1458,9 @@ msgstr "Een Exchange-server of IMAP?"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "An HTML signature file is at most 64 KB."
-msgstr ""
+msgstr "Een HTML-handtekeningbestand is maximaal 64 KB groot."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3246,8 +3248,9 @@ msgstr "Kies aanmelden met Google, of kies Gebruik een app-wachtwoord in plaats 
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Choose Signature File"
-msgstr ""
+msgstr "Handtekeningbestand kiezen"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3275,18 +3278,21 @@ msgstr "Een map kiezen"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose a signature file"
-msgstr ""
+msgstr "Een handtekeningbestand kiezen"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
-msgstr ""
+msgstr "Kies een handtekeningbestand als tekst, HTML, PNG, JPEG of GIF."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose an absolute local path for the signature file."
-msgstr ""
+msgstr "Kies een absoluut lokaal pad voor het handtekeningbestand."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3320,8 +3326,9 @@ msgstr "Kies van wie dit wordt verzonden"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose…"
-msgstr ""
+msgstr "Kiezen…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5607,8 +5614,9 @@ msgstr "Bestandsdialoogvensters zijn hier niet beschikbaar"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "File signature"
-msgstr ""
+msgstr "Bestandshandtekening"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -11978,8 +11986,9 @@ msgstr "Afbeeldingen worden altijd gedownload van ({n}):"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
-msgstr ""
+msgstr "Afbeeldingen zijn niet opgenomen in berichten in platte tekst. Schakel over naar HTML om ze mee te sturen."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12409,8 +12418,9 @@ msgstr "Uitnodiging lezen"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Read again for each new message. If unavailable, the usual signature is used."
-msgstr ""
+msgstr "Wordt voor elk nieuw bericht opnieuw gelezen. Als het niet beschikbaar is, wordt de gebruikelijke handtekening gebruikt."
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -12623,8 +12633,9 @@ msgstr "Vernieuwen"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Refresh Preview"
-msgstr ""
+msgstr "Voorbeeld vernieuwen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15205,13 +15216,15 @@ msgstr "Ondertekingsbestand:"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Signature files can only be configured by the owner in the desktop app."
-msgstr ""
+msgstr "Handtekeningbestanden kan alleen de eigenaar instellen in de desktop-app."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Signature from File"
-msgstr ""
+msgstr "Handtekening uit bestand"
 
 #. android, command label, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
@@ -15852,8 +15865,9 @@ msgstr "Overschakelen naar aanmelden met Google"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Switch to HTML"
-msgstr ""
+msgstr "Overschakelen naar HTML"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
@@ -17866,8 +17880,9 @@ msgstr "De aanmelding is geweigerd."
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "The signature changed while the signature file picker was open."
-msgstr ""
+msgstr "De handtekening is gewijzigd terwijl de bestandskiezer voor de handtekening open stond."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -17876,28 +17891,33 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file could not be read."
-msgstr ""
+msgstr "Het handtekeningbestand kon niet worden gelezen."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file is too large."
-msgstr ""
+msgstr "Het handtekeningbestand is te groot."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must be a regular file of at most 256 KB."
-msgstr ""
+msgstr "Het handtekeningbestand moet een gewoon bestand van maximaal 256 KB zijn."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must contain UTF-8 text."
-msgstr ""
+msgstr "Het handtekeningbestand moet UTF-8-tekst bevatten."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature image could not be decoded."
-msgstr ""
+msgstr "De handtekeningafbeelding kon niet worden gedecodeerd."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -25985,8 +26005,9 @@ msgstr "{read} van {total} MB"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "{reason} Using the account's usual signature instead."
-msgstr ""
+msgstr "{reason} In plaats daarvan wordt de gebruikelijke handtekening van het account gebruikt."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

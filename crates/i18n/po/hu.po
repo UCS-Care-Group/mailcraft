@@ -746,8 +746,9 @@ msgstr "Rövid üzenet az oldal hivatkozásával, e-mailbe vagy csevegésbe ille
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "A text signature file is at most 10,000 characters."
-msgstr ""
+msgstr "A szöveges aláírásfájl legfeljebb 10 000 karakter lehet."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1499,8 +1500,9 @@ msgstr "Egy csere szerver vagy IMAP?"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "An HTML signature file is at most 64 KB."
-msgstr ""
+msgstr "A HTML aláírásfájl legfeljebb 64 KB lehet."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3354,8 +3356,9 @@ msgstr "Válassza ki a Google-bejelentkezést, vagy válassza ki az alkalmazás 
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Choose Signature File"
-msgstr ""
+msgstr "Aláírásfájl kiválasztása"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3383,18 +3386,21 @@ msgstr "Válasszon egy mappát"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose a signature file"
-msgstr ""
+msgstr "Aláírásfájl kiválasztása"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
-msgstr ""
+msgstr "Válasszon szöveges, HTML, PNG, JPEG vagy GIF aláírásfájlt."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose an absolute local path for the signature file."
-msgstr ""
+msgstr "Adjon meg abszolút helyi útvonalat az aláírásfájlhoz."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3428,8 +3434,9 @@ msgstr "Válassza ki, kinek a nevében küldi"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose…"
-msgstr ""
+msgstr "Kiválasztás…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5814,8 +5821,9 @@ msgstr "Fájlablakok nem érhetők el itt"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "File signature"
-msgstr ""
+msgstr "Fájlaláírás"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -12386,8 +12394,9 @@ msgstr "A képek mindig letölthetők ({n}):"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
-msgstr ""
+msgstr "A képek nem szerepelnek az egyszerű szöveges üzenetekben. Váltson HTML-re a felvételükhöz."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12831,8 +12840,9 @@ msgstr "Meghívó elolvasása"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Read again for each new message. If unavailable, the usual signature is used."
-msgstr ""
+msgstr "Minden új üzenetnél újra beolvassa. Ha nem érhető el, a szokásos aláírás lesz használatban."
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -13052,8 +13062,9 @@ msgstr "Frissítés"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Refresh Preview"
-msgstr ""
+msgstr "Előnézet frissítése"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15740,13 +15751,15 @@ msgstr "Aláírási fájl:"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Signature files can only be configured by the owner in the desktop app."
-msgstr ""
+msgstr "Az aláírásfájlokat csak a tulajdonos állíthatja be az asztali alkalmazásban."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Signature from File"
-msgstr ""
+msgstr "Aláírás fájlból"
 
 #. android, command label, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
@@ -16398,8 +16411,9 @@ msgstr "Átváltás a Google-bejelentkezésre"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Switch to HTML"
-msgstr ""
+msgstr "Váltás HTML-re"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
@@ -18431,8 +18445,9 @@ msgstr "A beiratkozást elutasították."
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "The signature changed while the signature file picker was open."
-msgstr ""
+msgstr "Az aláírás megváltozott, miközben az aláírásfájl-választó nyitva volt."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -18441,28 +18456,33 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file could not be read."
-msgstr ""
+msgstr "Az aláírásfájl nem olvasható."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file is too large."
-msgstr ""
+msgstr "Az aláírásfájl túl nagy."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must be a regular file of at most 256 KB."
-msgstr ""
+msgstr "Az aláírásfájlnak legfeljebb 256 KB méretű, szabályos fájlnak kell lennie."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must contain UTF-8 text."
-msgstr ""
+msgstr "Az aláírásfájlnak UTF-8 szöveget kell tartalmaznia."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature image could not be decoded."
-msgstr ""
+msgstr "Az aláírás képe nem dekódolható."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -26609,8 +26629,9 @@ msgstr "{read} / {total} MB"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "{reason} Using the account's usual signature instead."
-msgstr ""
+msgstr "{reason} Helyette a fiók szokásos aláírása lesz használatban."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

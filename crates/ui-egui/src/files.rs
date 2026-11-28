@@ -73,6 +73,8 @@ pub(crate) fn invalidate_signature(app: &mut MailApp, name: Option<&str>) {
         if name.is_none_or(|name| name.eq_ignore_ascii_case(target)))
     }) {
         app.file_dialog = None;
+        // The picked file would be dropped without a word otherwise.
+        crate::signatures::refuse(app, tl!("The signature changed while the signature file picker was open.").to_string());
     }
 }
 

@@ -742,8 +742,9 @@ msgstr "Krátká poznámka s odkazem na tu stránku, kterou vložíte do pošty 
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "A text signature file is at most 10,000 characters."
-msgstr ""
+msgstr "Textový soubor podpisu může mít nejvýše 10 000 znaků."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1489,8 +1490,9 @@ msgstr "Server Exchange, nebo IMAP?"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "An HTML signature file is at most 64 KB."
-msgstr ""
+msgstr "Soubor podpisu HTML může mít nejvýše 64 KB."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3350,8 +3352,9 @@ msgstr "Zvolte přihlášení přes Google, nebo vyberte Použít heslo aplikace
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Choose Signature File"
-msgstr ""
+msgstr "Vybrat soubor podpisu"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3379,18 +3382,21 @@ msgstr "Zvolte složku"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose a signature file"
-msgstr ""
+msgstr "Vybrat soubor podpisu"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
-msgstr ""
+msgstr "Vyberte soubor podpisu jako text, HTML, PNG, JPEG nebo GIF."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose an absolute local path for the signature file."
-msgstr ""
+msgstr "Vyberte absolutní místní cestu k souboru podpisu."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3424,8 +3430,9 @@ msgstr "Zvolte, od koho se to odešle"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose…"
-msgstr ""
+msgstr "Vybrat…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5827,8 +5834,9 @@ msgstr "Dialogy souborů zde nejsou k dispozici"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "File signature"
-msgstr ""
+msgstr "Podpis ze souboru"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -12407,8 +12415,9 @@ msgstr "Obrázky se vždy stahují od ({n}):"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
-msgstr ""
+msgstr "Obrázky nejsou v textových zprávách obsaženy. Přepněte na HTML, aby se zahrnuly."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -12851,8 +12860,9 @@ msgstr "Přečíst pozvánku"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Read again for each new message. If unavailable, the usual signature is used."
-msgstr ""
+msgstr "Čte se znovu pro každou novou zprávu. Pokud není dostupný, použije se obvyklý podpis."
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -13074,8 +13084,9 @@ msgstr "Aktualizovat"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Refresh Preview"
-msgstr ""
+msgstr "Obnovit náhled"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15770,13 +15781,15 @@ msgstr "Soubor podpisu:"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Signature files can only be configured by the owner in the desktop app."
-msgstr ""
+msgstr "Soubory podpisu může nastavit jen vlastník v aplikaci pro počítač."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Signature from File"
-msgstr ""
+msgstr "Podpis ze souboru"
 
 #. android, command label, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
@@ -16428,8 +16441,9 @@ msgstr "Přejít na přihlášení přes Google"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Switch to HTML"
-msgstr ""
+msgstr "Přepnout na HTML"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
@@ -18468,8 +18482,9 @@ msgstr "Přihlášení bylo odmítnuto."
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "The signature changed while the signature file picker was open."
-msgstr ""
+msgstr "Podpis se změnil, zatímco byl otevřen výběr souboru podpisu."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -18478,28 +18493,33 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file could not be read."
-msgstr ""
+msgstr "Soubor podpisu se nepodařilo přečíst."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file is too large."
-msgstr ""
+msgstr "Soubor podpisu je příliš velký."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must be a regular file of at most 256 KB."
-msgstr ""
+msgstr "Soubor podpisu musí být běžný soubor o velikosti nejvýše 256 KB."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must contain UTF-8 text."
-msgstr ""
+msgstr "Soubor podpisu musí obsahovat text v UTF-8."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature image could not be decoded."
-msgstr ""
+msgstr "Obrázek podpisu se nepodařilo dekódovat."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -26790,8 +26810,9 @@ msgstr "{read} z {total} MB"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "{reason} Using the account's usual signature instead."
-msgstr ""
+msgstr "{reason} Použije se obvyklý podpis účtu."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
