@@ -719,10 +719,9 @@ pub(crate) fn rule_edited(s: &Session, v: &Value) -> Result<(usize, Rule, Option
         None => old.keep == Keep::Server || forced_here,
     };
     rule.keep = if wanted && cannot.is_none() { Keep::Server } else { Keep::Here };
-    // One that leaves MailCraft's Sieve script leaves it when the script is next written.
-    if rule.keep == Keep::Here && rule.server.as_ref().is_some_and(|s| s.id.starts_with(super::sieve_replies::SIEVE_ID)) {
-        rule.server = None;
-    }
+    // One that leaves MailCraft's Sieve script leaves it when the script is next written: until
+    // the server is read with a script without it, it keeps its mark as the server's, and so
+    // doesn't run here too while the server still runs it (`sieve_replies::mark_rules`, #2058).
     let why = cannot.filter(|n| wanted && !matches!(n, NotOnServer::NoServer));
     Ok((i, rule, why))
 }

@@ -196,12 +196,19 @@ pub(super) fn script_with(s: &Session, a: &Account, rules: &[crate::sieve::RuleS
 }
 
 /// Mark `account`'s rules as its server has them (`held`: the script it runs is MailCraft's,
-/// with them in it), or as this computer's to run. Whether anything changed.
-fn mark_rules(mb: &mut mailcraft_model::Mailbox, account: Id, held: bool) -> bool {
+/// with them in it), or as this computer's to run. `running`: the script the server runs, when it
+/// is MailCraft's as MailCraft last wrote it but not as the rules here would write it now (a
+/// change not written yet, or refused): a rule marked as the server's that is still in it keeps
+/// its mark, as the server still runs it, and so doesn't run here as well (#2058). Whether
+/// anything changed.
+fn mark_rules(mb: &mut mailcraft_model::Mailbox, account: Id, held: bool, running: Option<&str>) -> bool {
     let (_, kept) = super::sieve_rules::blocks(mb, account);
     let mut changed = false;
     for rule in mb.rules.iter_mut().filter(|r| r.account == account) {
         let sieve = rule.server.as_ref().is_some_and(|s| s.id.starts_with(SIEVE_ID));
+        if !held && sieve && running.is_some_and(|text| has_rule(text, rule.id)) {
+            continue;
+        }
         let now = kept.iter().find(|(id, ..)| *id == rule.id).filter(|_| held).map(|(id, enabled, at)| mailcraft_model::ServerRule {
             id: format!("{SIEVE_ID}{id}"),
             sequence: *at,
@@ -216,6 +223,13 @@ fn mark_rules(mb: &mut mailcraft_model::Mailbox, account: Id, held: bool) -> boo
         }
     }
     changed
+}
+
+/// Whether MailCraft's script `text` has the rule `id` in it: its section's comment line
+/// ([`crate::sieve::rule_section`]).
+fn has_rule(text: &str, id: Id) -> bool {
+    let line = format!("# rule {id}");
+    text.lines().any(|l| l.trim_end() == line)
 }
 
 /// What MailCraft's Sieve script is to become for `account`, when it isn't that already: the
@@ -343,7 +357,11 @@ fn apply_command(s: &mut Session, v: &Value) -> CmdResult {
         (Some(Some(v)), Some(text)) if runs_ours => whole_script(&s.mailbox, account, v).0 == text,
         _ => false,
     };
-    let marks_changed = mark_rules(&mut s.mailbox, account, held);
+    let running = match (&vacation, script) {
+        (Some(Some(_)), Some(text)) if runs_ours => Some(text),
+        _ => None,
+    };
+    let marks_changed = mark_rules(&mut s.mailbox, account, held, running);
     if offers_changed || marks_changed {
         // What the server has can't be undone here.
         s.forget_history();
