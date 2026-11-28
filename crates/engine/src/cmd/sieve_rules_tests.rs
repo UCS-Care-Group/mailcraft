@@ -64,6 +64,24 @@ fn each_condition_is_the_sieve_that_does_what_it_does_here() {
     }
 }
 
+/// A folder's name goes to `fileinto` whole, its spaces kept: on the server "Lists " is another
+/// folder than "Lists" (#2058).
+#[test]
+fn a_folder_name_with_spaces_at_its_ends_is_kept_whole() {
+    let (mut s, account, lists) = session(&ALL);
+    s.mailbox.folder_mut(lists).unwrap().remote = " Lists ".into();
+    if let Some(deleted) = s.mailbox.folder_of_kind(account, FolderKind::Deleted) {
+        s.mailbox.folder_mut(deleted).unwrap().remote = "Trash ".into();
+    }
+    let b = block(&s.mailbox, &rule(account, vec![Condition::ToMe], vec![Action::MoveTo(lists)]), account).unwrap();
+    assert!(b.text.contains("fileinto \" Lists \";"), "{}", b.text);
+    let b = block(&s.mailbox, &rule(account, vec![Condition::ToMe], vec![Action::Delete]), account).unwrap();
+    assert!(b.text.contains("fileinto \"Trash \";"), "{}", b.text);
+    // A name of only spaces is no folder on the server.
+    s.mailbox.folder_mut(lists).unwrap().remote = "  ".into();
+    assert_eq!(block(&s.mailbox, &rule(account, vec![Condition::ToMe], vec![Action::MoveTo(lists)]), account).err(), Some(NotOnServer::FolderNotThere));
+}
+
 #[test]
 fn each_action_is_the_sieve_that_does_what_it_does_here_flags_first() {
     let (s, account, lists) = session(&ALL);
@@ -317,6 +335,47 @@ fn rules_run_here_while_the_server_runs_another_script_or_a_changed_one() {
     run(&mut s, "rules.remove", json!({"id": id}));
     assert!(s.mailbox.rule_gone.is_empty());
     assert!(!script_due(&s, account, false).unwrap()["text"].as_str().unwrap().contains("# rule"));
+}
+
+/// A rule kept in MailCraft's script, changed to stay on this computer: while the server still
+/// runs the script with it (the write not made yet, or refused), it stays the server's and doesn't
+/// run here as well, which would act on the same mail twice; once the server is read with the
+/// script without it, it runs here (#2058).
+#[test]
+fn a_rule_moved_off_the_server_runs_here_only_once_the_script_without_it_is_there() {
+    let (mut s, account, lists) = session(&ALL);
+    run(&mut s, "sync.applySieve", json!({"account": account, "state": state(None, None)}));
+    let rule = json!({"name": "Lists", "account": account, "conditions": [{"type": "fromContains", "value": "list"}], "actions": [{"type": "moveTo", "value": lists}]});
+    let id = run(&mut s, "rules.add", rule.clone())["id"].as_u64().unwrap();
+    let text = script_due(&s, account, false).unwrap()["text"].as_str().unwrap().to_string();
+    run(
+        &mut s,
+        "sync.applySieve",
+        json!({"account": account, "state": state(Some(SCRIPT_NAME), Some(&text)), "written": {"result": "done", "text": text}}),
+    );
+    let on_server = |s: &Session| s.mailbox.rules.iter().find(|r| r.id == id).unwrap().on_server();
+    assert!(on_server(&s));
+    let mut here = rule.clone();
+    here["id"] = json!(id);
+    here["server"] = json!(false);
+    here.as_object_mut().unwrap().remove("account");
+    assert_eq!(run(&mut s, "rules.edit", here)["keep"], "here");
+    let r = s.mailbox.rules.iter().find(|r| r.id == id).unwrap();
+    assert_eq!(r.keep, Keep::Here);
+    assert!(r.on_server(), "the server's until the script without it is there");
+    // Read again before the write, or after one refused: the server still runs it.
+    run(&mut s, "sync.applySieve", json!({"account": account, "state": state(Some(SCRIPT_NAME), Some(&text))}));
+    assert!(on_server(&s));
+    // Written without it: this computer's.
+    let without = script_due(&s, account, false).unwrap()["text"].as_str().unwrap().to_string();
+    assert!(!without.contains("# rule"), "{without}");
+    run(
+        &mut s,
+        "sync.applySieve",
+        json!({"account": account, "state": state(Some(SCRIPT_NAME), Some(&without)), "written": {"result": "done", "text": without}}),
+    );
+    assert!(!on_server(&s));
+    assert_eq!(kept(&s.mailbox, s.mailbox.rules.iter().find(|r| r.id == id).unwrap()).0, "here");
 }
 
 #[test]

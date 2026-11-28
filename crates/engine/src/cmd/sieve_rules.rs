@@ -107,11 +107,11 @@ fn folder_name(mb: &Mailbox, account: Id, folder: Id, copy: bool) -> Result<Stri
             (false, true) => NotOnServer::CopyElsewhere,
         });
     }
-    let name = f.remote.trim();
-    if name.is_empty() {
+    // The whole name, as the server has it: "Lists " is another folder than "Lists" (#2058).
+    if f.remote.trim().is_empty() {
         return Err(not_there);
     }
-    Ok(name.to_string())
+    Ok(f.remote.clone())
 }
 
 /// `rule`, for `account`'s server, as a block of the script, or why it can't be one.
@@ -163,7 +163,7 @@ pub(crate) fn rule_sieve(mb: &Mailbox, rule: &Rule, account: Id, header: bool, i
             Action::CopyTo(folder) => copies.push(folder_name(mb, account, *folder, true)?),
             Action::Delete => {
                 let deleted = mb.folders.iter().find(|f| f.account == account && f.kind == FolderKind::Deleted && !f.remote.trim().is_empty());
-                moves.push(deleted.map(|f| f.remote.trim().to_string()).ok_or(NotOnServer::NoDeletedItems)?);
+                moves.push(deleted.map(|f| f.remote.clone()).ok_or(NotOnServer::NoDeletedItems)?);
             }
             Action::FlagFor(_) => return Err(NotOnServer::FlagDue),
             Action::Categorize(_) => return Err(NotOnServer::Categorize),

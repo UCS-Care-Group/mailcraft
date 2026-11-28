@@ -568,7 +568,8 @@ fn read_tests(t: &Test, me: &[String], rule: &mut Rule, unknown: &mut Vec<String
 /// What a block's commands come to as actions; whether it sends a reply.
 fn read_actions(mb: &Mailbox, account: Id, block: &[Command], rule: &mut Rule, unknown: &mut Vec<String>) -> bool {
     let mut replies = false;
-    let folder = |name: &str| mb.folders.iter().find(|f| f.account == account && f.remote.trim() == name.trim()).map(|f| f.id);
+    // The whole name: `fileinto "Lists "` is another folder than "Lists" (#2058).
+    let folder = |name: &str| mb.folders.iter().find(|f| f.account == account && !name.trim().is_empty() && f.remote == name).map(|f| f.id);
     for c in block {
         let (tags, lists) = split(&c.args);
         let one = match lists.as_slice() {
