@@ -251,6 +251,38 @@ fn an_agent_is_told_when_the_issuer_check_or_the_client_authentication_changes()
     assert!(on.contains("has to name itself"), "{on}");
 }
 
+/// What an agent is asked to allow names the permissions an own provider's next sign-in asks for
+/// when its scopes or standard scopes change, and its identity provider when the issuer changes;
+/// neither when they stay (#1844 review).
+#[test]
+fn an_agent_is_told_which_permissions_and_identity_provider_a_changed_sign_in_asks() {
+    let mut s = Session::empty();
+    let id = add(&mut s, &own(json!({"scopes": "mail"})));
+    let scopes = crate::agent::describe(&s, "account.edit", &json!({"id": id, "scopes": "mail calendar"}));
+    assert!(scopes.contains("it asks its identity provider for: openid email offline_access mail calendar"), "{scopes}");
+    assert!(!scopes.contains("its identity provider is"), "{scopes}");
+    let base = crate::agent::describe(&s, "account.edit", &json!({"id": id, "baseScopes": "openid"}));
+    assert!(base.contains("it asks its identity provider for: openid mail"), "{base}");
+    let issuer = crate::agent::describe(&s, "account.edit", &json!({"id": id, "issuer": "https://login.example.net/realms/other"}));
+    assert!(issuer.contains("its identity provider is https://login.example.net/realms/other"), "{issuer}");
+    assert!(!issuer.contains("asks its identity provider for"), "{issuer}");
+    // Nothing of either when neither changes.
+    let same = crate::agent::describe(&s, "account.edit", &json!({"id": id, "scopes": "mail", "displayName": "Alice"}));
+    assert!(!same.contains("identity provider"), "{same}");
+    // A password account moved to an own provider names them both.
+    let pw = add(&mut s, &json!({"email": "noor@example.org", "incoming": {"host": "mail.example.org"}, "auth": "password"}));
+    let moved = crate::agent::describe(
+        &s,
+        "account.edit",
+        &json!({"id": pw, "auth": "oauth2", "provider": "custom", "clientId": "mailcraft", "issuer": ISSUER, "authorizeUrl": format!("{ISSUER}/auth"), "tokenUrl": format!("{ISSUER}/token")}),
+    );
+    assert!(
+        moved.contains(&format!("its identity provider is {ISSUER}"))
+            && moved.contains("asks its identity provider for: openid email offline_access"),
+        "{moved}"
+    );
+}
+
 /// A client secret is kept under the settings it is for: when they change it is no longer found,
 /// and the account stops saying one is kept, unless the change comes with one (#1844 review).
 #[test]

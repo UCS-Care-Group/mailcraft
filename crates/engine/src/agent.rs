@@ -3655,6 +3655,36 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                         None => text.push_str("; it signs in with a password"),
                     }
                 }
+                // Which identity provider an own provider's sign-in names, and the permissions it
+                // asks it for, are named when they change (or first come with a switch to an own
+                // provider): the owner sees what the next sign-in asks for (#1844 review).
+                let asks = |a: &mailcraft_model::Account| {
+                    a.oauth.as_ref().filter(|o| o.provider == mailcraft_model::OAuthProvider::Custom).map(|o| {
+                        let used = o.effective();
+                        (used.issuer, used.scopes)
+                    })
+                };
+                if let Some((issuer, scopes)) = new.as_ref().and_then(asks) {
+                    let before = asks(account);
+                    if before.as_ref().is_none_or(|w| w.0 != issuer) {
+                        if issuer.is_empty() {
+                            text.push_str("; it names no identity provider (issuer) address");
+                        } else {
+                            text.push_str(&format!("; its identity provider is {}", address_said(&issuer)));
+                        }
+                    }
+                    if before.as_ref().is_none_or(|w| w.1 != scopes) {
+                        // (Every one, in full: the owner is never asked about what they can't read.
+                        // The list is capped where it is checked; the cap here only bounds junk.)
+                        let cap = mailcraft_model::oauth::MAX_SCOPES.saturating_add(mailcraft_model::oauth::CUSTOM_SCOPE.len()).saturating_add(1);
+                        let scopes = clip(&scopes, cap);
+                        if scopes.is_empty() {
+                            text.push_str("; it asks its identity provider for no permissions");
+                        } else {
+                            text.push_str(&format!("; it asks its identity provider for: {scopes}"));
+                        }
+                    }
+                }
                 // How an own provider is checked and how its client secret goes to it are named
                 // when they change: one switches off the RFC 9207 check (#1844 review).
                 let checks = |a: &mailcraft_model::Account| {
