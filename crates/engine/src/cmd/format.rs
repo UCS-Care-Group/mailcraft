@@ -8,7 +8,7 @@
 //! signature is open in File › Signatures they work on it instead ([`Session::doc`]).
 //! Positions count characters of the body's text, a paragraph break being one.
 
-use mailcraft_model::rich::{Align, Font, Format, ListKind, MAX_SIZE, MIN_SIZE, safe_color};
+use mailcraft_model::rich::{Align, Font, Format, ListKind, MAX_SIZE, MIN_SIZE, Paragraph, Run, Style, safe_color};
 use mailcraft_model::{ModelError, RichBody, RichText};
 use serde_json::{Value, json};
 
@@ -96,7 +96,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("edit.paste", "Paste", "Message › Clipboard", paste)
             .pure()
-            .params(r#"{"html"?: string, "text"?: string} — over the selection; supported HTML formatting includes bold, italic, underline, font, size, colours, links, lists and a paragraph's indent and alignment. The HTML composer keeps bounded tables as selectable objects. Tables flatten to text in plain-text messages and signatures. A plain-text message takes `text` when it comes to something, and the HTML's text otherwise. HTML that comes to no text gives way to `text`, and nothing to paste changes nothing"#)
+            .params(r#"{"html"?: string, "text"?: string} — over the selection; supported HTML formatting includes bold, italic, underline, font, size, colours, links, lists and a paragraph's indent and alignment. The HTML composer keeps bounded tables as selectable objects. Tables flatten to text in plain-text messages and signatures. A plain-text message takes `text` when it comes to something, and the HTML's text otherwise. HTML that comes to no text gives way to `text`, and nothing to paste changes nothing. Web and email addresses in pasted text, or in unlinked pasted HTML, become links in HTML messages and signatures"#)
             .when_writing(needs_doc),
         CommandSpec::new("compose.formatHtml", "HTML", "Format Text › Format", format_html).pure().when_writing(needs_compose),
         CommandSpec::new("compose.formatPlain", "Plain Text", "Format Text › Format", format_plain).pure().when_writing(needs_compose),
@@ -462,6 +462,66 @@ fn cut(s: &mut Session, v: &Value) -> CmdResult {
 /// Most HTML or text one paste takes, in bytes.
 pub(crate) const MAX_PASTE: usize = 4 << 20;
 
+/// Web and mail addresses in pasted rich text become links, keeping each run's formatting.
+///
+/// A run that is already a link, a picture, or a table is left as it is, and an address never
+/// reaches across one. The unlinked text between them is read as one with
+/// [`mailcraft_html::autolink`], so an address whose formatting changes part way is one link, and
+/// each run it covers keeps its own formatting. [`RichText::from_paragraphs`] then cleans styles
+/// and keeps the document within its caps.
+fn autolink_rich(text: RichText) -> RichText {
+    let linkable = |run: &Run| run.picture.is_none() && run.table.is_none() && run.style.link.is_none();
+    let mut paragraphs = Vec::new();
+    for p in text.paragraphs() {
+        let mut runs = Vec::new();
+        for stretch in p.runs.chunk_by(|a, b| linkable(a) == linkable(b)) {
+            if stretch.first().is_some_and(linkable) {
+                autolink_runs(stretch, &mut runs);
+            } else {
+                runs.extend_from_slice(stretch);
+            }
+        }
+        paragraphs.push(Paragraph { runs, list: p.list, level: p.level, align: p.align, signature: p.signature });
+    }
+    RichText::from_paragraphs(paragraphs)
+}
+
+/// `runs`, unlinked text side by side, onto `out` with the addresses their joined text spells
+/// made into links: a run an address starts, ends or falls in is cut where the address does.
+fn autolink_runs(runs: &[Run], out: &mut Vec<Run>) {
+    let text: String = runs.iter().map(|run| run.text.as_str()).collect();
+    let mut links = Vec::new();
+    let mut at = 0;
+    for span in mailcraft_html::autolink(&text) {
+        let end = at + span.text.len();
+        if let Some(url) = span.link {
+            links.push((at, end, url.to_string()));
+        }
+        at = end;
+    }
+    let mut piece = |run: &Run, from: usize, to: usize, link: Option<&String>| {
+        if let Some(words) = text.get(from..to).filter(|words| !words.is_empty()) {
+            out.push(Run::new(words, Style { link: link.cloned(), ..run.style.clone() }));
+        }
+    };
+    let (mut start, mut next) = (0, 0);
+    for run in runs {
+        let end = start + run.text.len();
+        let mut cut = start;
+        for (from, to, url) in links.get(next..).unwrap_or(&[]).iter().take_while(|(from, ..)| *from < end) {
+            let (from, to) = ((*from).max(cut), (*to).min(end));
+            piece(run, cut, from, None);
+            piece(run, from, to, Some(url));
+            cut = to;
+        }
+        piece(run, cut, end, None);
+        while links.get(next).is_some_and(|(_, to, _)| *to <= end) {
+            next += 1;
+        }
+        start = end;
+    }
+}
+
 fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let plain = s.doc().is_some_and(|(_, plain)| plain);
     let (html, text) = (p::str(v, "html"), p::str(v, "text"));
@@ -503,6 +563,7 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     if fragment.is_empty() {
         return Ok(state(s));
     }
+    let fragment = if plain { fragment } else { autolink_rich(fragment) };
     edit(s, &json!({}), |b| b.paste(&fragment))?;
     let mut out = state(s);
     // A signature's pictures come from files only (nothing is fetched); say so when the paste
@@ -534,3 +595,6 @@ fn format_plain(s: &mut Session, _: &Value) -> CmdResult {
 #[cfg(test)]
 #[path = "highlight_tests.rs"]
 mod highlight_tests;
+#[cfg(test)]
+#[path = "paste_link_tests.rs"]
+mod paste_link_tests;

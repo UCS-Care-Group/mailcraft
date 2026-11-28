@@ -208,3 +208,60 @@ fn moving_a_big_selection_is_linear() {
     assert!(took < SOON, "moving {N} took {took:?}");
     assert_eq!(mb.pending.len(), N as usize);
 }
+
+fn waiting_scans() -> usize {
+    crate::mailbox::WAITING_SCANS.with(|c| c.get())
+}
+
+#[test]
+fn moving_a_selection_on_before_the_server_heard_finds_each_move_where_it_lay() {
+    const N: u32 = 1_000;
+    let Fixture { mut mb, imap, .. } = fixture();
+    let (inbox, archive, deleted) =
+        (folder(&mb, imap, FolderKind::Inbox), folder(&mb, imap, FolderKind::Archive), folder(&mb, imap, FolderKind::Deleted));
+    let ids = imap_mail(&mut mb, inbox, 1, N);
+    let to = |folder: Id| -> Vec<(Id, Id)> { ids.iter().map(|id| (*id, folder)).collect() };
+    assert_eq!(mb.move_each(&to(archive)).map(|m| m.len()), Ok(N as usize));
+    // Each has a move waiting now, which goes on to the new folder: looked up once for them all,
+    // not by a search of every waiting move for each message (that grows with the square).
+    let before = waiting_scans();
+    assert_eq!(mb.move_each(&to(deleted)).map(|m| m.len()), Ok(N as usize));
+    assert_eq!(waiting_scans() - before, 0);
+    assert_eq!(mb.pending.len(), N as usize);
+    assert!(mb.pending.iter().all(|p| matches!(p, Pending::Move { from, to, .. } if from == "INBOX" && *to == deleted)));
+}
+
+#[test]
+fn moving_several_back_where_the_server_has_them_calls_off_each_move() {
+    let Fixture { mut mb, imap, .. } = fixture();
+    let (inbox, archive) = (folder(&mb, imap, FolderKind::Inbox), folder(&mb, imap, FolderKind::Archive));
+    let ids = imap_mail(&mut mb, inbox, 1, 3);
+    let to = |folder: Id| -> Vec<(Id, Id)> { ids.iter().map(|id| (*id, folder)).collect() };
+    assert_eq!(mb.move_each(&to(archive)).map(|m| m.len()), Ok(3));
+    // Calling off the first move shifts the others: each is looked for where it lies now.
+    assert_eq!(mb.move_each(&to(inbox)).map(|m| m.len()), Ok(3));
+    assert!(mb.pending.is_empty(), "{:?}", mb.pending);
+    for (uid, id) in (1..).zip(&ids) {
+        let m = mb.message(*id).unwrap();
+        assert_eq!((m.folder, m.uid), (inbox, uid));
+    }
+}
+
+#[test]
+fn moving_on_a_selection_moved_out_of_an_imap_account_finds_each_move_where_it_lay() {
+    const N: u32 = 1_000;
+    let Fixture { mut mb, imap, .. } = fixture();
+    let inbox = folder(&mb, imap, FolderKind::Inbox);
+    let local = mb.add_account(Account { email: "ada@home.example".into(), kind: AccountKind::Local, ..Default::default() });
+    let (kept, archive) = (folder(&mb, local, FolderKind::Inbox), folder(&mb, local, FolderKind::Archive));
+    let ids = imap_mail(&mut mb, inbox, 1, N);
+    let to = |folder: Id| -> Vec<(Id, Id)> { ids.iter().map(|id| (*id, folder)).collect() };
+    assert_eq!(mb.move_each(&to(kept)).map(|m| m.len()), Ok(N as usize));
+    // Each original waits to go from the IMAP server by a move of that account's; moved on within
+    // the account that keeps it, that move goes on, found where it lay.
+    let before = waiting_scans();
+    assert_eq!(mb.move_each(&to(archive)).map(|m| m.len()), Ok(N as usize));
+    assert_eq!(waiting_scans() - before, 0);
+    assert_eq!(mb.pending.len(), N as usize);
+    assert!(mb.pending.iter().all(|p| matches!(p, Pending::Move { account, to, .. } if *account == imap && *to == archive)));
+}

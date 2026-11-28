@@ -258,10 +258,20 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::
     }
     // A contact a move took away, back and to be made on its server again: the one the move made,
     // taken away now, is deleted from its server only once that is done, as the move held its own
-    // deletion (#1144).
+    // deletion (#1144). So too when its deletion was waiting, and so may be on its way: an answer
+    // that it was deleted makes it again ([`apply_contact_outcomes`]), and the link holds this one's
+    // deletion till then.
+    // lean: this holds once the answer is in. Before it, the hold rests on the jobs' turns
+    // (`sync_driver::jobs::Busy`): a Graph calendar job doesn't start while an IMAP, Exchange or
+    // JMAP run is at work, but a JMAP run can start while a calendar job is in flight. So with the
+    // source's deletion on its way to Microsoft, a JMAP account's run can send this one's deletion
+    // first; should the source then not be made again, it is kept on this computer only (a refused
+    // Create keeps it there: [`give_up`]), never lost. Upgrade: hold this one's deletion until the
+    // source's account has answered once after the undo.
     for id in touched.changed_contacts() {
         let Some(from) = now.contact(*id).filter(|_| mailbox.contact(*id).is_none()).map(|c| c.moved_from).filter(|f| *f != 0) else { continue };
-        let creating = mailbox.contact_changes.iter().any(|n| n.contact == from && n.kind == ContactChangeKind::Create);
+        let creating = mailbox.contact_changes.iter().any(|n| n.contact == from && n.kind == ContactChangeKind::Create)
+            || now.contact_changes.iter().any(|n| n.contact == from && n.kind == ContactChangeKind::Delete);
         if creating && let Ok(c) = mailbox.contact_mut(from) {
             c.moved_from = *id;
         }
@@ -705,7 +715,7 @@ impl ContactsApplied {
 }
 
 /// A name for a line about a contact: short, and never empty.
-fn called(c: Option<&Contact>) -> String {
+pub(crate) fn called(c: Option<&Contact>) -> String {
     let name: String = c.map(Contact::name).unwrap_or_default().chars().filter(|ch| !ch.is_control()).take(60).collect();
     if name.trim().is_empty() { "A contact".to_string() } else { format!("\"{}\"", name.trim()) }
 }

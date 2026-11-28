@@ -1,0 +1,1 @@
+- Older and Outlook-written HTML mail keeps its spacing: a table's cell padding (`cellpadding`) and Outlook's own padding and paragraph spacing are now shown, and a thin coloured bar above a card (an empty coloured block with a height) is drawn instead of left out, on the desktop and on Android ([#1966](https://github.com/GITHUB_REPOSITORY/issues/1966)).

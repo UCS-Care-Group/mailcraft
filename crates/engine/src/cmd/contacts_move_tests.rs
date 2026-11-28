@@ -479,3 +479,177 @@ fn repair_drops_a_moves_delete_with_its_create_and_a_link_to_nothing() {
     assert!(!m.contact_changes.iter().any(|n| n.contact == moved), "the Create was cut");
     assert!(!m.contact_changes.iter().any(|n| n.contact == bo), "so its Delete is dropped too");
 }
+
+// Re-review of #1944 (CS5.1).
+
+#[test]
+fn one_still_being_made_moves_onto_this_computer_and_a_late_done_deletes_it_there() {
+    let mut r = Rig::new();
+    let ada_main = r.main(r.ada);
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
+    // Its Create is on its way, unanswered.
+    let op = r.upload(r.ada).ops.remove(0);
+    let here = r.mv(&[gus], 0)["moved"][0]["id"].as_u64().unwrap();
+    assert_ne!(here, gus, "a late answer is about the id it leaves behind");
+    assert_eq!(r.places("Gus"), vec![0]);
+    assert!(r.due(r.ada).is_empty(), "nothing to make there now");
+    // The server made it after all: it is told to delete it, and Gus stays here.
+    r.answer(r.ada, &op, ContactResult::Done, "c-gus");
+    assert_eq!(r.due(r.ada), [(ContactChangeKind::Delete, "c-gus".to_string())]);
+    let op = r.upload(r.ada).ops.remove(0);
+    r.answer(r.ada, &op, ContactResult::Done, "");
+    assert_eq!(r.places("Gus"), vec![0]);
+    assert!(r.s.mailbox.contact_changes.is_empty());
+}
+
+/// A delta read of Ada's folder, `days` after NOW, that brings `contacts` (not a whole list).
+fn delta(r: &Rig, days: i64, contacts: Vec<RemoteContact>) -> ContactsDownload {
+    ContactsDownload { complete: false, read_at: NOW + days * 86_400, ..download(r.ada, ADA, contacts) }
+}
+
+/// Independent review of #1951 (P1): a move onto this computer leaves no record behind that could
+/// be taken for a contact made on the server later, nor keep the account's contacts due.
+#[test]
+fn moved_onto_this_computer_before_it_went_up_leaves_nothing_behind() {
+    let mut r = Rig::new();
+    let ada_main = r.main(r.ada);
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "email": "gus@example.org", "folder": ada_main}))["id"].as_u64().unwrap();
+    r.mv(&[gus], 0);
+    assert!(r.s.mailbox.contact_changes.is_empty(), "{:?}", r.s.mailbox.contact_changes);
+    assert!(!crate::cmd::contacts_remote::contacts_due(&r.s.mailbox, r.ada, r.s.now()), "polling back to its own pace");
+    // Weeks later the same Gus is added on a phone: the next delta takes him in, and deletes nothing.
+    let phone = RemoteContact { emails: vec![Labeled::new("work", "gus@example.org")], ..person("c-gus-phone", "Gus") };
+    let later = delta(&r, 21, vec![phone]);
+    run(&mut r.s, "sync.applyContacts", json!({"download": later}));
+    assert_eq!(r.places("Gus"), vec![0, ada_main]);
+    assert!(r.due(r.ada).is_empty());
+}
+
+#[test]
+fn moved_onto_this_computer_while_being_sent_a_late_failure_leaves_nothing_behind() {
+    let mut r = Rig::new();
+    let ada_main = r.main(r.ada);
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "email": "gus@example.org", "folder": ada_main}))["id"].as_u64().unwrap();
+    let op = r.upload(r.ada).ops.remove(0);
+    r.mv(&[gus], 0);
+    // lean: a copy the server made despite the failure comes down as a second Gus (never lost).
+    r.answer(r.ada, &op, ContactResult::Failed, "");
+    assert!(r.s.mailbox.contact_changes.is_empty(), "{:?}", r.s.mailbox.contact_changes);
+    assert!(!crate::cmd::contacts_remote::contacts_due(&r.s.mailbox, r.ada, r.s.now()));
+    let phone = RemoteContact { emails: vec![Labeled::new("work", "gus@example.org")], ..person("c-gus-phone", "Gus") };
+    let later = delta(&r, 21, vec![phone]);
+    run(&mut r.s, "sync.applyContacts", json!({"download": later}));
+    assert_eq!(r.places("Gus"), vec![0, ada_main]);
+    assert!(r.due(r.ada).is_empty());
+}
+
+#[test]
+fn moved_on_again_before_the_late_answer_it_is_made_where_it_went_and_deleted_where_it_was_sent() {
+    let mut r = Rig::new();
+    let (ada_main, team) = (r.main(r.ada), r.team());
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
+    let op = r.upload(r.ada).ops.remove(0);
+    let here = r.mv(&[gus], 0)["moved"][0]["id"].as_u64().unwrap();
+    r.mv(&[here], team);
+    r.answer(r.ada, &op, ContactResult::Done, "c-gus");
+    assert_eq!(r.places("Gus"), vec![team]);
+    let mut due = r.due(r.ada);
+    due.sort_unstable_by_key(|(_, remote)| remote.clone());
+    assert_eq!(due, [(ContactChangeKind::Create, String::new()), (ContactChangeKind::Delete, "c-gus".to_string())]);
+    let delete = r.s.mailbox.contact_changes.iter().find(|n| n.kind == ContactChangeKind::Delete).unwrap();
+    assert_eq!(delete.folder, ada_main, "deleted from the folder it was sent to");
+}
+
+#[test]
+fn undo_of_a_move_onto_this_computer_while_being_sent_takes_the_late_answer_as_it_was() {
+    let mut r = Rig::new();
+    let ada_main = r.main(r.ada);
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
+    let op = r.upload(r.ada).ops.remove(0);
+    r.mv(&[gus], 0);
+    run(&mut r.s, "edit.undo", json!({}));
+    assert_eq!(r.places("Gus"), vec![ada_main]);
+    r.answer(r.ada, &op, ContactResult::Done, "c-gus");
+    assert_eq!(r.s.mailbox.contact(gus).unwrap().origin.id, "c-gus");
+    assert!(r.s.mailbox.contact_changes.is_empty(), "{:?}", r.s.mailbox.contact_changes);
+}
+
+#[test]
+fn a_move_still_being_made_goes_onto_this_computer_and_both_servers_copies_go() {
+    let mut r = Rig::new();
+    let (bo, eve_main) = (r.called("Bo"), r.main(r.eve));
+    let moved = r.mv(&[bo], eve_main)["moved"][0]["id"].as_u64().unwrap();
+    let op = r.upload(r.eve).ops.remove(0);
+    r.mv(&[moved], 0);
+    assert_eq!(r.places("Bo"), vec![0]);
+    // Kept here: Ada's copy goes now, Eve's once her server answers.
+    assert_eq!(r.due(r.ada), [(ContactChangeKind::Delete, "c-bo".to_string())]);
+    r.answer(r.eve, &op, ContactResult::Done, "e-bo");
+    assert_eq!(r.due(r.eve), [(ContactChangeKind::Delete, "e-bo".to_string())]);
+    assert_eq!(r.places("Bo"), vec![0]);
+}
+
+#[test]
+fn one_that_may_be_on_its_server_unheard_isnt_moved_onto_this_computer() {
+    let mut r = Rig::new();
+    let ada_main = r.main(r.ada);
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
+    let op = r.upload(r.ada).ops.remove(0);
+    // Failed: it may have been made, and only a later answer or a download will say.
+    r.answer(r.ada, &op, ContactResult::Failed, "");
+    let before = r.s.mailbox.clone();
+    let e = r.s.run("people.moveToFolder", &json!({"ids": [gus], "folder": 0})).unwrap_err();
+    assert!(e.to_string().contains("still being sent"), "{e}");
+    assert!(r.s.mailbox == before);
+}
+
+#[test]
+fn the_names_of_those_that_wait_are_cleaned_and_capped() {
+    let mut r = Rig::new();
+    let (ada_main, eve_main) = (r.main(r.ada), r.main(r.eve));
+    let long = format!("Gus\u{7}{}", "x".repeat(500));
+    let ids: Vec<Id> = (0..8)
+        .map(|n| {
+            run(&mut r.s, "people.new", json!({"first": if n == 0 { long.clone() } else { format!("P{n}") }, "folder": ada_main}))["id"]
+                .as_u64()
+                .unwrap()
+        })
+        .collect();
+    let e = r.s.run("people.moveToFolder", &json!({"ids": ids, "folder": eve_main})).unwrap_err().to_string();
+    assert!(e.starts_with("8 contacts are still being sent") && e.contains("P4") && !e.contains("P5"), "{e}");
+    assert!(!e.contains('\u{7}') && e.chars().count() < 300, "{e}");
+}
+
+#[test]
+fn a_selection_with_one_still_being_made_moves_the_others_and_names_it() {
+    let mut r = Rig::new();
+    let (bo, ada_main, eve_main) = (r.called("Bo"), r.main(r.ada), r.main(r.eve));
+    let gus = run(&mut r.s, "people.new", json!({"first": "Gus", "folder": ada_main}))["id"].as_u64().unwrap();
+    let said = r.mv(&[bo, gus], eve_main);
+    assert_eq!(said["moved"].as_array().unwrap().len(), 1, "{said}");
+    assert_eq!(said["skipped"], json!([{"contact": gus, "name": "\"Gus\""}]));
+    assert_eq!((r.places("Bo"), r.places("Gus")), (vec![eve_main], vec![ada_main]));
+}
+
+#[test]
+fn undo_while_the_sources_delete_is_on_its_way_holds_the_new_ones_delete_until_it_is_made_again() {
+    let mut r = Rig::new();
+    let bo = r.called("Bo");
+    let eve_main = r.main(r.eve);
+    r.mv(&[bo], eve_main);
+    let op = r.upload(r.eve).ops.remove(0);
+    r.answer(r.eve, &op, ContactResult::Done, "e-bo");
+    // Ada's server is told to delete Bo; undone before it answers.
+    let delete = r.upload(r.ada).ops.remove(0);
+    assert_eq!(delete.kind, ContactChangeKind::Delete);
+    run(&mut r.s, "edit.undo", json!({}));
+    // Deleted there after all: Bo is made there again, and Eve's copy waits for that.
+    r.answer(r.ada, &delete, ContactResult::Done, "");
+    assert_eq!(r.due(r.ada), [(ContactChangeKind::Create, String::new())]);
+    assert!(r.due(r.eve).is_empty(), "Eve's copy waits for Ada's server to make Bo again");
+    // Ada's server won't: Bo stays in Eve's folder, never in neither.
+    let op = r.upload(r.ada).ops.remove(0);
+    r.answer(r.ada, &op, ContactResult::Refused, "");
+    assert_eq!(r.places("Bo"), vec![eve_main]);
+    assert!(r.due(r.eve).is_empty());
+}

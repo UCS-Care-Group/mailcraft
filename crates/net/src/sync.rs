@@ -1037,12 +1037,14 @@ pub(crate) fn remote_flags(message: &Fetched) -> RemoteFlags {
 /// The message a server handed over, with what the server knows about it.
 fn message_from(fetched: Fetched) -> Message {
     let flags = remote_flags(&fetched);
-    let mut message = mailcraft_mime_model::parse_fetched(fetched.body.as_deref().unwrap_or_default());
+    let mut message = mailcraft_mime_model::parse_fetched_unmarked(fetched.body.as_deref().unwrap_or_default());
     message.uid = fetched.uid;
     message.read = flags.read;
     message.flag = if flags.flagged { FlagStatus::Flagged } else { FlagStatus::None };
     message.answered = flags.answered;
     message.draft = flags.draft;
+    // The pictures its body draws, now that it is known whether it is a draft (left as it is).
+    mailcraft_mime_model::mark_drawn(&mut message);
     message.forwarded |= has(&fetched.flags, "$Forwarded");
     message.received = fetched.internal_date.as_deref().and_then(internal_date).unwrap_or(message.date);
     message
@@ -1659,6 +1661,10 @@ mod quote_tests;
 #[cfg(test)]
 #[path = "sync_size_tests.rs"]
 mod size_tests;
+
+#[cfg(test)]
+#[path = "sync_drawn_tests.rs"]
+mod drawn_tests;
 
 #[cfg(test)]
 #[path = "sync_many_folders_tests.rs"]

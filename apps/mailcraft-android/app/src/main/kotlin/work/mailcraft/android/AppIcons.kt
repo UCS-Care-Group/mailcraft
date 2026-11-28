@@ -223,7 +223,8 @@ internal object AppIcons {
     }
 }
 
-internal fun icon(name: String, build: PathBuilder.() -> Unit): ImageVector =
+/** One of our icons: strokes, and with [filled] the closed shapes filled too. */
+internal fun icon(name: String, filled: Boolean = false, build: PathBuilder.() -> Unit): ImageVector =
     ImageVector.Builder(
         name = name,
         defaultWidth = 24.dp,
@@ -231,6 +232,7 @@ internal fun icon(name: String, build: PathBuilder.() -> Unit): ImageVector =
         viewportWidth = 24f,
         viewportHeight = 24f,
     ).path(
+        fill = if (filled) SolidColor(Color.Black) else null,
         stroke = SolidColor(Color.Black),
         strokeLineWidth = 2f,
         strokeLineCap = StrokeCap.Round,
