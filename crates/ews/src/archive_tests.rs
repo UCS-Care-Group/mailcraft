@@ -278,7 +278,14 @@ fn a_folder_made_at_the_top_of_the_archive_is_made_there() {
 fn only_a_definite_no_says_there_is_no_archive() {
     use crate::error::ResponseCode;
     // The server has no such folder, or its schema doesn't know the name or the version.
-    for code in [ResponseCode::FolderNotFound, ResponseCode::SchemaValidation, ResponseCode::InvalidRequest, ResponseCode::InvalidServerVersion] {
+    // Or it says the mailbox has no archive enabled (#1834 review).
+    for code in [
+        ResponseCode::FolderNotFound,
+        ResponseCode::SchemaValidation,
+        ResponseCode::InvalidRequest,
+        ResponseCode::InvalidServerVersion,
+        ResponseCode::from_name("ErrorArchiveMailboxNotEnabled"),
+    ] {
         assert!(crate::run::says_no_archive(&code), "{code}");
     }
     // Access denied, a mailbox being moved, a server failing for now, anything else: nothing is

@@ -919,7 +919,13 @@ pub enum ArchiveProbe {
 /// one not known here) says nothing either way: two "no"s in a row take the archive off the pane.
 pub(crate) fn says_no_archive(code: &ResponseCode) -> bool {
     matches!(code, ResponseCode::FolderNotFound | ResponseCode::SchemaValidation | ResponseCode::InvalidRequest | ResponseCode::InvalidServerVersion)
+        // (`ErrorArchiveMailboxNotEnabled`, [MS-OXWSCDATA]: the mailbox has no archive, or no
+        // longer has one, #1834 review.)
+        || matches!(code, ResponseCode::Other(name) if name == ARCHIVE_NOT_ENABLED)
 }
+
+/// The response code of a server whose mailbox has no archive enabled ([MS-OXWSCDATA]).
+const ARCHIVE_NOT_ENABLED: &str = "ErrorArchiveMailboxNotEnabled";
 
 /// Asks whether the account's mailbox has a personal archive (#1818): one `GetFolder` of
 /// `archivemsgfolderroot`, sent to the account's own server like every other request. It never
