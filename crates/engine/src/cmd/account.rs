@@ -2206,6 +2206,32 @@ fn folder_for(mb: &mut Mailbox, account: Id, remote: &str, kind: FolderKind) -> 
     (1..=50).find_map(|n| mb.add_folder(account, None, &if n == 1 { base.clone() } else { format!("{base} ({n})") }).ok())
 }
 
+/// The label of a folder whose parent isn't here: its whole path on the server, so the owner can
+/// tell where it belongs. Where the account's folder names can't hold `/`, the parts are joined
+/// by ` › ` instead.
+fn path_label(mb: &Mailbox, account: Id, remote: &str) -> Option<String> {
+    let label = clean_name(remote)?;
+    if !label.contains('/') || mb.names_may_hold_slashes(account) {
+        return Some(label);
+    }
+    clean_name(&label.split('/').map(str::trim).filter(|part| !part.is_empty()).collect::<Vec<_>>().join(" › "))
+}
+
+/// `base` as the `n`th folder of that name beside others: `base` itself, then `base (2)` on.
+fn numbered(base: &str, n: usize) -> String {
+    if n <= 1 { base.to_string() } else { format!("{base} ({n})") }
+}
+
+/// Whether `name` is `base`, or `base` with the number [`numbered`] gives a name already taken.
+fn is_numbered(name: &str, base: &str) -> bool {
+    name == base
+        || name
+            .strip_prefix(base)
+            .and_then(|rest| rest.strip_prefix(" ("))
+            .and_then(|rest| rest.strip_suffix(')'))
+            .is_some_and(|n| (1..=2).contains(&n.len()) && n.bytes().all(|b| b.is_ascii_digit()))
+}
+
 /// Give every folder of mail the server lists a folder here, in the same tree, before any of its
 /// mail has come: the standard folder of its kind when that follows no mailbox yet, else a new
 /// folder under the one its parent has here. Move a flat folder into its parent once known,
@@ -2262,32 +2288,57 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
                 // A flat folder keeps the path for context. A nested one has that context in
                 // the pane, even when the parent is local only and the server never lists it.
                 let flat = local_parent.is_none() && !f.parent.is_empty();
-                let listed_as = if flat { &f.remote } else { &f.name };
-                if let Some(name) = clean_name(listed_as).filter(|name| !name.contains('/'))
-                    && local_name != name
-                    && (local_name == cut_name(&f.remote)
-                        || (local_parent.is_some() && !f.parent.is_empty() && clean_name(&f.remote).as_deref() == Some(local_name.as_str())))
-                    && mb.rename_folder(id, &name).is_ok()
+                let label = path_label(mb, account, &f.remote);
+                let listed_as = if flat { label.clone() } else { clean_name(&f.name) };
+                // Only a name this program gave it is put right: the path label, numbered when
+                // it was taken (`Other.Acme (2)`), or what an earlier version cut it to.
+                let given = local_name == cut_name(&f.remote)
+                    || (local_parent.is_some() && !f.parent.is_empty() && label.as_deref().is_some_and(|label| is_numbered(&local_name, label)));
+                if let Some(base) = listed_as.filter(|name| !name.contains('/'))
+                    && local_name != base
+                    && given
                 {
-                    names.entry(local_parent).or_default().insert(name.to_lowercase());
+                    let taken = names.entry(local_parent).or_default();
+                    let own = local_name.to_lowercase();
+                    let free = (1..=50).find_map(|n| {
+                        let name = clean_name(&numbered(&base, n))?;
+                        let lower = name.to_lowercase();
+                        (lower == own || !taken.contains(&lower)).then_some(name)
+                    });
+                    if let Some(name) = free
+                        && mb.rename_folder(id, &name).is_ok()
+                    {
+                        taken.insert(name.to_lowercase());
+                    }
                 }
             }
             None => {
                 let standard = if f.kind == FolderKind::Custom { None } else { mb.folder_of_kind(account, f.kind) };
                 let standard = standard.filter(|id| find(mb, &at, *id).and_then(|i| mb.folders.get(i)).is_some_and(|here| here.remote.is_empty()));
-                let listed_as = if parent.is_none() && !f.parent.is_empty() { &f.remote } else { &f.name };
-                let base = clean_name(listed_as).unwrap_or_else(|| leaf_name(&f.remote));
+                // Its parent isn't here: the whole path says where it belongs. Should that label
+                // still be refused, the last part of the path will do, so it is never left out.
+                let leaf = clean_name(&f.name).filter(|name| !name.contains('/')).unwrap_or_else(|| leaf_name(&f.remote));
+                let label = if parent.is_none() && !f.parent.is_empty() { path_label(mb, account, &f.remote) } else { clean_name(&f.name) };
+                let mut bases = Vec::with_capacity(2);
+                bases.extend(label.filter(|label| *label != leaf));
+                bases.push(leaf);
                 // A name already taken beside it gets a number.
                 let made = standard.or_else(|| {
                     let taken = names.entry(parent).or_default();
-                    let free = (1..=50).find_map(|n| {
-                        let name = clean_name(&if n == 1 { base.clone() } else { format!("{base} ({n})") })?;
-                        (!taken.contains(&name.to_lowercase())).then_some(name)
-                    })?;
-                    let id = mb.add_folder_free(account, parent, &free).ok()?;
-                    taken.insert(free.to_lowercase());
-                    at.insert(id, mb.folders.len().saturating_sub(1));
-                    Some(id)
+                    for base in &bases {
+                        let Some(free) = (1..=50).find_map(|n| {
+                            let name = clean_name(&numbered(base, n))?;
+                            (!taken.contains(&name.to_lowercase())).then_some(name)
+                        }) else {
+                            continue;
+                        };
+                        if let Ok(id) = mb.add_folder_free(account, parent, &free) {
+                            taken.insert(free.to_lowercase());
+                            at.insert(id, mb.folders.len().saturating_sub(1));
+                            return Some(id);
+                        }
+                    }
+                    None
                 });
                 if let Some(id) = made {
                     if let Some(here) = find(mb, &at, id).and_then(|i| mb.folders.get_mut(i)) {

@@ -3278,8 +3278,13 @@ fn the_servers_folder_tree_is_here_before_its_mail() {
         listed("Receipts", FolderKind::Inbox, "Receipts/2026", "Receipts"),
     ];
     junk.extend((0..5000).map(|i| listed(&format!("Bulk/{i}"), FolderKind::Custom, "Bulk", &"x".repeat(i % 300))));
+    let (before, most) = (s.mailbox.folders.len(), junk.len());
     cmd::account::apply_sync(&mut s, SyncResult { account: a, listed: junk, ..Default::default() }).unwrap();
-    assert!(s.mailbox.folders.len() < 2100);
+    // At most one folder for each listed, and every one whose parent nobody listed has one,
+    // labelled by its whole path (#2035).
+    assert!(s.mailbox.folders.len() <= before + most);
+    assert_eq!(s.mailbox.folders.iter().filter(|f| f.account == a && f.remote.starts_with("Bulk/")).count(), 5000);
+    assert_eq!(find(&s, "Bulk/17").name, "Bulk › 17");
     // No folder ended up inside itself, and the mailbox still holds together.
     for f in &s.mailbox.folders {
         assert!(!s.mailbox.subtree(f.id).iter().skip(1).any(|id| *id == f.id), "{}", f.name);
@@ -3331,6 +3336,68 @@ fn imap_repairs_full_path_labels_of_nested_folders_and_preserves_local_names() {
     let folders = s.mailbox.folders.clone();
     cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree, ..Default::default() }).unwrap();
     assert_eq!(s.mailbox.folders, folders);
+}
+
+#[test]
+fn a_numbered_path_label_is_shortened_once_its_parent_is_listed_and_a_chosen_one_stays() {
+    use mailcraft_model::sync::{ListedFolder, SyncResult};
+
+    let mut s = session();
+    let account =
+        run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+    // Folders of the owner's that take the labels the server's folders would have.
+    s.mailbox.add_folder(account, None, "Other.Acme").unwrap();
+    s.mailbox.add_folder(account, None, "Team.Plans").unwrap();
+    let listed = |remote: &str, parent: &str, name: &str| ListedFolder {
+        remote: remote.into(),
+        parent: parent.into(),
+        name: name.into(),
+        ..Default::default()
+    };
+    let mut tree = vec![listed("Other.Acme", "Other", "Acme"), listed("Team.Plans", "Team", "Plans")];
+    cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree.clone(), ..Default::default() }).unwrap();
+    let by_remote = |s: &Session, remote: &str| s.mailbox.folders.iter().find(|f| f.account == account && f.remote == remote).unwrap().clone();
+    assert_eq!(by_remote(&s, "Other.Acme").name, "Other.Acme (2)");
+    // The owner names this one: it is theirs from now on.
+    let plans = by_remote(&s, "Team.Plans").id;
+    assert_eq!(s.mailbox.folder(plans).unwrap().name, "Team.Plans (2)");
+    s.mailbox.rename_folder(plans, "Team.Plans (old)").unwrap();
+
+    tree.extend([listed("Other", "", "Other"), listed("Team", "", "Team")]);
+    cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree, ..Default::default() }).unwrap();
+    let acme = by_remote(&s, "Other.Acme");
+    assert_eq!(acme.name, "Acme");
+    assert_eq!(acme.parent, Some(by_remote(&s, "Other").id));
+    let plans = by_remote(&s, "Team.Plans");
+    assert_eq!(plans.name, "Team.Plans (old)");
+    assert_eq!(plans.parent, Some(by_remote(&s, "Team").id));
+}
+
+#[test]
+fn a_slash_path_whose_parent_is_not_listed_still_gets_a_folder() {
+    use mailcraft_model::sync::{ListedFolder, SyncResult};
+
+    let mut s = session();
+    let account =
+        run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+    assert!(!s.mailbox.names_may_hold_slashes(account));
+    let listed = |remote: &str, parent: &str, name: &str| ListedFolder {
+        remote: remote.into(),
+        parent: parent.into(),
+        name: name.into(),
+        ..Default::default()
+    };
+    let mut tree = vec![listed("Clients/Acme", "Clients", "Acme")];
+    cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree.clone(), ..Default::default() }).unwrap();
+    let by_remote = |s: &Session, remote: &str| s.mailbox.folders.iter().find(|f| f.account == account && f.remote == remote).cloned();
+    let acme = by_remote(&s, "Clients/Acme").unwrap();
+    assert_eq!((acme.parent, acme.name.as_str()), (None, "Clients › Acme"));
+
+    tree.push(listed("Clients", "", "Clients"));
+    cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree, ..Default::default() }).unwrap();
+    let acme = by_remote(&s, "Clients/Acme").unwrap();
+    assert_eq!(acme.name, "Acme");
+    assert_eq!(acme.parent, by_remote(&s, "Clients").map(|f| f.id));
 }
 
 #[test]
