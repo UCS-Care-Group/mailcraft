@@ -704,6 +704,11 @@ msgstr "Een filter van uw webmail heeft hier één voorwaarde, op een ontvanger 
 
 #. what a command says
 #: crates/engine/src/cmd/rules_webmail.rs
+msgid "A filter of your webmail's has too much text to look for."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
 #, fuzzy
 msgid "A filter of your webmail's is kept in your Sieve script on the server."
 msgstr "Een filter van uw webmail blijft in uw Sieve-script op de server."
@@ -9235,14 +9240,15 @@ msgid "MailCraft can't keep this account's rules on its server, so they run on t
 msgstr "MailCraft kan de regels van dit account niet op de server bewaren, dus ze worden op deze computer uitgevoerd: {why}. {advice}"
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "MailCraft can't open {name} because of its file type."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "MailCraft can't read the rules of this script."
 msgstr "MailCraft kan de regels van dit script niet lezen."
-
-#: crates/ui-egui/src/attachment_open.rs
-msgid "MailCraft can't open {name} because of its file type."
-msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -9560,6 +9566,11 @@ msgstr "MailCraft {version} is niet geïnstalleerd: deze versie is nog steeds de
 msgid "MailCraft's Google Desktop registration is not yet configured for this build."
 msgstr "De registratie van MailCraft als Google-bureaubladtoepassing is nog niet geconfigureerd voor deze build."
 
+#. what a command says
+#: crates/engine/src/cmd/sieve_replies.rs
+msgid "MailCraft's Sieve script on the server changed again since you chose to replace it: look at it again before replacing it."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
@@ -9664,6 +9675,11 @@ msgstr "Regels beheren…"
 #: crates/engine/src/cmd/tasks.rs crates/ui-egui/src/ribbon.rs
 msgid "Manage Task"
 msgstr "Taak beheren"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sieve.rs
+msgid "ManageSieve is made secure with STARTTLS, not encrypted from the first byte"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/net/src/sieve.rs
@@ -19878,6 +19894,11 @@ msgid "This account's Favorites come from Outlook and are changed there (File �
 msgstr "De favorieten van dit account komen uit Outlook en worden daar gewijzigd (Bestand › Opties kan in plaats daarvan de favorieten weergeven die in MailCraft worden bewaard)"
 
 #. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "This account's Sieve server was changed in Account Settings meanwhile: open your script again."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_sync.rs
 #, fuzzy
 msgid "This account's calendar can't be asked yet: Send/Receive signs it in first."
@@ -22132,6 +22153,11 @@ msgstr "Waar de kaart zegt dat de sleutel is: MailCraft haalt hem niet op."
 msgid "Where they differ, the kept contact has:"
 msgstr "Waar ze verschillen, heeft de behouden contactpersoon:"
 
+#. what a command says
+#: crates/engine/src/cmd/sieve_blocks.rs
+msgid "Where this rule ends in your Sieve script isn't clear (a filter of your webmail's without its END:FILTER, or a rule that runs across a filter's marks), so MailCraft doesn't change it: change it in your webmail or in the whole script."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -22883,6 +22909,11 @@ msgstr "Uw regels zijn op de server niet gewijzigd"
 #, fuzzy
 msgid "Your webmail (RainLoop or SnappyMail) keeps its own copy of this filter's settings, which stay as they are. It may put its version back the next time filters are saved there, and MailCraft changes the filter only as Sieve from now on."
 msgstr "Uw webmail (RainLoop of SnappyMail) bewaart een eigen kopie van de instellingen van dit filter, die blijven zoals ze zijn. Die kan zijn versie terugzetten als filters daar opnieuw worden opgeslagen, en MailCraft wijzigt het filter voortaan alleen als Sieve."
+
+#. what a command says
+#: crates/engine/src/cmd/rules_webmail.rs
+msgid "Your webmail's Sieve script has commands of its own and no filter to put a new one after: add the filter in your webmail, or change the whole script."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/rules_webmail.rs
@@ -23949,6 +23980,11 @@ msgstr "hij gaat bij de volgende verbinding naar de server"
 #, fuzzy
 msgid "it has a part MailCraft can't write as Sieve"
 msgstr "ze heeft een deel dat MailCraft niet als Sieve kan schrijven"
+
+#. name
+#: crates/engine/src/cmd/sieve_elsewhere.rs
+msgid "it has comments inside it, which the rule builder would leave out"
+msgstr ""
 
 #. name
 #: crates/engine/src/cmd/sieve_elsewhere.rs
@@ -25218,6 +25254,11 @@ msgstr "de ManageSieve-server op {at} biedt geen STARTTLS aan"
 msgid "the OpenPGP key is larger than a Public key is kept"
 msgstr "de OpenPGP-sleutel is groter dan een openbare sleutel mag zijn om bewaard te worden"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+msgid "the Sieve script isn't UTF-8 text, which MailCraft can't change without altering it"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
@@ -26034,6 +26075,11 @@ msgstr "de server beëindigde de sessie: {reason}"
 msgid "the server greeted with a refusal: {reason}"
 msgstr "de server groette met een weigering: {reason}"
 
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+msgid "the server has more Sieve scripts than MailCraft reads ({n})"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
@@ -26051,6 +26097,11 @@ msgstr "de server is niet in IDLE"
 #, fuzzy
 msgid "the server keeps this folder: it can't be renamed, moved or deleted"
 msgstr "de server beheert deze map: deze kan niet worden hernoemd, verplaatst of verwijderd"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+msgid "the server listed a Sieve script whose name MailCraft can't use"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/managesieve/mod.rs crates/proto/src/smtp.rs
@@ -26184,11 +26235,21 @@ msgstr "de server deed er te lang over om te antwoorden"
 msgid "the server wouldn't send “{subject}” whole, so it can't be forwarded as an attachment"
 msgstr "de server wilde „{subject}” niet heel verzenden, dus het kan niet als bijlage worden doorgestuurd"
 
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "the server's Sieve scripts can't be reached"
+msgstr ""
+
 #. name
 #: crates/engine/src/cmd/rules.rs
 #, fuzzy
 msgid "the server's Sieve scripts can't do one of its actions or conditions"
 msgstr "de Sieve-scripts van de server kunnen een van de acties of voorwaarden niet uitvoeren"
+
+#. interface
+#: crates/ui-egui/src/sieve_replies.rs
+msgid "the server's Sieve scripts can't file mail into folders"
+msgstr ""
 
 #. name
 #: crates/engine/src/cmd/rules.rs
@@ -26249,6 +26310,11 @@ msgstr "de Sieve-scripts van de server kunnen e-mail die alleen aan u is gestuur
 #, fuzzy
 msgid "the server's Sieve scripts can't tell meeting invitations"
 msgstr "de Sieve-scripts van de server kunnen vergaderverzoeken niet herkennen"
+
+#. why a mail server couldn't be used
+#: crates/proto/src/managesieve/mod.rs
+msgid "the server's answer to one command is too long"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
