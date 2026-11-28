@@ -15,7 +15,11 @@ pub mod brands;
 mod calendar;
 pub mod confusables;
 mod contact;
+pub mod contact_sync;
+#[cfg(test)]
+mod contact_sync_tests;
 pub mod dav;
+pub mod dav_down;
 mod dav_server;
 pub mod device_limits;
 #[cfg(test)]
@@ -73,6 +77,7 @@ pub use calendar::{
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
+pub use dav_down::{DavAsk, DavAskCollection, DavCalendar, DavChange, DavDownload, DavKnown, DavListing, DavProblem, DavRead, DavReadState};
 pub use dav_server::{DavCollectionState, DavServer, origin_of};
 pub use device_limits::{DeviceLimits, PHONE_DEFAULTS, PHONE_DOWNLOAD, PHONE_KEEP, PHONE_STORAGE};
 pub use ews_server::{EwsServer, is_exchange_online, is_google_host, is_microsoft_domain, is_within};

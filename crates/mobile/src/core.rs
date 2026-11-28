@@ -557,6 +557,8 @@ impl Core {
         self.closing.store(true, Ordering::Release);
         // What is being fetched is called off: nothing it brings is taken in.
         self.sync.cancel_fetches(None);
+        // (A pull to refresh that waits for its mail is let go of; none waits after this.)
+        self.sync.close_waiters();
         self.sync.pacer.poke();
         // (A sign-in waiting for its page is called off; none begins after this.)
         self.signins.cancel();

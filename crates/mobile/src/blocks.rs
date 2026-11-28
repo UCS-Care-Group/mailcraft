@@ -5,19 +5,24 @@
 //! needs is carried; nothing is fetched, and a picture's bytes come through `Core::picture` by
 //! the reference a block names.
 
-use mailcraft_html::{Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, Marker, Rgb, Row, Sides, Span, Table, VAlign};
+use mailcraft_html::fonts::{self, Generic};
+use mailcraft_html::{
+    Align, Block, BlockKind, Cell, Insets, Length, LineHeight, LineStyle, MAX_TABLE_DEPTH, Marker, Place, Rgb, Row, Sides, Span, Table, VAlign,
+    reading,
+};
 
 use crate::text::MAX_URL;
 
-/// Deepest nesting of tables that is carried (the parser keeps to 12).
-const MAX_DEPTH: usize = 16;
 /// Most blocks, cells and spans in one message's records: past it the rest is left out.
-const MAX_NODES: usize = 60_000;
+pub(crate) const MAX_NODES: usize = 60_000;
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
 pub struct SpanView {
     pub text: String,
     pub bold: bool,
+    /// 1 to 1000: what the message asks for (700 for bold text that names no number, 400 for
+    /// the rest), or what the family's name says (`Segoe UI Light`) when it asks for neither.
+    pub weight: u16,
     pub italic: bool,
     pub underline: bool,
     pub strike: bool,
@@ -30,8 +35,21 @@ pub struct SpanView {
     pub background: Option<u32>,
     /// CSS pixels.
     pub size: Option<u8>,
-    /// Font families asked for, lower case and comma-joined.
-    pub font: Option<String>,
+    /// The phone font the families asked for come to ([`mailcraft_html::fonts::stand_in`]).
+    pub face: FaceView,
+    /// A link drawn without its line: the message says so.
+    #[uniffi(default = false)]
+    pub bare: bool,
+}
+
+/// A kind of phone font.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Enum)]
+pub enum FaceView {
+    /// The phone's own sans-serif.
+    Own,
+    Serif,
+    Mono,
+    Condensed,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Enum)]
@@ -149,6 +167,10 @@ pub struct BlockView {
     pub inset_right: u8,
     pub image_padding: Option<InsetsView>,
     pub line: LineView,
+    /// The block reads from the right (its direction, not its side: `align` is that), as the
+    /// message's `dir` or `direction` says, or a plain-text paragraph's first strong letter.
+    #[uniffi(default = false)]
+    pub rtl: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -170,6 +192,13 @@ pub struct TableView {
     pub box_margin_left: u8,
     pub box_margin_right: u8,
     pub float: bool,
+    /// A layout table is stacked rather than given columns that hold something narrower than
+    /// this, in dp: the desktop's rule (`mailcraft_html::reading::MIN_LAYOUT_COLUMN`).
+    #[uniffi(default = 110)]
+    pub min_column: u8,
+    /// A box on a line: the gap in front of it when it follows another, in dp.
+    #[uniffi(default = 0)]
+    pub gap_before: u8,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -191,6 +220,16 @@ pub struct CellView {
     pub padding: Option<InsetsView>,
     pub radius: u8,
     pub valign: Option<VAlignView>,
+    /// Its place in the table's grid, as the reading pane puts it (`mailcraft_html::grid`): its
+    /// first row and column and the rows and columns it covers. No two cells overlap.
+    #[uniffi(default = 0)]
+    pub row: u32,
+    #[uniffi(default = 0)]
+    pub col: u16,
+    #[uniffi(default = 1)]
+    pub rows: u32,
+    #[uniffi(default = 1)]
+    pub cols: u16,
 }
 
 fn rgb(c: Rgb) -> u32 {
@@ -221,9 +260,12 @@ fn length(l: Length) -> LengthView {
 }
 
 fn span(s: &Span) -> SpanView {
+    let (face, named) = s.font.as_deref().map_or((Generic::Own, 400), fonts::stand_in);
+    let weight = s.weight.unwrap_or(if s.bold { 700 } else { named });
     SpanView {
         text: s.text.clone(),
         bold: s.bold,
+        weight,
         italic: s.italic,
         underline: s.underline,
         strike: s.strike,
@@ -232,7 +274,13 @@ fn span(s: &Span) -> SpanView {
         color: s.color.map(rgb),
         background: s.background.map(rgb),
         size: s.size,
-        font: s.font.clone(),
+        face: match face {
+            Generic::Own => FaceView::Own,
+            Generic::Serif => FaceView::Serif,
+            Generic::Mono => FaceView::Mono,
+            Generic::Condensed => FaceView::Condensed,
+        },
+        bare: s.bare,
     }
 }
 
@@ -275,13 +323,274 @@ impl Budget {
     }
 }
 
+/// The most tables the phone draws inside one another (fewer than the parser keeps): each table asks
+/// what is in it of its size, so the phone's work grows with every level.
+/// lean: four, as mail rarely nests deeper; raise with care, as the work is per level.
+pub(crate) const PHONE_TABLE_DEPTH: usize = if MAX_TABLE_DEPTH < 4 { MAX_TABLE_DEPTH } else { 4 };
+
+/// The most characters one text block is sent with. The phone draws a block's text as one piece,
+/// which can be no taller than 2^24 px; at its largest (48 px text in lines of 255 px, a font scale
+/// of 2 and 4 px to the dp, a character to a line in a narrow cell) a line is about 2,040 px, so this
+/// many characters stay under half of that. A longer block goes as several, one under another, cut
+/// at a line break, else after a space, else between two characters: every character kept, in order.
+pub(crate) const MAX_BLOCK_CHARS: usize = 4_000;
+
+/// Text, as the phone joins it into one piece when it goes on in a line: anything not a picture or a table.
+fn is_text(kind: &BlockKindView) -> bool {
+    !matches!(kind, BlockKindView::Image { .. } | BlockKindView::Table { .. })
+}
+
+fn chars_of(v: &BlockView) -> usize {
+    v.spans.iter().fold(0usize, |n, s| n.saturating_add(s.text.chars().count()))
+}
+
+/// A space a piece may end after: not a line break (a break of its own) nor a no-break space.
+fn breaks_line(c: char) -> bool {
+    c.is_whitespace() && c != '\n' && !no_break(c)
+}
+
+/// Where to end a piece within `head` (the most one may still take), at a line break or after a
+/// space: the byte it ends at and the byte the next starts at. A line break goes (the next block
+/// starts the line); a space stays. A line break `head` starts with is not one: it is the blank
+/// line the piece starts with. None when `head` has neither.
+fn break_in(head: &str) -> Option<(usize, usize)> {
+    if let Some(i) = head.rfind('\n').filter(|&i| i > 0) {
+        return Some((i, i.saturating_add(1)));
+    }
+    head.char_indices().rev().find(|(_, c)| breaks_line(*c)).map(|(i, c)| {
+        let at = i.saturating_add(c.len_utf8());
+        (at, at)
+    })
+}
+
+/// A character that belongs with the one before it: a combining mark (Latin, Greek, Cyrillic,
+/// Hebrew, Arabic and the general blocks), a joiner, a variation selector, a skin tone or a tag.
+fn extends(c: char) -> bool {
+    matches!(
+        u32::from(c),
+        0x0300..=0x036F
+            | 0x0483..=0x0489
+            | 0x0591..=0x05BD
+            | 0x05BF
+            | 0x05C1..=0x05C2
+            | 0x05C4..=0x05C5
+            | 0x05C7
+            | 0x0610..=0x061A
+            | 0x064B..=0x065F
+            | 0x0670
+            | 0x06D6..=0x06DC
+            | 0x06DF..=0x06E4
+            | 0x06E7..=0x06E8
+            | 0x06EA..=0x06ED
+            | 0x1AB0..=0x1AFF
+            | 0x1DC0..=0x1DFF
+            | 0x200C..=0x200D
+            | 0x20D0..=0x20FF
+            | 0xFE00..=0xFE0F
+            | 0xFE20..=0xFE2F
+            | 0x1F3FB..=0x1F3FF
+            | 0xE0020..=0xE007F
+            | 0xE0100..=0xE01EF
+    )
+}
+
+/// A space that holds the words either side of it together.
+fn no_break(c: char) -> bool {
+    matches!(c, '\u{A0}' | '\u{2007}' | '\u{202F}')
+}
+
+fn regional(c: char) -> bool {
+    matches!(u32::from(c), 0x1F1E6..=0x1F1FF)
+}
+
+/// `at` (a character boundary of `text`) moved back to the nearest boundary between two letters
+/// as one sees them: not before a mark or joiner, not after a joiner, not inside a flag's pair, not
+/// either side of a no-break space.
+/// None when there is none before it (a run of marks as long as a block).
+// lean: the common clusters only, not all of UAX #29 (Indic conjuncts, Hangul syllables in jamo).
+fn whole_at(text: &str, at: usize) -> Option<usize> {
+    let mut cut = at;
+    loop {
+        let before = text.get(..cut).and_then(|t| t.chars().next_back());
+        let after = text.get(cut..).and_then(|t| t.chars().next());
+        let inside = match (before, after) {
+            (Some(b), Some(a)) => {
+                extends(a)
+                    || b == '\u{200D}'
+                    || no_break(b)
+                    || no_break(a)
+                    || (regional(b) && regional(a) && text.get(..cut).is_some_and(|t| t.chars().rev().take_while(|c| regional(*c)).count() % 2 == 1))
+            }
+            _ => false,
+        };
+        match before {
+            Some(b) if inside && cut > b.len_utf8() => cut -= b.len_utf8(),
+            _ if inside => return None,
+            _ => return Some(cut),
+        }
+    }
+}
+
+/// Where the piece that starts at byte `from` of `text` (the block's spans joined) ends, and where
+/// the next starts; None when the rest is one piece. At its last line break or space, unless what
+/// follows that is a word longer than a piece (that word is cut where the room ends, rather than
+/// leave a few words alone); else, a word longer than a piece, between two letters. One line break
+/// at the cut goes with it (the next block starts the line); a piece may start with others.
+fn next_cut(text: &str, from: usize) -> Option<(usize, usize)> {
+    let rest = text.get(from..)?;
+    let at = rest.char_indices().nth(MAX_BLOCK_CHARS)?.0;
+    // Whether a piece from `after` on finds a break: a word of a whole piece, and the space after it.
+    let breaks = |after: &str| match after.char_indices().nth(MAX_BLOCK_CHARS.saturating_add(1)) {
+        None => true,
+        Some((n, _)) => after.get(..n).and_then(break_in).is_some(),
+    };
+    let broken = rest.get(..at).and_then(break_in).filter(|&(_, resume)| rest.get(resume..).is_some_and(breaks));
+    let (end, resume) = match broken {
+        Some((end, resume)) if end < resume => (end, resume),
+        // After a space, or between two letters: not before a mark that belongs to the letter before.
+        found => {
+            // After the space where that is whole and leaves more than spaces before it; else where the
+            // room ends, between two letters; else (no such place) there.
+            let cut = found
+                .and_then(|(end, _)| whole_at(rest, end))
+                .filter(|&cut| rest.get(..cut).is_some_and(|t| !t.trim().is_empty()))
+                .or_else(|| whole_at(rest, at))
+                // Never a piece of only a line break before a letter longer than a block: cut in it.
+                .filter(|&cut| rest.get(..cut).is_some_and(|t| !t.chars().all(|c| c == '\n')))
+                .unwrap_or(at);
+            // A line break right at the cut goes, as at any line break: the next block starts the line.
+            if rest.get(..cut).is_some_and(|t| t.ends_with('\n')) && cut > 1 {
+                (cut.saturating_sub(1), cut)
+            } else if rest.get(cut..).is_some_and(|t| t.starts_with('\n')) {
+                (cut, cut.saturating_add(1))
+            } else {
+                (cut, cut)
+            }
+        }
+    };
+    Some((from.saturating_add(end), from.saturating_add(resume)))
+}
+
+#[cfg(test)]
+thread_local! {
+    /// How many spans [`spans_in`] has looked at: what pins its one pass in a test.
+    pub(crate) static SPANS_LOOKED_AT: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    /// How many bytes of text [`spans_in`] has copied: what pins its one pass over the text in a test.
+    pub(crate) static BYTES_COPIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+}
+
+/// What of `text` (the block's spans joined) lies in `from..end`, in the look of each span it falls in:
+/// `styles` are the spans with their text taken out, each starting at its byte of `starts`. Only the
+/// spans from the one `from` falls in are looked at, and only the piece's own text is copied, so a
+/// block is cut in one pass over its text.
+fn spans_in(text: &str, styles: &[SpanView], starts: &[usize], from: usize, end: usize) -> Vec<SpanView> {
+    let first = starts.partition_point(|&start| start <= from).saturating_sub(1);
+    let mut out = Vec::new();
+    for (i, style) in styles.iter().enumerate().skip(first) {
+        #[cfg(test)]
+        SPANS_LOOKED_AT.with(|n| n.set(n.get().saturating_add(1)));
+        let start = starts.get(i).copied().unwrap_or(text.len());
+        if start >= end {
+            break;
+        }
+        let stop = starts.get(i.saturating_add(1)).copied().unwrap_or(text.len());
+        if let Some(t) = text.get(from.max(start)..end.min(stop)).filter(|t| !t.is_empty()) {
+            #[cfg(test)]
+            BYTES_COPIED.with(|n| n.set(n.get().saturating_add(t.len()).saturating_add(style.text.len())));
+            out.push(SpanView { text: t.to_string(), ..style.clone() });
+        }
+    }
+    out
+}
+
+/// `v` as blocks of at most [`MAX_BLOCK_CHARS`] characters each, cut where [`next_cut`] says, the
+/// cuts seen across its spans; each piece after the first taken from `budget` (past it the rest is
+/// left out, as with any block). The first piece with text is `v`'s own, with its room above and its
+/// marker; the others go on under it. Of the line breaks, only one at a cut goes (the break between
+/// two blocks stands for it); every other is kept, blank lines between pieces and at either end.
+fn pieces(v: BlockView, budget: &mut Budget) -> Vec<BlockView> {
+    if !is_text(&v.kind) || chars_of(&v) <= MAX_BLOCK_CHARS {
+        return vec![v];
+    }
+    let mut first = v;
+    let spans = std::mem::take(&mut first.spans);
+    let text: String = spans.iter().map(|s| s.text.as_str()).collect();
+    let starts: Vec<usize> = spans
+        .iter()
+        .scan(0usize, |at, s| {
+            let start = *at;
+            *at = at.saturating_add(s.text.len());
+            Some(start)
+        })
+        .collect();
+    // Each span's look alone, its text taken out: what a piece copies with its own text.
+    let styles: Vec<SpanView> = spans.into_iter().map(|s| SpanView { text: String::new(), ..s }).collect();
+    // A piece after the first goes on under it: no room above, and a list item's marker only once.
+    let mut next = first.clone();
+    next.space = 0;
+    next.gap = 0;
+    next.beside = false;
+    if let BlockKindView::ListItem { depth, .. } = next.kind {
+        next.kind = BlockKindView::ListItem { marker: MarkerView::Nothing, depth };
+    }
+    let mut out: Vec<BlockView> = Vec::new();
+    let mut from = 0usize;
+    while from < text.len() {
+        let (end, resume) = next_cut(&text, from).unwrap_or((text.len(), text.len()));
+        let piece = spans_in(&text, &styles, &starts, from, end);
+        if !piece.is_empty() {
+            if !out.is_empty() && !budget.take() {
+                return out;
+            }
+            let like = if out.is_empty() { &first } else { &next };
+            out.push(BlockView { spans: piece, ..like.clone() });
+        }
+        // Never stands still: a cut is always past `from`.
+        from = resume.max(from.saturating_add(1));
+    }
+    out
+}
+
+/// The run of text going on in one line after `v`, after a run of `run` characters: `v` made to
+/// start a line of its own where it would make that run longer than a block may be.
+fn run_after(run: usize, v: &mut BlockView) -> usize {
+    if !is_text(&v.kind) {
+        return 0;
+    }
+    let n = chars_of(v);
+    if v.beside && run.saturating_add(n) > MAX_BLOCK_CHARS {
+        v.beside = false;
+    }
+    if v.beside { run.saturating_add(n) } else { n }
+}
+
 fn blocks_of(blocks: &[Block], pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> Vec<BlockView> {
     let mut out = Vec::new();
+    // The characters of the text going on in one line so far: the phone draws such a run as one piece.
+    let mut run = 0usize;
     for b in blocks {
         if !budget.take() {
             break;
         }
-        out.push(block(b, pictures, budget, depth));
+        match &b.kind {
+            // Deeper than the phone lays out: the grid goes, its text stays, cell by cell in
+            // reading order, as the parser itself does past its own limit.
+            BlockKind::Table(t) if depth >= PHONE_TABLE_DEPTH => {
+                // Its cells' text goes on the line as the phone joins it, and what follows after its last line.
+                for c in t.rows.iter().flat_map(|r| &r.cells) {
+                    for mut v in blocks_of(&c.blocks, pictures, budget, depth) {
+                        run = run_after(run, &mut v);
+                        out.push(v);
+                    }
+                }
+            }
+            _ => {
+                for mut v in pieces(block(b, pictures, budget, depth), budget) {
+                    run = run_after(run, &mut v);
+                    out.push(v);
+                }
+            }
+        }
     }
     out
 }
@@ -320,9 +629,8 @@ fn block(b: &Block, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
             };
             BlockKindView::Image { src: src.clone(), width: *width, height: *height, link: link(to.as_deref()), picture }
         }
-        BlockKind::Table(t) if depth < MAX_DEPTH => BlockKindView::Table { table: table(t, pictures, budget, depth + 1) },
-        // Nested deeper than any parser output: its text stays, its grid goes.
-        BlockKind::Table(_) => BlockKindView::Paragraph,
+        // `blocks_of` lays out a table past the phone's depth as its cells' blocks.
+        BlockKind::Table(t) => BlockKindView::Table { table: table(t, pictures, budget, depth.saturating_add(1)) },
     };
     BlockView {
         kind,
@@ -344,16 +652,18 @@ fn block(b: &Block, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
         inset_right: b.inset[1],
         image_padding: b.image_padding.map(insets),
         line: line(&b.line),
+        rtl: b.rtl,
     }
 }
 
 fn table(t: &Table, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> TableView {
+    let mut places = mailcraft_html::grid(t).places.into_iter();
     let mut rows = Vec::new();
     for r in &t.rows {
         if !budget.take() {
             break;
         }
-        rows.push(row(r, pictures, budget, depth));
+        rows.push(row(r, &mut places, pictures, budget, depth));
     }
     TableView {
         rows,
@@ -371,21 +681,27 @@ fn table(t: &Table, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) 
         box_margin_left: t.box_margin[0],
         box_margin_right: t.box_margin[1],
         float: t.float,
+        min_column: reading::MIN_LAYOUT_COLUMN,
+        gap_before: reading::box_gap(t),
     }
 }
 
-fn row(r: &Row, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> RowView {
+fn row(r: &Row, places: &mut impl Iterator<Item = Place>, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> RowView {
     let mut cells = Vec::new();
     for c in &r.cells {
+        // Taken before the budget: once that runs out nothing after is kept, so places never slip.
+        let place = places.next().unwrap_or(Place { row: 0, col: 0, rows: 1, cols: 1 });
         if !budget.take() {
             break;
         }
-        cells.push(cell(c, pictures, budget, depth));
+        cells.push(cell(c, place, pictures, budget, depth));
     }
     RowView { cells }
 }
 
-fn cell(c: &Cell, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> CellView {
+fn cell(c: &Cell, place: Place, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) -> CellView {
+    let wide = |n: usize| u32::try_from(n).unwrap_or(u32::MAX);
+    let narrow = |n: usize| u16::try_from(n).unwrap_or(u16::MAX);
     CellView {
         blocks: blocks_of(&c.blocks, pictures, budget, depth),
         header: c.header,
@@ -402,6 +718,10 @@ fn cell(c: &Cell, pictures: &Pictures<'_>, budget: &mut Budget, depth: usize) ->
             VAlign::Middle => VAlignView::Middle,
             VAlign::Bottom => VAlignView::Bottom,
         }),
+        row: wide(place.row),
+        col: narrow(place.col),
+        rows: wide(place.rows),
+        cols: narrow(place.cols),
     }
 }
 

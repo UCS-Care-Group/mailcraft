@@ -301,10 +301,14 @@ pub(crate) fn left(resp: &Response) -> bool {
     lost
 }
 
-/// Keep the keyboard on the text field `resp`, as a dialog does for its one field, but not from its
-/// own menu: taken back while an item has it, the menu's items couldn't be reached by the keys.
+/// Keep the keyboard on the text field `resp`, as a dialog does for its field, but not from its
+/// own menu (taken back while an item has it, the menu's items couldn't be reached by the keys),
+/// nor from another text field it was moved to, by a click or Tab (a dialog's second field). A
+/// field behind the dialog can't keep it: [`crate::keys::gate`] takes it from under a modal layer.
 pub(crate) fn hold(resp: &Response) {
-    if !resp.has_focus() && !busy(&resp.ctx, resp.id) {
+    let ctx = &resp.ctx;
+    let other_text = || ctx.memory(|m| m.focused()).is_some_and(|f| f != resp.id && egui::TextEdit::load_state(ctx, f).is_some());
+    if !resp.has_focus() && !busy(ctx, resp.id) && !other_text() {
         resp.request_focus();
     }
 }

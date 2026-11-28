@@ -293,36 +293,61 @@ pub(crate) fn book_choice(app: &mut MailApp, ui: &mut Ui) {
     #[derive(Clone, Copy, PartialEq)]
     enum Book {
         Contacts(AccountChoice),
+        /// One of an account's contacts folders alone (#1917).
+        Folder(Id),
         List(Id),
     }
     let label = |book: Book| match book {
+        Book::Folder(folder) => crate::people_view::folder_name(mailbox, folder),
         Book::Contacts(_) if accounts.is_empty() => tl!("Contacts").to_string(),
         Book::Contacts(AccountChoice::All) => tl!("All accounts").to_string(),
         Book::Contacts(AccountChoice::Here) => widgets::place_name(mailbox, 0),
         Book::Contacts(AccountChoice::Account(account)) => widgets::place_name(mailbox, account),
         Book::List(account) => crate::i18n::fmt(tl!("Address list · {account}"), &[("account", &widgets::place_name(mailbox, account))]),
     };
-    let current = match people::shown_book(&app.session) {
-        Some(account) => Book::List(account),
-        None => Book::Contacts(people::shown_account(&app.session)),
+    let current = match (people::shown_book(&app.session), people::shown_folder(&app.session)) {
+        (Some(account), _) => Book::List(account),
+        (None, Some(folder)) => Book::Folder(folder),
+        (None, None) => Book::Contacts(people::shown_account(&app.session)),
     };
     let contacts: Vec<Book> = if accounts.is_empty() {
         vec![Book::Contacts(AccountChoice::All)]
     } else {
-        std::iter::once(AccountChoice::All)
-            .chain(accounts.iter().copied().map(AccountChoice::Account))
-            .chain([AccountChoice::Here])
-            .map(Book::Contacts)
-            .collect()
+        // Each account, with its contacts folders under it, as a list of folders shows them.
+        let mut books = vec![Book::Contacts(AccountChoice::All)];
+        for account in accounts.iter().copied() {
+            books.push(Book::Contacts(AccountChoice::Account(account)));
+            books.extend(contact_folders(mailbox, account).into_iter().map(Book::Folder));
+        }
+        books.push(Book::Contacts(AccountChoice::Here));
+        books
     };
+    let read_only = |book: Book| matches!(book, Book::Folder(f) if mailbox.contact_folder(f).is_some_and(|f| !f.writable));
     let mut picked = None;
     ui.add_space(2.0);
     ui.horizontal(|ui| {
         ui.add_space(10.0);
         let width = (ui.available_width() - 10.0).max(60.0);
-        egui::ComboBox::from_id_salt("people_book").width(width).selected_text(label(current)).truncate().show_ui(ui, |ui| {
+        egui::ComboBox::from_id_salt("people_book").width(width).height(480.0).selected_text(label(current)).truncate().show_ui(ui, |ui| {
             for book in contacts.iter().copied().chain(lists.iter().copied().map(Book::List)) {
-                if ui.selectable_label(book == current, label(book)).clicked() {
+                let folder = matches!(book, Book::Folder(_));
+                let clicked = ui
+                    .horizontal(|ui| {
+                        // A folder sits under its account; one that can only be read has a lock.
+                        if folder {
+                            ui.add_space(16.0);
+                        }
+                        let r = ui.selectable_label(book == current, label(book));
+                        if read_only(book) {
+                            let t = Tokens::get(ui.ctx());
+                            let (lock, _) = ui.allocate_exact_size(vec2(14.0, 14.0), Sense::hover());
+                            icons::paint(ui.painter(), lock, "lock", t.text_dim, t.accent);
+                            r.clone().on_hover_text(tl!("Can only be read"));
+                        }
+                        r.clicked()
+                    })
+                    .inner;
+                if clicked {
                     picked = Some(book);
                 }
             }
@@ -333,9 +358,26 @@ pub(crate) fn book_choice(app: &mut MailApp, ui: &mut Ui) {
         Some(Book::Contacts(choice)) => {
             let _ = app.run("view.peopleAccount", json!({"value": choice.code()}));
         }
+        Some(Book::Folder(folder)) => {
+            let _ = app.run("view.peopleFolder", json!({"value": folder}));
+        }
         Some(Book::List(account)) => choose_address_list(app, account),
         None => {}
     }
+}
+
+/// The contacts folders of `account`, as a list of folders shows them: its own main folder
+/// first, its other own folders, then shared mailboxes' and people's, each by name.
+pub(crate) fn contact_folders(mailbox: &mailcraft_model::Mailbox, account: Id) -> Vec<Id> {
+    use mailcraft_model::contact_sync::FolderOwner;
+    let mut folders: Vec<_> = mailbox.contact_folders.iter().filter(|f| f.account == account).collect();
+    let rank = |owner: &FolderOwner| match owner {
+        FolderOwner::Own => 0,
+        FolderOwner::Mailbox(_) => 1,
+        FolderOwner::Person(_) => 2,
+    };
+    folders.sort_by_cached_key(|f| (rank(&f.owner), f.owner.address().map(str::to_lowercase), !f.is_main(), f.name.to_lowercase(), f.id));
+    folders.into_iter().map(|f| f.id).collect()
 }
 
 /// The owner chose `account`'s address list in People: what the search box holds as they choose
