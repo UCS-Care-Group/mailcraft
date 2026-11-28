@@ -498,6 +498,25 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut egui::Ui, message: &Message) {
     }
 }
 
+/// Mirror the attachment safety prompt as a whole, keeping its warning icon
+/// on the reading edge; the standard LTR horizontal row remains unchanged.
+fn warning_row(ui: &mut egui::Ui, rtl: bool, content: impl FnOnce(&mut egui::Ui)) {
+    if rtl {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Min), content);
+    } else {
+        ui.horizontal_top(content);
+    }
+}
+
+/// Align the notice, explanation and choices with the reading edge.
+fn warning_details(ui: &mut egui::Ui, rtl: bool, content: impl FnOnce(&mut egui::Ui)) {
+    if rtl {
+        ui.with_layout(egui::Layout::top_down(egui::Align::Max), content);
+    } else {
+        ui.vertical(content);
+    }
+}
+
 fn preview_prompt(app: &mut MailApp, ui: &mut egui::Ui, id: Id, index: usize) {
     use egui::{RichText, vec2};
 
@@ -507,13 +526,14 @@ fn preview_prompt(app: &mut MailApp, ui: &mut egui::Ui, id: Id, index: usize) {
     let tokens = crate::theme::Tokens::get(ui.ctx());
     let mut start = false;
     let mut warn = app.attachment_selection.as_ref().is_none_or(|selection| selection.warn);
+    let rtl = crate::i18n::current().code() == "he";
     egui::ScrollArea::vertical().id_salt("attachment-preview-prompt").show(ui, |ui| {
         egui::Frame::NONE.inner_margin(egui::Margin::symmetric(18, 14)).show(ui, |ui| {
-            ui.horizontal_top(|ui| {
+            warning_row(ui, rtl, |ui| {
                 ui.spacing_mut().item_spacing.x = 12.0;
                 let (icon, _) = ui.allocate_exact_size(vec2(22.0, 22.0), egui::Sense::hover());
                 crate::icons::paint(ui.painter(), icon, "warning", tokens.orange, tokens.orange);
-                ui.vertical(|ui| {
+                warning_details(ui, rtl, |ui| {
                     ui.spacing_mut().item_spacing.y = 9.0;
                     ui.label(RichText::new(tl!("Preview files only when you trust the sender.")).strong());
                     ui.label(tl!("A preview may omit some content from the original file."));
@@ -617,3 +637,7 @@ fn show_page(app: &mut MailApp, ui: &mut egui::Ui, id: Id, index: usize) {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "attachment_preview_tests.rs"]
+mod warning_rtl_tests;
