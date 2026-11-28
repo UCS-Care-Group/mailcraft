@@ -1051,7 +1051,7 @@ impl Words {
             let mut held = 0;
             let mut went = false;
             let mut left: Vec<(&Arc<Message>, u64)> = Vec::new();
-            for m in mb.messages.values() {
+            for m in mb.messages.values().filter(|m| on_disk(mb, m)) {
                 if index.seen(m) {
                     held += 1;
                     continue;
@@ -1065,7 +1065,8 @@ impl Words {
                 }
             }
             if index.len() > held {
-                let gone: Vec<Id> = index.ids().filter(|id| !mb.messages.contains_key(id)).collect();
+                // (Gone, or of an online archive, whose words never go on the disk.)
+                let gone: Vec<Id> = index.ids().filter(|id| !mb.messages.get(id).is_some_and(|m| on_disk(mb, m))).collect();
                 went = !gone.is_empty();
                 out.removed += gone.len();
                 for id in gone {
@@ -1114,6 +1115,13 @@ impl Words {
         self.left = out.left;
         out
     }
+}
+
+/// Whether the words of `m` may go into the index on the disk: not those of an online archive's
+/// mail, of which nothing is kept on this computer (#1818, #1834 review). A search finds that mail
+/// in memory, as it finds any message the index hasn't got.
+pub fn on_disk(mb: &Mailbox, m: &Message) -> bool {
+    !mb.account(m.account).is_some_and(mailcraft_model::Account::is_archive)
 }
 
 impl Drop for Words {

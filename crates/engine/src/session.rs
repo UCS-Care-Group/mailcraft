@@ -2325,7 +2325,10 @@ impl Session {
         };
         let mut words = match self.words.take() {
             Some(words) if words.mailbox() == path => words,
-            _ => crate::words::Words::open(&path, self.mailbox.messages.values().cloned().collect()),
+            _ => crate::words::Words::open(
+                &path,
+                self.mailbox.messages.values().filter(|m| crate::words::on_disk(&self.mailbox, m)).cloned().collect(),
+            ),
         };
         // Also once the background is done: what came while it read is looked at then.
         if search || words.account_gone(&self.mailbox) || (!words.building() && !words.complete()) {
