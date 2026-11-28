@@ -114,6 +114,9 @@ pub enum NoForm {
     Differs,
     /// A filter of a webmail: its settings are changed as the webmail writes them, or not at all.
     Filter,
+    /// It has comments inside it, which the rule builder, writing the command again, would leave
+    /// out (#2058).
+    Comments,
 }
 
 impl NoForm {
@@ -128,6 +131,7 @@ impl NoForm {
                 "the rule builder would write it as other Sieve (for example an address test where it has a header test), which could change what it does"
             }
             NoForm::Filter => "it is a filter of your webmail's",
+            NoForm::Comments => "it has comments inside it, which the rule builder would leave out",
         }
     }
 }
@@ -849,6 +853,10 @@ fn form_gate(mb: &Mailbox, account: Id, text: &str, c: &Command, lone: bool, rul
         return Err(NoForm::Unknown);
     }
     let source = text.get(c.at.clone()).ok_or(NoForm::Shape)?;
+    // Comments above it stay where they are; one inside would go with the command written again.
+    if crate::sieve::lex(source).is_none_or(|l| !l.comments.is_empty()) {
+        return Err(NoForm::Comments);
+    }
     let nl = crate::sieve_rainloop::line_end(text);
     let (again, _) = super::sieve_rules::rule_sieve(mb, rule, account, true, &indent_of(source), nl).map_err(|_| NoForm::Shape)?;
     if same_meaning(source, &again) { Ok(()) } else { Err(NoForm::Differs) }

@@ -110,6 +110,12 @@ fn the_form_only_when_it_loses_nothing() {
     let edit = json!({"id": shown[1].id, "name": "x", "conditions": [{"type": "fromContains", "value": "boss@example.org"}], "actions": [{"type": "moveTo", "value": lists}]});
     let refused = err(&mut s, "rules.edit", edit);
     assert!(refused.contains("address test"), "{refused}");
+    // A comment inside the command would be left out by the builder: Sieve text then (#2058).
+    let commented = OWN.replace("  fileinto \"INBOX/Lists\";\r\n  stop;", "  # the spam folder\r\n  fileinto \"INBOX/Lists\";\r\n  stop;");
+    assert_ne!(commented, OWN);
+    read(&mut s, account, &commented);
+    assert_eq!(form(&s, named(&s, account, "Spam")), Some(Err(NoForm::Comments)));
+    assert_eq!(form(&s, named(&s, account, "Lists")), Some(Ok(())));
 }
 
 #[test]
