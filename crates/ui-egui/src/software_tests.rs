@@ -6,7 +6,8 @@ use std::time::Duration;
 
 use serde_json::json;
 
-use super::{SOFTWARE_MIN_WAIT, capped, notice_due, spinner_wake};
+use super::{SOFTWARE_MIN_WAIT, animations_play, capped, notice_due, spinner_wake};
+use crate::motion::Motion;
 use crate::people_view::testing;
 
 #[test]
@@ -20,6 +21,15 @@ fn software_holds_repaints_to_four_a_second() {
     // A graphics card: as asked.
     assert_eq!(capped(ms(16), false), ms(16));
     assert_eq!(capped(Duration::ZERO, false), Duration::ZERO);
+}
+
+#[test]
+fn software_stops_animations_that_follow_the_system() {
+    assert!(animations_play(Motion::System, true, false));
+    assert!(!animations_play(Motion::System, true, true));
+    // The owner's own choice stands.
+    assert!(animations_play(Motion::On, true, true));
+    assert!(!animations_play(Motion::Off, false, false));
 }
 
 #[test]

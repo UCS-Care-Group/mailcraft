@@ -104,6 +104,8 @@ mod dav_job_tests;
 #[cfg(test)]
 mod dav_secrets_tests;
 #[cfg(test)]
+mod dialog_focus_tests;
+#[cfg(test)]
 mod dialog_report_tests;
 #[cfg(test)]
 mod dialog_scrim_tests;
@@ -1670,6 +1672,8 @@ pub struct MailApp {
     /// The message being written whose body takes the keyboard back at its next frame (after a
     /// ribbon button or a dialog changed its text), by its id (#286).
     pub(crate) body_focus_wanted: Option<u64>,
+    /// The owner opened this forward and has yet to type its recipients.
+    pub(crate) recipient_focus_wanted: Option<u64>,
     /// The signature open in File › Signatures is to take the keyboard back at its next frame,
     /// after its formatting bar or the Link dialog changed its text (#1552).
     pub(crate) signature_focus_wanted: bool,
@@ -2061,6 +2065,7 @@ impl MailApp {
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,
+            recipient_focus_wanted: None,
             signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
@@ -2558,6 +2563,15 @@ impl MailApp {
         // And closing a conversation, which may select its row (#503).
         if keys::MOVES_IN_LIST.contains(&id) || id == "mail.collapseConversation" {
             self.reveal_selection = true;
+        }
+        // The owner's forward is ready for its recipients, including when the
+        // control that opened it still has the keyboard.
+        if !self.driven
+            && self.session.agent.is_none()
+            && matches!(id, "mail.forward" | "mail.forwardAsAttachment")
+            && let Ok(answer) = &r
+        {
+            self.recipient_focus_wanted = answer.get("compose").and_then(Value::as_u64);
         }
         // What was done to the text being written leaves the keyboard in it.
         if r.is_ok()
@@ -5056,15 +5070,26 @@ impl MailApp {
         }
     }
 
-    /// Open a file by path (the command line, a drop on the window, the system's Open With): a
-    /// mailbox opens, a message, calendar or contact file is imported, anything else is attached
-    /// to the message being written. A failure shows in the status bar.
+    /// Open a file by path (the command line, the system's Open With): a mailbox opens, a
+    /// message, calendar or contact file is imported, anything else is attached to the message
+    /// being written. A failure shows in the status bar. (A file let go over a window:
+    /// [`let_go`](Self::let_go).)
     pub fn open_path(&mut self, path: &str) {
         // Handed over while the mailbox opens: opened once it is.
         if opening::queue(self, path) {
             return;
         }
         files::dropped_path(self, path);
+    }
+
+    /// A file let go over a window ([`files::let_go`]): `writing` is the message being written
+    /// that window shows, if any; a picture goes into its text when it is in HTML.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn let_go(&mut self, path: &str, writing: Option<u64>) {
+        if opening::queue(self, path) {
+            return;
+        }
+        files::let_go(self, path, writing);
     }
 
     /// Open what the system handed MailCraft (the command line, a later start, the Finder): a
@@ -5236,6 +5261,7 @@ impl MailApp {
             self.motion.applied = None;
         }
         let plays = self.motion.plays(self.ui.animations, ctx.input(|i| i.time), self.services.animations_enabled.as_deref());
+        let plays = software::animations_play(self.ui.animations, plays, software::is_software());
         self.motion.apply(ctx, plays);
         let zoom = self.ui.interface_size.zoom_factor();
         if ctx.zoom_factor() != zoom {
@@ -5383,7 +5409,11 @@ impl MailApp {
             if signatures && self.session.signature_edit.is_some() {
                 signatures::add_picture(self, json!({"path": path}));
             } else {
-                self.open_path(&path);
+                // The message the main window writes: the reading pane's, or, where the windows
+                // are inside it, the one in front (those of the system take their own:
+                // `windows`). Asked for each file: a mailbox let go with them changes it.
+                let writing = if ctx.embed_viewports() { windows::compose_window::target(self) } else { windows::compose_window::pane_compose(self) };
+                self.let_go(&path, writing);
             }
         }
         self.by_hand = false;

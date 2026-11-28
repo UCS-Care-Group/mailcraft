@@ -139,7 +139,7 @@ internal class ShellActions(
     val settings: SettingsActions = SettingsActions(),
     val mail: MailListActions = MailListActions.None,
     val onSwipe: (SwipeConfig) -> Unit = {},
-    val onReadingPrefs: (ReadingPrefs) -> Unit = {},
+    val onReadingPrefs: (ReadingEdit) -> Unit = {},
     val reading: ReadingActions = ReadingActions.None,
     val onPictures: (PicturePrefs) -> Unit = {},
     val onClearPictures: () -> Unit = {},

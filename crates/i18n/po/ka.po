@@ -1821,6 +1821,12 @@ msgstr "ნებისმიერი სხვა საფოსტო სე
 msgid "Anything still waiting to go to the server goes first: mail in the Outbox, and flags and moves made while you were offline. If MailCraft can't reach the server, the switch waits until it can."
 msgstr "ჯერ იგზავნება ყველაფერი, რაც სერვერზე გასაგზავნად ელოდება: გასაგზავნებში არსებული ფოსტა და ოფლაინ რეჟიმში დასმული დროშები და გადატანები. თუ MailCraft სერვერს ვერ უკავშირდება, გადასვლა დაელოდება, სანამ შეძლებს."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+#, fuzzy
+msgid "Appearance"
+msgstr "იერსახე"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -4434,8 +4440,8 @@ msgstr "ამოჭრა პარამეტრებს არ იღებ
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMAIN\\user ან you@example.org; თქვენი მისამართისთვის ცარიელი დატოვეთ"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Dark"
 msgstr "მუქი"
@@ -6293,6 +6299,12 @@ msgstr ""
 #, fuzzy
 msgid "Follow Up"
 msgstr "შემდგომი რეაგირება"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "Follow system"
+msgstr "სისტემის მიყოლა"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
@@ -8556,8 +8568,8 @@ msgstr "აცნობეთ ხალხს, რომ არ ხართ ა
 msgid "Licences"
 msgstr "ლიცენზიები"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Light"
 msgstr "ღია"
@@ -26232,6 +26244,12 @@ msgstr "{name} საერთო საფოსტო ყუთია, რო�
 #, fuzzy
 msgid "{name} is already in {folder}."
 msgstr "{name} უკვე არის {folder}-ში."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr "{name} მიმაგრდა: ტექსტში ჩასმა შეუძლებელია ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

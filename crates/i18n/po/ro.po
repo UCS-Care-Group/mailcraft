@@ -1825,6 +1825,12 @@ msgstr "Orice alt server de e-mail"
 msgid "Anything still waiting to go to the server goes first: mail in the Outbox, and flags and moves made while you were offline. If MailCraft can't reach the server, the switch waits until it can."
 msgstr "Tot ce încă așteaptă să ajungă pe server pleacă primul: e-mailurile din Mesaje de trimis și marcajele și mutările făcute cât ați fost offline. Dacă MailCraft nu poate contacta serverul, schimbarea așteaptă până poate."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+#, fuzzy
+msgid "Appearance"
+msgstr "Aspect"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -4451,8 +4457,8 @@ msgstr "Decuparea nu primește parametri: decupează ce este selectat"
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMENIU\\utilizator sau dvs@example.org; gol pentru adresa dvs."
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Dark"
 msgstr "Întunecat"
@@ -6321,6 +6327,12 @@ msgstr "Urmărire"
 #, fuzzy
 msgid "Follow Up"
 msgstr "Urmărire"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "Follow system"
+msgstr "Urmează sistemul"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
@@ -8602,8 +8614,8 @@ msgstr "Anunțați-i pe ceilalți că sunteți plecat sau nu puteți răspunde o
 msgid "Licences"
 msgstr "Licențe"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Light"
 msgstr "Luminos"
@@ -26403,6 +26415,12 @@ msgstr "{name} este o cutie poștală partajată al cărei cont nu mai există: 
 #, fuzzy
 msgid "{name} is already in {folder}."
 msgstr "{name} este deja în {folder}."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr "{name} a fost atașat: nu poate fi inserat în text ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

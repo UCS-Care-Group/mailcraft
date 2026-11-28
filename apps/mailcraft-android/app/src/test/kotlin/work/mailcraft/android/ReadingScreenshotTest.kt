@@ -76,6 +76,9 @@ class ReadingScreenshotTest {
     @Test
     fun longLinks() = shoot("long_links", ReadingShots.ui(Corpus.longLinks))
 
+    @Test
+    fun fontsAndWeights() = shoot("fonts", ReadingShots.ui(Corpus.fonts))
+
     /** A footer whose exact line is shorter than its text: each line clear of the next (#1967). */
     @Test
     fun footerWithAnExactLine() {

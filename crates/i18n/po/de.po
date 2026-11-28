@@ -1736,6 +1736,12 @@ msgstr "Anderer Mailserver"
 msgid "Anything still waiting to go to the server goes first: mail in the Outbox, and flags and moves made while you were offline. If MailCraft can't reach the server, the switch waits until it can."
 msgstr "Alles, was noch an den Server gehen soll, geht zuerst: E-Mails im Postausgang sowie Kennzeichnungen und Verschiebungen, die Sie offline vorgenommen haben. Erreicht MailCraft den Server nicht, wartet der Wechsel, bis es so weit ist."
 
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+#, fuzzy
+msgid "Appearance"
+msgstr "Darstellung"
+
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
@@ -4233,8 +4239,8 @@ msgstr "Ausschneiden nimmt keine Parameter an: Es schneidet aus, was ausgewählt
 msgid "DOMAIN\\user or you@example.org; empty for your address"
 msgstr "DOMAIN\\Benutzer oder you@example.org; leer lassen, um Ihre eigene Adresse zu verwenden"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 msgid "Dark"
 msgstr "Dunkel"
 
@@ -5958,6 +5964,12 @@ msgstr ""
 #, fuzzy
 msgid "Follow Up"
 msgstr "Nachverfolgung"
+
+#. android
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt
+#, fuzzy
+msgid "Follow system"
+msgstr "Systemeinstellung folgen"
 
 #. interface
 #: crates/ui-egui/src/alerts.rs crates/ui-egui/src/reminders.rs
@@ -8068,8 +8080,8 @@ msgstr "Lassen Sie andere wissen, dass Sie abwesend sind oder eine Zeit lang nic
 msgid "Licences"
 msgstr "Lizenzen"
 
-#. name
-#: crates/ui-egui/src/theme.rs
+#. android, name
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingPrefs.kt crates/ui-egui/src/theme.rs
 #, fuzzy
 msgid "Light"
 msgstr "Hell"
@@ -24843,6 +24855,12 @@ msgstr "{name} ist ein freigegebenes Postfach, dessen Konto nicht mehr vorhanden
 #, fuzzy
 msgid "{name} is already in {folder}."
 msgstr "{name} ist bereits in {folder}."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr "{name} wurde angehängt: Es kann nicht in den Text eingefügt werden ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
