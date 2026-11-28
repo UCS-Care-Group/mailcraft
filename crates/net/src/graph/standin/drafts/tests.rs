@@ -98,6 +98,39 @@ fn a_draft_made_from_mime_keeps_its_headers() {
 }
 
 #[test]
+fn the_properties_behind_in_reply_to_and_references_are_headers_of_its_mime() {
+    // As Graph does (#1814): the two MAPI properties become the draft's headers, and stay there
+    // when it is sent.
+    let server = StandIn::start().unwrap();
+    let draft = json!({
+        "subject": "Re: Agenda",
+        "toRecipients": [{"emailAddress": {"address": "kit@example.org"}}],
+        "singleValueExtendedProperties": [
+            {"id": MARKER, "value": "mailcraft-draft-7"},
+            {"id": "String 0x1042", "value": "<agenda-2@example.org>"},
+            {"id": "String 0x1039", "value": "<agenda-1@example.org> <agenda-2@example.org>"},
+        ],
+    });
+    let (status, answer) = send(&server, "POST", "/v1.0/me/messages", Some(&draft));
+    assert_eq!(status, 201, "{answer}");
+    let id = answer["id"].as_str().unwrap().to_string();
+    let (status, _, mime) = raw(&server, "GET", &format!("/v1.0/me/messages/{id}/$value"), "", b"", "", true);
+    assert_eq!(status, 200);
+    assert!(mime.contains("\r\nIn-Reply-To: <agenda-2@example.org>\r\n"), "{mime}");
+    assert!(mime.contains("\r\nReferences: <agenda-1@example.org> <agenda-2@example.org>\r\n"), "{mime}");
+    let (status, answer) = send(&server, "POST", &format!("/v1.0/me/messages/{id}/send"), None);
+    assert_eq!(status, 202, "{answer}");
+    assert_eq!(server.state().sent.last().map(|s| s.in_reply_to.clone()).as_deref(), Some("<agenda-2@example.org>"));
+    // The copy in Sent Items keeps them, as Microsoft 365's does.
+    let sent = server.state().well_known("sentitems");
+    let copy = server.state().mailbox.messages.iter().find(|(_, m)| m.folder == sent && m.subject == "Re: Agenda").map(|(id, _)| id.clone()).unwrap();
+    let (status, _, mime) = raw(&server, "GET", &format!("/v1.0/me/messages/{copy}/$value"), "", b"", "", true);
+    assert_eq!(status, 200);
+    assert!(mime.contains("\r\nIn-Reply-To: <agenda-2@example.org>\r\n"), "{mime}");
+    assert!(mime.contains("\r\nReferences: <agenda-1@example.org> <agenda-2@example.org>\r\n"), "{mime}");
+}
+
+#[test]
 fn an_answer_stays_in_its_conversation_and_a_forward_carries_the_attachments() {
     let server = StandIn::start().unwrap();
     let inbox = server.state().well_known("inbox");

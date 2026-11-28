@@ -6,7 +6,8 @@
 //!
 //! - `POST /v1.0/me/messages` makes a draft in Drafts, from JSON (`subject`, `body`, the three
 //!   lists of recipients, `importance`, `categories`, `singleValueExtendedProperties` and
-//!   `internetMessageHeaders`, whose names have to begin with `x-`: anything else is 400) or from
+//!   `internetMessageHeaders`, whose names have to begin with `x-`: anything else is 400; the
+//!   properties `String 0x1042` and `String 0x1039` become its `In-Reply-To` and `References`) or from
 //!   MIME (`Content-Type: text/plain`, the message in base64). Answered 201 with the draft.
 //! - `POST /v1.0/me/messages/{id}/createReply`, `/createReplyAll` and `/createForward` make a
 //!   draft answering (or forwarding) the message: in its conversation, `RE:` or `FW:` and its
@@ -201,6 +202,26 @@ fn preview_of(content: &str, html: bool) -> String {
     text.split_whitespace().collect::<Vec<_>>().join(" ").chars().take(255).collect()
 }
 
+/// The properties behind `In-Reply-To` and `References` (`PidTagInReplyToId`,
+/// `PidTagInternetReferences`), which Graph writes into a message's MIME and keeps when it is sent
+/// (#1814).
+pub(super) const THREAD_PROPERTIES: [&str; 2] = ["String 0x1042", "String 0x1039"];
+
+/// The `In-Reply-To` and `References` lines of `m`'s MIME: what it answers as create-reply set it,
+/// else as the properties behind the two headers say.
+pub(super) fn thread_headers(m: &Message) -> String {
+    let property = |id: &str| m.extended.iter().find(|(have, _)| have.eq_ignore_ascii_case(id)).map(|(_, v)| v.as_str());
+    let [answers_id, chain_id] = THREAD_PROPERTIES;
+    let mut out = String::new();
+    if let Some(answers) = Some(m.in_reply_to.as_str()).filter(|v| !v.is_empty()).or_else(|| property(answers_id)) {
+        out.push_str(&format!("In-Reply-To: {answers}\r\n"));
+    }
+    if let Some(chain) = property(chain_id) {
+        out.push_str(&format!("References: {chain}\r\n"));
+    }
+    out
+}
+
 /// A draft's MIME, made of what it has.
 pub(super) fn mime_of(m: &Message) -> String {
     let date = mailcraft_time::DateTime::from_timestamp(m.received, 0);
@@ -215,9 +236,7 @@ pub(super) fn mime_of(m: &Message) -> String {
         head.push_str(&format!("Reply-To: {}\r\n", m.reply_to.join(", ")));
     }
     head.push_str(&format!("Subject: {}\r\nDate: {}\r\nMessage-ID: {}\r\n", m.subject, date.iso(), m.internet_id));
-    if !m.in_reply_to.is_empty() {
-        head.push_str(&format!("In-Reply-To: {}\r\n", m.in_reply_to));
-    }
+    head.push_str(&thread_headers(m));
     head.push_str("MIME-Version: 1.0\r\n");
     let kind = if m.html { "text/html" } else { "text/plain" };
     let text = m.text();
@@ -327,6 +346,11 @@ impl State {
                     return Err(refuse(400, "RequestBodyRead", format!("The property '{other}' is not one a new message is made with here.")));
                 }
             }
+        }
+        if self.mailbox.refuse_thread_properties
+            && extended.iter().any(|(id, _): &(String, String)| THREAD_PROPERTIES.iter().any(|t| id.eq_ignore_ascii_case(t)))
+        {
+            return Err(refuse(400, "ErrorInvalidProperty", "The extended property is not valid."));
         }
         Ok(self.draft_of(|m| {
             written.apply(m);

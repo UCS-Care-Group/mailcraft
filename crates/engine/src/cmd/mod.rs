@@ -91,6 +91,8 @@ pub mod gmail_move;
 #[cfg(test)]
 mod gmail_move_tests;
 pub mod graph_down;
+#[cfg(test)]
+mod graph_draft_thread_tests;
 pub mod graph_drafts;
 pub mod graph_mail;
 pub mod graph_place;

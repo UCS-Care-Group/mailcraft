@@ -148,3 +148,131 @@ fn a_saved_draft_is_sent_as_it_is_here_whatever_the_server_has_changed_since() {
     assert!(copy.bcc.is_empty(), "{:?}", copy.bcc);
     assert_eq!(copy.attachments.iter().map(|a| a.name.as_str()).collect::<Vec<_>>(), ["rota.pdf"]);
 }
+
+/// A draft made by itself from `up`; the extended properties of the server's draft, by id.
+fn made_by_itself(server: &StandIn, up: DraftUp) -> Vec<(String, String)> {
+    let all = run(server, vec![up], Vec::new());
+    let id = all.drafts.first().map(|d| d.id.clone()).unwrap_or_default();
+    assert!(!id.is_empty(), "{all:?}");
+    server.state().mailbox.messages.get(&id).map(|m| m.extended.clone()).unwrap_or_default()
+}
+
+fn property<'a>(all: &'a [(String, String)], id: &str) -> Option<&'a str> {
+    all.iter().find(|(have, _)| have == id).map(|(_, v)| v.as_str())
+}
+
+#[test]
+fn an_answer_made_by_itself_says_what_it_answers() {
+    // An answer to mail the server hasn't got (#1814): its In-Reply-To and References are written
+    // as the properties behind them, since Graph takes no such header from a client.
+    let server = StandIn::start().unwrap();
+    let up = DraftUp {
+        message: 7,
+        marker: "mailcraft-draft-7".into(),
+        subject: Some("Re: Agenda".into()),
+        to: Some(vec![Address { email: "kit@example.org".into(), ..Default::default() }]),
+        in_reply_to: "agenda-2@example.org".into(),
+        references: vec!["agenda-1@example.org".into(), "agenda-2@example.org".into()],
+        ..Default::default()
+    };
+    let there = made_by_itself(&server, up);
+    assert_eq!(property(&there, "String 0x1042"), Some("<agenda-2@example.org>"));
+    assert_eq!(property(&there, "String 0x1039"), Some("<agenda-1@example.org> <agenda-2@example.org>"));
+    assert!(property(&there, "String {6d1c4e3a-8f2b-4c5d-9e0a-1b2c3d4e5f60} Name MailCraftMarker").is_some());
+
+    // One that names no chain: the message it answers is the chain.
+    let up = DraftUp { message: 8, marker: "mailcraft-draft-8".into(), in_reply_to: "only@example.org".into(), ..Default::default() };
+    let there = made_by_itself(&server, up);
+    assert_eq!(property(&there, "String 0x1039"), Some("<only@example.org>"));
+
+    // A new message answers nothing, and says so by saying nothing.
+    let up = DraftUp { message: 9, marker: "mailcraft-draft-9".into(), subject: Some("Hello".into()), ..Default::default() };
+    let there = made_by_itself(&server, up);
+    assert!(property(&there, "String 0x1042").is_none() && property(&there, "String 0x1039").is_none());
+}
+
+#[test]
+fn an_answer_made_with_create_reply_writes_none_of_its_own() {
+    let server = StandIn::start().unwrap();
+    let source = original(&server, Vec::new());
+    let up = DraftUp {
+        message: 5,
+        marker: "mailcraft-draft-5".into(),
+        of: Some(DraftOf { id: source, kind: DraftKind::Reply }),
+        in_reply_to: "agenda-2@example.org".into(),
+        ..Default::default()
+    };
+    let all = run(&server, vec![up], Vec::new());
+    let id = all.drafts.first().map(|d| d.id.clone()).unwrap_or_default();
+    let state = server.state();
+    let made = state.mailbox.messages.get(&id).unwrap();
+    assert!(!made.in_reply_to.is_empty(), "create-reply says what it answers");
+    assert!(made.extended.iter().all(|(id, _)| id != "String 0x1042" && id != "String 0x1039"));
+}
+
+#[test]
+fn ids_that_cant_be_in_a_header_are_left_out_and_a_long_chain_keeps_its_root_and_newest() {
+    let server = StandIn::start().unwrap();
+    let mut references: Vec<String> = (0..40).map(|i| format!("part-{i}@example.org")).collect();
+    references.insert(3, "two words@example.org".into());
+    references.insert(5, "line\r\nBcc: lee@example.org".into());
+    references.insert(7, "<bracketed@example.org>".into());
+    references.push(String::new());
+    let up = DraftUp {
+        message: 11,
+        marker: "mailcraft-draft-11".into(),
+        in_reply_to: "evil\r\nBcc: lee@example.org".into(),
+        references,
+        ..Default::default()
+    };
+    let there = made_by_itself(&server, up);
+    // An In-Reply-To that isn't an id is not written; nor are such ids of the chain.
+    assert!(property(&there, "String 0x1042").is_none());
+    let chain = property(&there, "String 0x1039").unwrap();
+    assert!(!chain.contains('\r') && !chain.contains('\n') && !chain.contains("words") && !chain.contains("<<"), "{chain}");
+    let ids: Vec<&str> = chain.split(' ').collect();
+    assert_eq!(ids.len(), 32);
+    // The root, then the newest 31: what threads it is kept whatever is cut between.
+    assert_eq!(ids.get(..2), Some(&["<part-0@example.org>", "<part-9@example.org>"][..]));
+    assert_eq!(ids.last().copied(), Some("<part-39@example.org>"));
+}
+
+#[test]
+fn a_chain_of_long_ids_keeps_its_root_and_stays_one_line() {
+    let server = StandIn::start().unwrap();
+    let long = |i: usize| format!("{i:03}{}@example.org", "x".repeat(235));
+    let references: Vec<String> = (0..10).map(long).collect();
+    assert!(references.iter().all(|id| id.len() == 250));
+    let up = DraftUp { message: 12, marker: "mailcraft-draft-12".into(), in_reply_to: long(9), references, ..Default::default() };
+    let there = made_by_itself(&server, up);
+    let chain = property(&there, "String 0x1039").unwrap();
+    // A header line is at most 998 bytes, its name with it (RFC 5322 2.1.1).
+    assert!(format!("References: {chain}").len() <= 998, "{}", chain.len());
+    let ids: Vec<&str> = chain.split(' ').collect();
+    assert_eq!(ids, [format!("<{}>", long(0)), format!("<{}>", long(8)), format!("<{}>", long(9))]);
+}
+
+#[test]
+fn a_draft_refused_for_what_it_answers_is_made_without() {
+    // Should Exchange refuse a thread property, the draft is still made: only what it answers is
+    // left out.
+    let server = StandIn::start().unwrap();
+    server.state().mailbox.refuse_thread_properties = true;
+    let up = DraftUp {
+        message: 13,
+        marker: "mailcraft-draft-13".into(),
+        subject: Some("Re: Agenda".into()),
+        in_reply_to: "agenda-2@example.org".into(),
+        ..Default::default()
+    };
+    let there = made_by_itself(&server, up);
+    assert!(property(&there, "String 0x1042").is_none() && property(&there, "String 0x1039").is_none());
+    assert!(property(&there, "String {6d1c4e3a-8f2b-4c5d-9e0a-1b2c3d4e5f60} Name MailCraftMarker").is_some());
+
+    // One that answers nothing writes no such property, and is made at once.
+    let server = StandIn::start().unwrap();
+    server.state().mailbox.refuse_thread_properties = true;
+    let up = DraftUp { message: 14, marker: "mailcraft-draft-14".into(), subject: Some("Hello".into()), ..Default::default() };
+    let all = run(&server, vec![up], Vec::new());
+    assert!(all.drafts.first().is_some_and(|d| !d.id.is_empty()), "{all:?}");
+}
