@@ -158,6 +158,20 @@ pub fn select_target(s: &mut Session, v: &Value) -> Result<(Vec<Id>, u16), crate
 
 fn select(s: &mut Session, v: &Value) -> CmdResult {
     let open = p::bool(v, "open") == Some(true);
+    // A message of another folder that belongs to a conversation of the list in view (picked from
+    // the reading pane's list of its messages): the conversation opens, as when the owner opens
+    // it, to list that message under its row, and the list stays in the folder it is in; it
+    // doesn't go to the folder of that message.
+    if let Some(id) = p::id(v, "id")
+        && p::bool(v, "elsewhere") != Some(true)
+        && s.view.conversations
+        && s.view.sort == crate::SortBy::Date
+        && s.view.search.is_empty()
+        && s.mailbox.message(id).is_some_and(|m| m.folder != s.view.folder)
+        && !s.in_list(&[id]).contains(&id)
+    {
+        let _ = expand(s, &json!({"id": id}));
+    }
     let (ids, copy) = select_target(s, v)?;
     // Opened in a window while it is the selection: marked, and the selection (the row it is on,
     // whether a conversation's row stands for the rest) left as it is.
