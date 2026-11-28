@@ -10,7 +10,8 @@
 //! - **A message never saved as a draft** goes with `POST /me/sendMail`, as MIME, with its Bcc.
 //!   One that asks for a delivery receipt is made from that same MIME as a draft first, the flag
 //!   set (`isDeliveryReceiptRequested` is not a header, so `sendMail` would drop it), and that
-//!   draft is sent.
+//!   draft is sent. A draft left from an earlier attempt is removed and made again from the
+//!   message as it is now, so a corrected send is not the earlier copy.
 //!
 //! A shared mailbox's (#70) goes the same way at its own address (`/users/{address}/sendMail`,
 //! `/users/{address}/messages/{id}/send`): the copy is in **its** Sent Items, and Exchange says
@@ -106,8 +107,8 @@ fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetE
 
 /// Send `message`, which asks for a delivery receipt and was never saved as a draft. The MIME
 /// `sendMail` would have sent is made into a draft, so its headers stay, the flag is set on that
-/// draft, and the draft is sent. The marker is written with the flag, so a later run that finds
-/// the draft still in Drafts sends it instead of making another.
+/// draft, and the draft is sent. A draft the marker still finds (an earlier attempt that did not
+/// send) is removed first and made again from this MIME, so the owner's corrections are what goes.
 fn send_with_receipt(graph: &Graph<'_>, local: Id, message: &Message, done: &mut SendDone) -> Result<(), NetError> {
     let body = match mime_body(message) {
         Ok(body) => body,
@@ -117,12 +118,14 @@ fn send_with_receipt(graph: &Graph<'_>, local: Id, message: &Message, done: &mut
         }
     };
     let marker = format!("mailcraft-send-{local:x}");
-    let id = match super::drafts::look(graph, &marker)? {
-        Some((id, _)) => id,
-        None => match make_mime_draft(graph, &body, done)? {
-            Some(id) => id,
-            None => return Ok(()),
-        },
+    if let Some((id, _)) = super::drafts::look(graph, &marker)?
+        && !forget_draft(graph, &id, done)?
+    {
+        return Ok(());
+    }
+    let id = match make_mime_draft(graph, &body, done)? {
+        Some(id) => id,
+        None => return Ok(()),
     };
     if !stamp_receipt(graph, &id, &marker, done)? {
         return Ok(());
@@ -134,6 +137,40 @@ fn send_with_receipt(graph: &Graph<'_>, local: Id, message: &Message, done: &mut
     let url = graph.url(&graph.mail_path(&format!("/messages/{id}/send")));
     let asked = graph.call(Kind::Once, &url, "POST", &[("Content-Type", "application/json")], Some("{}"), SEND_TIMEOUT, MAX_PAGE);
     settle(graph, asked, done)
+}
+
+/// Remove the draft `id` left by an earlier attempt. True when it is gone (or already was) and the
+/// current message can be made. False when `done` says why it was not: the old copy is not sent.
+fn forget_draft(graph: &Graph<'_>, id: &str, done: &mut SendDone) -> Result<bool, NetError> {
+    let Some(id) = id_of(id).map(|id| http::encode(&id)) else {
+        done.outcome = SendOutcome::Held { lost: false, why: "Microsoft wouldn't take the message".to_string() };
+        return Ok(false);
+    };
+    let asked = graph.call(Kind::Once, &graph.url(&graph.mail_path(&format!("/messages/{id}"))), "DELETE", &[], None, WRITE_TIMEOUT, MAX_PAGE);
+    let reply = match asked {
+        Ok(reply) => reply,
+        Err(e) if e.is_unreachable() => {
+            done.outcome = SendOutcome::Held { lost: true, why: String::new() };
+            return Ok(false);
+        }
+        Err(e) => return Err(e),
+    };
+    super::refusing(graph, &reply)?;
+    match reply.status {
+        200..=299 | 404 => Ok(true),
+        401 | 429 | 503 => Err(graph.refusal(Doing::Sending, &reply, "")),
+        400 | 403 | 413 | 415 => {
+            let code = code_of(&reply.body, &[graph.token]);
+            log::info!("graph sending: an earlier draft could not be removed (status {}{code})", reply.status);
+            let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+            done.outcome = held_refused(reply.status, text(json.get("error").unwrap_or(&Value::Null), "code"), graph.shared());
+            Ok(false)
+        }
+        _ => {
+            done.outcome = SendOutcome::Held { lost: true, why: String::new() };
+            Ok(false)
+        }
+    }
 }
 
 /// Make a draft from the MIME `body`. `Some` is its id. `None` when `done` already says what
