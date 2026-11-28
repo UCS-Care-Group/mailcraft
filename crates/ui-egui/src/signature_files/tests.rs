@@ -654,3 +654,14 @@ fn file_tab_previews_the_file_and_preserves_the_original_account_selectors() {
     assert!(!setting(w.state(), account).enabled);
     assert!(w.state().session.signature_edit.as_ref().unwrap().signature.html().is_some());
 }
+
+#[test]
+fn a_long_path_shows_its_end_and_a_short_one_whole() {
+    use crate::signatures::path_tail;
+    assert_eq!(path_tail("/home/a/sig.html", 44), "/home/a/sig.html");
+    let long = format!("/home/{}/signature-ü.html", "d".repeat(80));
+    let shown = path_tail(&long, 44);
+    assert_eq!(shown.chars().count(), 44);
+    assert!(shown.starts_with('…') && shown.ends_with("signature-ü.html"));
+    assert_eq!(path_tail("", 44), "");
+}

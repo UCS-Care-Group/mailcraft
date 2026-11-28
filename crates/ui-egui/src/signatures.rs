@@ -321,11 +321,29 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     preview(app, ui, t);
 }
 
+/// How many characters of a signature file's path the box shows.
+const PATH_SHOWN: usize = 44;
+
+/// The last `max` characters of `path`, with an ellipsis before them when it is longer.
+pub(crate) fn path_tail(path: &str, max: usize) -> String {
+    let count = path.chars().count();
+    if count <= max {
+        return path.to_string();
+    }
+    let tail: String = path.chars().skip(count.saturating_sub(max.saturating_sub(1))).collect();
+    format!("…{tail}")
+}
+
 fn file_source(app: &mut MailApp, ui: &mut Ui, name: &str) {
     let file = crate::signature_files::setting_for_name(app, name);
     ui.horizontal(|ui| {
-        let mut path = file.path;
-        ui.add(egui::TextEdit::singleline(&mut path).interactive(false).desired_width(350.0).hint_text(tl!("Choose a signature file")));
+        // A long path shows its end, where the file name is; the whole of it is the hover text and
+        // what a screen reader reads.
+        let mut shown = path_tail(&file.path, PATH_SHOWN);
+        let hint = tl!("Choose a signature file");
+        let field = ui.add(egui::TextEdit::singleline(&mut shown).interactive(false).desired_width(350.0).hint_text(hint));
+        let field = if file.path.is_empty() { field } else { field.on_hover_text(file.path.as_str()) };
+        field.widget_info(|| egui::WidgetInfo::text_edit(false, file.path.as_str(), file.path.as_str(), hint));
         let choose = ui.button(tl!("Choose…"));
         app.hit.add("signatureFileChoose", 0, choose.rect);
         if choose.clicked() {
