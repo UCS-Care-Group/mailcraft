@@ -38,6 +38,8 @@ pub(crate) struct DavSecretRead {
     asked: HashSet<String>,
     /// The read under way: what it brings, name by name.
     reading: Option<Receiver<Brought>>,
+    /// The names the read under way asks for.
+    in_read: HashSet<String>,
     /// The names a forget started for while the read was under way: what it brings for them is
     /// from before, and isn't taken in.
     pub(crate) forgotten: HashSet<String>,
@@ -77,7 +79,7 @@ impl MailApp {
 
     /// Whether a remembered password for `origin` of `account` may still come from the store: one
     /// would be read for it ([`Self::dav_secrets_first`]) and it hasn't been asked yet this
-    /// session, or the read asking it is out.
+    /// session, or the read under way asks it.
     pub(crate) fn dav_secret_may_come(&self, account: Id, origin: &str) -> bool {
         if !self.ui.remember_sign_in || self.unconfirmed || self.data_removed || self.services.secrets.is_none() {
             return false;
@@ -86,7 +88,7 @@ impl MailApp {
         if self.dav_forget_pending(&key) {
             return false;
         }
-        !self.dav.secrets.asked.contains(&key) || self.dav.secrets.is_reading()
+        !self.dav.secrets.asked.contains(&key) || self.dav.secrets.in_read.contains(&key)
     }
 
     /// Before a job: take in a read of the store that came back, and start one for the names the
@@ -100,6 +102,7 @@ impl MailApp {
                 Err(mpsc::TryRecvError::Disconnected) => (Vec::new(), None),
             };
             self.dav.secrets.reading = None;
+            self.dav.secrets.in_read.clear();
             self.take_in_dav_secrets(answers);
             if let Some(trouble) = trouble {
                 self.note_secret_trouble(trouble);
@@ -114,6 +117,7 @@ impl MailApp {
             return false;
         }
         self.dav.secrets.asked.extend(names.iter().cloned());
+        let in_read: HashSet<String> = names.iter().cloned().collect();
         let (send, receive) = mpsc::channel();
         let job = std::thread::Builder::new().name("dav-secret-read".into()).spawn(move || {
             let answers = names.into_iter().map(|key| (key.clone(), store.get(&key).filter(|s| !s.is_empty()))).collect();
@@ -122,6 +126,7 @@ impl MailApp {
         match job {
             Ok(_) => {
                 self.dav.secrets.reading = Some(receive);
+                self.dav.secrets.in_read = in_read;
                 true
             }
             Err(e) => {

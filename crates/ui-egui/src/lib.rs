@@ -3378,9 +3378,6 @@ impl MailApp {
             // is no good.)
             let in_use = self.dav_keys_in_use();
             keys.retain(|key| !in_use.contains(key) || self.dav_forget_refused.contains(key));
-            for key in &keys {
-                self.dav_forget_refused.remove(key);
-            }
             if keys.is_empty() {
                 continue;
             }
@@ -3400,9 +3397,14 @@ impl MailApp {
                 let _ = send.send((confirmed, store.take_trouble()));
             });
             match job {
-                Ok(_) => self.dav_forgetting.push((receive, started)),
+                Ok(_) => {
+                    for key in &started {
+                        self.dav_forget_refused.remove(key);
+                    }
+                    self.dav_forgetting.push((receive, started));
+                }
                 Err(e) => {
-                    // (Put back: tried again when a thread can be had.)
+                    // (Put back, refused marks and all: tried again when a thread can be had.)
                     log::warn!("couldn't start forgetting a credential: {e}");
                     self.dav_forget_queue.splice(0..0, retry);
                     return;

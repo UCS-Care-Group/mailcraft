@@ -299,6 +299,30 @@ fn file_info_waits_for_the_store_before_it_asks_for_a_password() {
 }
 
 #[test]
+fn file_info_waits_only_for_a_read_that_asks_the_name() {
+    const OTHER: &str = "https://contacts.example.org";
+    let store = Arc::new(Store::default());
+    let (mut a, id, sent) = app(&store, true);
+    until_a_job(&mut a, &sent);
+    assert!(!a.dav_secret_may_come(id, HOME), "asked, and nothing came");
+    // A second server comes, and the read for it waits (a locked store).
+    a.execute(
+        "account.davSet",
+        json!({"id": id, "calendarHomes": [format!("{HOME}/cal/ada/")], "contactHomes": [format!("{OTHER}/card/ada/")], "separatePassword": true}),
+    )
+    .unwrap();
+    let (copied, reached) = std::sync::mpsc::channel();
+    let (go, wait) = std::sync::mpsc::channel();
+    *store.gate.lock().unwrap() = Some((copied, wait));
+    assert!(a.dav_secrets_first(), "the read for the second server starts");
+    reached.recv().unwrap();
+    assert!(a.dav_secret_may_come(id, OTHER), "the read under way asks it");
+    assert!(!a.dav_secret_may_come(id, HOME), "the read under way can't bring the first one");
+    assert!(a.dav_origins_wanting_password(id).contains(&HOME.to_string()));
+    go.send(()).unwrap();
+}
+
+#[test]
 fn a_read_under_way_when_the_account_is_removed_brings_nothing_back() {
     let store = Arc::new(Store::default());
     let (mut a, id, _) = app(&store, true);
