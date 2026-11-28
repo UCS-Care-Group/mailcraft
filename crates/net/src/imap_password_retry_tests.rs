@@ -148,6 +148,43 @@ fn cancelling_the_delay_prevents_the_second_connection_even_when_a_sent_copy_is_
 }
 
 #[test]
+fn cancelling_the_replacement_greeting_never_submits_the_password_even_when_a_sent_copy_is_owed() {
+    for sent_copy in [false, true] {
+        let imap = peer(&[REFUSAL], true);
+        imap.world().greeting_pause_after_first = Some(Duration::from_millis(250));
+        let smtp = Fake::smtp(SmtpWorld { user: "user@example.org".into(), password: PASSWORD.into(), auth: true, ..Default::default() });
+        let mut request = request(imap.port);
+        if sent_copy {
+            request.account.outgoing = Some(Server { host: "127.0.0.1".into(), port: smtp.port, security: Security::None });
+            request.outbox.push(Message {
+                id: 41,
+                to: vec![Address::new("Recipient", "recipient@example.org")],
+                subject: "Synthetic delivery".into(),
+                ..Default::default()
+            });
+        }
+        let stop = AtomicBool::new(false);
+        std::thread::scope(|scope| {
+            let task = scope.spawn(|| run(&request, limits(Duration::ZERO), &stop, false));
+            let deadline = Instant::now() + Duration::from_secs(10);
+            while imap.world().connections < 2 {
+                assert!(Instant::now() < deadline);
+                std::thread::sleep(Duration::from_millis(2));
+            }
+            stop.store(true, Ordering::Relaxed);
+            let (result, _) = task.join().unwrap();
+            assert!(result.stopped);
+            assert_eq!(result.auth_refused, Some(false));
+            assert!(result.errors.is_empty(), "{:?}", result.errors);
+            assert_eq!(result.unfiled, if sent_copy { vec![41] } else { Vec::new() });
+        });
+        assert_eq!(imap.world().connections, 2);
+        assert_eq!(imap.world().log.iter().filter(|line| line.contains(" AUTHENTICATE PLAIN")).count(), 1);
+        assert_eq!(smtp.world().delivered.len(), usize::from(sent_copy));
+    }
+}
+
+#[test]
 fn ordinary_sync_oauth_tls_and_local_validation_do_not_gain_password_retries() {
     let imap = peer(&[REFUSAL], true);
     let (result, _) = run(&request(imap.port), Limits::in_pieces(), &AtomicBool::new(false), false);

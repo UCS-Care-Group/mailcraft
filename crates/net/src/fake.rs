@@ -295,6 +295,8 @@ pub(crate) struct ImapWorld {
     pub(crate) password: String,
     /// Scripted password-authentication verdicts; DROP closes the connection.
     pub(crate) password_replies: Vec<String>,
+    /// Delay later greetings so cancellation during a replacement setup can be observed.
+    pub(crate) greeting_pause_after_first: Option<Duration>,
     /// PLAIN availability and LOGINDISABLED for the connection after a scripted password reply.
     pub(crate) password_methods_after_reply: Option<(bool, bool)>,
     /// The access token that signs `user` in (XOAUTH2); empty for a server that takes none.
@@ -579,12 +581,16 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
     let socket = stream.try_clone().ok();
     let mut reader: BufReader<Box<dyn MailIo>> = BufReader::new(Box::new(stream));
     let mut secured = false;
-    let greeting = {
+    let (greeting, pause) = {
         let mut world = shared.lock().unwrap();
         world.connections += 1;
         // STARTTLS is only told to those who ask.
-        format!("* OK [CAPABILITY {}] fake ready\r\n", world.capabilities(false).replace(" STARTTLS", ""))
+        let pause = (world.connections > 1).then_some(world.greeting_pause_after_first).flatten();
+        (format!("* OK [CAPABILITY {}] fake ready\r\n", world.capabilities(false).replace(" STARTTLS", "")), pause)
     };
+    if let Some(pause) = pause {
+        std::thread::sleep(pause);
+    }
     let _ = reader.get_mut().write_all(greeting.as_bytes());
     let mut signed_in = false;
     let mut open: Option<usize> = None;

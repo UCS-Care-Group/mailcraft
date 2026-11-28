@@ -582,7 +582,7 @@ fn open_initial_imap<'a>(
     request: &SyncRequest,
     limits: &Limits,
     cancel: Option<&'a AtomicBool>,
-    stop_retry: &AtomicBool,
+    stop_retry: &'a AtomicBool,
 ) -> Result<Imap<Stream<'a>>, NetError> {
     let mut refused = None;
     match open_imap_attempt(&request.account, request.secret(), &limits.patience, cancel, None, &mut refused) {
@@ -600,7 +600,13 @@ fn open_initial_imap<'a>(
                 std::thread::sleep(remaining.min(Duration::from_millis(50)));
             }
             let mut final_refusal = None;
-            match open_imap_attempt(&request.account, request.secret(), &limits.patience, cancel, refused, &mut final_refusal) {
+            match open_imap_attempt(&request.account, request.secret(), &limits.patience, Some(stop_retry), refused, &mut final_refusal) {
+                Ok(mut imap) => {
+                    // Authentication obeys cancellation even while a sent copy is owed.
+                    // Once authenticated, restore the existing copy-filing policy.
+                    imap.get_mut().watch(cancel);
+                    Ok(imap)
+                }
                 // A mechanism disappearing or a malformed challenge is not a second
                 // password refusal. Keep the saved credential and report the real problem.
                 Err(NetError::Proto(ProtoError::Auth(reason))) if final_refusal.is_none() => Err(NetError::Proto(ProtoError::Rejected(reason))),
