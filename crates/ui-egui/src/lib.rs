@@ -104,6 +104,8 @@ mod dav_job_tests;
 #[cfg(test)]
 mod dav_secrets_tests;
 #[cfg(test)]
+mod dialog_focus_tests;
+#[cfg(test)]
 mod dialog_report_tests;
 #[cfg(test)]
 mod dialog_scrim_tests;
