@@ -69,7 +69,7 @@ fn the_key_names_the_address_and_the_servers() {
     let microsoft = mailcraft_model::Account {
         email: "Me@Example.org".into(),
         kind: mailcraft_model::AccountKind::Microsoft,
-        incoming: Some(mailcraft_model::Server { host: "ignored".into(), port: 1, security: Default::default() }),
+        incoming: Some(mailcraft_model::Server { host: "ignored".into(), port: 1, security: Default::default(), ..Default::default() }),
         ..Default::default()
     };
     assert_eq!(MailApp::secret_key("refresh", &microsoft), "refresh:me@example.org|graph");
@@ -77,7 +77,12 @@ fn the_key_names_the_address_and_the_servers() {
     let shared = mailcraft_model::Account {
         kind: mailcraft_model::AccountKind::Imap,
         shared_of: Some(1),
-        incoming: Some(mailcraft_model::Server { host: "imap.elsewhere.example".into(), port: 993, security: Default::default() }),
+        incoming: Some(mailcraft_model::Server {
+            host: "imap.elsewhere.example".into(),
+            port: 993,
+            security: Default::default(),
+            ..Default::default()
+        }),
         ..microsoft.clone()
     };
     assert_ne!(MailApp::secret_key("refresh", &shared), MailApp::secret_key("refresh", &microsoft));

@@ -12061,6 +12061,11 @@ msgstr "Doar organizatorul întâlnirii îi poate schimba ora."
 msgid "Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."
 msgstr "Este de încredere doar acest certificat și doar pentru acest cont. Dacă serverul arată altul mai târziu, veți fi întrebat din nou."
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Only this certificate is trusted, and only for this server of this account. If the server shows another one later, MailCraft won't connect to it, and Send/Receive says so."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
@@ -18914,6 +18919,11 @@ msgid "The server's certificate"
 msgstr "Certificatul serverului"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The server's certificate couldn't be read"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's certificate has changed"
@@ -22637,6 +22647,11 @@ msgstr "imaginile unei semnături sunt PNG, JPEG sau GIF (multe programe de e-ma
 msgid "a task needs a title"
 msgstr "o sarcină are nevoie de un titlu"
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "a trusted certificate isn't used for an account that signs in on its provider's page: only one the system trusts is"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -25329,6 +25344,11 @@ msgstr ""
 #, fuzzy
 msgid "the top level"
 msgstr "nivelul superior"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the trusted certificate's fingerprint isn't a SHA-256 fingerprint"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs

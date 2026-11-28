@@ -9,13 +9,14 @@ use mailcraft_model::{Account, Security, Server};
 use rustls::ServerConfig;
 
 use crate::NetError;
+use crate::cert::{CertificateFault, CertificateProblem};
 use crate::fake::{Fake, ImapWorld, MailIo};
 use crate::tls_test_support::{Authority, trusting};
 
 fn account(port: u16) -> Account {
     Account {
         email: "user@example.org".into(),
-        incoming: Some(Server { host: "127.0.0.1".into(), port, security: Security::StartTls }),
+        incoming: Some(Server { host: "127.0.0.1".into(), port, security: Security::StartTls, ..Default::default() }),
         ..Default::default()
     }
 }
@@ -34,13 +35,13 @@ fn imap(server: Arc<ServerConfig>) -> Fake<ImapWorld> {
     })
 }
 
-/// Why the connection to the fake was refused, which must be its certificate; no password went.
-fn refused(peer: &Fake<ImapWorld>) -> String {
+/// Why the connection to the fake was refused, which must be its certificate, said as what setup
+/// shows the owner (#1413); no password went.
+fn refused(peer: &Fake<ImapWorld>) -> CertificateProblem {
     let Err(error) = crate::sync::open_imap(&account(peer.port), "invented") else { panic!("the connection was allowed") };
-    let NetError::Tls { host, reason } = error else { panic!("refused, but not by the certificate check: {error}") };
-    assert_eq!(host, "127.0.0.1");
+    let NetError::Certificate(problem) = error else { panic!("refused, but not by the certificate check: {error}") };
     assert!(!peer.world().log.iter().any(|s| s.contains("AUTHENTICATE") || s.contains(" LOGIN ")));
-    reason.to_string()
+    *problem
 }
 
 #[test]
@@ -59,12 +60,9 @@ fn a_certificate_from_an_authority_nobody_trusts_is_refused() {
     let trusted = Authority::new("MailCraft Test Authority");
     let stranger = Authority::new("Unknown Test Authority");
     let peer = imap(stranger.server(&["localhost", "127.0.0.1"]));
-    let reason = trusting(vec![trusted.root()], || refused(&peer));
-    assert!(reason.contains("certificate"), "{reason}");
-    // Where the check is webpki over the system's store, the reason is exactly that the issuer is
-    // unknown; picture downloads put that in plain words (`pictures::handshake_trouble`).
-    #[cfg(all(unix, not(target_vendor = "apple")))]
-    assert!(reason.contains("UnknownIssuer"), "{reason}");
+    // Not trusted, and sound otherwise: setup may offer to trust exactly this one (#1413).
+    let problem = trusting(vec![trusted.root()], || refused(&peer));
+    assert!(matches!(problem, CertificateProblem::NotTrusted(_)), "{problem:?}");
 }
 
 #[test]
@@ -72,17 +70,17 @@ fn a_test_authority_is_not_trusted_by_the_system() {
     // Without a test's own roots, only what the system trusts is trusted.
     let authority = Authority::new("MailCraft Test Authority");
     let peer = imap(authority.server(&["localhost", "127.0.0.1"]));
-    let reason = refused(&peer);
-    assert!(reason.contains("certificate"), "{reason}");
+    let problem = refused(&peer);
+    assert!(matches!(problem, CertificateProblem::NotTrusted(_)), "{problem:?}");
 }
 
 #[test]
 fn a_certificate_for_another_name_is_refused() {
     let authority = Authority::new("MailCraft Test Authority");
     let peer = imap(authority.server(&["mail.example.org"]));
-    let reason = trusting(vec![authority.root()], || refused(&peer));
-    // webpki names the name it was given; the Windows and macOS verifiers only say it doesn't match.
-    assert!(reason.contains("not valid for name") || reason.contains("NotValidForName"), "{reason}");
+    // Never offered for trust, whatever the owner would say.
+    let problem = trusting(vec![authority.root()], || refused(&peer));
+    assert!(matches!(problem, CertificateProblem::Unacceptable(CertificateFault::WrongName, _)), "{problem:?}");
 }
 
 #[test]

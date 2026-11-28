@@ -4,7 +4,11 @@
 use crate::fake::{Fake, ImapWorld};
 use mailcraft_model::{Account, Security, Server};
 fn account(port: u16, security: Security) -> Account {
-    Account { email: "user@example.org".into(), incoming: Some(Server { host: "127.0.0.1".into(), port, security }), ..Default::default() }
+    Account {
+        email: "user@example.org".into(),
+        incoming: Some(Server { host: "127.0.0.1".into(), port, security, ..Default::default() }),
+        ..Default::default()
+    }
 }
 #[test]
 fn sync_downloads_through_plain_with_and_without_an_initial_response() {

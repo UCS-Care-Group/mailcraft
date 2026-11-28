@@ -367,7 +367,8 @@ pub(crate) fn connect_with(
     patience: Duration,
     tls: Option<std::sync::Arc<rustls::ClientConfig>>,
 ) -> Result<transport::Stream<'static>, NetError> {
-    let server = Server { host: url.host.clone(), port: url.port, security: if url.secure { Security::Tls } else { Security::None } };
+    let server =
+        Server { host: url.host.clone(), port: url.port, security: if url.secure { Security::Tls } else { Security::None }, ..Default::default() };
     let (stream, _) =
         transport::open_with(&server, Service::Http, &transport::Patience { connect: patience, io: patience, ..Default::default() }, tls)?;
     Ok(stream)
@@ -463,7 +464,8 @@ pub(crate) fn stream(
     accept: &dyn Fn(&Streamed) -> bool,
     sink: &mut dyn Write,
 ) -> Result<Streamed, NetError> {
-    let server = Server { host: url.host.clone(), port: url.port, security: if url.secure { Security::Tls } else { Security::None } };
+    let server =
+        Server { host: url.host.clone(), port: url.port, security: if url.secure { Security::Tls } else { Security::None }, ..Default::default() };
     let (mut stream, _) = transport::open_within(&server, Service::Http, patience.connect, patience.idle)?;
     let started = Instant::now();
     write_all(&mut stream, head_of("GET", url, headers, None, false).as_bytes())?;

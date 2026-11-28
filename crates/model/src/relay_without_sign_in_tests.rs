@@ -9,8 +9,8 @@ fn a_relay_without_a_sign_in_is_kept_and_a_file_from_before_reads_as_signing_in(
     let relay = Account {
         email: "ada@example.org".into(),
         kind: AccountKind::Imap,
-        incoming: Some(Server { host: "imap.example.org".into(), port: 993, security: Security::Tls }),
-        outgoing: Some(Server { host: "relay.example.org".into(), port: 25, security: Security::StartTls }),
+        incoming: Some(Server { host: "imap.example.org".into(), port: 993, security: Security::Tls, ..Default::default() }),
+        outgoing: Some(Server { host: "relay.example.org".into(), port: 25, security: Security::StartTls, ..Default::default() }),
         outgoing_without_sign_in: true,
         ..Default::default()
     };

@@ -12,7 +12,7 @@ use mailcraft_proto::ProtoError;
 const PASSWORD: &str = "invented-horse";
 
 fn account(imap: Option<u16>, smtp: Option<u16>, security: Security) -> Account {
-    let server = |port: u16| Server { host: "127.0.0.1".into(), port, security };
+    let server = |port: u16| Server { host: "127.0.0.1".into(), port, security, ..Default::default() };
     Account { email: "ada@example.org".into(), username: "ada".into(), incoming: imap.map(server), outgoing: smtp.map(server), ..Default::default() }
 }
 

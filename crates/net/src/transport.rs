@@ -15,7 +15,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
-use mailcraft_model::{Security, Server};
+use mailcraft_model::{Account, Security, Server};
 use rustls::pki_types::ServerName;
 use rustls::{ClientConfig, ClientConnection, StreamOwned};
 
@@ -281,11 +281,12 @@ pub(crate) fn open_within<'a>(server: &Server, service: Service, connect: Durati
     open(server, service, &Patience { connect, io, ..Patience::default() })
 }
 
-/// Wrap a connection in TLS after the server agreed to STARTTLS. It goes on as it was set up.
-pub(crate) fn upgrade<'a>(stream: Stream<'a>, host: &str) -> Result<Stream<'a>, NetError> {
+/// Wrap a connection in TLS after the server agreed to STARTTLS, with TLS settings of the caller's
+/// (`None`: the usual ones, `crate::tls`). It goes on as it was set up.
+pub(crate) fn upgrade<'a>(stream: Stream<'a>, host: &str, tls: Option<Arc<ClientConfig>>) -> Result<Stream<'a>, NetError> {
     let Stream { io, cancel, patience, .. } = stream;
     let mut secured = match io {
-        Io::Plain(tcp) => secure(tcp, host, None)?,
+        Io::Plain(tcp) => secure(tcp, host, tls)?,
         tls @ Io::Tls(_) => Stream::over(tls),
     };
     (secured.cancel, secured.patience) = (cancel, patience);
@@ -357,6 +358,38 @@ fn connect_resolved<T>(
         }
     }
     Err(reason)
+}
+
+/// The TLS settings for a mail server (#1413): the system's check, and the one certificate the
+/// owner chose to trust for it ([`Server::trusted`]) when the system doesn't trust it but it is in
+/// date and for the server's name (`crate::pinned`). With them comes the verifier, which says
+/// afterwards why a certificate was refused ([`with_certificate`]). Never "ignore errors": with
+/// no fingerprint the system alone decides. An account that signs in on its provider's page
+/// takes no fingerprint: its token goes only to a server the system trusts.
+pub(crate) fn mail_tls(account: &Account, server: &Server) -> Result<(Arc<ClientConfig>, Arc<crate::pinned::Pinned>), NetError> {
+    if account.oauth.is_some() && !server.trusted.trim().is_empty() {
+        return Err(NetError::Config(said!(
+            "a trusted certificate isn't used for an account that signs in on its provider's page: only one the system trusts is"
+        )));
+    }
+    let pin = match server.trusted.trim() {
+        "" => None,
+        fingerprint => Some(
+            crate::cert::parse_fingerprint(fingerprint)
+                .ok_or_else(|| NetError::Config(said!("the trusted certificate's fingerprint isn't a SHA-256 fingerprint")))?,
+        ),
+    };
+    crate::tls::pinned_config(pin).map_err(|reason| NetError::Tls { host: bare(&server.host).to_string(), reason: reason.into() })
+}
+
+/// `error`, or, for a handshake that stopped at the server's certificate, what `verifier` noted
+/// of it ([`NetError::Certificate`]): what setup shows the owner. Nothing was sent over that
+/// connection.
+pub(crate) fn with_certificate(error: NetError, verifier: &crate::pinned::Pinned) -> NetError {
+    match error {
+        NetError::Tls { .. } => verifier.take_problem().map_or(error, |problem| NetError::Certificate(Box::new(problem))),
+        other => other,
+    }
 }
 
 /// The TLS settings every connection shares: the system's check of the certificate, which must
@@ -452,7 +485,7 @@ mod tests {
     use super::*;
 
     fn server(host: &str, port: u16, security: Security) -> Server {
-        Server { host: host.into(), port, security }
+        Server { host: host.into(), port, security, ..Default::default() }
     }
 
     #[test]

@@ -87,7 +87,7 @@ impl Rig {
         let mut mb = mailcraft_engine::io::open_path(&path).unwrap();
         let a = mb.account_mut(ACCOUNT).unwrap();
         assert_eq!((a.email.as_str(), a.kind), (OWNER, AccountKind::Imap));
-        a.incoming = Some(Server { host: "127.0.0.1".into(), port: imap.port, security: Security::None });
+        a.incoming = Some(Server { host: "127.0.0.1".into(), port: imap.port, security: Security::None, ..Default::default() });
         let mut s = Session::at(mb, 1_800_000_000, 0);
         s.path = Some(path);
         Rig { imap, graph, s, dir }
@@ -105,7 +105,7 @@ impl Rig {
         if offline {
             // A port nobody listens on any more.
             let closed = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
-            request.account.incoming = Some(Server { host: "127.0.0.1".into(), port: closed, security: Security::None });
+            request.account.incoming = Some(Server { host: "127.0.0.1".into(), port: closed, security: Security::None, ..Default::default() });
         }
         // (The fake IMAP server on this computer stands in for Microsoft's: only a test may say so.)
         let _loopback = mailcraft_net::graph::standin::allow_loopback_tokens();

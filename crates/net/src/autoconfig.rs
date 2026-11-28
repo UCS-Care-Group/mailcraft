@@ -105,7 +105,7 @@ impl Listed {
             }
             digits => digits.parse::<u16>().ok().filter(|port| *port != 0)?,
         };
-        Some(Server { host, port, security })
+        Some(Server { host, port, security, ..Default::default() })
     }
 }
 

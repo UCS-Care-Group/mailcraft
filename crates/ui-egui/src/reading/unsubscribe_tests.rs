@@ -25,7 +25,12 @@ fn list_app(headers: &[(&str, &str)]) -> (MailApp, u64) {
     let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
     for account in &mut mailbox.accounts {
         account.kind = mailcraft_model::AccountKind::Imap;
-        account.incoming = Some(mailcraft_model::Server { host: "imap.example.org".into(), port: 993, security: mailcraft_model::Security::Tls });
+        account.incoming = Some(mailcraft_model::Server {
+            host: "imap.example.org".into(),
+            port: 993,
+            security: mailcraft_model::Security::Tls,
+            ..Default::default()
+        });
     }
     let inbox = mailbox.inbox().unwrap();
     let m = Message {

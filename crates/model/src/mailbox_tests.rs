@@ -770,7 +770,7 @@ fn a_shared_mailbox_keeps_as_much_offline_as_its_owner() {
 fn written_by_a_newer_version() -> (serde_json::Value, Id) {
     let (mut mb, _) = mailbox();
     let newer = mb.add_account(Account { email: "ada@jmap.example".into(), ..Default::default() });
-    let imap = Server { host: "imap.example.org".into(), port: 993, security: Security::Tls };
+    let imap = Server { host: "imap.example.org".into(), port: 993, security: Security::Tls, ..Default::default() };
     mb.add_account(Account { email: "ada@imap.example".into(), kind: AccountKind::Imap, incoming: Some(imap), ..Default::default() });
     let inbox = mb.folder_of_kind(newer, FolderKind::Inbox).unwrap();
     mb.add_message(mail(inbox, "Written in the newer version", 10)).unwrap();
@@ -915,8 +915,8 @@ fn a_file_from_before_the_jmap_setting_reads_and_writes_as_it_was() {
         email: "ada@example.org".into(),
         display_name: "Ada".into(),
         kind: AccountKind::Imap,
-        incoming: Some(Server { host: "imap.example.org".into(), port: 993, security: Security::Tls }),
-        outgoing: Some(Server { host: "smtp.example.org".into(), port: 587, security: Security::StartTls }),
+        incoming: Some(Server { host: "imap.example.org".into(), port: 993, security: Security::Tls, ..Default::default() }),
+        outgoing: Some(Server { host: "smtp.example.org".into(), port: 587, security: Security::StartTls, ..Default::default() }),
         username: "ada".into(),
         ..Default::default()
     };

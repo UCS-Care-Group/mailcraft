@@ -20,7 +20,7 @@ fn imap(email: &str, name: &str) -> Account {
         kind: AccountKind::Imap,
         email: email.into(),
         display_name: name.into(),
-        incoming: Some(Server { host: "imap.lumen.example".into(), port: 993, security: Security::Tls }),
+        incoming: Some(Server { host: "imap.lumen.example".into(), port: 993, security: Security::Tls, ..Default::default() }),
         ..Account::default()
     }
 }

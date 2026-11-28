@@ -21,6 +21,8 @@
 #![cfg_attr(all(target_os = "windows", not(debug_assertions)), windows_subsystem = "windows")]
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+#[cfg(test)]
+mod account_check_tests;
 mod alerts;
 #[cfg(target_os = "macos")]
 mod apple_events;
@@ -1001,6 +1003,41 @@ fn categories_job_with(
     out
 }
 
+/// Why the check of `account`'s mail servers came to nothing, as setup takes it: a certificate the
+/// system doesn't trust and the owner may (in date, for the server's name) is the question to ask
+/// about it, for the server that showed it (#1413); anything else is said in words.
+fn account_check_refusal(
+    account: &mailcraft_model::Account,
+    server: Option<mailcraft_net::MailServer>,
+    error: mailcraft_net::NetError,
+) -> mailcraft_ui_egui::AccountCheckRefusal {
+    use mailcraft_net::{CertificateProblem, MailServer, NetError};
+    use mailcraft_ui_egui::AccountCheckRefusal;
+    let outgoing = server == Some(MailServer::Outgoing);
+    let host = if outgoing { account.outgoing.as_ref() } else { account.incoming.as_ref() }.map(|s| s.host.trim().to_string());
+    match (error, host) {
+        // Never for an account that signs in on its provider's page: its servers are the
+        // provider's own, and a certificate the system doesn't trust there is somebody in between.
+        (NetError::Certificate(problem), Some(host)) if server.is_some() && account.oauth.is_none() && problem.can_be_trusted() => {
+            let changed = matches!(*problem, CertificateProblem::Changed(_));
+            let info = problem.info().clone();
+            AccountCheckRefusal::Certificate {
+                outgoing,
+                certificate: Box::new(mailcraft_ui_egui::ews_setup::EwsCertificate {
+                    url: host,
+                    fingerprint: info.fingerprint,
+                    subject: info.subject,
+                    issuer: info.issuer,
+                    not_before: info.not_before,
+                    not_after: info.not_after,
+                    changed,
+                }),
+            }
+        }
+        (error, _) => AccountCheckRefusal::Said(error.said()),
+    }
+}
+
 /// Keep an account's rules on its server (#566): when something waits to go, a token that may
 /// change the rules (a sign-in that doesn't cover it gets none: the answer says the owner is to
 /// be asked, and nothing is sent), what waits told to the server; then the server's rules read
@@ -1308,7 +1345,10 @@ fn services(
         })),
         test_account: Some(Box::new(move |account, secret| {
             // The window says why in its own language (#872).
-            background(&test_ctx, "account check", move || mailcraft_net::test_account(&account, &secret).map_err(|e| e.said()))
+            // A certificate the owner may trust comes back as the question to ask (#1413).
+            background(&test_ctx, "account check", move || {
+                mailcraft_net::check_account(&account, &secret).map_err(|(server, e)| account_check_refusal(&account, server, e))
+            })
         })),
         // The copy of the mailbox kept before an account switches to Microsoft Graph: a large
         // mailbox takes a while to write, and the window shows a spinner meanwhile (#118).

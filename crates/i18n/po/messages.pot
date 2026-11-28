@@ -9985,6 +9985,11 @@ msgstr ""
 msgid "Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Only this certificate is trusted, and only for this server of this account. If the server shows another one later, MailCraft won't connect to it, and Send/Receive says so."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 msgid "Only this event is changed, not the series."
@@ -15655,6 +15660,11 @@ msgid "The server's certificate"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The server's certificate couldn't be read"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server's certificate has changed"
 msgstr ""
@@ -18730,6 +18740,11 @@ msgstr ""
 msgid "a task needs a title"
 msgstr ""
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "a trusted certificate isn't used for an account that signs in on its provider's page: only one the system trusts is"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 msgid "add an Exchange server account first: its organisation's address list is searched"
@@ -20977,6 +20992,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "the top level"
+msgstr ""
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the trusted certificate's fingerprint isn't a SHA-256 fingerprint"
 msgstr ""
 
 #. why a mail server couldn't be used

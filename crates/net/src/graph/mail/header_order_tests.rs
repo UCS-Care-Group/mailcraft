@@ -73,7 +73,7 @@ fn a_message_downloaded_over_imap_keeps_its_headers_in_the_servers_order() {
         id: 7,
         email: "owner@example.org".into(),
         kind: AccountKind::Imap,
-        incoming: Some(Server { host: "127.0.0.1".into(), port: imap.port, security: Security::None }),
+        incoming: Some(Server { host: "127.0.0.1".into(), port: imap.port, security: Security::None, ..Default::default() }),
         username: "owner".into(),
         ..Default::default()
     };

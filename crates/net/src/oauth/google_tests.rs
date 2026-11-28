@@ -335,7 +335,7 @@ fn integrated_google_servers(token: &str) -> (crate::fake::FakeImap, crate::fake
 
 fn integrated_google_account(imap: &crate::fake::FakeImap, smtp: &crate::fake::FakeSmtp) -> mailcraft_model::Account {
     use mailcraft_model::{Account, AccountKind, Security, Server};
-    let loopback = |port| Server { host: "127.0.0.1".into(), port, security: Security::None };
+    let loopback = |port| Server { host: "127.0.0.1".into(), port, security: Security::None, ..Default::default() };
     Account {
         id: 91,
         name: "Synthetic owner".into(),

@@ -55,8 +55,8 @@ fn imap(id: u64, email: &str, host: &str) -> Account {
         kind: AccountKind::Imap,
         email: email.into(),
         name: email.into(),
-        incoming: Some(Server { host: format!("imap.{host}"), port: 993, security: Default::default() }),
-        outgoing: Some(Server { host: format!("smtp.{host}"), port: 465, security: Default::default() }),
+        incoming: Some(Server { host: format!("imap.{host}"), port: 993, security: Default::default(), ..Default::default() }),
+        outgoing: Some(Server { host: format!("smtp.{host}"), port: 465, security: Default::default(), ..Default::default() }),
         ..Default::default()
     }
 }

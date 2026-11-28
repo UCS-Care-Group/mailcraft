@@ -98,7 +98,10 @@ pub(crate) fn open_smtp_with<'a>(
             return Err(not_signed_in(account));
         }
     }
-    let (mut stream, host) = transport::open(server, Service::Smtp, patience)?;
+    // The system's check, and the one certificate the owner trusted for this server (#1413).
+    let (tls, verifier) = transport::mail_tls(account, server)?;
+    let (mut stream, host) =
+        transport::open_with(server, Service::Smtp, patience, Some(tls.clone())).map_err(|e| transport::with_certificate(e, &verifier))?;
     stream.watch(cancel);
     let mut smtp = Smtp::connect(stream)?;
     let mut offered = smtp.hello(CLIENT_NAME)?;
@@ -108,7 +111,7 @@ pub(crate) fn open_smtp_with<'a>(
             return Err(NetError::Tls { host, reason: said!("the server doesn't offer STARTTLS") });
         }
         let plain = smtp.starttls()?;
-        smtp = Smtp::resume(transport::upgrade(plain, &host)?);
+        smtp = Smtp::resume(transport::upgrade(plain, &host, Some(tls)).map_err(|e| transport::with_certificate(e, &verifier))?);
         offered = smtp.hello(CLIENT_NAME)?;
     }
     if account.oauth.is_some() {

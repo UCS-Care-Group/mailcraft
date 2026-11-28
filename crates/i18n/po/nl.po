@@ -11642,6 +11642,11 @@ msgstr "Alleen de organisator van de vergadering kan de tijd wijzigen."
 msgid "Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."
 msgstr "Alleen dit certificaat wordt vertrouwd, en alleen voor dit account. Als de server later een ander toont, wordt u opnieuw gevraagd."
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Only this certificate is trusted, and only for this server of this account. If the server shows another one later, MailCraft won't connect to it, and Send/Receive says so."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
@@ -18301,6 +18306,11 @@ msgid "The server's certificate"
 msgstr "Het certificaat van de server"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The server's certificate couldn't be read"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's certificate has changed"
@@ -21951,6 +21961,11 @@ msgstr "de afbeeldingen van een handtekening zijn PNG, JPEG of GIF (veel e-mailp
 msgid "a task needs a title"
 msgstr "een taak heeft een titel nodig"
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "a trusted certificate isn't used for an account that signs in on its provider's page: only one the system trusts is"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 #, fuzzy
@@ -24636,6 +24651,11 @@ msgstr "de tekst van „{subject}” kan op deze computer niet worden gelezen, d
 #, fuzzy
 msgid "the top level"
 msgstr "het bovenste niveau"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the trusted certificate's fingerprint isn't a SHA-256 fingerprint"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs

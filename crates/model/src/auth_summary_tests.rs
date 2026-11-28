@@ -12,7 +12,7 @@ fn imap() -> Account {
     Account {
         kind: AccountKind::Imap,
         email: "ada@example.org".into(),
-        incoming: Some(Server { host: "imap.example.org".into(), port: 993, security: Security::Tls }),
+        incoming: Some(Server { host: "imap.example.org".into(), port: 993, security: Security::Tls, ..Default::default() }),
         ..Account::default()
     }
 }

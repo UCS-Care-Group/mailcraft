@@ -11,7 +11,7 @@ use mailcraft_model::{Account, AccountKind, Address, Message, Security, Server};
 use crate::reading::remote::vouched;
 
 fn account(kind: AccountKind, host: &str) -> Account {
-    let incoming = (!host.is_empty()).then(|| Server { host: host.into(), port: 993, security: Security::Tls });
+    let incoming = (!host.is_empty()).then(|| Server { host: host.into(), port: 993, security: Security::Tls, ..Default::default() });
     Account { kind, incoming, ..Account::default() }
 }
 

@@ -343,7 +343,12 @@ fn the_whole_corpus_lays_out_in_both_themes_at_every_width() {
 fn served_by_example_org(mailbox: &mut Mailbox) {
     for account in &mut mailbox.accounts {
         account.kind = mailcraft_model::AccountKind::Imap;
-        account.incoming = Some(mailcraft_model::Server { host: "imap.example.org".into(), port: 993, security: mailcraft_model::Security::Tls });
+        account.incoming = Some(mailcraft_model::Server {
+            host: "imap.example.org".into(),
+            port: 993,
+            security: mailcraft_model::Security::Tls,
+            ..Default::default()
+        });
     }
 }
 

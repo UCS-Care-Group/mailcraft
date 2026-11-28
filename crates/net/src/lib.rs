@@ -281,15 +281,30 @@ mod native {
     /// `secret` is the account's password, or the access token of an account that signs in with
     /// OAuth ([`Account::oauth`]).
     pub fn test_account(account: &Account, secret: &str) -> Result<(), NetError> {
+        check_account(account, secret).map_err(|(_, error)| error)
+    }
+
+    /// Which of an account's mail servers a check of the account stopped at.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum MailServer {
+        /// The incoming (IMAP) server.
+        Incoming,
+        /// The outgoing (SMTP) server.
+        Outgoing,
+    }
+
+    /// [`test_account`], saying which server the error came from (none for an account with no
+    /// servers to check): setup asks about a certificate for the server that showed it (#1413).
+    pub fn check_account(account: &Account, secret: &str) -> Result<(), (Option<MailServer>, NetError)> {
         if account.incoming.is_none() && account.outgoing.is_none() {
-            return Err(NetError::Config(said!("the account has no mail servers to check")));
+            return Err((None, NetError::Config(said!("the account has no mail servers to check"))));
         }
         if account.incoming.is_some() {
-            let imap = crate::sync::open_imap(account, secret).map_err(|e| e.without(secret))?;
+            let imap = crate::sync::open_imap(account, secret).map_err(|e| (Some(MailServer::Incoming), e.without(secret)))?;
             let _ = imap.logout();
         }
         if account.outgoing.is_some() {
-            let smtp = crate::send::open_smtp(account, secret).map_err(|e| e.without(secret))?;
+            let smtp = crate::send::open_smtp(account, secret).map_err(|e| (Some(MailServer::Outgoing), e.without(secret)))?;
             let _ = smtp.quit();
         }
         Ok(())
@@ -314,6 +329,10 @@ mod tls_test_support;
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
 mod verifier_tests;
+
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
+mod mail_certificate_tests;
 
 #[cfg(test)]
 #[cfg(any(target_os = "linux", target_os = "freebsd"))]

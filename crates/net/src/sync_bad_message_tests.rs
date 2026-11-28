@@ -49,7 +49,7 @@ fn request(imap: &FakeImap) -> SyncRequest {
         id: 7,
         email: "ada@example.org".into(),
         kind: AccountKind::Imap,
-        incoming: Some(Server { host: "127.0.0.1".into(), port: imap.port, security: Security::None }),
+        incoming: Some(Server { host: "127.0.0.1".into(), port: imap.port, security: Security::None, ..Default::default() }),
         username: "ada".into(),
         ..Default::default()
     };

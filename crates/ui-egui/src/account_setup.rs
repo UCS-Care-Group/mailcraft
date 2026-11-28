@@ -80,6 +80,9 @@ pub enum Page {
     ServerConsent,
     /// The host is trying the password on the servers.
     Checking,
+    /// A mail server's certificate, which the system doesn't trust: trust it for this server of
+    /// the account (#1413)?
+    ServerCertificate,
     /// The account exists.
     Done,
     /// The settings of an account that exists already.
@@ -303,15 +306,22 @@ pub struct ServerFields {
     /// Digits; empty for the usual port.
     port: String,
     security: Security,
+    /// The SHA-256 fingerprint of the one certificate the owner trusted for this server although
+    /// the system doesn't ([`Server::trusted`], #1413); empty for none. Never typed: set only from
+    /// the certificate page, or kept from the account being edited.
+    trusted: String,
 }
 
 impl ServerFields {
     /// The fields for an account's server.
     fn of(server: Option<&Server>) -> ServerFields {
         match server {
-            Some(s) => {
-                ServerFields { host: line(&s.host, HOST), port: if s.port == 0 { String::new() } else { s.port.to_string() }, security: s.security }
-            }
+            Some(s) => ServerFields {
+                host: line(&s.host, HOST),
+                port: if s.port == 0 { String::new() } else { s.port.to_string() },
+                security: s.security,
+                trusted: s.trusted.clone(),
+            },
             None => ServerFields::default(),
         }
     }
@@ -323,6 +333,7 @@ impl ServerFields {
             host: line(v.get("host").and_then(Value::as_str).unwrap_or_default(), HOST),
             port: v.get("port").and_then(Value::as_u64).filter(|p| (1..=65_535).contains(p)).map(|p| p.to_string()).unwrap_or_default(),
             security: v.get("security").and_then(Value::as_str).and_then(Security::parse).unwrap_or_default(),
+            trusted: String::new(),
         }
     }
 
@@ -350,13 +361,21 @@ impl ServerFields {
         if let Some(port) = self.port().filter(|p| *p != 0) {
             m.insert("port".into(), json!(port));
         }
+        if !self.trusted.is_empty() {
+            m.insert("trusted".into(), json!(self.trusted));
+        }
         Some(Value::Object(m))
     }
 
     /// The server as an account keeps it; `None` when no host was given.
     fn server(&self) -> Option<Server> {
         let host = self.host.trim();
-        (!host.is_empty()).then(|| Server { host: host.to_string(), port: self.port().unwrap_or(0), security: self.security })
+        (!host.is_empty()).then(|| Server {
+            host: host.to_string(),
+            port: self.port().unwrap_or(0),
+            security: self.security,
+            trusted: self.trusted.clone(),
+        })
     }
 }
 
@@ -501,7 +520,12 @@ pub struct AccountSetup {
     /// Autodiscover answer is awaited, and for IMAP when the owner says it isn't Exchange.
     discovered: Option<Discovered>,
     /// Whether the servers took the password, once the host knows.
-    check: Option<Receiver<Result<(), mailcraft_i18n::Text>>>,
+    check: Option<Receiver<Result<(), crate::AccountCheckRefusal>>>,
+    /// A mail server's certificate the system doesn't trust, which the owner is asked about
+    /// (`Page::ServerCertificate`, #1413): `true` for the outgoing server's.
+    server_certificate: Option<(bool, crate::ews_setup::EwsCertificate)>,
+    /// The box "Trust this certificate for this account" is ticked on that page.
+    server_ticked: bool,
     /// The owner is in the browser, signing in for this wizard.
     waiting: bool,
     /// This is a reconnect of an existing Google OAuth account, not an app-password conversion.
@@ -646,6 +670,8 @@ impl AccountSetup {
             autodiscover: None,
             discovered: None,
             check: None,
+            server_certificate: None,
+            server_ticked: false,
             waiting: false,
             reconnecting_google: false,
             mail_only: false,
@@ -1215,6 +1241,11 @@ impl AccountSetup {
                 self.check = None;
                 self.go(Page::Password);
             }
+            (Page::ServerCertificate, Action::Go) => self.trust_server_certificate(app),
+            (Page::ServerCertificate, Action::Back) => {
+                self.server_certificate = None;
+                self.go(Page::Password);
+            }
             (Page::Done, Action::Go) | (Page::Settings, Action::Back) => return true,
             (Page::Done, Action::Another) => *self = AccountSetup::new(app, &Value::Null),
             (Page::Settings, Action::Go) => return self.save(app),
@@ -1441,6 +1472,21 @@ impl AccountSetup {
             }
             None => self.add_with_password(app),
         }
+    }
+
+    /// "Trust this certificate for this account" on a mail server's certificate (#1413): only with
+    /// the box ticked. The fingerprint goes with that server, and the account is tried again with
+    /// it; nothing is kept until the account is added.
+    fn trust_server_certificate(&mut self, app: &mut MailApp) {
+        let Some((outgoing, certificate)) = self.server_certificate.take().filter(|_| self.server_ticked) else { return };
+        // (An expired certificate, or one for another name, never gets here: the host does not offer it.)
+        if certificate.fingerprint.is_empty() || mailcraft_model::EwsServer::check_fingerprint(&certificate.fingerprint).is_err() {
+            self.refuse(tl!("The server's certificate couldn't be read").to_string());
+            return;
+        }
+        let fields = if outgoing { &mut self.outgoing } else { &mut self.incoming };
+        fields.trusted = certificate.fingerprint;
+        self.try_password(app);
     }
 
     /// Add the account the password page describes, and keep its password for this session.
@@ -1872,12 +1918,25 @@ impl AccountSetup {
         let answer = match self.check.as_ref().map(Receiver::try_recv) {
             Some(Err(TryRecvError::Empty)) => return,
             Some(Ok(answer)) => answer,
-            Some(Err(TryRecvError::Disconnected)) | None => Err(mailcraft_i18n::Text::verbatim(tl!("Checking the account stopped unexpectedly"))),
+            Some(Err(TryRecvError::Disconnected)) | None => {
+                Err(crate::AccountCheckRefusal::Said(mailcraft_i18n::Text::verbatim(tl!("Checking the account stopped unexpectedly"))))
+            }
         };
         self.check = None;
         match answer {
             Ok(()) => self.add_with_password(app),
-            Err(said) => {
+            // A certificate the owner may trust: asked before anything else goes to that server (#1413).
+            Err(crate::AccountCheckRefusal::Certificate { outgoing, certificate }) => {
+                log::info!(
+                    "add account: the {} server's certificate isn't one this computer trusts; asking",
+                    if outgoing { "outgoing" } else { "incoming" }
+                );
+                self.server_certificate = Some((outgoing, *certificate));
+                self.server_ticked = false;
+                self.error.clear();
+                self.go(Page::ServerCertificate);
+            }
+            Err(crate::AccountCheckRefusal::Said(said)) => {
                 // The dialog says it once, in the interface's language; the log keeps the English
                 // for a problem report, and the English is what the kind of refusal is known by.
                 let e = said.to_string();
@@ -1987,6 +2046,18 @@ impl AccountSetup {
             Page::ExchangeChecking => self.exchange_checking(ui, &pass),
             Page::ExchangeConsent => self.exchange_consent(ui, &pass),
             Page::ExchangeCertificate => self.exchange_certificate(ui, &pass),
+            Page::ServerCertificate => match self.server_certificate.clone() {
+                Some((_, certificate)) => {
+                    let host = shown(&certificate.url, 120);
+                    // (No later question for a mail server yet: a certificate that changes is refused, and said.)
+                    let later = tl!(
+                        "Only this certificate is trusted, and only for this server of this account. If the server shows another one later, MailCraft won't connect to it, and Send/Receive says so."
+                    );
+                    exchange::certificate_question(ui, &pass, self.page, &host, &certificate, &mut self.server_ticked, &self.error, later)
+                }
+                // Nothing to ask about: back to the password and the servers.
+                None => Some(Action::Back),
+            },
             Page::ExchangeOnline => self.exchange_online(ui, &pass),
         };
         action.is_some_and(|action| self.act(app, action))
@@ -2937,6 +3008,8 @@ mod tests {
     mod relay_without_sign_in;
     /// The password's eye (#438).
     mod reveal;
+    /// A mail server's certificate the system doesn't trust (#1413).
+    mod server_certificate;
     /// An address at a domain nobody here knows (#761).
     mod unknown_domain;
 
@@ -3029,9 +3102,14 @@ mod tests {
     /// [`checks`] with the answer as the host says it: a text for the window to say in its
     /// language.
     fn checks_said(app: &mut MailApp, answer: Option<Result<(), mailcraft_i18n::Text>>) -> Log<(Account, String)> {
+        checks_refusing(app, answer.map(|a| a.map_err(crate::AccountCheckRefusal::Said)))
+    }
+
+    /// [`checks`] with the answer whole: words, or a certificate to ask about (#1413).
+    fn checks_refusing(app: &mut MailApp, answer: Option<Result<(), crate::AccountCheckRefusal>>) -> Log<(Account, String)> {
         let asked: Log<(Account, String)> = Default::default();
         let log = asked.clone();
-        let silent: Log<mpsc::Sender<Result<(), mailcraft_i18n::Text>>> = Default::default();
+        let silent: Log<mpsc::Sender<Result<(), crate::AccountCheckRefusal>>> = Default::default();
         app.services.test_account = Some(Box::new(move |account, secret| {
             log.lock().unwrap().push((account, secret));
             let (tx, rx) = mpsc::channel();
@@ -3199,7 +3277,7 @@ mod tests {
         let found = Discovered {
             exchangers: vec!["mx.example.org".into()],
             incoming: Some(provider::FoundServer {
-                server: Server { host: "imap.example.org".into(), port: 993, security: Security::Tls },
+                server: Server { host: "imap.example.org".into(), port: 993, security: Security::Tls, ..Default::default() },
                 via: Via::Srv,
             }),
             outgoing: None,
@@ -3249,7 +3327,7 @@ mod tests {
         w.take(Preset::read(&s.run(guess.0, &guess.1).unwrap()));
         assert_eq!((w.service.as_str(), w.oauth.is_none(), w.incoming.host.as_str()), ("", true, "imap.lumen.example"));
         w.username = " ada ".into();
-        w.incoming = ServerFields { host: " mail.lumen.example ".into(), port: String::new(), security: Security::StartTls };
+        w.incoming = ServerFields { host: " mail.lumen.example ".into(), port: String::new(), security: Security::StartTls, ..Default::default() };
         w.outgoing.host.clear();
         let add = w.add_command("").unwrap();
         assert_eq!(
@@ -3265,7 +3343,7 @@ mod tests {
             (&tried.username, &tried.incoming, &tried.outgoing, &tried.oauth),
             (&added.username, &added.incoming, &added.outgoing, &added.oauth)
         );
-        assert_eq!(tried.incoming, Some(Server { host: "mail.lumen.example".into(), port: 0, security: Security::StartTls }));
+        assert_eq!(tried.incoming, Some(Server { host: "mail.lumen.example".into(), port: 0, security: Security::StartTls, ..Default::default() }));
         // An empty user name signs in with the address.
         w.username.clear();
         assert_eq!(w.add_command("").unwrap().1["username"], "ada@lumen.example");
@@ -3304,7 +3382,7 @@ mod tests {
 
         // A good address, and servers that can't be.
         w.email = "noor@example.org".into();
-        w.incoming = ServerFields { host: "imap.example.org".into(), port: "993".into(), security: Security::Tls };
+        w.incoming = ServerFields { host: "imap.example.org".into(), port: "993".into(), security: Security::Tls, ..Default::default() };
         assert!(w.add_command("").is_some() && w.account().is_some());
         for port in ["0", "65536", "99999", "-1", "12a", "\u{ff11}\u{ff12}", "9 9", junk.as_str()] {
             w.incoming.port = port.into();
@@ -3344,14 +3422,20 @@ mod tests {
         let p = Preset::read(&odd);
         assert!(p.service.chars().count() <= 60 && p.note.chars().count() <= 300 && p.username.chars().count() <= LINE);
         assert!(p.incoming.host.chars().count() <= HOST && p.incoming.port.is_empty() && p.incoming.security == Security::Tls);
-        assert_eq!(p.outgoing, ServerFields { host: "smtp.example.org".into(), port: String::new(), security: Security::StartTls });
+        assert_eq!(
+            p.outgoing,
+            ServerFields { host: "smtp.example.org".into(), port: String::new(), security: Security::StartTls, ..Default::default() }
+        );
         assert_eq!(p.oauth, Some(OAuthProvider::Microsoft));
 
         // What a hostile name server answers is cut down before it is passed on.
         let long: String = junk.chars().take(5000).collect();
         let hostile = Discovered {
             exchangers: vec![long.clone(); 500],
-            incoming: Some(provider::FoundServer { server: Server { host: long.clone(), port: 993, security: Security::Tls }, via: Via::Srv }),
+            incoming: Some(provider::FoundServer {
+                server: Server { host: long.clone(), port: 993, security: Security::Tls, ..Default::default() },
+                via: Via::Srv,
+            }),
             outgoing: None,
             username: long.clone(),
         };
@@ -3384,7 +3468,7 @@ mod tests {
         assert!(w.act(&mut a, Action::Go));
         let account = a.session.mailbox.account(id).unwrap();
         assert_eq!((account.display_name.as_str(), account.username.as_str()), ("Noor Haddad", "noor"));
-        assert_eq!(account.outgoing, Some(Server { host: "smtp.lumen.example".into(), port: 465, security: Security::Tls }));
+        assert_eq!(account.outgoing, Some(Server { host: "smtp.lumen.example".into(), port: 465, security: Security::Tls, ..Default::default() }));
 
         // A server whose name is cleared goes; a port that isn't one keeps the page open.
         let mut w = AccountSetup::open(&a, &json!({"id": id})).unwrap();
@@ -3697,8 +3781,8 @@ mod tests {
                 (tried.len(), account.email.as_str(), account.username.as_str(), secret.as_str()),
                 (1, "noor@example.org", "noor@example.org", TYPED)
             );
-            assert_eq!(account.incoming, Some(Server { host: "imap.gmail.com".into(), port: 993, security: Security::Tls }));
-            assert_eq!(account.outgoing, Some(Server { host: "smtp.gmail.com".into(), port: 465, security: Security::Tls }));
+            assert_eq!(account.incoming, Some(Server { host: "imap.gmail.com".into(), port: 993, security: Security::Tls, ..Default::default() }));
+            assert_eq!(account.outgoing, Some(Server { host: "smtp.gmail.com".into(), port: 465, security: Security::Tls, ..Default::default() }));
             assert!(account.oauth.is_none());
         }
         // The servers take it now: the account is added, and its first download has the password.
@@ -3963,7 +4047,7 @@ mod tests {
             (account.email.as_str(), account.kind, account.username.as_str()),
             ("noor@lumen.example", AccountKind::Imap, "noor@lumen.example")
         );
-        assert_eq!(account.incoming, Some(Server { host: "imap.lumen.example".into(), port: 993, security: Security::Tls }));
+        assert_eq!(account.incoming, Some(Server { host: "imap.lumen.example".into(), port: 993, security: Security::Tls, ..Default::default() }));
         assert!(!h.state().syncing());
         click(&mut h, "Done");
         assert_eq!(page(&h), None);
@@ -4044,6 +4128,7 @@ mod tests {
             Page::Password,
             Page::ServerConsent,
             Page::Checking,
+            Page::ServerCertificate,
             Page::Done,
             Page::Settings,
         ];
@@ -4072,7 +4157,7 @@ mod tests {
                     let w = wizard_mut(&mut h);
                     if page_in_view == Page::Settings {
                         if !hostile {
-                            let local = Server { host: "localhost".into(), port: 1143, security: Security::None };
+                            let local = Server { host: "localhost".into(), port: 1143, security: Security::None, ..Default::default() };
                             *w =
                                 AccountSetup::edit(&Account { id: 1, email: "noor@example.org".into(), incoming: Some(local), ..Default::default() });
                         }
@@ -4089,6 +4174,20 @@ mod tests {
                         (w.ended, w.approved) = (hostile.then_some(SignInEnd::TimedOut), !hostile);
                         (w.lookup, w.check) = (Some(lookup), Some(check));
                         w.outcome = if hostile { Outcome::Offline } else { Outcome::Downloading };
+                        // A mail server's certificate to ask about (#1413), its words hostile too.
+                        if page_in_view == Page::ServerCertificate {
+                            let text = if hostile { junk.clone() } else { "127.0.0.1".to_string() };
+                            let certificate = crate::ews_setup::EwsCertificate {
+                                url: text.clone(),
+                                fingerprint: "ab".repeat(32),
+                                subject: text.clone(),
+                                issuer: text,
+                                not_before: if hostile { i64::MIN } else { 0 },
+                                not_after: if hostile { i64::MAX } else { 2_000_000_000 },
+                                changed: hostile,
+                            };
+                            w.server_certificate = Some((hostile, certificate));
+                        }
                         // Servers the domain's records named, one of them outside the domain (#1063).
                         if matches!(page_in_view, Page::Password | Page::ServerConsent) {
                             (w.found, w.incoming.host, w.found_hosts) =

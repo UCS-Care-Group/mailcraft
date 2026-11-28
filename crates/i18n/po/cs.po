@@ -12045,6 +12045,11 @@ msgstr "Čas schůzky může změnit jen její organizátor."
 msgid "Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."
 msgstr "Důvěryhodný je jen tento certifikát a jen pro tento účet. Pokud server později ukáže jiný, budete dotázáni znovu."
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Only this certificate is trusted, and only for this server of this account. If the server shows another one later, MailCraft won't connect to it, and Send/Receive says so."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
 #, fuzzy
@@ -18890,6 +18895,11 @@ msgid "The server's certificate"
 msgstr "Certifikát serveru"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "The server's certificate couldn't be read"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server's certificate has changed"
@@ -22612,6 +22622,11 @@ msgstr "obrázky podpisu jsou PNG, JPEG nebo GIF (mnoho poštovních programů j
 msgid "a task needs a title"
 msgstr "úkol potřebuje název"
 
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "a trusted certificate isn't used for an account that signs in on its provider's page: only one the system trusts is"
+msgstr ""
+
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
 msgid "add an Exchange server account first: its organisation's address list is searched"
@@ -25304,6 +25319,11 @@ msgstr ""
 #, fuzzy
 msgid "the top level"
 msgstr "nejvyšší úroveň"
+
+#. why a mail server couldn't be used
+#: crates/net/src/transport.rs
+msgid "the trusted certificate's fingerprint isn't a SHA-256 fingerprint"
+msgstr ""
 
 #. why a mail server couldn't be used
 #: crates/proto/src/lib.rs

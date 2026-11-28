@@ -94,7 +94,7 @@ fn each_category_has_its_label_for_gmails_api() {
 
 #[test]
 fn only_a_gmail_account_signed_in_with_google_moves_between_categories() {
-    let server = |host: &str| Some(Server { host: host.into(), port: 993, security: Security::Tls });
+    let server = |host: &str| Some(Server { host: host.into(), port: 993, security: Security::Tls, ..Default::default() });
     let google = Some(OAuth { provider: OAuthProvider::Google, ..Default::default() });
     let gmail = Account { incoming: server("imap.gmail.com"), ..Default::default() };
     assert!(!gmail.moves_gmail_categories(), "an app password");
