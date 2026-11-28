@@ -20,7 +20,7 @@ const NOW: i64 = 1_790_000_000;
 const SHARED: &str = "support@example.org";
 
 fn request(email: &str, shared: bool, folder: &str, query: &str) -> GraphSearchRequest {
-    GraphSearchRequest { account: 3, email: email.into(), shared, ticket: 7, folder: folder.into(), query: query.into(), next: String::new() }
+    GraphSearchRequest { account: 3, email: email.into(), shared, ticket: 7, folder: folder.into(), query: query.into(), ..Default::default() }
 }
 
 fn ask(base: &str, request: &GraphSearchRequest) -> GraphSearchResult {
@@ -180,6 +180,12 @@ fn a_shared_mailbox_is_searched_at_its_own_address_and_nothing_of_it_reaches_me(
         let path = asked.path.join("/");
         assert!(path.starts_with(&format!("v1.0/users/{SHARED}/")), "{path}");
     }
+    let dated = GraphSearchRequest { received: Some((None, Some(NOW + 1))), ..request(SHARED, true, "", "received:today") };
+    let first = ask(&server.url(), &dated);
+    assert_eq!(first.messages.len(), 50, "{:?}", first.errors);
+    let second = ask(&server.url(), &GraphSearchRequest { next: first.next, ..dated });
+    assert_eq!(second.messages.len(), 10, "{:?}", second.errors);
+    assert!(first.messages.iter().chain(&second.messages).all(|m| m.server.folder == theirs));
     // A next page at the owner's own mailbox is never asked for a shared one.
     let before = server.state().requests.len();
     let astray = format!("{}/v1.0/me/messages?$search=%22message%22&$skip=50", server.url());
@@ -300,4 +306,58 @@ fn an_address_starting_with_a_mark_is_sent_quoted() {
     assert_eq!(search_value("from:_ada@example.org").as_deref(), Some(r#""from:\"_ada@example.org\"""#));
     assert_eq!(search_value("from:'ada@example.org").as_deref(), Some(r#""from:\"'ada@example.org\"""#));
     assert_eq!(search_value("from:1ada@example.org").as_deref(), Some(r#""from:1ada@example.org""#));
+}
+
+#[test]
+fn a_received_period_filters_the_mailbox_before_asking_for_the_page() {
+    use mailcraft_time::iso_to_timestamp;
+
+    let server = FakeHttp::answering(json_answer("200 OK", r#"{"value":[]}"#));
+    let mut request = request(SHARED, true, "AQMk-in", "received:2026-10-12");
+    request.received = Some((iso_to_timestamp("2026-10-12T08:00:00Z", 0), iso_to_timestamp("2026-10-13T08:00:00Z", 0)));
+    let result = ask(&server.url(""), &request);
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    let raw = server.request(0);
+    let line = crate::http::decode(raw.lines().next().unwrap());
+    assert!(line.contains("/v1.0/users/support@example.org/mailFolders/AQMk-in/messages?"), "{line}");
+    assert!(line.contains("$filter=receivedDateTime ge 2026-10-12T08:00:00Z and receivedDateTime lt 2026-10-13T08:00:00Z"), "{line}");
+    assert!(line.contains("$orderby=receivedDateTime desc") && line.contains("$top=50") && !line.contains("$search"), "{line}");
+}
+
+#[test]
+fn received_search_pages_past_a_mailbox_full_of_newer_unrelated_mail() {
+    let server = StandIn::start().unwrap();
+    let inbox = server.state().well_known("inbox");
+    let archive = server.state().well_known("archive");
+    {
+        let mut state = server.state();
+        for i in 0..520 {
+            state.mailbox.add(&inbox, &format!("Too new {i}"), NOW + 500 + i);
+        }
+        for i in 0..55 {
+            let folder = if i == 0 { &archive } else { &inbox };
+            state.mailbox.add(folder, &format!("In range {i}"), NOW + i);
+        }
+        state.mailbox.add(&inbox, "Too old", NOW - 1);
+        state.mailbox.add(&inbox, "At the exclusive end", NOW + 55);
+    }
+    let mut req = request("owner@example.org", false, "", "received:2026-09-21");
+    req.received = Some((Some(NOW), Some(NOW + 55)));
+    let first = ask(&server.url(), &req);
+    assert!(first.errors.is_empty(), "{:?}", first.errors);
+    assert_eq!(first.messages.len(), 50);
+    assert_eq!(first.messages.first().unwrap().received, NOW + 54);
+    assert!(!first.next.is_empty());
+    let second = ask(&server.url(), &GraphSearchRequest { next: first.next.clone(), ..req.clone() });
+    assert!(second.errors.is_empty(), "{:?}", second.errors);
+    assert_eq!(second.messages.len(), 5);
+    assert!(second.next.is_empty());
+    let dates: Vec<i64> = first.messages.iter().chain(&second.messages).map(|m| m.received).collect();
+    assert_eq!(dates, (NOW..NOW + 55).rev().collect::<Vec<_>>());
+
+    req.folder = inbox;
+    req.received = Some((None, Some(NOW + 2)));
+    let folder = ask(&server.url(), &req);
+    assert!(folder.errors.is_empty(), "{:?}", folder.errors);
+    assert_eq!(subjects(&folder), ["In range 1", "Too old"]);
 }

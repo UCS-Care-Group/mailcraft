@@ -146,6 +146,52 @@ fn a_window_closed_while_opening_writes_no_settings() {
     assert!(file.exists(), "a window with its mailbox writes them");
 }
 
+/// A choice made in the window is on disk without the window being closed, so a window that
+/// stops any other way doesn't lose it; and nothing is written while nothing changed.
+#[test]
+fn a_changed_setting_is_written_while_the_window_is_open() {
+    let tmp = Temp::new("prefs-changed");
+    let file = tmp.0.join("ui.json");
+    let mut app = mailcraft_ui_egui::MailApp::new(mailcraft_engine::Session::new(mailbox(1)), Default::default());
+    let mut seen = None;
+    let now = std::time::Duration::ZERO;
+    let look = |app: &mailcraft_ui_egui::MailApp, file: &Path, seen: &mut Option<crate::PrefsSeen>, every: Duration| {
+        crate::save_prefs_when_changed_at(app, file, seen, every)
+    };
+    assert_eq!(look(&app, &file, &mut seen, now), crate::Look::Same, "the first look only notes the settings");
+    assert!(!file.exists());
+    assert_eq!(look(&app, &file, &mut seen, now), crate::Look::Same, "nothing changed, nothing written");
+    app.session.prefs.preview_lines = if app.session.prefs.preview_lines == 0 { 3 } else { 0 };
+    let chosen = app.session.prefs.preview_lines;
+    assert_eq!(look(&app, &file, &mut seen, now), crate::Look::Saved);
+    let written: serde_json::Value = serde_json::from_slice(&std::fs::read(&file).unwrap()).unwrap();
+    assert_eq!(written["options"]["previewLines"], chosen, "{written}");
+    assert_eq!(look(&app, &file, &mut seen, now), crate::Look::Same, "written once");
+    // Looked at again only after the time given, which is then said, so the window is woken for it.
+    app.session.prefs.preview_lines = 2;
+    assert!(matches!(look(&app, &file, &mut seen, Duration::from_secs(3600)), crate::Look::Wait(left) if left > Duration::from_secs(3000)));
+    assert_eq!(look(&app, &file, &mut seen, now), crate::Look::Saved, "the change made in the wait is written at the next look");
+}
+
+/// A write that fails is tried again at the next look, not taken for done.
+#[test]
+fn a_setting_that_could_not_be_written_is_written_at_the_next_look() {
+    let tmp = Temp::new("prefs-failed");
+    let blocker = tmp.0.join("settings");
+    std::fs::write(&blocker, b"a file where the folder should be").unwrap();
+    let file = blocker.join("ui.json");
+    let mut app = mailcraft_ui_egui::MailApp::new(mailcraft_engine::Session::new(mailbox(1)), Default::default());
+    let mut seen = None;
+    let now = Duration::ZERO;
+    assert_eq!(crate::save_prefs_when_changed_at(&app, &file, &mut seen, now), crate::Look::Same);
+    app.session.prefs.preview_lines = if app.session.prefs.preview_lines == 0 { 3 } else { 0 };
+    assert_eq!(crate::save_prefs_when_changed_at(&app, &file, &mut seen, now), crate::Look::Failed);
+    assert_eq!(crate::save_prefs_when_changed_at(&app, &file, &mut seen, now), crate::Look::Failed, "still tried");
+    std::fs::remove_file(&blocker).unwrap();
+    assert_eq!(crate::save_prefs_when_changed_at(&app, &file, &mut seen, now), crate::Look::Saved);
+    assert!(file.exists());
+}
+
 /// A mailbox file whose presence can't be told is no first start: nothing is kept in its place,
 /// so nothing can be saved over it (#1425). (A file standing where its folder should be makes
 /// the look fail on Unix; Windows says "not found" for that.)

@@ -30,7 +30,7 @@
 
 use std::ops::{Bound, Range, RangeBounds};
 
-use mailcraft_time::{Date, DateTime, Timestamp, Weekday};
+use mailcraft_time::{Date, DateTime, Timestamp, Weekday, Zone};
 
 use crate::words::{self, ATTACHMENT, BODY, CC, FROM, SUBJECT, TO};
 use crate::{Address, Category, FlagStatus, Importance, Message, Rgb, contains_ci};
@@ -994,6 +994,41 @@ impl Query {
     /// clocks between the two or not (#329).
     pub fn matches_in(&self, m: &Message, offset: impl Fn(Timestamp) -> i32) -> bool {
         self.matches_with(m, offset, |_| None)
+    }
+
+    /// The half-open UTC bounds for a single positive, resolved received-date term.
+    pub fn received_period(&self, zone: Zone) -> Option<(Option<Timestamp>, Option<Timestamp>)> {
+        let [Term { kind: Kind::Received(first, last), negate: false }] = self.terms.as_slice() else { return None };
+        if zone.is_local() {
+            return None;
+        }
+        let next = |day: Date| {
+            let after = day.add_days(1);
+            (after > day).then_some(after)
+        };
+        let boundary = |day: Date| {
+            let at = zone.instant(DateTime::at_midnight(day));
+            let local = |t| DateTime::from_timestamp(t, zone.offset_at(t)).date;
+            // Some historical rollbacks cross midnight twice. A single UTC boundary
+            // cannot describe which side of that local date those instants belong to.
+            let crosses_back =
+                zone.transitions(at - 172_800, at + 172_800).iter().any(|change| local(change.at - 1) >= day && local(change.at) < day);
+            (local(at) == day && local(at - 1) < day && !crosses_back).then_some(at)
+        };
+        let from = match *first {
+            Bound::Included(day) => Some(boundary(day)?),
+            Bound::Excluded(day) => Some(boundary(next(day)?)?),
+            Bound::Unbounded => None,
+        };
+        let until = match *last {
+            Bound::Included(day) => Some(boundary(next(day)?)?),
+            Bound::Excluded(day) => Some(boundary(day)?),
+            Bound::Unbounded => None,
+        };
+        if matches!((from, until), (Some(a), Some(b)) if a >= b) {
+            return None;
+        }
+        Some((from, until))
     }
 
     /// [`Query::matches_in`], with what `known` says of a term (whether `m` has what term `i` asks

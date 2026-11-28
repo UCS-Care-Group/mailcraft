@@ -239,6 +239,23 @@ fn a_run_that_brings_new_mail_shows_alerts_while_the_window_is_elsewhere() {
 }
 
 #[test]
+fn desktop_mail_alerts_can_be_muted_for_just_one_account() {
+    let (mut app, recorder, quiet, inbox) = window();
+    let servers = json!({"email": "other@example.org", "incoming": {"host": "imap.example.org"}, "outgoing": {"host": "smtp.example.org"}});
+    let other = app.execute("account.add", servers).unwrap()["id"].as_u64().unwrap();
+    let other_inbox = app.session.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+    deliver(&mut app, other, other_inbox, &[(1, "Old", "Already here")]);
+    let ctx = egui::Context::default();
+    app.execute("account.edit", json!({"id": quiet, "desktopMailAlerts": false})).unwrap();
+    run(&mut app, &ctx, false, quiet, inbox, &[(2, "A", "Muted")]);
+    run(&mut app, &ctx, false, other, other_inbox, &[(2, "B", "Visible")]);
+    app.execute("account.edit", json!({"id": quiet, "desktopMailAlerts": true})).unwrap();
+    run(&mut app, &ctx, false, quiet, inbox, &[(3, "A", "Back on")]);
+    let shown = recorder.shown.lock().unwrap();
+    assert_eq!(shown.iter().map(|alert| alert.body.as_str()).collect::<Vec<_>>(), ["Visible", "Back on"]);
+}
+
+#[test]
 fn a_click_brings_the_message_up_and_nothing_else_opens_anything() {
     let (mut app, recorder, account, inbox) = window();
     let ctx = egui::Context::default();

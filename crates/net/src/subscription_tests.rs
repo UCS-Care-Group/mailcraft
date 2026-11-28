@@ -403,3 +403,27 @@ fn a_look_gives_the_engine_its_outcome_without_the_address() {
     assert_eq!(failed, SubscriptionOutcome::Failed { failure: "address".into() });
     assert!(!format!("{failed:?}").contains("SECRET"));
 }
+
+#[test]
+fn a_webcal_address_is_read_over_https() {
+    // #1724: the address a calendar service shares is often `webcal://`.
+    with_server(
+        |_, _| reply("200 OK", "Content-Type: text/calendar\r\n", CALENDAR),
+        |server, look| {
+            for address in ["webcal://calendar.example/club/basic.ics", "WEBCALS://calendar.example/club/basic.ics"] {
+                assert_eq!(look(address, "", "", &quick()), changed(CALENDAR, "", ""), "{address}");
+            }
+            assert!(server.request(0).starts_with("GET /club/basic.ics HTTP/1.1\r\n"));
+            assert_eq!(server.asked(), 2);
+        },
+    );
+}
+
+#[test]
+fn a_webcal_address_the_check_refuses_is_not_asked_for() {
+    // #1724: the same checks as an https address (user name, length), on the webcal spelling too.
+    let long = format!("webcal://calendar.example/{}", "a".repeat(3000));
+    for address in ["webcal://user:pw@calendar.example/c.ics", "webcal://calendar.example/a b.ics", long.as_str()] {
+        assert_eq!(look(address, "", ""), SubscriptionOutcome::Failed { failure: "address".into() }, "{address}");
+    }
+}
