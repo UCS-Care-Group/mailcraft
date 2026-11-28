@@ -565,6 +565,9 @@ fn the_servers_own_verdict_above_its_intake_hop_is_believed() {
     // With the hops to the mailbox store above it, however many.
     headers.insert(0, h("Received", DELIVERY));
     headers.insert(0, h("Received", &DELIVERY.replace("LMTP", "LMTPS").replace(" ([192.0.2.25])", "")));
+    // One over TLS, which says so before `by`.
+    let tls = DELIVERY.replace("]) by", "]) (using TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits)) by").replace("LMTP", "LMTPS");
+    headers.insert(0, h("Received", &tls));
     assert!(vouched(Some(&own_server()), &bank(headers.clone())));
     // A forged pass below it changes nothing; the server's failure stays a failure.
     headers.extend(sent(vec![h("Authentication-Results", SELF_FAIL)]));
@@ -587,6 +590,11 @@ fn only_a_plain_hop_to_the_mailbox_store_is_looked_past() {
         "from x@mail.bank.example by mx.example.org with LMTP id 1; Tue, 3 Nov 2026 10:00:01 +0000",
         "from mx.example.org ([unix socket]) by imap.example.org with LMTPA; Tue, 3 Nov 2026 10:00:02 +0000",
         "by imap.example.org with LMTP id 1; Tue, 3 Nov 2026 10:00:02 +0000",
+        // A hop over TLS from outside says so as a store does, but `with ESMTPS`.
+        "from mail.bank.example ([198.51.100.7]) (using TLSv1.3 with cipher TLS_AES_256_GCM_SHA384 (256/256 bits)) by mx.example.org with ESMTPS id 1",
+        // A comment left open, or a second `with` past it.
+        "from mx.example.org ([192.0.2.25]) (using TLSv1.3 with cipher X (256/256 bits) by imap.example.org with LMTPS id 1",
+        "from mx.example.org (using TLSv1.3) by imap.example.org with LMTPS id 1 with ESMTP",
     ] {
         let mut headers = vec![h("Received", hop), h("Authentication-Results", SELF_PASS)];
         headers.extend(sent(Vec::new()));

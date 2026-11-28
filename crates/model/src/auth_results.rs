@@ -216,17 +216,16 @@ fn above_intake(m: &Message) -> bool {
 }
 
 /// Whether a `Received` value is a hop to the mailbox store inside the receiving system, in the
-/// one plain shape a store writes it: `from <host> [([<address>])] by <host> with LMTP…` (RFC 2033;
-/// LMTPA, LMTPS, LMTPSA: RFC 3848), its only `by` and its only `with`, read whole. The words up to
-/// `with` are the store's own (a sender's HELO is one word and stands where a host does, and its
-/// envelope address comes after), so no hop at which the mail came in from outside, which says
-/// `SMTP` or `ESMTP…` there, is ever taken for one.
+/// one plain shape a store writes it: `from <host> [([<address>])] [(using …)] by <host> with
+/// LMTP…` (RFC 2033; LMTPA, LMTPS, LMTPSA: RFC 3848), its only `by` and its only `with` outside
+/// that comment, read whole. The words up to `with` are the store's own (a sender's HELO is one
+/// word and stands where a host does, and its envelope address comes after), so no hop at which
+/// the mail came in from outside, which says `SMTP` or `ESMTP…` there, is ever taken for one.
 pub(crate) fn is_delivery_hop(value: &str) -> bool {
     if value.chars().nth(MAX_HEADER_CHARS).is_some() {
         return false;
     }
     let words: Vec<&str> = value.split_whitespace().collect();
-    let once = |keyword: &str| words.iter().filter(|word| word.eq_ignore_ascii_case(keyword)).count() == 1;
     let host = |word: &str| !word.contains('@') && domain(word).is_some();
     let address = |word: &str| {
         word.strip_prefix("([")
@@ -238,6 +237,31 @@ pub(crate) fn is_delivery_hop(value: &str) -> bool {
         [from, name, rest @ ..] if from.eq_ignore_ascii_case("from") && host(name) => rest,
         _ => return false,
     };
+    let head = words.len().saturating_sub(rest.len());
+    // A store that took the mail over TLS may say so before `by` (`(using TLSv1.3 with cipher …
+    // (256/256 bits))`): that comment, nested, is skipped whole.
+    let mut tls = 0usize;
+    if rest.first().is_some_and(|word| word.starts_with("(using")) {
+        let mut depth = 0usize;
+        for word in rest {
+            tls = tls.saturating_add(1);
+            for c in word.chars() {
+                match c {
+                    '(' => depth = depth.saturating_add(1),
+                    ')' => depth = depth.saturating_sub(1),
+                    _ => {}
+                }
+            }
+            if depth == 0 {
+                break;
+            }
+        }
+        if depth > 0 {
+            return false;
+        }
+    }
+    let Some(rest) = rest.get(tls..) else { return false };
+    let once = |keyword: &str| words.iter().take(head).chain(rest).filter(|word| word.eq_ignore_ascii_case(keyword)).count() == 1;
     once("by")
         && once("with")
         && matches!(rest, [by, name, with, protocol, ..] if by.eq_ignore_ascii_case("by") && host(name) && with.eq_ignore_ascii_case("with")
