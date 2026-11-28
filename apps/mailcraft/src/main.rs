@@ -1224,7 +1224,7 @@ fn services(
             let (wake, cancel) = (sync_ctx.clone(), cancel.clone());
             cancel.store(false, Ordering::Relaxed);
             let spawned = std::thread::Builder::new().name("send/receive".into()).spawn(move || {
-                mailcraft_net::sync_with(&request, &cancel, &mut |piece| {
+                mailcraft_net::sync_with_password_retry(&request, &cancel, &mut |piece| {
                     // Nobody is listening any more (the window closed): stop.
                     if tx.send(piece).is_err() {
                         cancel.store(true, Ordering::Relaxed);

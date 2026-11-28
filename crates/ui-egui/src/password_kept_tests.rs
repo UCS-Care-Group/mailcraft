@@ -275,3 +275,45 @@ fn an_exchange_password_is_kept_once_the_server_answers_with_its_folders() {
     assert_eq!(kept(&a, &store, id), None);
     assert!(!a.passwords.contains_key(&id), "the next Send/Receive asks");
 }
+
+#[test]
+fn typed_imap_auth_verdict_preserves_service_failures_and_forgets_persistent_refusal() {
+    for refused in [false, true] {
+        let store = Store::default();
+        let (mut app, id, pipe) = imap_run(&store);
+        send(&mut app, &pipe, piece(id, SyncStage::Listed, &[]));
+        assert_eq!(kept(&app, &store, id).as_deref(), Some(TYPED));
+        send(
+            &mut app,
+            &pipe,
+            SyncResult {
+                account: id,
+                auth_refused: Some(refused),
+                errors: vec![if refused { "credentials were rejected" } else { "sign-in service unavailable; sign in transport interrupted" }.into()],
+                ..Default::default()
+            },
+        );
+        assert_eq!(kept(&app, &store, id).is_none(), refused);
+        assert_eq!(app.passwords.contains_key(&id), !refused);
+        assert!(app.has_sync_problems());
+    }
+}
+
+#[test]
+fn typed_smtp_refusal_is_not_cleared_by_later_imap_success() {
+    let store = Store::default();
+    let (mut app, id, pipe) = imap_run(&store);
+    let key = MailApp::secret_key("password", app.session.mailbox.account(id).unwrap());
+    store.set(&key, TYPED).unwrap();
+    send(
+        &mut app,
+        &pipe,
+        SyncResult { account: id, partial: true, auth_refused: Some(true), errors: vec!["outgoing refusal".into()], ..Default::default() },
+    );
+    let mut accepted = piece(id, SyncStage::Listed, &[]);
+    accepted.auth_refused = Some(false);
+    send(&mut app, &pipe, accepted);
+    send(&mut app, &pipe, SyncResult { account: id, auth_refused: Some(false), ..Default::default() });
+    assert_eq!(store.get(&key), None);
+    assert!(!app.passwords.contains_key(&id));
+}

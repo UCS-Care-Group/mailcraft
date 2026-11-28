@@ -20865,6 +20865,11 @@ msgid "the server can't show a desktop alert"
 msgstr ""
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+msgid "the server changed its password authentication methods; try again later"
+msgstr ""
+
+#. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
 msgid "the server closed the connection"
 msgstr ""

@@ -5,20 +5,28 @@
 use super::*;
 
 impl<S: Read + Write> Imap<S> {
+    /// The password mechanism preferred on this connection, using cached capabilities
+    /// or asking once when they are unknown. The host can preserve this choice across
+    /// an authentication-only reconnect without downgrading PLAIN to LOGIN.
+    pub fn password_uses_plain(&mut self) -> Result<bool, ProtoError> {
+        if self.capabilities.is_none() {
+            self.capabilities()?;
+        }
+        Ok(self.offers("AUTH=PLAIN"))
+    }
+
     /// Prefer the server's advertised PLAIN mechanism; otherwise use LOGIN. The host must
     /// secure the stream first. Unknown capabilities are queried here; known ones are reused.
     /// A refusal never triggers a second attempt with another mechanism.
     pub fn authenticate_password(&mut self, user: &str, password: &str) -> Result<(), ProtoError> {
+        self.password_refused = false;
         if password.is_empty() {
             return Err(ProtoError::Auth(said!("enter a password to sign in")));
         }
         if user.is_empty() {
             return Err(ProtoError::Auth(said!("enter a user name to sign in")));
         }
-        if self.capabilities.is_none() {
-            self.capabilities()?;
-        }
-        if !self.offers("AUTH=PLAIN") {
+        if !self.password_uses_plain()? {
             return self.login(user, password);
         }
         if user.contains('\0') || password.contains('\0') {
@@ -61,7 +69,7 @@ impl<S: Read + Write> Imap<S> {
             _ if cancelled => Err(ProtoError::Auth(said!("the server requested more than one PLAIN response"))),
             Status::Ok if !sent => Err(ProtoError::Protocol(said!("the server accepted a password that was not sent"))),
             Status::Ok => self.signed_in(&verdict),
-            Status::No => Err(ProtoError::Auth(self.refusal(&verdict))),
+            Status::No => Err(self.password_refusal(&verdict)),
             _ => Err(ProtoError::Rejected(self.refusal(&verdict))),
         }
     }

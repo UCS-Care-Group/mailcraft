@@ -25244,6 +25244,12 @@ msgid "the server can't show a desktop alert"
 msgstr "strežnik ne more prikazati namizne opozorila"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the server changed its password authentication methods; try again later"
+msgstr "strežnik je spremenil načine preverjanja pristnosti z geslom; poskusite znova pozneje"
+
+#. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
 #, fuzzy
 msgid "the server closed the connection"

@@ -127,7 +127,7 @@ mod native {
     };
     pub use crate::pinned::pin_check_under_way;
     pub use crate::send::send;
-    pub use crate::sync::{sync, sync_with, token_may_go_to};
+    pub use crate::sync::{sync, sync_with, sync_with_password_retry, token_may_go_to};
 
     /// Whether this build can talk to mail servers.
     pub const AVAILABLE: bool = true;
@@ -321,3 +321,6 @@ mod anchors_nss_tests;
 #[cfg(test)]
 #[cfg(all(unix, not(target_os = "macos")))]
 mod anchors_tests;
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod imap_password_retry_tests;

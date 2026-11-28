@@ -25194,6 +25194,12 @@ msgid "the server can't show a desktop alert"
 msgstr "serverul nu poate afișa o alertă pe desktop"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the server changed its password authentication methods; try again later"
+msgstr "serverul a schimbat metodele de autentificare prin parolă; încercați din nou mai târziu"
+
+#. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
 #, fuzzy
 msgid "the server closed the connection"

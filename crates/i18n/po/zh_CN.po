@@ -25088,6 +25088,12 @@ msgid "the server can't show a desktop alert"
 msgstr "服务器无法显示桌面通知"
 
 #. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "the server changed its password authentication methods; try again later"
+msgstr "服务器更改了密码验证方式；请稍后重试"
+
+#. why a mail server couldn't be used
 #: crates/net/src/transport.rs crates/proto/src/line.rs
 #, fuzzy
 msgid "the server closed the connection"

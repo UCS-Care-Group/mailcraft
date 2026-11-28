@@ -6,7 +6,7 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex, MutexGuard};
+use std::sync::{Arc, Barrier, Mutex, MutexGuard};
 use std::time::Duration;
 
 /// Stops a fake server's listening thread when the fake is dropped, so a test run doesn't keep
@@ -293,6 +293,12 @@ type StartTls = Arc<dyn Fn(Box<dyn MailIo>) -> Box<dyn MailIo> + Send + Sync>;
 pub(crate) struct ImapWorld {
     pub(crate) user: String,
     pub(crate) password: String,
+    /// Scripted password-authentication verdicts; DROP closes the connection.
+    pub(crate) password_replies: Vec<String>,
+    /// Release later greetings explicitly, so cancellation tests need no timing assumption.
+    pub(crate) greeting_barrier_after_first: Option<Arc<Barrier>>,
+    /// PLAIN availability and LOGINDISABLED for the connection after a scripted password reply.
+    pub(crate) password_methods_after_reply: Option<(bool, bool)>,
     /// The access token that signs `user` in (XOAUTH2); empty for a server that takes none.
     pub(crate) token: String,
     /// Say the token may come with the command (SASL-IR).
@@ -575,12 +581,16 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
     let socket = stream.try_clone().ok();
     let mut reader: BufReader<Box<dyn MailIo>> = BufReader::new(Box::new(stream));
     let mut secured = false;
-    let greeting = {
+    let (greeting, barrier) = {
         let mut world = shared.lock().unwrap();
         world.connections += 1;
         // STARTTLS is only told to those who ask.
-        format!("* OK [CAPABILITY {}] fake ready\r\n", world.capabilities(false).replace(" STARTTLS", ""))
+        let barrier = (world.connections > 1).then(|| world.greeting_barrier_after_first.clone()).flatten();
+        (format!("* OK [CAPABILITY {}] fake ready\r\n", world.capabilities(false).replace(" STARTTLS", "")), barrier)
     };
+    if let Some(barrier) = barrier {
+        barrier.wait();
+    }
     let _ = reader.get_mut().write_all(greeting.as_bytes());
     let mut signed_in = false;
     let mut open: Option<usize> = None;
@@ -641,6 +651,19 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 return;
             }
             "LOGIN" => {
+                if !world.password_replies.is_empty() {
+                    let answer = world.password_replies.remove(0);
+                    if let Some((plain, disabled)) = world.password_methods_after_reply.take() {
+                        (world.plain, world.login_disabled) = (plain, disabled);
+                    }
+                    if answer == "DROP" {
+                        return;
+                    }
+                    reply.extend(format!("{tag} {answer}\r\n").bytes());
+                    drop(world);
+                    let _ = reader.get_mut().write_all(&reply);
+                    continue;
+                }
                 let given = words(args);
                 if given == [world.user.clone(), world.password.clone()] {
                     signed_in = true;
@@ -657,6 +680,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 let (mechanism, with_command) = args.split_once(' ').unwrap_or((args, ""));
                 if world.plain && mechanism.eq_ignore_ascii_case("PLAIN") {
                     let (user, password) = (world.user.clone(), world.password.clone());
+                    let scripted = (!world.password_replies.is_empty()).then(|| world.password_replies.remove(0));
                     let caps = world.capabilities(secured);
                     drop(world);
                     let payload = if with_command.is_empty() {
@@ -668,6 +692,19 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                         with_command.to_string()
                     };
                     let expected = mailcraft_charset::base64::STANDARD.encode(format!("\0{user}\0{password}").as_bytes());
+                    if let Some(answer) = scripted {
+                        {
+                            let mut world = shared.lock().unwrap();
+                            if let Some((plain, disabled)) = world.password_methods_after_reply.take() {
+                                (world.plain, world.login_disabled) = (plain, disabled);
+                            }
+                        }
+                        if answer == "DROP" {
+                            return;
+                        }
+                        let _ = reader.get_mut().write_all(format!("{tag} {answer}\r\n").as_bytes());
+                        continue;
+                    }
                     signed_in = payload == expected;
                     let verdict = if signed_in { format!("OK [CAPABILITY {caps}] welcome") } else { "NO [AUTHENTICATIONFAILED] refused".to_string() };
                     let _ = reader.get_mut().write_all(format!("{tag} {verdict}\r\n").as_bytes());
