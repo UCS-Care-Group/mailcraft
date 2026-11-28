@@ -819,6 +819,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "Una breve nota con il link a quella pagina, da incollare in una mail o in una chat. MailCraft non invia nulla da solo."
 
 #. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "A text signature file is at most 10,000 characters."
+msgstr "Un file di firma di testo contiene al massimo 10.000 caratteri."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -1613,6 +1619,12 @@ msgstr "Richiesta di un agente"
 #, fuzzy
 msgid "An Exchange server or IMAP?"
 msgstr "Un server Exchange o IMAP?"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "An HTML signature file is at most 64 KB."
+msgstr "Un file di firma HTML è grande al massimo 64 KB."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3518,6 +3530,12 @@ msgstr "Scegli firma predefinita"
 msgid "Choose Google sign-in, or select Use an app password instead."
 msgstr "Scegli l’accesso con Google oppure Usa invece una password per le app."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Choose Signature File"
+msgstr "Scegli file di firma"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3541,6 +3559,24 @@ msgstr "Scegli un primo e un ultimo giorno, a non più di un anno di distanza."
 #, fuzzy
 msgid "Choose a folder"
 msgstr "Scegliere una cartella"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Choose a signature file"
+msgstr "Scegli un file di firma"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
+msgstr "Scegli un file di firma di testo, HTML, PNG, JPEG o GIF."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Choose an absolute local path for the signature file."
+msgstr "Scegli un percorso locale assoluto per il file di firma."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3571,6 +3607,12 @@ msgstr "Scegli se queste attività vengono inviate a To Do di un account Microso
 #, fuzzy
 msgid "Choose who this is sent from"
 msgstr "Scegli da chi viene inviato"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Choose…"
+msgstr "Scegli…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -6007,8 +6049,8 @@ msgstr "Feedback"
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr "Meno di due di questi contatti sono ancora presenti, quindi non c'è nulla da unire."
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "File"
 msgstr "File"
@@ -6018,6 +6060,12 @@ msgstr "File"
 #, fuzzy
 msgid "File dialogs aren't available here"
 msgstr "Le finestre di selezione file non sono disponibili qui"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "File signature"
+msgstr "Firma da file"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -12895,6 +12943,12 @@ msgid "Pictures are always downloaded from ({n}):"
 msgstr "Le immagini vengono sempre scaricate da ({n}):"
 
 #. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
+msgstr "Le immagini non sono incluse nei messaggi in testo normale. Passa a HTML per includerle."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Pictures in mail"
@@ -13339,6 +13393,12 @@ msgid "Read Invitation"
 msgstr "Leggi invito"
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Read again for each new message. If unavailable, the usual signature is used."
+msgstr "Riletto a ogni nuovo messaggio. Se non è disponibile, viene usata la firma abituale."
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
 msgid "Read status"
@@ -13558,6 +13618,12 @@ msgstr "Ripeti {what}"
 #, fuzzy
 msgid "Refresh"
 msgstr "Aggiorna"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Refresh Preview"
+msgstr "Aggiorna anteprima"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -16259,8 +16325,8 @@ msgstr "Accedere con Invia/Ricevi per vedere quando gli altri sono occupati."
 msgid "Sign-in cancelled"
 msgstr "Accesso annullato"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signature_files.rs
 #, fuzzy
 msgid "Signature"
 msgstr "Firma"
@@ -16271,8 +16337,20 @@ msgstr "Firma"
 msgid "Signature file:"
 msgstr "File della firma:"
 
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Signature files can only be configured by the owner in the desktop app."
+msgstr "I file di firma possono essere configurati solo dal proprietario nell'app desktop."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Signature from File"
+msgstr "Firma da file"
+
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Signatures"
 msgstr "Firme"
@@ -16922,6 +17000,12 @@ msgstr "Passa"
 #: crates/ui-egui/src/account_setup.rs
 msgid "Switch to Google sign-in"
 msgstr "Passa all’accesso con Google"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Switch to HTML"
+msgstr "Passa a HTML"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
@@ -19067,9 +19151,45 @@ msgid "The sign-in was declined."
 msgstr "L'accesso è stato rifiutato."
 
 #. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "The signature changed while the signature file picker was open."
+msgstr "La firma è cambiata mentre il selettore del file di firma era aperto."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file could not be read."
+msgstr "Impossibile leggere il file di firma."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file is too large."
+msgstr "Il file di firma è troppo grande."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file must be a regular file of at most 256 KB."
+msgstr "Il file di firma deve essere un file normale di al massimo 256 KB."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file must contain UTF-8 text."
+msgstr "Il file di firma deve contenere testo UTF-8."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature image could not be decoded."
+msgstr "Impossibile decodificare l'immagine della firma."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -27711,6 +27831,12 @@ msgstr "La pagina di accesso di {provider} è aperta nel browser"
 #, fuzzy
 msgid "{read} of {total} MB"
 msgstr "{read} di {total} MB"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "{reason} Using the account's usual signature instead."
+msgstr "{reason} Viene usata al suo posto la firma abituale dell'account."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

@@ -684,6 +684,11 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "A text signature file is at most 10,000 characters."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr ""
@@ -1341,6 +1346,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "An Exchange server or IMAP?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "An HTML signature file is at most 64 KB."
 msgstr ""
 
 #. interface
@@ -2929,6 +2939,11 @@ msgstr ""
 msgid "Choose Google sign-in, or select Use an app password instead."
 msgstr ""
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Choose Signature File"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Choose a category"
@@ -2947,6 +2962,21 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Choose a folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Choose a signature file"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "Choose an absolute local path for the signature file."
 msgstr ""
 
 #. interface
@@ -2972,6 +3002,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 msgid "Choose who this is sent from"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Choose…"
 msgstr ""
 
 #. interface
@@ -4997,14 +5032,19 @@ msgstr ""
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr ""
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/signatures.rs
 msgid "File"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
 msgid "File dialogs aren't available here"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "File signature"
 msgstr ""
 
 #. interface
@@ -10713,6 +10753,11 @@ msgid "Pictures are always downloaded from ({n}):"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Pictures in mail"
 msgstr ""
@@ -11087,6 +11132,11 @@ msgid "Read Invitation"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Read again for each new message. If unavailable, the usual signature is used."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Read status"
 msgstr ""
@@ -11268,6 +11318,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/security.rs
 msgid "Refresh"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Refresh Preview"
 msgstr ""
 
 #. command label
@@ -13501,8 +13556,8 @@ msgstr ""
 msgid "Sign-in cancelled"
 msgstr ""
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signature_files.rs
 msgid "Signature"
 msgstr ""
 
@@ -13511,8 +13566,18 @@ msgstr ""
 msgid "Signature file:"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "Signature files can only be configured by the owner in the desktop app."
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Signature from File"
+msgstr ""
+
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
 msgid "Signatures"
 msgstr ""
 
@@ -14054,6 +14119,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Switch to Google sign-in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Switch to HTML"
 msgstr ""
 
 #. command label, interface
@@ -15846,8 +15916,38 @@ msgid "The sign-in was declined."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "The signature changed while the signature file picker was open."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file could not be read."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file is too large."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file must be a regular file of at most 256 KB."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file must contain UTF-8 text."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature image could not be decoded."
 msgstr ""
 
 #. interface
@@ -23097,6 +23197,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/opening.rs
 msgid "{read} of {total} MB"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "{reason} Using the account's usual signature instead."
 msgstr ""
 
 #. interface

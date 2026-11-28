@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The file-open filters (#1768).
+//! The file-open filters (#1768); a signature picker starts in the owner's home.
 
 use super::*;
 
@@ -22,4 +22,14 @@ fn other_purposes_are_the_same_on_macos() {
     for p in ["mailbox", "pst", "picture", "publicKey", "unknown"] {
         assert_eq!(filter_list(p, true), filter_list(p, false));
     }
+}
+
+#[test]
+fn signature_picker_uses_the_platforms_home_directory() {
+    let home = Some("/home/example".into());
+    let profile = Some("C:\\Users\\Example".into());
+    assert_eq!(signature_home(home.clone(), profile.clone(), false), Some("/home/example".into()));
+    assert_eq!(signature_home(home, profile, true), Some("C:\\Users\\Example".into()));
+    assert_eq!(signature_home(None, None, false), None);
+    assert_eq!(signature_home(Some("".into()), None, false), None);
 }

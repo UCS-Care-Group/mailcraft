@@ -817,6 +817,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "Een korte notitie met de link naar die pagina, om in e-mail of chat te plakken. MailCraft verstuurt zelf niets."
 
 #. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "A text signature file is at most 10,000 characters."
+msgstr "Een tekstbestand voor een handtekening mag maximaal 10.000 tekens bevatten."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
@@ -1577,6 +1583,12 @@ msgstr "Een agent vraagt"
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "An Exchange server or IMAP?"
 msgstr "Een Exchange-server of IMAP?"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "An HTML signature file is at most 64 KB."
+msgstr "Een HTML-handtekeningbestand is maximaal 64 KB groot."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3417,6 +3429,12 @@ msgstr "Standaardhandtekening kiezen"
 msgid "Choose Google sign-in, or select Use an app password instead."
 msgstr "Kies aanmelden met Google, of kies Gebruik een app-wachtwoord in plaats daarvan."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Choose Signature File"
+msgstr "Handtekeningbestand kiezen"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3440,6 +3458,24 @@ msgstr "Kies een eerste en een laatste dag, hoogstens een jaar uit elkaar."
 #, fuzzy
 msgid "Choose a folder"
 msgstr "Een map kiezen"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Choose a signature file"
+msgstr "Een handtekeningbestand kiezen"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
+msgstr "Kies een handtekeningbestand als tekst, HTML, PNG, JPEG of GIF."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Choose an absolute local path for the signature file."
+msgstr "Kies een absoluut lokaal pad voor het handtekeningbestand."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3470,6 +3506,12 @@ msgstr "Kies of deze taken naar To Do van een Microsoft-account worden verzonden
 #, fuzzy
 msgid "Choose who this is sent from"
 msgstr "Kies van wie dit wordt verzonden"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Choose…"
+msgstr "Kiezen…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5801,8 +5843,8 @@ msgstr "Feedback"
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr "Er zijn nog minder dan twee van deze contactpersonen, dus er is niets om samen te voegen."
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/signatures.rs
 msgid "File"
 msgstr "Bestand"
 
@@ -5811,6 +5853,12 @@ msgstr "Bestand"
 #, fuzzy
 msgid "File dialogs aren't available here"
 msgstr "Bestandsdialoogvensters zijn hier niet beschikbaar"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "File signature"
+msgstr "Bestandshandtekening"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -12492,6 +12540,12 @@ msgid "Pictures are always downloaded from ({n}):"
 msgstr "Afbeeldingen worden altijd gedownload van ({n}):"
 
 #. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
+msgstr "Afbeeldingen zijn niet opgenomen in berichten in platte tekst. Schakel over naar HTML om ze mee te sturen."
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Pictures in mail"
@@ -12930,6 +12984,12 @@ msgid "Read Invitation"
 msgstr "Uitnodiging lezen"
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Read again for each new message. If unavailable, the usual signature is used."
+msgstr "Wordt voor elk nieuw bericht opnieuw gelezen. Als het niet beschikbaar is, wordt de gebruikelijke handtekening gebruikt."
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
 msgid "Read status"
@@ -13143,6 +13203,12 @@ msgstr "{what} opnieuw"
 #, fuzzy
 msgid "Refresh"
 msgstr "Vernieuwen"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Refresh Preview"
+msgstr "Voorbeeld vernieuwen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15744,8 +15810,8 @@ msgstr "Meld u aan met Verzenden/ontvangen om te zien wanneer andere personen be
 msgid "Sign-in cancelled"
 msgstr "Aanmelding geannuleerd"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signature_files.rs
 msgid "Signature"
 msgstr "Handtekening"
 
@@ -15755,8 +15821,20 @@ msgstr "Handtekening"
 msgid "Signature file:"
 msgstr "Ondertekingsbestand:"
 
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Signature files can only be configured by the owner in the desktop app."
+msgstr "Handtekeningbestanden kan alleen de eigenaar instellen in de desktop-app."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Signature from File"
+msgstr "Handtekening uit bestand"
+
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
 msgid "Signatures"
 msgstr "Handtekeningen"
 
@@ -16397,6 +16475,12 @@ msgstr "Overschakelen"
 #, fuzzy
 msgid "Switch to Google sign-in"
 msgstr "Overschakelen naar aanmelden met Google"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Switch to HTML"
+msgstr "Overschakelen naar HTML"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
@@ -18527,10 +18611,46 @@ msgid "The sign-in was declined."
 msgstr "De aanmelding is geweigerd."
 
 #. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "The signature changed while the signature file picker was open."
+msgstr "De handtekening is gewijzigd terwijl de bestandskiezer voor de handtekening open stond."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
 msgstr "De handtekening kon niet worden opgeslagen: {why}. Sluit nogmaals om hem onopgeslagen te laten."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file could not be read."
+msgstr "Het handtekeningbestand kon niet worden gelezen."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file is too large."
+msgstr "Het handtekeningbestand is te groot."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file must be a regular file of at most 256 KB."
+msgstr "Het handtekeningbestand moet een gewoon bestand van maximaal 256 KB zijn."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file must contain UTF-8 text."
+msgstr "Het handtekeningbestand moet UTF-8-tekst bevatten."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature image could not be decoded."
+msgstr "De handtekeningafbeelding kon niet worden gedecodeerd."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -27122,6 +27242,12 @@ msgstr "De aanmeldpagina van {provider} is geopend in uw browser"
 #, fuzzy
 msgid "{read} of {total} MB"
 msgstr "{read} van {total} MB"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "{reason} Using the account's usual signature instead."
+msgstr "{reason} In plaats daarvan wordt de gebruikelijke handtekening van het account gebruikt."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
