@@ -147,6 +147,9 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     pub(crate) shape: Shape,
     /// The server has no follow-up flag: flags stay here (E7), said once.
     pub(crate) flag_lacking: bool,
+    /// The server said it lacks the preview and the flag ([`Shape::Lean`]): they aren't asked for
+    /// the rest of the run, nor with what a list shows once the listing steps down to the ids.
+    pub(crate) preview_lacking: bool,
     /// A read-state change that said no state was passed over: said once a run, with no id.
     pub(crate) read_unsaid: bool,
     /// The ids of the server's other own folders ([`OWN`]) it has, as far as it said (#779): a
@@ -171,6 +174,7 @@ impl<'a, E: HttpExchange> Run<'a, E> {
             wait,
             shape: Shape::Full,
             flag_lacking: false,
+            preview_lacking: false,
             read_unsaid: false,
             own: HashSet::new(),
             reread_folders: false,
@@ -697,6 +701,7 @@ impl<E: HttpExchange> Run<'_, E> {
                     if self.shape == Shape::Full && (code != ResponseCode::SchemaValidation || !self.client.version().has_preview()) =>
                 {
                     self.shape = Shape::Lean;
+                    self.preview_lacking = true;
                     log::info!("ews mail: the server lacks the preview or the flag; asking for the rest");
                     continue;
                 }
@@ -754,8 +759,8 @@ impl<E: HttpExchange> Run<'_, E> {
     /// alone, it would read as a message with nothing set, over what is kept of it (its read state,
     /// flag, categories). The folder is then blocked ([`Asked::Unreadable`]), not failing: an item
     /// the server always refuses doesn't count towards the folders in a row, and the other folders
-    /// go on. The preview and the flag are asked of a server that knows them. What stops the run
-    /// stops it here too.
+    /// go on. The preview and the flag are asked of a server that knows them, unless it said it lacks
+    /// them ([`Run::preview_lacking`]). What stops the run stops it here too.
     async fn listed(&mut self, messages: &mut Vec<GraphMessage>) -> Result<(), Asked> {
         // Each id asked once: a page can name an item more than once (two changes to it since the
         // last read), and each of them takes what was found of it.
@@ -763,7 +768,7 @@ impl<E: HttpExchange> Run<'_, E> {
         let ids: Vec<String> = messages.iter().map(|m| m.server.id.clone()).filter(|id| asked.insert(id.clone())).collect();
         let mut found: HashMap<String, GraphMessage> = HashMap::new();
         let mut gone: HashSet<String> = HashSet::new();
-        let preview = self.client.version().has_preview();
+        let preview = self.client.version().has_preview() && !self.preview_lacking;
         for some in ids.chunks(MAX_LISTED_ASKED) {
             let op = GetItemListed::new(some).with_preview(preview);
             if op.is_empty() {

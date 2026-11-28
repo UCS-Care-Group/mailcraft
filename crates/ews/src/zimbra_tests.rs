@@ -237,6 +237,25 @@ fn the_preview_and_the_flag_come_with_each_message_of_a_server_that_knows_them()
     assert_eq!((agenda.preview.as_str(), agenda.server.flag), ("Items to go over", FlagStatus::Flagged));
 }
 
+/// A server that said it lacks the preview and the flag (the run listing in [`Shape::Lean`]) and
+/// leaves the ids out: what a list shows is asked without them, so that `GetItem`, which refuses
+/// them too, doesn't block the folder.
+#[test]
+fn a_server_that_lacks_the_preview_isnt_asked_it_once_the_listing_steps_down_to_the_ids() {
+    let standin = StandIn::new();
+    {
+        let mut s = standin.state();
+        s.zimbra_ids = true;
+        s.lacks_preview = true;
+        s.deliver("inbox", "Kickoff", false);
+    }
+    let result = run(&standin);
+    assert!(result.whole, "{:?}", result.errors);
+    assert!(result.blocked.is_empty());
+    let messages: Vec<_> = result.pages.iter().flat_map(|p| &p.messages).collect();
+    assert!(messages.iter().any(|m| m.subject == "Kickoff"));
+}
+
 /// An item the server always refuses (`GetItem` answers it with an error of its own) blocks its
 /// folder, as a page that can't be taken in: more such folders than the run stops after in a row
 /// are each blocked, and the folder after them is read.

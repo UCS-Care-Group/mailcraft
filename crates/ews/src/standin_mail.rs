@@ -723,7 +723,10 @@ impl State {
                     messages.push_str(&error_message("GetItem", "ErrorAccessDenied"));
                     "ErrorAccessDenied"
                 }
-                Some(_) if self.lacks_conversation && extra.iter().any(|e| e == "item:ConversationId") => {
+                Some(_)
+                    if (self.lacks_conversation && extra.iter().any(|e| e == "item:ConversationId"))
+                        || (self.lacks_preview && extra.iter().any(|e| e == "item:Preview" || e == "item:Flag")) =>
+                {
                     messages.push_str(&error_message("GetItem", "ErrorInvalidPropertyRequest"));
                     "ErrorInvalidPropertyRequest"
                 }
