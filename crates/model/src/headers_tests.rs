@@ -123,6 +123,33 @@ fn a_message_splits_and_joins() {
 }
 
 #[test]
+fn lines_that_became_working_come_back_from_the_block_in_their_places() {
+    // As an earlier version split it, when `List-Unsubscribe` wasn't read by name (#1751).
+    let all = pairs(&[
+        ("Received", "from a by b"),
+        ("Authentication-Results", "mx.example.org; dmarc=pass header.from=news.example"),
+        ("List-Unsubscribe", "<mailto:leave@news.example>"),
+        ("X-Mailer", "sender 1.0"),
+    ]);
+    let lines: Vec<HeaderLine> = [0, 2, 3].iter().map(|&at| HeaderLine { at, name: all[at].0.clone(), value: all[at].1.clone() }).collect();
+    let mut m = Message { headers: vec![all[1].clone()], header_block: HeaderBlock::of(&lines), ..Default::default() };
+    assert!(m.header("List-Unsubscribe").is_none());
+    assert!(m.lift_working());
+    assert_eq!(m.header("List-Unsubscribe"), Some("<mailto:leave@news.example>"));
+    assert!(m.header_block.lines().iter().all(|line| !is_working(&line.name, &line.value)));
+    assert_eq!(m.all_headers(), all, "every line, in its place");
+    // Nothing more to lift: unchanged.
+    let before = m.clone();
+    assert!(!m.lift_working());
+    assert_eq!(m.headers, before.headers);
+    // A block kept outside memory is brought in first, by whoever lifts: here it stays.
+    let kept = crate::ContentRef { sha256: [7; 32], len: 900 };
+    let mut m = Message { header_block: HeaderBlock { data: Arc::default(), kept: Some(kept) }, ..Default::default() };
+    assert!(!m.lift_working());
+    assert_eq!(m.header_block.kept, Some(kept));
+}
+
+#[test]
 fn a_block_kept_outside_is_left_alone() {
     let kept = crate::ContentRef { sha256: [7; 32], len: 900 };
     let mut m = Message { headers: pairs(&[("List-Id", "a"), ("X-New", "b")]), ..Default::default() };
