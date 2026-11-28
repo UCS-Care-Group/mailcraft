@@ -250,6 +250,12 @@ impl MailApp {
     /// The owner changed `account`'s replies: the script `account.setAutomaticReplies` said to
     /// write goes at the next chance.
     pub(crate) fn sieve_write(&mut self, account: Id, sieve: &Value) -> Result<(), String> {
+        self.sieve_queue(account, sieve, false)
+    }
+
+    /// [`MailApp::sieve_write`], saying whether the write is the rules' (else the replies'), as
+    /// what is said when it ends (#2058).
+    fn sieve_queue(&mut self, account: Id, sieve: &Value, rules: bool) -> Result<(), String> {
         if self.services.sieve.is_none() {
             return Err(tl!("This build can't reach the server to change automatic replies. Use the desktop app.").to_string());
         }
@@ -270,8 +276,11 @@ impl MailApp {
             self.sieve.own_saved.remove(&account);
             self.sieve.own_waiting.insert(account, write);
         } else {
-            // (What it is for is said by whoever queued it: the rules mark theirs after, #2058.)
-            self.sieve.rules_writes.remove(&account);
+            if rules {
+                self.sieve.rules_writes.insert(account);
+            } else {
+                self.sieve.rules_writes.remove(&account);
+            }
             self.sieve.waiting.insert(account, write);
         }
         self.sieve_tick_at(now_ms());
@@ -507,9 +516,7 @@ impl MailApp {
         }
         let Ok(answer) = self.session.run("sync.sieveScript", &json!({"account": account, "replace": replace})) else { return };
         let Some(sieve) = answer.get("sieve").filter(|v| !v.is_null()).cloned() else { return };
-        if self.sieve_write(account, &sieve).is_ok() {
-            self.sieve.rules_writes.insert(account);
-        }
+        let _ = self.sieve_queue(account, &sieve, true);
     }
 
     /// After the engine ran `id`: a rule changed, so the script of each IMAP account whose server
