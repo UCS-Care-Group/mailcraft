@@ -166,6 +166,10 @@ pub struct SieveSync {
     /// What became of the last write of the owner's own script, for each account, until its
     /// editor takes it.
     pub(crate) own_saved: HashMap<Id, OwnSaved>,
+    /// How many jobs for each account ended with what the server has taken in, and how many
+    /// without: what a Reload waits on, so that it starts over only from a read that came after
+    /// it was asked for (#2058).
+    pub(crate) reads: HashMap<Id, (u64, u64)>,
 }
 
 impl SieveSync {
@@ -352,6 +356,12 @@ impl MailApp {
             if let Err(e) = self.session.run("sync.applySieve", &params) {
                 said_error = Some(e.to_string());
             }
+        }
+        let count = self.sieve.reads.entry(account).or_default();
+        if result.state.is_some() && trouble.is_none() && said_error.is_none() {
+            count.0 = count.0.saturating_add(1);
+        } else {
+            count.1 = count.1.saturating_add(1);
         }
         match trouble.clone().or(said_error.clone().map(SieveTrouble::Failed)) {
             Some(trouble) => {

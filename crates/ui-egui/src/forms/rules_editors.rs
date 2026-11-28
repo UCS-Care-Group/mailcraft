@@ -118,5 +118,8 @@ pub(super) fn sieve(f: &mut RulesForm, ctx: &egui::Context, app: &MailApp) -> Op
         asks = editor.ui(ui, app);
     });
     let escape = crate::keys::escape(ctx, crate::keys::modal_layer(id));
-    asks.or(escape.then_some(EditorAsks::Cancel))
+    // Not while the owner's script is being saved: what became of the save is said in the editor,
+    // and a refusal or a change on the server would leave the typed script behind (#2058).
+    let saving = f.sieve.as_ref().and_then(|e| e.own.as_ref()).is_some_and(|o| o.saving);
+    asks.or((escape && !saving).then_some(EditorAsks::Cancel))
 }

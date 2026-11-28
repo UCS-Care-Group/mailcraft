@@ -112,6 +112,9 @@ pub(crate) struct OwnScript {
     pub(crate) changed: bool,
     /// It is being read again (Reload).
     reloading: bool,
+    /// The jobs for its account that had ended, with and without what the server has, when
+    /// Reload was asked for ([`crate::sieve_replies::SieveSync::reads`]).
+    reload_from: (u64, u64),
     /// One rule of it, when that is what is edited, not the whole script.
     pub(crate) rule: Option<OwnRule>,
 }
@@ -320,8 +323,16 @@ impl SieveEditor {
             }
         }
         if own.reloading {
-            if app.sieve.busy_for(account).is_some() {
-                ctx.request_repaint_after(std::time::Duration::from_millis(250));
+            // Only a read that ended after Reload was asked for, with what the server has, starts
+            // the editor over; one that failed leaves the draft as it is (#2058).
+            let (done, failed) = app.sieve.reads.get(&account).copied().unwrap_or_default();
+            if done <= own.reload_from.0 {
+                if failed > own.reload_from.1 {
+                    own.reloading = false;
+                    self.error = tl!("Your Sieve script couldn't be read again: the server doesn't run it now, or can't be reached.").to_string();
+                } else {
+                    ctx.request_repaint_after(std::time::Duration::from_millis(250));
+                }
                 return;
             }
             let fresh = match own.rule.as_ref() {
@@ -342,6 +353,7 @@ impl SieveEditor {
     pub(crate) fn reload(&mut self, app: &mut MailApp) {
         let Some(own) = self.own.as_mut() else { return };
         own.reloading = true;
+        own.reload_from = app.sieve.reads.get(&self.account).copied().unwrap_or_default();
         self.error.clear();
         app.sieve_try_again(self.account);
     }
@@ -620,6 +632,7 @@ impl SieveEditor {
             ui.fonts_mut(|f| f.layout_job(job))
         };
         let mut changed = false;
+        let saving = self.own.as_ref().is_some_and(|o| o.saving);
         let cap = self.cap();
         // As high as the window leaves room for, in the dialog over Rules and Alerts.
         let room = ui.ctx().content_rect().height() - 420.0;
@@ -631,6 +644,9 @@ impl SieveEditor {
                 let (gutter, _) = ui.allocate_exact_size(vec2(gutter_width, 1.0), Sense::hover());
                 let edit = egui::TextEdit::multiline(&mut self.text)
                     .id(id)
+                    // Nothing typed while a save is under way: the save that closes the editor
+                    // would leave it behind (#2058).
+                    .interactive(!saving)
                     .code_editor()
                     .frame(egui::Frame::NONE)
                     .margin(egui::Margin::symmetric(6, 4))

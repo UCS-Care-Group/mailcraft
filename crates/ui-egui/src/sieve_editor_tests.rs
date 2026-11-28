@@ -350,3 +350,68 @@ fn a_script_of_rainloops_says_so_and_one_without_crlf_stays_without() {
     let e = SieveEditor::own_script(&app, account).unwrap();
     assert_eq!((e.text.as_str(), e.written().as_str()), ("keep;\r\nstop;\n", "keep;\r\nstop;\n"));
 }
+
+/// Reload, and a read that fails: the draft stays as it was, with why, not the script as last read
+/// (#2058).
+#[test]
+fn a_reload_that_fails_keeps_the_draft() {
+    let (mut app, _, own) = own_window();
+    app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = harness(app);
+    h.get_by_label("Edit Your Sieve Script…").click();
+    h.run_steps(3);
+    // Changed in webmail; the save finds it so, and Reload is offered.
+    own.lock().unwrap().0 = format!("{OWN}keep;\r\n");
+    let draft = OWN.replace("\r\n", "\n").replace("\"Lists\"", "\"Lists/Mine\"");
+    editor(&mut h).text = draft.clone();
+    h.run_steps(3);
+    h.get_by_label("Save").click();
+    h.run_steps(5);
+    assert!(editor(&mut h).own.as_ref().is_some_and(|o| o.changed));
+    // The server can't be reached now.
+    h.state_mut().services.sieve = Some(Box::new(|job: SieveJob| {
+        let (tx, rx) = mpsc::channel();
+        tx.send(SieveResult { account: job.account.id, error: "no answer".into(), ..Default::default() }).unwrap();
+        rx
+    }));
+    h.get_by_label("Reload").click();
+    h.run_steps(6);
+    assert!(editor_open(&mut h));
+    let e = editor(&mut h);
+    assert_eq!(e.text, draft, "the draft is kept");
+    assert!(e.error.contains("couldn't be read again"), "{}", e.error);
+}
+
+/// While the owner's script is being saved, its text takes nothing typed and Escape doesn't close
+/// it: what became of the save is said there (#2058).
+#[test]
+fn nothing_is_typed_or_cancelled_while_a_save_is_under_way() {
+    let (mut app, _, _) = own_window();
+    app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = harness(app);
+    h.get_by_label("Edit Your Sieve Script…").click();
+    h.run_steps(3);
+    let draft = OWN.replace("\r\n", "\n").replace("\"Lists\"", "\"Lists/Mine\"");
+    editor(&mut h).text = draft.clone();
+    h.run_steps(3);
+    // A host that doesn't answer yet.
+    let pending: Arc<Mutex<Vec<mpsc::Sender<SieveResult>>>> = Arc::default();
+    let held = pending.clone();
+    h.state_mut().services.sieve = Some(Box::new(move |_job: SieveJob| {
+        let (tx, rx) = mpsc::channel();
+        held.lock().unwrap().push(tx);
+        rx
+    }));
+    h.get_by_label("Save").click();
+    h.run_steps(3);
+    assert!(editor(&mut h).own.as_ref().is_some_and(|o| o.saving));
+    editor(&mut h).goto = Some((1, 1));
+    h.run_steps(2);
+    h.event(egui::Event::Text("zz".into()));
+    h.run_steps(2);
+    assert_eq!(editor(&mut h).text, draft, "nothing typed while saving");
+    h.key_press(egui::Key::Escape);
+    h.run_steps(2);
+    assert!(editor_open(&mut h), "Escape doesn't close it while saving");
+    assert!(!pending.lock().unwrap().is_empty());
+}
