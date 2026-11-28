@@ -318,3 +318,18 @@ fn gmail_categories_are_folders_until_tabs_are_chosen() {
     assert_eq!(s.run("view.gmailCategories", &json!({"value": "folders"})).unwrap()["value"], "folders");
     assert!(!crate::gmail::tabs_shown(&mut s));
 }
+
+#[test]
+fn desktop_mail_alerts_param_round_trips_and_rejects_other_types() {
+    let (mut s, account, _inbox) = sorted_inbox();
+    let on = |s: &mut Session| s.run("account.list", &json!({})).unwrap()["accounts"][0]["desktopMailAlerts"].clone();
+    assert_eq!(on(&mut s), json!(true), "on unless turned off");
+    s.run("account.edit", &json!({"id": account, "desktopMailAlerts": false})).unwrap();
+    assert_eq!(on(&mut s), json!(false));
+    for junk in [json!("no"), json!(0), json!(null), json!([])] {
+        assert!(s.run("account.edit", &json!({"id": account, "desktopMailAlerts": junk})).is_err());
+    }
+    assert_eq!(on(&mut s), json!(false), "a refused edit changes nothing");
+    s.run("account.edit", &json!({"id": account, "desktopMailAlerts": true})).unwrap();
+    assert_eq!(on(&mut s), json!(true));
+}

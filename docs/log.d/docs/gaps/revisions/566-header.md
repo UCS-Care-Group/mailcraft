@@ -1,0 +1,1 @@
+| 2026-11-23 | patch | #566: gap 17: words in the message header are no longer among the rule conditions still to come; a rule with words in the header reads the header as it came, and of mail that came before it can't tell a word not found |
