@@ -166,6 +166,17 @@ fn a_change_of_nothing_writes_the_script_back_byte_for_byte() {
     assert_eq!(written(&got, &text), text);
     let got = run(&mut s, "rules.edit", params(r[1].id, "ML-list", json!({"type": "toContains", "value": "list@lists.example.org"}), lists));
     assert_eq!(written(&got, &text), text);
+    // Spacing of its own the webmail's reader takes: kept by a change of nothing (#2058).
+    let spaced = text.replace("    fileinto \"Mailing-Lists/list\";\n", "    fileinto \"Mailing-Lists/list\";  \n\n");
+    assert_ne!(spaced, text);
+    read(&mut s, account, &spaced);
+    let r2 = rules(&s, account);
+    if super::rules_webmail::read_only(&s, r2[1].id).is_none() {
+        let got = run(&mut s, "rules.edit", params(r2[1].id, "ML-list", json!({"type": "toContains", "value": "list@lists.example.org"}), lists));
+        assert_eq!(written(&got, &spaced), spaced);
+    }
+    read(&mut s, account, &text);
+    let r = rules(&s, account);
     // Switched on already: nothing to write.
     let got = run(&mut s, "rules.enable", json!({"id": r[0].id, "value": true}));
     assert!(got.get("sieve").is_none());
@@ -511,6 +522,21 @@ fn every_rule_command_on_a_filter_that_files_into_deleted_items_is_asked_as_a_de
     // Changed while off: it runs nowhere until switched on.
     assert_eq!(classify(&s, "rules.edit", &to(binned, bin)), Access::Owner(Class::Settings));
     assert_eq!(classify(&s, "rules.enable", &json!({"id": rules(&s, account)[0].id, "value": false})), Access::Owner(Class::Settings));
+}
+
+/// A filter whose settings would be too long for the script to be read again is refused before
+/// anything is written, rather than saved read-only (#2058).
+#[test]
+fn a_filter_with_settings_too_long_to_read_again_is_refused() {
+    let text = script();
+    let (mut s, account, junk, _) = session(&text);
+    // Sixty conditions of the longest words and names, each quote of them doubled in the JSON.
+    let words: Vec<String> = (0..20).map(|n| format!("{n:02}{}", "\"".repeat(198))).collect();
+    let names: Vec<String> = (0..3).map(|n| format!("X-{n}{}", "a".repeat(197))).collect();
+    let header = json!({"type": "header", "value": {"names": names, "words": words}});
+    let add = json!({"webmail": true, "account": account, "name": "Long", "conditions": [header], "actions": [{"type": "moveTo", "value": junk}]});
+    let e = err(&mut s, "rules.add", add);
+    assert!(e.contains("too much text"), "{e}");
 }
 
 proptest! {

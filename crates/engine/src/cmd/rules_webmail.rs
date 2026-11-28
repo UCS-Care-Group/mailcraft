@@ -138,7 +138,12 @@ fn wanted(s: &Session, v: &Value, account: Id, id: &str, enabled: bool, old: Opt
         Some(o) => o.conditions.clone(),
         None => conditions(&condition)?,
     };
-    Ok(Settings { id: id.to_string(), enabled, name: parts.name, conditions, folder })
+    let settings = Settings { id: id.to_string(), enabled, name: parts.name, conditions, folder };
+    // As the script is read again: settings too long to read would make the filter read-only (#2058).
+    if settings.json().len() > sieve_rainloop::MAX_JSON {
+        return Err(fail("A filter of your webmail's has too much text to look for."));
+    }
+    Ok(settings)
 }
 
 /// A rule's condition as the webmail's conditions, any one of which is enough.
@@ -200,7 +205,8 @@ pub(crate) fn edited(s: &Session, v: &Value) -> Result<(Id, Rule, String), CmdEr
     let (found, old) = changeable(s, v)?;
     let new = wanted(s, v, found.account, &old.id, old.enabled, Some(old))?;
     let at = found.block.at.clone().ok_or_else(|| fail(OWN_CHANGED))?;
-    let text = spliced(&found.script.text, &at, &new.block(line_end(&found.script.text)))?;
+    // The same settings: the filter's bytes stay as they are, their spacing too (#2058).
+    let text = if new == *old { found.script.text.clone() } else { spliced(&found.script.text, &at, &new.block(line_end(&found.script.text)))? };
     Ok((found.account, shown(s, found.account, &new, found.block.rule.unwrap_or_default()), text))
 }
 
