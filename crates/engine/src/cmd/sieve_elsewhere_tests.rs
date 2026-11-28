@@ -59,6 +59,16 @@ fn a_webmail_script_is_read_where_it_maps_and_named_where_it_doesnt() {
     }
 }
 
+/// A reply sent from a block within a block is a reply all the same: the script sends replies
+/// (#2058).
+#[test]
+fn a_reply_in_a_nested_block_is_seen() {
+    let (s, account, _) = session();
+    let nested = "require [\"vacation\"];\r\nif header :contains \"subject\" \"x\" {\r\n  if true {\r\n    vacation \"Away.\";\r\n  }\r\n}\r\n";
+    assert!(read(&s.mailbox, account, "mine", nested, false).replies);
+    assert!(!read(&s.mailbox, account, "mine", "if true { keep; }\r\n", false).replies);
+}
+
 #[test]
 fn mailcrafts_own_blocks_read_back_as_the_rules_they_were() {
     let (s, account, lists) = session();

@@ -570,6 +570,11 @@ fn read_tests(t: &Test, me: &[String], rule: &mut Rule, unknown: &mut Vec<String
     }
 }
 
+/// Whether `commands`, or a block in them at any depth (bounded), has a `vacation`.
+fn sends_replies(commands: &[Command], depth: usize) -> bool {
+    depth < 64 && commands.iter().any(|c| c.name == "vacation" || c.block.as_deref().is_some_and(|b| sends_replies(b, depth.saturating_add(1))))
+}
+
 /// What a block's commands come to as actions; whether it sends a reply.
 fn read_actions(mb: &Mailbox, account: Id, block: &[Command], rule: &mut Rule, unknown: &mut Vec<String>) -> bool {
     let mut replies = false;
@@ -623,6 +628,9 @@ pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> 
         out.unreadable = true;
         return out;
     };
+    // Whether it sends replies, anywhere in it: in a block within a block too, and past the rules
+    // shown (#2058).
+    out.replies = sends_replies(&commands, 0);
     let me = me(mb, account);
     let base = ELSEWHERE_BASE.saturating_add(account.saturating_mul(MAX_RULES as u64));
     let filters = if sieve_rainloop::signed(text, &comments) { sieve_rainloop::filters(text, &comments) } else { Vec::new() };
