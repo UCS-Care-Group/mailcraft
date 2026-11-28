@@ -257,6 +257,14 @@ fn answers_as(s: &Session, account: Id, email: &str) -> bool {
     s.mailbox.accounts.iter().any(|a| (a.id == sign_in || a.shared_of == Some(sign_in)) && a.sends_as(email))
 }
 
+/// Whether `email` is an address the account `account` sends from: its own, its sender
+/// addresses, and those of the shared mailboxes opened through it (mail sent as one is kept in
+/// the sender's own Sent Items). Mail in it from another of the owner's accounts is mail it
+/// received (#1727).
+fn sent_from(s: &Session, account: Id, email: &str) -> bool {
+    s.mailbox.accounts.iter().any(|a| (a.id == account || a.shared_of == Some(account)) && a.sends_as(email))
+}
+
 /// An address for an error message: short, and without control characters.
 fn shown_address(text: &str) -> String {
     text.trim().chars().filter(|ch| !ch.is_control()).take(80).collect()
@@ -563,6 +571,14 @@ fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
     m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
 }
 
+/// What a forward of `m` carries: all its files, those the quoted original (`quoted`, its HTML)
+/// draws as pictures of the text, however the sender labelled them (a signature picture sent as
+/// an attachment, in a message read in before that was told).
+fn forwarded_files(m: &Message, quoted: Option<&str>) -> Vec<Attachment> {
+    let drawn = quoted.map(|html| mailcraft_mime_model::drawn_parts(html, &m.attachments)).unwrap_or_default();
+    m.attachments.iter().enumerate().map(|(i, a)| Attachment { inline: a.inline || drawn.contains(&i), ..a.clone() }).collect()
+}
+
 /// The `References` of an answer to `m`: its own, then its Message-ID. A long thread's stay
 /// bounded: the root and the latest ones.
 pub(super) fn references_of(m: &Message) -> Vec<String> {
@@ -603,6 +619,9 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         _ => reply_source(s, v)?,
     };
     let is_mine = |a: &Address| is_owners(s, &a.email);
+    // From the address the original was sent to (#797).
+    let from = reply_from(s, &m);
+    let is_from = |a: &Address| s.mailbox.account(m.account).is_some_and(|acc| acc.from_address(&from).same_mailbox(a));
     let (to, cc) = match mode {
         ComposeMode::Forward => (Vec::new(), Vec::new()),
         _ => {
@@ -620,11 +639,17 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
                 add(&mut to, &[], a);
             }
             if to.is_empty() {
-                // A reply to a message I sent goes to the people I sent it to; else to the
-                // sender, also when Reply-To names nobody but the owner.
-                let fallback: &[Address] = if is_mine(&m.from) && !m.to.is_empty() { &m.to } else { std::slice::from_ref(&m.from) };
-                for a in fallback {
-                    add(&mut to, &[], a);
+                // A reply to a message sent from this account goes to the people it was sent to,
+                // less the address the reply is from; else to the sender, also when Reply-To
+                // names nobody but the owner, and when it came from another of his accounts
+                // (#1727).
+                let others: Vec<&Address> = m.to.iter().filter(|a| !is_from(a)).collect();
+                if sent_from(s, m.account, &m.from.email) && !others.is_empty() {
+                    for a in others {
+                        add(&mut to, &[], a);
+                    }
+                } else {
+                    add(&mut to, &[], &m.from);
                 }
             }
             let mut cc = Vec::new();
@@ -632,11 +657,11 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
                 // Less the addresses the reply is from, not those of the owner's other accounts;
                 // mail the owner sent skips every owner address, as before.
                 let own_sent = is_mine(&m.from);
-                let is_from = |a: &Address| if own_sent { is_mine(a) } else { answers_as(s, m.account, &a.email) };
-                for a in m.to.iter().filter(|a| !is_from(a)) {
+                let skip = |a: &Address| if own_sent { is_mine(a) } else { answers_as(s, m.account, &a.email) };
+                for a in m.to.iter().filter(|a| !skip(a)) {
                     add(&mut to, &[], a);
                 }
-                for a in m.cc.iter().filter(|a| !is_from(a)) {
+                for a in m.cc.iter().filter(|a| !skip(a)) {
                     add(&mut cc, &to, a);
                 }
             }
@@ -662,11 +687,10 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         _ => None,
     };
     let body = if quoting && quote.is_none() { quoted(s, &m) } else { String::new() };
-    // From the address the original was sent to (#797).
-    let from = reply_from(s, &m);
     let sig = chosen_signature(s, m.account, &from, None, true);
     // A line to write on, a blank one, then the signature above the original.
     let body = if sig.is_some() { format!("\n{}", body.strip_prefix('\n').unwrap_or(&body)) } else { body };
+    let attachments = if mode == ComposeMode::Forward { forwarded_files(&m, quote.as_ref().map(|q| q.html.as_str())) } else { Vec::new() };
     let mut c = Compose {
         mode,
         source: Some(m.id),
@@ -679,7 +703,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         // A reply is written the way the original was read: HTML to HTML, plain text to plain text.
         format: if shown.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
         quote,
-        attachments: if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() },
+        attachments,
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },
         references: if mode == ComposeMode::Forward { Vec::new() } else { references },
         ..Default::default()

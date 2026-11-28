@@ -32,6 +32,8 @@ mod blocks;
 pub mod corpus;
 mod data;
 mod entities;
+pub mod fonts;
+mod grid;
 mod look;
 mod media;
 mod preview;
@@ -48,6 +50,7 @@ pub use bg::{BgOffset, BgPicture, BgRepeat, BgSize, MAX_BG_OFFSET_PX, MAX_BG_SIZ
 pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own, parse_text_with_tables};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
+pub use grid::{Grid, Place, grid};
 pub use media::{Env, MAX_ENVS as MAX_MEDIA_ENVS, envs as media_envs, verdicts as media_verdicts};
 
 /// The media lists of a message's style sheets and `<style media>` attributes, each once, in the
@@ -59,7 +62,7 @@ pub fn media_lists(html: &str) -> Vec<String> {
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::{WrittenPicture, quotable, quotable_in, quotable_with_pictures};
 pub use style::{MAX_FAMILIES, MAX_FONT_PX};
-pub use text::{blocks_to_text, from_text, quote_to_text, text_and_hidden, text_blocks, to_text};
+pub use text::{autolink, blocks_to_text, from_text, quote_to_text, text_and_hidden, text_blocks, to_text};
 
 /// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
 /// it ([`MAX_SHEET_BYTES`] of it, [`MAX_SHEET_RULES`] rules). For the fuzz target.
@@ -249,6 +252,10 @@ impl Sides {
 pub struct Span {
     pub text: String,
     pub bold: bool,
+    /// The weight, from 1 to 1000, when the message asks for one that is neither 400 nor 700
+    /// (`bold` is set from 600); `None` is 700 for bold text and 400 for the rest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<u16>,
     pub italic: bool,
     pub underline: bool,
     pub strike: bool,
@@ -295,6 +302,7 @@ impl Span {
     /// Whether two spans look the same, whatever their text.
     pub fn same_format(&self, other: &Span) -> bool {
         self.bold == other.bold
+            && self.weight == other.weight
             && self.italic == other.italic
             && self.underline == other.underline
             && self.strike == other.strike
@@ -524,6 +532,10 @@ pub struct Cell {
     /// A picture behind what it holds, over its background colour (#601).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bg_picture: Option<Box<BgPicture>>,
+    /// Hidden in its place (`visibility: hidden` and the like): it keeps its slot in the grid and
+    /// shows nothing, not even its row's colour.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub held: bool,
 }
 
 impl Default for Cell {
@@ -541,6 +553,7 @@ impl Default for Cell {
             radius: 0,
             valign: None,
             bg_picture: None,
+            held: false,
         }
     }
 }
@@ -617,6 +630,23 @@ pub fn is_safe_url(url: &str) -> bool {
     true
 }
 
+/// How a reader lays out the blocks of this crate, in points (dp on a phone): one set of rules for
+/// the desktop and the phone, so that a message looks alike on both (#1966).
+pub mod reading {
+    use super::Table;
+
+    /// A layout table is stacked rather than given columns that hold something narrower than this.
+    pub const MIN_LAYOUT_COLUMN: u8 = 110;
+    /// The gap in front of a box on a line that the source parts from the box before it by white
+    /// space ([`Table::spaced`]), and the gap between the lines of such boxes.
+    pub const BOX_GAP: u8 = 4;
+
+    /// The gap in front of `table` when it is a box on a line after another.
+    pub fn box_gap(table: &Table) -> u8 {
+        if table.spaced { BOX_GAP } else { 0 }
+    }
+}
+
 /// Unicode's format characters (general category Cf): the one list, in `mailcraft-names` (#454).
 pub use mailcraft_names::is_format;
 
@@ -651,11 +681,15 @@ mod data_tests;
 #[cfg(test)]
 mod float_tests;
 #[cfg(test)]
+mod grid_tests;
+#[cfg(test)]
 mod inline_tests;
 #[cfg(test)]
 mod nested_align_tests;
 #[cfg(test)]
 mod rtl_tests;
+#[cfg(test)]
+mod spacing_tests;
 #[cfg(test)]
 mod text_link_tests;
 

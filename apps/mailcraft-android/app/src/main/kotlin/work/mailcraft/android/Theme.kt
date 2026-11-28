@@ -8,9 +8,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
-private val LightColors: ColorScheme = lightColorScheme(
+internal val LightColors: ColorScheme = lightColorScheme(
     primary = Color(0xFF1B5E8C),
     onPrimary = Color(0xFFFFFFFF),
     primaryContainer = Color(0xFFD3E6F5),
@@ -58,8 +60,17 @@ private val DarkColors: ColorScheme = darkColorScheme(
     outlineVariant = Color(0xFF41484D),
 )
 
-/** The app's colours: light or dark as the system is. */
+/** Whether the app is dark, as [MailCraftTheme] set it; null outside it. */
+private val LocalDark = staticCompositionLocalOf<Boolean?> { null }
+
+/** Whether the app is dark now: the owner's choice, which every screen follows, not the phone's setting. */
+@Composable
+internal fun appIsDark(): Boolean = LocalDark.current ?: isSystemInDarkTheme()
+
+/** The app's colours: light or dark as [dark] says (the owner's choice, resolved against the system's). */
 @Composable
 internal fun MailCraftTheme(dark: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
-    MaterialTheme(colorScheme = if (dark) DarkColors else LightColors, content = content)
+    CompositionLocalProvider(LocalDark provides dark) {
+        MaterialTheme(colorScheme = if (dark) DarkColors else LightColors, content = content)
+    }
 }
