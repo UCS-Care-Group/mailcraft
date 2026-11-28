@@ -339,6 +339,9 @@ fn keep_local(fresh: &mut Contact, old: &Contact, categories: bool) {
     fresh.imported.clone_from(&old.imported);
     fresh.imported_from.clone_from(&old.imported_from);
     fresh.moved_from = old.moved_from;
+    // And whether an agent made it, which the owner hasn't confirmed (#891): the server's word
+    // doesn't, and a change of it mustn't make the contact trusted for pictures.
+    fresh.by_agent = old.by_agent;
     if categories {
         fresh.categories.clone_from(&old.categories);
     }

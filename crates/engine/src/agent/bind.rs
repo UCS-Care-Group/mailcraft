@@ -156,6 +156,7 @@ pub fn object(id: &str) -> Option<Object> {
         | "sync.offline"
         | "sync.waitBeforeSending"
         | "ui.downloadPicturesAutomatically"
+        | "ui.downloadPicturesFromContacts"
         | "ui.senderImages"
         | "ui.desktopAlerts"
         | "ui.closeToTray"

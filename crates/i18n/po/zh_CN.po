@@ -1664,6 +1664,12 @@ msgid "An address with no domain."
 msgstr "没有域名的地址。"
 
 #. interface
+#: crates/ui-egui/src/people_view.rs
+#, fuzzy
+msgid "An agent made this contact or gave it an address. Until you edit it, its addresses don't bring pictures in mail from your contacts."
+msgstr "此联系人由代理创建，或由代理为其添加了地址。在您编辑此联系人之前，来自这些地址的邮件中的图片不会自动下载。"
+
+#. interface
 #: crates/ui-egui/src/agent_gate.rs
 #, fuzzy
 msgid "An agent wants to {what}."
@@ -5143,6 +5149,12 @@ msgstr "下载图片"
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
+msgid "Download Pictures from Contacts"
+msgstr "下载联系人邮件中的图片"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Download Pictures in All Mail"
 msgstr "下载所有邮件中的图片"
 
@@ -5151,6 +5163,18 @@ msgstr "下载所有邮件中的图片"
 #, fuzzy
 msgid "Download Pictures in Mail Automatically"
 msgstr "自动下载邮件中的图片"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Download Pictures in Mail from Contacts"
+msgstr "下载来自联系人的邮件中的图片"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Download from contacts"
+msgstr "从联系人邮件中下载"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -5187,6 +5211,12 @@ msgstr "无需逐封询问即可下载邮件中的图片，垃圾邮件除外。
 #, fuzzy
 msgid "Download pictures in mail automatically"
 msgstr "自动下载邮件中的图片"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Download pictures in mail from people in my contacts"
+msgstr "下载来自我的联系人的邮件中的图片"
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -12823,6 +12853,12 @@ msgstr "始终下载图片的来源（{n}）："
 msgid "Pictures in mail"
 msgstr "邮件中的图片"
 
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "Pictures in mail from an address in your contacts are downloaded without asking: that address exactly, only when your mail server confirms the message came from that address's domain (it can't confirm the address itself), and never in Junk E-mail. Each such sender's server learns that you opened the message, when, and from which internet address. A contact an agent made or gave an address to doesn't count until you edit it."
+msgstr "只有在发件地址与联系人中保存的地址完全一致，且您的邮件服务器确认邮件来自该地址的域时，邮件中的图片才会直接下载。服务器无法确认地址本身。垃圾邮件始终不适用此规则。每位发件人的服务器都会得知您打开了邮件、打开时间以及所用的网络地址。由代理创建或添加了地址的联系人，需要您编辑之后才适用此规则。"
+
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/ui-egui/src/reading/remote.rs
 #, fuzzy
@@ -12846,6 +12882,12 @@ msgstr "对于不在您邮箱中的邮件，不会下载其中的网络图片；
 #, fuzzy
 msgid "Pictures on the web will be downloaded in every message you open. Each sender's server then learns when you opened the message and from which internet address."
 msgstr "您打开的每封邮件都会下载其中的网络图片。发件人的服务器会因此得知您何时打开邮件以及使用的互联网地址。"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+#, fuzzy
+msgid "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
+msgstr "来自联系人的邮件中的网络图片将被下载。发件人的服务器会得知您打开邮件的时间以及所用的网络地址。"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -21760,6 +21802,12 @@ msgstr "您无权访问 {address} 的日历。对方需要与您共享日历；�
 #, fuzzy
 msgid "You don't have access to {address}. If access was just given, try again in an hour."
 msgstr "您无权访问 {address}。如果刚刚授予访问权限，请在一小时后重试。"
+
+#. interface
+#: crates/ui-egui/src/reading/remote.rs
+#, fuzzy
+msgid "You download pictures from your contacts, but the mail server didn't confirm that this message came from this one, so it is asked first."
+msgstr "您允许下载来自联系人的图片，但邮件服务器未能确认此邮件来自这位联系人，因此下载前会先询问。"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs

@@ -511,6 +511,8 @@ pub fn merged(mailbox: &Mailbox, keep: Id, others: &[Id], picks: &BTreeMap<Strin
         }
     }
     out.favorite = contacts.iter().any(|c| c.favorite);
+    // Merging contacts does not confirm any address an agent added (#891).
+    out.by_agent = contacts.iter().any(|c| c.by_agent);
     // (Where each came from in an imported file all stay known, so that importing the file again
     // doesn't bring back one that was merged away.)
     let mut keys: Vec<&str> = Vec::new();

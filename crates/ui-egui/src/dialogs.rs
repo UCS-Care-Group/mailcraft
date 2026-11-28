@@ -552,6 +552,20 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             );
             question(tl!("Download Pictures in All Mail"), text, tl!("Download in all mail"))
         }
+        // Pictures in mail from the contacts, switched on from File › Options (#891): what it
+        // tells each of them. Turning it off asks nothing.
+        "ui.downloadPicturesFromContacts"
+            if !app.ui.download_pictures_from_contacts && params.get("value").and_then(Value::as_bool) != Some(false) =>
+        {
+            let text = format!(
+                "{} {}",
+                tl!(
+                    "Pictures on the web will be downloaded in mail from the people in your contacts. Their servers then learn when you opened the message and from which internet address."
+                ),
+                tl!("Mail in Junk E-mail still asks first. File › Options turns this off again.")
+            );
+            question(tl!("Download Pictures from Contacts"), text, tl!("Download from contacts"))
+        }
         // Unsubscribing from a list (#1207): what is sent, to whom, or what opens.
         "ui.unsubscribe" => crate::reading::unsubscribe::question(app, params),
         // (Several messages' question asks the engine what goes: `MailApp::run` asks it.)
