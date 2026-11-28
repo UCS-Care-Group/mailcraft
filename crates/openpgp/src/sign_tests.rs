@@ -392,3 +392,16 @@ proptest! {
         prop_assert_eq!(result, Err(SignError::BadSignature));
     }
 }
+
+/// Review of #1036: a P-384 key never signs with a hash shorter than its curve (RFC 9580
+/// §5.2.3.1), whatever the caller asks for; with SHA-384 it does.
+#[test]
+fn an_ecdsa_key_refuses_a_hash_shorter_than_its_curve() {
+    let secret = made_with(KeyType::ECDSA(ECCCurve::P384), KeyVersion::V4, None, 41);
+    let key = only_key(&secret);
+    let result = sign_detached(SIGNED_PART.as_bytes(), &key, made(&secret) + 60, HashAlgorithm::Sha256, |_| -> Result<SignatureValue, ()> {
+        panic!("not asked")
+    });
+    assert_eq!(result, Err(SignError::Unsupported("a hash shorter than the key's curve")));
+    round_trip(&secret, HashAlgorithm::Sha384, "ECDSA");
+}

@@ -291,6 +291,8 @@ mod signature_link_tests;
 mod signature_rename_tests;
 mod signatures;
 #[cfg(test)]
+mod signing_problems_tests;
+#[cfg(test)]
 mod snooze_tell_tests;
 mod snooze_tick;
 pub mod software;
@@ -4400,8 +4402,9 @@ impl MailApp {
             }
         }
         // Not Digitally signed as it was to be (#30): kept among the run's problems, so that the
-        // account says it until the owner has seen it, not only in passing.
-        result.errors.extend(unsigned);
+        // account says it until the owner has seen it, not only in passing; an IMAP leg of the
+        // same run that goes through cleanly doesn't clear it ([`MailApp::poll_sync`]).
+        result.errors.extend(unsigned.iter().cloned());
         // What the run sent is filed by now, what it held for a lost answer is held, and the rest
         // (not tried, or Microsoft said later) didn't go: no message of the account is marked as
         // being sent any more. (A job that ended without an answer, or with a piece refused,
@@ -4540,10 +4543,14 @@ impl MailApp {
         }
         self.note_sync_problems(account, &errors, false);
         let skip: Vec<Id> = result.sent.iter().chain(&result.held).copied().chain(result.unsigned.iter().map(|u| u.message)).collect();
-        if let Err(e) = self.start_sync(&json!({"account": account, "quiet": quiet, "afterGraph": true, "skip": skip})) {
-            self.session.sync_progress.end(account, false);
-            self.session.sync_status.clear();
-            self.status(e);
+        match self.start_sync(&json!({"account": account, "quiet": quiet, "afterGraph": true, "skip": skip})) {
+            Err(e) => {
+                self.session.sync_progress.end(account, false);
+                self.session.sync_status.clear();
+                self.status(e);
+            }
+            // The IMAP leg's run counts them among its own problems.
+            Ok(_) => self.sync_totals.errors.extend(unsigned),
         }
     }
 

@@ -392,9 +392,21 @@ fn send_again(s: &mut Session, v: &Value) -> CmdResult {
     if m.draft {
         return Err(fail("that message is a draft: open it and send it"));
     }
+    // To be Digitally signed still (#30), with the key its account signs with now: one the owner
+    // chose since it was held, when the one it was to go with couldn't sign.
+    let key = m.sign_with.is_some().then(|| {
+        s.mailbox
+            .account(m.account)
+            .and_then(|a| a.signing.key.as_ref())
+            .and_then(mailcraft_model::signing::SigningKey::checked)
+            .unwrap_or_else(super::signing::no_usable_key)
+    });
     let m = s.mailbox.message_mut(id)?;
     m.held.clear();
     m.sending = false;
+    if key.is_some() {
+        m.sign_with = key;
+    }
     s.mailbox_changed();
     Ok(json!({"id": id, "held": false}))
 }

@@ -183,3 +183,27 @@ fn a_message_held_already_that_couldnt_be_signed_is_still_said() {
     let errors = answer["errors"].as_array().unwrap();
     assert!(errors.iter().any(|e| e.as_str().is_some_and(|e| e.contains("Rota") && e.contains("PIN"))), "{answer}");
 }
+
+/// Review of #1036: a message held because its key couldn't sign goes with Send Again with the
+/// key its account signs with now, and is still to be signed when the account has none.
+#[test]
+fn send_again_signs_with_the_key_chosen_since() {
+    let (mut s, a) = imap();
+    key(&mut s, a, true);
+    s.run("mail.new", &json!({"to": "maya@lumen.example", "subject": "Rota", "account": a})).unwrap();
+    let id = s.run("compose.send", &json!({})).unwrap()["id"].as_u64().unwrap();
+    let unsigned = vec![Unsigned { message: id, why: "the smartcard isn't there".into() }];
+    let email = s.mailbox.account(a).unwrap().email.clone();
+    s.run("sync.apply", &json!({"result": SyncResult { account: a, email, unsigned, ..Default::default() }})).unwrap();
+    let other = "cd".repeat(32);
+    s.run("account.setSigning", &json!({"account": a, "key": {"format": "smime", "fingerprint": other, "label": "Ada (new card)"}})).unwrap();
+    s.run("mail.sendAgain", &json!({"id": id})).unwrap();
+    let m = sync_request(&s, a).unwrap().outbox.into_iter().find(|m| m.id == id).unwrap();
+    assert_eq!(m.sign_with.unwrap().fingerprint, other.to_ascii_uppercase());
+    // No key now: still to be signed, with one nothing signs with.
+    s.mailbox.message_mut(id).unwrap().held = "held again".into();
+    s.mailbox.account_mut(a).unwrap().signing = Default::default();
+    s.run("mail.sendAgain", &json!({"id": id})).unwrap();
+    let m = sync_request(&s, a).unwrap().outbox.into_iter().find(|m| m.id == id).unwrap();
+    assert_eq!(m.sign_with, Some(crate::cmd::signing::no_usable_key()));
+}

@@ -55,12 +55,16 @@ pub(crate) fn host() -> Arc<Host> {
     HOST.get_or_init(|| Arc::new(Host::default())).clone()
 }
 
-/// The PINs the owner typed this session, and the token one is wanted for.
+/// The most tokens whose PIN waits to be asked for at once.
+const MAX_PINS_WANTED: usize = 8;
+
+/// The PINs the owner typed this session, and the tokens one is wanted for.
 #[derive(Default)]
 pub(crate) struct Host {
     pins: Mutex<Vec<(TokenRef, Pin)>>,
-    /// A token a signature wanted the PIN of, not asked about yet.
-    wanted: Mutex<Option<TokenRef>>,
+    /// The tokens signatures wanted the PIN of, not asked about yet, in the order they were
+    /// wanted: each asked once, one at a time.
+    wanted: Mutex<Vec<TokenRef>>,
     /// The token the window is asking about now.
     asking: Mutex<Option<TokenRef>>,
 }
@@ -78,8 +82,13 @@ impl Host {
     }
 
     pub(crate) fn want_pin(&self, token: TokenRef) {
-        if let Ok(mut wanted) = self.wanted.lock() {
-            *wanted = Some(token);
+        let asked = self.asking.lock().is_ok_and(|a| a.as_ref() == Some(&token));
+        if let Ok(mut wanted) = self.wanted.lock()
+            && !asked
+            && !wanted.contains(&token)
+            && wanted.len() < MAX_PINS_WANTED
+        {
+            wanted.push(token);
         }
     }
 }
@@ -97,7 +106,10 @@ impl SigningHost for Host {
     }
 
     fn pin_wanted(&self) -> Option<String> {
-        let token = self.wanted.lock().ok()?.take()?;
+        let token = {
+            let mut wanted = self.wanted.lock().ok()?;
+            (!wanted.is_empty()).then(|| wanted.remove(0))?
+        };
         let label = if token.label.is_empty() { token.serial.clone() } else { token.label.clone() };
         if let Ok(mut asking) = self.asking.lock() {
             *asking = Some(token);
@@ -552,9 +564,15 @@ fn choices() -> Result<Vec<SigningChoice>, String> {
     Ok(out)
 }
 
+/// Whether `c` can Digitally sign mail now: in its dates, for mail and signing, of a key that is
+/// signed with here, and no authority's (`mailcraft_smime::sign` refuses one).
+pub(crate) fn signs_mail(c: &HeldCertificate) -> bool {
+    c.in_date && c.for_mail && c.can_sign && !c.authority && smime_scheme(c.key).is_some()
+}
+
 fn smime_choice(h: Held) -> Option<SigningChoice> {
     let c = &h.certificate;
-    if !c.in_date || !c.for_mail || !c.can_sign || smime_scheme(c.key).is_none() {
+    if !signs_mail(c) {
         return None;
     }
     let label = c.emails.first().cloned().unwrap_or_else(|| c.subject.clone());

@@ -26,6 +26,7 @@ use crate::theme::Tokens;
 /// How wide the dialog is.
 pub(crate) const WIDTH: f32 = 520.0;
 /// The most keys shown.
+// lean: keys past the 64th can't be chosen here; add a filter by address if anybody has that many.
 const MAX_SHOWN: usize = 64;
 
 /// One of the owner's keys that can sign, as the host found it.

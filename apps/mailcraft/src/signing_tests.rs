@@ -157,3 +157,47 @@ fn a_message_that_cant_be_signed_doesnt_end_the_run_for_the_rest_of_the_outbox()
     assert!(piece.partial && piece.sent.len() == 1);
     assert!(held_piece(7, String::new(), Vec::new()).is_none(), "nothing held, no piece");
 }
+
+/// Review of #1036: a certificate of an authority, though for mail and in its dates, is no
+/// choice to sign with (the signer refuses it, and the message would only be held); the same
+/// certificate without the authority's marks is.
+#[test]
+fn an_authoritys_certificate_is_no_signing_choice() {
+    use crate::key_holders::certificate::HeldCertificate;
+    let made = |ca: bool| {
+        let key = rcgen::KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256).unwrap();
+        let mut p = rcgen::CertificateParams::new(Vec::<String>::new()).unwrap();
+        p.subject_alt_names = vec![rcgen::SanType::Rfc822Name("ada@example.org".try_into().unwrap())];
+        if ca {
+            p.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+        }
+        let der = p.self_signed(&key).unwrap().der().to_vec();
+        HeldCertificate::read(der, Some(1_800_000_000)).unwrap()
+    };
+    let authority = made(true);
+    assert!(authority.authority);
+    assert!(!signs_mail(&authority));
+    let own = made(false);
+    assert!(!own.authority);
+    assert!(signs_mail(&own));
+}
+
+/// Review of #1036: two tokens that want their PIN before the window asks are both asked for,
+/// one at a time, each once.
+#[test]
+fn every_token_that_wants_its_pin_is_asked_for_in_turn() {
+    let host = Host::default();
+    let a = TokenRef { slot: 1, serial: "0001".into(), label: "First card".into() };
+    let b = TokenRef { slot: 2, serial: "0002".into(), label: "Second card".into() };
+    host.want_pin(a.clone());
+    host.want_pin(b.clone());
+    host.want_pin(a.clone());
+    assert_eq!(host.pin_wanted().as_deref(), Some("First card"));
+    host.want_pin(a.clone());
+    host.give_pin("1111".into());
+    assert_eq!(host.pin_wanted().as_deref(), Some("Second card"), "the first isn't asked for twice");
+    host.give_pin("2222".into());
+    assert_eq!(host.pin_wanted(), None);
+    assert_eq!(host.pin_for(&a).map(|p| p.expose().to_string()).as_deref(), Some("1111"));
+    assert_eq!(host.pin_for(&b).map(|p| p.expose().to_string()).as_deref(), Some("2222"));
+}

@@ -1300,3 +1300,46 @@ fn a_signers_chain_is_its_authorities_up_to_the_root() {
     assert!(gather(&mut pool, vec![0; MAX_CERTIFICATE_LEN + 1]));
     assert!(pool.is_empty(), "too large to be a certificate");
 }
+
+/// [`issued`], with the authority key identifier that names the issuer's key (RFC 5280 §4.2.1.1).
+fn issued_by_key(
+    name: &str,
+    ca: bool,
+    key: &rcgen::KeyPair,
+    issuer: Option<(&rcgen::CertificateParams, &rcgen::KeyPair)>,
+) -> (rcgen::CertificateParams, Vec<u8>) {
+    let mut p = rcgen::CertificateParams::new(Vec::<String>::new()).unwrap();
+    p.distinguished_name = rcgen::DistinguishedName::new();
+    p.distinguished_name.push(rcgen::DnType::CommonName, name);
+    p.use_authority_key_identifier_extension = true;
+    if ca {
+        p.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+    }
+    let der = match issuer {
+        Some((params, issuer_key)) => p.signed_by(key, &rcgen::Issuer::new(params.clone(), issuer_key)).unwrap().der().to_vec(),
+        None => p.self_signed(key).unwrap().der().to_vec(),
+    };
+    (p, der)
+}
+
+/// Review of #1036: of two authorities with one name, the chain takes the one whose key issued
+/// the certificate; and an authority's older key's certificate for its newer one (a rollover,
+/// the same name) is carried, while the root it ends at isn't.
+#[test]
+fn a_chain_follows_the_issuers_key_and_carries_a_rollover() {
+    use super::certificate::chain;
+    let (old_root_key, new_root_key) = (new_key(), new_key());
+    let (old_root, old_root_der) = issued_by_key("Example Root", true, &old_root_key, None);
+    let (new_root, new_root_der) = issued_by_key("Example Root", true, &new_root_key, None);
+    let (_, rollover_der) = issued_by_key("Example Root", true, &new_root_key, Some((&old_root, &old_root_key)));
+    let (old_inter_key, inter_key) = (new_key(), new_key());
+    let (_, old_inter_der) = issued_by_key("Example Intermediate", true, &old_inter_key, Some((&new_root, &new_root_key)));
+    let (inter, inter_der) = issued_by_key("Example Intermediate", true, &inter_key, Some((&new_root, &new_root_key)));
+    let (_, leaf_der) = issued_by_key("Owner", false, &new_key(), Some((&inter, &inter_key)));
+    // The intermediate with the other key comes first, and isn't taken.
+    let pool = [old_inter_der.clone(), inter_der.clone(), new_root_der.clone(), old_root_der.clone()];
+    assert_eq!(chain(&leaf_der, &pool, 8), vec![inter_der.clone()]);
+    // With the rollover in the store: carried, up to the old root.
+    let pool = [old_inter_der, inter_der.clone(), new_root_der, rollover_der.clone(), old_root_der];
+    assert_eq!(chain(&leaf_der, &pool, 8), vec![inter_der, rollover_der]);
+}

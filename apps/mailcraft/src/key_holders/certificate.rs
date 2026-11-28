@@ -106,6 +106,10 @@ pub struct HeldCertificate {
     pub can_sign: bool,
     /// Whether its key may unwrap content-encryption keys (RSA with key encipherment, or none named).
     pub can_decrypt: bool,
+    /// Whether it is a certification authority's by any sign (basic constraints say so, or its
+    /// key usage lets it sign certificates): never a mail signer's (`mailcraft_smime::sign`
+    /// refuses one).
+    pub authority: bool,
 }
 
 impl HeldCertificate {
@@ -136,6 +140,7 @@ impl HeldCertificate {
         let mut emails = Vec::new();
         let mut key_usage: Option<KeyUsage> = None;
         let mut for_mail = true;
+        let mut authority = false;
         for ext in extensions {
             let value = ext.extn_value.as_bytes();
             if ext.extn_id == ID_CE_SUBJECT_ALT_NAME {
@@ -149,6 +154,8 @@ impl HeldCertificate {
             } else if ext.extn_id == ID_CE_KEY_USAGE {
                 // A key usage that can't be read allows nothing.
                 key_usage = Some(KeyUsage::from_der(value).unwrap_or(KeyUsage(Default::default())));
+            } else if ext.extn_id == ID_CE_BASIC_CONSTRAINTS {
+                authority |= BasicConstraints::from_der(value).is_ok_and(|b| b.ca);
             } else if ext.extn_id == ID_CE_EXT_KEY_USAGE {
                 for_mail = match ExtendedKeyUsage::from_der(value) {
                     Ok(usages) => usages.0.iter().any(|u| *u == EMAIL_PROTECTION || *u == ANY_EXTENDED_KEY_USAGE),
@@ -166,6 +173,7 @@ impl HeldCertificate {
             }
         }
 
+        authority |= key_usage.as_ref().is_some_and(KeyUsage::key_cert_sign);
         let (can_sign, can_decrypt) = match &key_usage {
             None => (true, matches!(key, KeyKind::Rsa { .. })),
             Some(ku) => (ku.digital_signature() || ku.non_repudiation(), matches!(key, KeyKind::Rsa { .. }) && ku.key_encipherment()),
@@ -185,6 +193,7 @@ impl HeldCertificate {
             for_mail,
             can_sign,
             can_decrypt,
+            authority,
             fingerprint,
             der,
         })
@@ -216,48 +225,79 @@ pub fn gather(pool: &mut Vec<Vec<u8>>, der: Vec<u8>) -> bool {
 }
 
 /// The certificates of the authorities between the signer's certificate `leaf` and its root,
-/// in order, found by name among `pool` (what the system's store or the token holds besides):
-/// what an S/MIME signature carries so that a recipient who has only the root can check it
-/// (RFC 8551 §2.4.1, RFC 5652 §5.1). Only a certificate of an authority (basic constraints with
-/// `cA`) is taken; the root itself (a certificate whose issuer is its subject) is the
-/// recipient's to trust and isn't carried. At most `max`; a loop ends where it would go round.
-/// Whatever can't be read is passed over: the signature goes with what was found.
+/// in order, found among `pool` (what the system's store or the token holds besides): what an
+/// S/MIME signature carries so that a recipient who has only the root can check it (RFC 8551
+/// §2.4.1, RFC 5652 §5.1). An issuer is found by name, and by key where the certificates say
+/// which (the authority key identifier against the subject key identifier, RFC 5280 §4.2.1.1):
+/// of two authorities with one name, the one whose key issued it. Only a certificate of an
+/// authority (basic constraints with `cA`) is taken; the root itself (issued by itself: its
+/// issuer is its subject, and its key identifiers don't say another key issued it) is the
+/// recipient's to trust and isn't carried, while a certificate an authority's older key issued
+/// to its newer one (a rollover, the same name) is. At most `max`; a loop ends where it would go
+/// round. Whatever can't be read is passed over: the signature goes with what was found.
 pub fn chain(leaf: &[u8], pool: &[Vec<u8>], max: usize) -> Vec<Vec<u8>> {
-    // (subject, issuer, whether an authority's), each name as its DER.
-    let names = |der: &[u8]| -> Option<(Vec<u8>, Vec<u8>, bool)> {
+    let authorities: Vec<(&Vec<u8>, Names)> =
+        pool.iter().take(MAX_AUTHORITIES).filter_map(|der| Names::of(der).filter(|n| n.ca).map(|n| (der, n))).collect();
+    let mut out = Vec::new();
+    let Some(mut at) = Names::of(leaf) else { return out };
+    let mut seen = vec![sha256(leaf)];
+    while out.len() < max {
+        let issued = |n: &Names| {
+            n.subject == at.issuer
+                && match (&at.authority_key, &n.subject_key) {
+                    (Some(wanted), Some(key)) => wanted == key,
+                    _ => true,
+                }
+        };
+        // (A root is where it ends; another issuer of the same name and key, a rollover, goes on.)
+        let Some((der, next)) = authorities.iter().find(|(der, n)| issued(n) && !n.is_root() && !seen.contains(&sha256(der))) else {
+            break;
+        };
+        seen.push(sha256(der));
+        out.push((*der).clone());
+        at = next.clone();
+    }
+    out
+}
+
+/// What [`chain`] reads of a certificate: its subject and issuer (each name as its DER), whether
+/// it is an authority's, and its key identifiers.
+#[derive(Clone)]
+struct Names {
+    subject: Vec<u8>,
+    issuer: Vec<u8>,
+    ca: bool,
+    subject_key: Option<Vec<u8>>,
+    authority_key: Option<Vec<u8>>,
+}
+
+impl Names {
+    fn of(der: &[u8]) -> Option<Names> {
+        use x509_cert::ext::pkix::{AuthorityKeyIdentifier, SubjectKeyIdentifier};
         if der.len() > MAX_CERTIFICATE_LEN {
             return None;
         }
         let cert = Certificate::from_der(der).ok()?;
         let tbs = cert.tbs_certificate();
-        let ca = tbs
-            .extensions()
-            .map(|e| e.as_slice())
-            .unwrap_or_default()
-            .iter()
-            .find(|e| e.extn_id == ID_CE_BASIC_CONSTRAINTS)
-            .and_then(|e| BasicConstraints::from_der(e.extn_value.as_bytes()).ok())
-            .is_some_and(|b| b.ca);
-        Some((tbs.subject().to_der().ok()?, tbs.issuer().to_der().ok()?, ca))
-    };
-    let authorities: Vec<(&Vec<u8>, (Vec<u8>, Vec<u8>, bool))> =
-        pool.iter().take(MAX_AUTHORITIES).filter_map(|der| names(der).filter(|n| n.2).map(|n| (der, n))).collect();
-    let mut out = Vec::new();
-    let Some((_, mut issuer, _)) = names(leaf) else { return out };
-    let mut seen = vec![sha256(leaf)];
-    while out.len() < max {
-        let Some((der, (subject, next, _))) = authorities.iter().find(|(der, (subject, _, _))| *subject == issuer && !seen.contains(&sha256(der)))
-        else {
-            break;
-        };
-        if subject == next {
-            break;
-        }
-        seen.push(sha256(der));
-        out.push((*der).clone());
-        issuer = next.clone();
+        let extensions = tbs.extensions().map(|e| e.as_slice()).unwrap_or_default();
+        let value = |id: ObjectIdentifier| extensions.iter().take(MAX_EXTENSIONS).find(|e| e.extn_id == id).map(|e| e.extn_value.as_bytes());
+        let ca = value(ID_CE_BASIC_CONSTRAINTS).and_then(|v| BasicConstraints::from_der(v).ok()).is_some_and(|b| b.ca);
+        let subject_key = value(ID_CE_SUBJECT_KEY_IDENTIFIER).and_then(|v| SubjectKeyIdentifier::from_der(v).ok()).map(|k| k.0.as_bytes().to_vec());
+        let authority_key = value(ID_CE_AUTHORITY_KEY_IDENTIFIER)
+            .and_then(|v| AuthorityKeyIdentifier::from_der(v).ok())
+            .and_then(|k| k.key_identifier)
+            .map(|k| k.as_bytes().to_vec());
+        Some(Names { subject: tbs.subject().to_der().ok()?, issuer: tbs.issuer().to_der().ok()?, ca, subject_key, authority_key })
     }
-    out
+
+    /// Issued by itself: its own name, and no key identifier that says another key issued it.
+    fn is_root(&self) -> bool {
+        self.subject == self.issuer
+            && match (&self.authority_key, &self.subject_key) {
+                (Some(by), Some(own)) => by == own,
+                _ => true,
+            }
+    }
 }
 
 /// SHA-256 of `bytes`.

@@ -111,6 +111,16 @@ enum Curve {
 }
 
 impl Curve {
+    /// Whether an ECDSA signature on this curve may be made with `hash` (RFC 9580 §5.2.3.1:
+    /// SHA-384 at least for P-384, SHA-512 for P-521).
+    fn takes(self, hash: HashAlgorithm) -> bool {
+        match self {
+            Curve::P384 => hash != HashAlgorithm::Sha256,
+            Curve::P521 => hash == HashAlgorithm::Sha512,
+            Curve::P256 | Curve::Ed25519 => true,
+        }
+    }
+
     /// The curve's OID as a key packet writes it (RFC 9580 §9.2).
     fn from_oid(oid: &[u8]) -> Option<Curve> {
         Some(match oid {
@@ -517,6 +527,12 @@ pub fn sign_detached<E>(
     let fingerprint = key.fingerprint.as_bytes();
     if fingerprint.len() != 20 {
         return Err(SignError::Unsupported("a key of a version other than 4"));
+    }
+    // RFC 9580 §5.2.3.1: an ECDSA key's hash is at least as large as its curve's security.
+    if let Material::Ecdsa { curve, .. } = &key.material
+        && !curve.takes(hash)
+    {
+        return Err(SignError::Unsupported("a hash shorter than the key's curve"));
     }
 
     // RFC 9580 §5.2.3: version, type, algorithms, and the hashed subpackets: Signature Creation
