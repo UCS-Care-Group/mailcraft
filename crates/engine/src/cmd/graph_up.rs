@@ -355,6 +355,10 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
             let to_name = folder_name(mb, account, to, *to_folder);
             let exchange = mb.account(account).is_some_and(|a| a.kind == AccountKind::Exchange);
             let mut forget = false;
+            // Where the server had it before: a folder of another mailbox (the archive's owner's,
+            // or the archive's) when the move goes between the two (#1834 review).
+            let from_elsewhere =
+                mb.message(*message).and_then(|m| m.server.as_ref()).is_some_and(|s| mb.folder_by_server(account, &s.folder).is_none());
             let Some(m) = mine(mb, account, *message, id) else { return false };
             let Some(server) = m.server.as_mut() else { return false };
             match &done.outcome {
@@ -364,11 +368,12 @@ pub fn message_done(mb: &mut Mailbox, account: Id, done: &MessageChangeDone, ref
                     // (a Microsoft account's ids stay: it says none).
                     if !now.is_empty() {
                         server.id = now.clone();
-                    } else if exchange {
+                    } else if exchange && from_elsewhere {
                         // Moved into another mailbox (between the mailbox and its online archive,
                         // #1818), an Exchange server doesn't say the new id: what is here has none
                         // that holds, and the next read of the folder brings the message as the
-                        // server has it, once.
+                        // server has it, once. (Within one mailbox it is kept, as before: the next
+                        // read of its new folder finds it there.)
                         forget = true;
                     }
                 }
