@@ -142,6 +142,9 @@ fn sieve_server_key(account: &Account) -> String {
 pub struct SieveSync {
     /// The job under way: its account, what it writes, and the answer to come.
     rx: Option<(Id, Option<SieveWrite>, Receiver<SieveResult>)>,
+    /// Where the job under way went: its account's ManageSieve server when it started
+    /// ([`sieve_server_key`]). A result from a server the account no longer names is dropped (#2058).
+    rx_server: String,
     /// When each account was last read (milliseconds).
     pub(crate) read: HashMap<Id, f64>,
     /// Accounts to read at the next chance.
@@ -298,8 +301,10 @@ impl MailApp {
             }
             return false;
         };
+        let server = sieve_server_key(&owner);
         let job = SieveJob { account: owner, secret, write: write.clone(), check: None, cancel: Default::default() };
         let Some(host) = self.services.sieve.as_ref() else { return false };
+        self.sieve.rx_server = server;
         self.sieve.rx = Some((account, write.clone(), host(job)));
         self.sieve.read.insert(account, now);
         match &write {
@@ -335,6 +340,17 @@ impl MailApp {
         self.sieve.rx = None;
         if write.is_some() {
             self.session.sync_status.clear();
+        }
+        // The account names another server since the job started (Account Settings): what the
+        // one before had, or said, isn't this account's; the new one is read instead (#2058).
+        let now_at = self.session.mailbox.account(account).map(sieve_server_key).unwrap_or_default();
+        if now_at != std::mem::take(&mut self.sieve.rx_server) {
+            if write.as_ref().is_some_and(|w| w.own) {
+                let why = tl!("This account's Sieve server was changed in Account Settings meanwhile: open your script again.").to_string();
+                self.sieve.own_saved.insert(account, OwnSaved::Failed(why));
+            }
+            self.sieve.wanted.insert(account);
+            return;
         }
         let trouble = if result.unavailable {
             Some(SieveTrouble::Unavailable)
@@ -379,8 +395,7 @@ impl MailApp {
             }
         }
         if result.unavailable {
-            let server = self.session.mailbox.account(account).map(sieve_server_key).unwrap_or_default();
-            self.sieve.unreached.insert(account, Unreached { why: result.why.clone(), advice: result.advice.clone(), server });
+            self.sieve.unreached.insert(account, Unreached { why: result.why.clone(), advice: result.advice.clone(), server: now_at.clone() });
         } else {
             self.sieve.unreached.remove(&account);
         }

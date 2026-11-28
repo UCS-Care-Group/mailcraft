@@ -446,3 +446,21 @@ fn the_rules_window_says_what_was_found_where_the_server_was_looked_for() {
     );
     assert!(!replace);
 }
+
+/// A read under way when Account Settings names another Sieve server: what the server before had
+/// isn't taken in for the account, and the new one is read instead (#2058).
+#[test]
+fn a_read_of_the_server_before_is_dropped_once_another_is_named() {
+    let (mut app, account, answers, _) = window();
+    // A host that answers later: the job is under way while the account changes.
+    let (tx, rx) = std::sync::mpsc::channel();
+    let pending = std::sync::Mutex::new(Some(rx));
+    app.services.sieve = Some(Box::new(move |_job: SieveJob| pending.lock().unwrap().take().unwrap_or_else(|| std::sync::mpsc::channel().1)));
+    app.execute("account.automaticReplies", json!({"account": account})).unwrap();
+    app.sieve_tick_at(1.0);
+    app.execute("account.edit", json!({"id": account, "sieve": {"host": "sieve.example.org", "port": 4191}})).unwrap();
+    tx.send(SieveResult { account, state: Some(state(&ALL, None, None)), ..Default::default() }).unwrap();
+    app.poll_sieve();
+    assert!(app.session.sieve.get(&account).is_none(), "the server before's answer isn't the account's");
+    drop(answers);
+}
