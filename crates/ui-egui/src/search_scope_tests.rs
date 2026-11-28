@@ -34,3 +34,25 @@ fn a_long_scope_name_stays_in_its_button_beside_the_edit_area() {
     assert!(label.min.x >= advanced.max.x, "the label {label:?} starts over Advanced Search's button {advanced:?}");
     assert!(label.max.x <= search.max.x, "the label {label:?} ends outside the box {search:?}");
 }
+
+#[test]
+fn the_scope_button_is_capped_at_two_fifths_of_a_narrow_box() {
+    let widths = std::cell::RefCell::new(Vec::new());
+    let mut h = egui_kittest::Harness::builder().with_accessibility_check(false).build_ui(|ui| {
+        // (The interface's fonts have the arrow; they take hold from the pass after they are set.)
+        ui.ctx().set_fonts(crate::theme::font_definitions_with(&crate::theme::SystemFont::none()));
+        if ui.ctx().cumulative_pass_nr() < 2 {
+            return;
+        }
+        widths.borrow_mut().extend([
+            crate::chrome::scope_width(ui, 1000.0),
+            crate::chrome::scope_width(ui, 100.0),
+            crate::chrome::scope_width(ui, 400.0),
+        ]);
+    });
+    h.run_steps(4);
+    let [wide, narrow, mid] = widths.borrow()[..3] else { panic!("measured") };
+    assert!((104.0..=400.0).contains(&wide), "{wide}");
+    assert_eq!(narrow, 104.0, "the least wins in a tiny box");
+    assert!(mid <= 160.0 + f32::EPSILON, "two fifths of 400 is the most: {mid}");
+}

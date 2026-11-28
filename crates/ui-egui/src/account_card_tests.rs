@@ -52,12 +52,16 @@ fn a_card_button_is_as_wide_as_its_label_needs() {
             crate::backstage::card_button_w(ui, "OK", f32::INFINITY),
             crate::backstage::card_button_w(ui, long, f32::INFINITY),
             crate::backstage::card_button_w(ui, long, 120.0),
+            crate::backstage::card_button_w(ui, "OK", 50.0),
+            crate::backstage::card_button_w(ui, long, f32::NAN),
             text,
         ]);
     });
     h.run();
-    let [short, long, capped, text] = widths.borrow()[..4] else { panic!("measured") };
+    let [short, long, capped, narrow, nan, text] = widths.borrow()[..6] else { panic!("measured") };
     assert_eq!(short, 74.0, "the least a button is");
     assert!(long >= text + 2.0 * 4.0, "the long label {text} doesn't fit in {long}");
     assert_eq!(capped, 120.0, "a label past the cap is cut at it");
+    assert_eq!(narrow, 50.0, "the cap wins over the least on a narrow card");
+    assert_eq!(nan, 0.0, "a cap that is no number gives no width, not a panic");
 }

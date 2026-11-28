@@ -174,11 +174,13 @@ pub(crate) fn ews_line(app: &MailApp, a: &mailcraft_model::Account) -> String {
 }
 
 /// A button on an account's card: 74 wide at least, wider when its label (in any language) needs
-/// it, and at most `cap`, past which the label is cut with an ellipsis (whole on hover).
+/// it, and at most `cap`, past which the label is cut with an ellipsis (whole on hover). The cap
+/// wins over the 74 when a card is too narrow for both buttons at 74.
 pub(crate) fn card_button_w(ui: &Ui, label: &str, cap: f32) -> f32 {
     let font = egui::TextStyle::Button.resolve(ui.style());
     let text = ui.painter().layout_no_wrap(label.to_string(), font, egui::Color32::WHITE).size().x;
-    (text + 2.0 * ui.spacing().button_padding.x + 4.0).clamp(74.0, cap.max(74.0))
+    let cap = cap.max(0.0);
+    (text + 2.0 * ui.spacing().button_padding.x + 4.0).clamp(74.0_f32.min(cap), cap)
 }
 
 /// Each card button's cap: a fifth of the card, so the two keep at most two fifths, as the search
@@ -208,7 +210,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let remove_cut = card_button_w(ui, tl!("Remove"), f32::INFINITY) > remove_w;
         let tip = |label: &str, cut: bool, tip: &str| if cut { format!("{label}: {tip}") } else { tip.to_owned() };
         let button_room = if a.email.is_empty() { 0.0 } else { settings_w + 8.0 } + if removable { remove_w + 8.0 } else { 0.0 };
-        let text_w = r.width() - 70.0 - button_room;
+        let text_w = (r.width() - 70.0 - button_room).max(0.0);
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 20.0), text_w, &title, semibold(13.0), t.text);
         let detail = account_detail(app, a);
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 39.0), text_w, &detail, regular(11.5), t.text_dim);
