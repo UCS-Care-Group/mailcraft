@@ -181,6 +181,20 @@ pub(crate) fn ews_line(app: &MailApp, a: &mailcraft_model::Account) -> String {
     }
 }
 
+/// A button on an account's card: 74 wide at least, wider when its label (in any language) needs
+/// it, and at most `cap`, past which the label is cut with an ellipsis (whole on hover). The cap
+/// wins over the 74 when a card is too narrow for both buttons at 74.
+pub(crate) fn card_button_w(ui: &Ui, label: &str, cap: f32) -> f32 {
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let text = ui.painter().layout_no_wrap(label.to_string(), font, egui::Color32::WHITE).size().x;
+    let cap = cap.max(0.0);
+    (text + 2.0 * ui.spacing().button_padding.x + 4.0).clamp(74.0_f32.min(cap), cap)
+}
+
+/// Each card button's cap: a fifth of the card, so the two keep at most two fifths, as the search
+/// box's scope button does.
+const CARD_BUTTON_SHARE: f32 = 0.2;
+
 fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     heading(ui, tl!("Info"), t);
     section(ui, tl!("Accounts"), t);
@@ -196,8 +210,15 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         // be removed too, leaving an empty mailbox (#313); the empty mailbox's own placeholder
         // can't. (A shared mailbox has both: its settings are its name and colour, #1385.)
         let removable = a.is_shared() || app.session.mailbox.placeholder() != Some(a.id);
-        let buttons = usize::from(!a.email.is_empty()) + usize::from(removable);
-        let text_w = r.width() - 70.0 - 82.0 * buttons as f32;
+        let cap = r.width() * CARD_BUTTON_SHARE;
+        let settings_w = card_button_w(ui, tl!("Settings"), cap);
+        let remove_w = card_button_w(ui, tl!("Remove"), cap);
+        // A label cut at the cap is named whole in the button's tooltip.
+        let settings_cut = card_button_w(ui, tl!("Settings"), f32::INFINITY) > settings_w;
+        let remove_cut = card_button_w(ui, tl!("Remove"), f32::INFINITY) > remove_w;
+        let tip = |label: &str, cut: bool, tip: &str| if cut { format!("{label}: {tip}") } else { tip.to_owned() };
+        let button_room = if a.email.is_empty() { 0.0 } else { settings_w + 8.0 } + if removable { remove_w + 8.0 } else { 0.0 };
+        let text_w = (r.width() - 70.0 - button_room).max(0.0);
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 20.0), text_w, &title, semibold(13.0), t.text);
         let detail = account_detail(app, a);
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 39.0), text_w, &detail, regular(11.5), t.text_dim);
@@ -219,11 +240,13 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         }
         // The buttons sit on the card: placed without moving the page's layout on (`ui.put` would
         // take it back up into the card, and what follows was drawn over it).
-        let on_card = |ui: &mut Ui, right: f32, button: egui::Button<'_>| {
-            let br = Rect::from_min_size(pos2(r.max.x - right, r.center().y - 13.0), vec2(74.0, 26.0));
+        let on_card = |ui: &mut Ui, right: f32, w: f32, button: egui::Button<'_>| {
+            let br = Rect::from_min_size(pos2(r.max.x - right, r.center().y - 13.0), vec2(w, 26.0));
             ui.new_child(egui::UiBuilder::new().max_rect(br)).add_sized(br.size(), button)
         };
-        let settings_at = if removable { 168.0 } else { 86.0 };
+        // Right-aligned, 12 from the card's edge, 8 between them.
+        let remove_at = remove_w + 12.0;
+        let settings_at = settings_w + 12.0 + if removable { remove_w + 8.0 } else { 0.0 };
         // (An account kept in step through Graph has no servers to change, #312.)
         let settings_tip = if a.is_shared() {
             // (Its sign-in is its owner's, #70: only its name and colour are its own, #1385.)
@@ -233,18 +256,27 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         } else {
             tl!("Change this account's name, servers and sign-in")
         };
-        if !a.email.is_empty() && on_card(ui, settings_at, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked() {
+        let settings_tip = tip(tl!("Settings"), settings_cut, settings_tip);
+        if !a.email.is_empty()
+            && on_card(ui, settings_at, settings_w, egui::Button::new(tl!("Settings")).truncate()).on_hover_text(settings_tip).clicked()
+        {
             let _ = app.run("ui.dialog", json!({"name": "account", "id": a.id}));
         }
         if a.is_shared() {
-            if on_card(ui, 86.0, egui::Button::new(tl!("Remove")))
-                .on_hover_text(tl!("Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."))
+            if on_card(ui, remove_at, remove_w, egui::Button::new(tl!("Remove")).truncate())
+                .on_hover_text(tip(
+                    tl!("Remove"),
+                    remove_cut,
+                    tl!("Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."),
+                ))
                 .clicked()
             {
                 let _ = app.run("account.removeSharedMailbox", json!({"id": a.id}));
             }
         } else if removable
-            && on_card(ui, 86.0, egui::Button::new(tl!("Remove"))).on_hover_text(tl!("Remove this account and the mail kept for it here")).clicked()
+            && on_card(ui, remove_at, remove_w, egui::Button::new(tl!("Remove")).truncate())
+                .on_hover_text(tip(tl!("Remove"), remove_cut, tl!("Remove this account and the mail kept for it here")))
+                .clicked()
         {
             let _ = app.run("account.remove", json!({"id": a.id}));
         }
@@ -1129,7 +1161,7 @@ fn time_zones(app: &mut MailApp, ui: &mut Ui, prefs: &mailcraft_engine::Prefs) {
 }
 
 /// Everyone who has worked on MailCraft, on GitHub.
-pub(crate) const CONTRIBUTORS_LINK: &str = "https://github.com/UCS-Care-Group/mailcraft/graphs/contributors";
+pub(crate) const CONTRIBUTORS_LINK: &str = "https://github.com/UCSLabs/mailcraft/graphs/contributors";
 
 /// The line of About that credits the people who made the program: a link to the project's
 /// contributors, shown as where it leads, in one piece.

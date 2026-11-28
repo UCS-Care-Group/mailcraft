@@ -48,6 +48,8 @@ macro_rules! tl_later {
 
 #[cfg(test)]
 mod accent_custom_tests;
+#[cfg(test)]
+mod account_card_tests;
 mod account_setup;
 pub mod address_book;
 mod advanced_search;
@@ -98,8 +100,13 @@ pub mod credits;
 pub mod data_removal;
 pub mod date_picker;
 pub mod dates;
+mod dav_job;
+#[cfg(test)]
+mod dav_job_tests;
 #[cfg(test)]
 mod dav_secrets_tests;
+#[cfg(test)]
+mod dialog_focus_tests;
 #[cfg(test)]
 mod dialog_report_tests;
 #[cfg(test)]
@@ -130,6 +137,7 @@ mod follow_up_tick;
 mod font_index;
 #[cfg(test)]
 mod foreign_sign_in_tests;
+pub mod signature_files;
 
 /// The fonts of this computer that text is drawn in: what a message asks for and what the
 /// composer offers, the index of what is installed and the faces read for it.
@@ -170,6 +178,8 @@ mod keep_offline;
 mod key_chain_tests;
 pub mod keys;
 #[cfg(test)]
+mod label_columns_tests;
+#[cfg(test)]
 #[path = "late_work_tests.rs"]
 mod late_work_tests;
 #[cfg(test)]
@@ -190,6 +200,7 @@ mod module_foot_tests;
 pub mod motion;
 #[cfg(test)]
 mod motion_tests;
+mod move_contacts;
 mod move_items;
 #[cfg(test)]
 mod move_items_tests;
@@ -235,6 +246,8 @@ pub mod scheduling;
 mod search_pills;
 #[cfg(test)]
 mod search_pills_tests;
+#[cfg(test)]
+mod search_scope_tests;
 mod search_suggest;
 mod secret_field;
 #[cfg(test)]
@@ -309,6 +322,8 @@ pub mod theme;
 #[cfg(test)]
 mod theme_choice_tests;
 #[cfg(test)]
+mod theme_classic_tests;
+#[cfg(test)]
 mod theme_dark_style_tests;
 pub mod unconfirmed;
 #[cfg(test)]
@@ -337,6 +352,7 @@ use serde_json::{Value, json};
 
 pub use approval::{AdminConsentAnswer, AdminConsentRequest};
 pub use control::ControlRequest;
+pub use dav_job::{DavDone, DavJob};
 pub use files::FileDialogRequest;
 pub use idle_watch::IdleWatch;
 pub use scheduling::{FreeBusyRequest, FreeBusyResult};
@@ -373,7 +389,7 @@ pub struct Services {
     /// Files delivered asynchronously otherwise (dropped in the browser): each goes where its
     /// kind says, to the message with the keyboard, whatever a picker was last opened for.
     pub inbox: Option<Inbox>,
-    /// Desktop: open an attachment the owner asked to open (`mail.openAttachment`) with the
+    /// Desktop: open an attachment the owner asked to open with the
     /// system's own program for its kind: the host writes it, under the name given (already
     /// made safe, and made safe again there), into a folder of MailCraft's own that only this
     /// user can read and that is emptied when MailCraft quits, and asks the system to open it.
@@ -569,6 +585,12 @@ pub struct Services {
     /// arrives through the channel and the host wakes the UI. Absent in the browser and the
     /// tests: subscribed calendars are then listed with what they held and not updated.
     pub subscription: Option<Box<dyn Fn(SubscriptionJob) -> Receiver<SubscriptionDone>>>,
+    /// Desktop: read an account's calendars from its CalDAV server (#209, `mailcraft_net::dav::look`),
+    /// on a background thread, when `MAILCRAFT_DAV=1` and the account is due. The job holds the
+    /// account's passwords by origin; the host sends one only in answer to that origin's own
+    /// challenge, over TLS, to the pinned certificate when one is set. Absent in the browser and
+    /// the tests.
+    pub dav: Option<Box<dyn Fn(DavJob) -> Receiver<DavDone>>>,
     /// Desktop: remove everything MailCraft keeps on this computer, in the folders the host
     /// itself works in ([`data_removal::DataWipe`], File › Info › Remove MailCraft's data from
     /// this computer, #177). Absent in the browser and the tests.
@@ -686,6 +708,10 @@ impl Services {
 pub trait RichClipboard {
     /// Put `html` on the clipboard with `text` beside it for programs that take text.
     fn put(&self, html: &str, text: &str) -> Result<(), String>;
+    /// Put plain text on the clipboard when the source document has no HTML.
+    fn put_text(&self, _text: &str) -> Result<(), String> {
+        Err("the clipboard cannot write plain text".into())
+    }
     /// The HTML on the clipboard, when what is on it has HTML.
     fn html(&self) -> Option<String>;
     /// The picture on the clipboard as PNG, when what is on it is a picture.
@@ -898,7 +924,7 @@ pub struct UiState {
     pub ribbon_collapsed: bool,
     /// The ribbon's layout: one row of commands (simplified, the default), or three rows in groups.
     pub ribbon_mode: ribbon::Mode,
-    /// Interface theme: light, dark, or follow the OS appearance.
+    /// Interface theme: light, Classic Light (#1203), dark, or follow the OS appearance.
     pub theme: theme::Appearance,
     /// High contrast: a stronger version of whichever theme is in use.
     #[serde(deserialize_with = "theme::lenient_bool")]
@@ -956,6 +982,8 @@ pub struct UiState {
     /// The address of the account whose contacts People showed (`view.people_account`), for the
     /// same reason (#631).
     pub people_account_address: String,
+    /// Trusted local paths, scoped to the mailbox and named signature, never imported with mail.
+    pub signature_files: std::collections::HashMap<String, signature_files::Setting>,
     pub folder_pane_width: f32,
     pub list_width: f32,
     /// The message list's height with the reading pane at the bottom, as the owner dragged it
@@ -1074,6 +1102,7 @@ impl Default for UiState {
             view: mailcraft_engine::ViewState::default(),
             task_account_address: String::new(),
             people_account_address: String::new(),
+            signature_files: Default::default(),
             folder_pane_width: 230.0,
             list_width: 380.0,
             list_height: 0.0,
@@ -1138,6 +1167,18 @@ const SYNC_BATCH_MESSAGES: usize = 500;
 /// UI-level commands (`ui.*`): id, label, location, params. They change the window, not the
 /// mailbox, and are listed with the engine's commands in command search and `engine.commands`.
 pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
+    (
+        "ui.signatureFile",
+        "Signature from File",
+        "File › Signatures",
+        r#"{"name": string (signature; or "account": number for its default), "enabled"?: bool, "path"?: string} — desktop owner only; keeps the saved signature as fallback"#,
+    ),
+    (
+        "ui.chooseSignatureFile",
+        "Choose Signature File",
+        "File › Signatures",
+        r#"{"name": string (signature; or "account": number for its default)} — desktop owner only; opens the system file picker"#,
+    ),
     ("ui.tab", "Show Ribbon Tab", "Ribbon", r#"{"tab": "Home"|"Send / Receive"|"Folder"|"View"|"Help"}"#),
     ("ui.backstage", "File", "Ribbon", r#"{"value"?: bool, "page"?: "info"|"open"|"options"|"about"}"#),
     ("ui.collapseRibbon", "Collapse the Ribbon", "Ribbon", r#"{"value"?: bool}"#),
@@ -1149,7 +1190,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         r#"{"name": "commands"|"event"|"meeting"|"editEvent"|"contact"|"editContact"|"task"|"editTask"|"folder"|"goToDate"|"moveItems"|"copyItems"|"openCalendar"|"subscribe"|"link"|"dateTime"|"wordCount"|"account"|"categories"|"rules"|"junkOptions"|"about"|"contributors"|"testers"|"reportProblem"|"proposeTime"|"forwardMeeting"|"proposals", …} (account: "email"?: string to start with, or "id": number for that account's settings, and with "page": "approval" the page that says what to do when its organisation has to approve MailCraft first (as `ui.approvalHelp` opens it); proposeTime: "id"?: number (an item of the calendar) | "message": number (an invitation in the mail); forwardMeeting: "id"?: number; proposals: "id"?: number | "message": number; moveItems, copyItems: the folder for the selected messages (Move to Folder and Copy to Folder without one), never other messages; junkOptions: "list"?: "safe"|"blocked" (the page it opens on); categories: "account"?: number (whose list it opens on); rules: "folder"?: number, "id"?: number (the New rule filled in to move the mail of that message's sender, default the selected one's, to the folder: Always Move Messages From This Sender) — the first two write to other people only from their own Propose and Send buttons)"#,
     ),
     ("ui.closeDialog", "Close Dialog", "Window", "{}"),
-    ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"dark"|"system"}"#),
+    ("ui.theme", "Interface Theme", "File › Options", r#"{"value": "light"|"classicLight"|"dark"|"system"}"#),
     ("ui.highContrast", "High Contrast", "File › Options", r#"{"on": true|false}"#),
     (
         "ui.animations",
@@ -1187,7 +1228,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.language",
         "Interface Language",
         "File › Options",
-        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"cs"|"zh_CN"|"ka"|"pseudo"}"#,
+        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"sl"|"cs"|"zh_CN"|"ka"|"pseudo"}"#,
     ),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (
@@ -1423,6 +1464,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.open", "Open Mailbox", "File › Open & Export", "{}"),
     ("ui.import", "Import", "File › Open & Export", "{}"),
     ("ui.attach", "Attach File", "Message › Include", "{}"),
+    (
+        "ui.openDraftAttachment",
+        "Open Draft Attachment",
+        "Message › Include",
+        r#"{"compose": id, "index": zero-based, "confirmed"?: bool} — open a copy of the attachment in that draft, or download it in the browser"#,
+    ),
     ("ui.toggleFolder", "Expand or Collapse Folder", "Folder", r#"{"id": number}"#),
     (
         "ui.openWindow",
@@ -1651,6 +1698,8 @@ pub struct MailApp {
     /// The message being written whose body takes the keyboard back at its next frame (after a
     /// ribbon button or a dialog changed its text), by its id (#286).
     pub(crate) body_focus_wanted: Option<u64>,
+    /// The owner opened this forward and has yet to type its recipients.
+    pub(crate) recipient_focus_wanted: Option<u64>,
     /// The signature open in File › Signatures is to take the keyboard back at its next frame,
     /// after its formatting bar or the Link dialog changed its text (#1552).
     pub(crate) signature_focus_wanted: bool,
@@ -1659,6 +1708,8 @@ pub struct MailApp {
     signatures_shown: bool,
     /// What File › Signatures last said of a picture (a refusal, or that it was made smaller).
     signature_note: Option<signatures::Note>,
+    pub(crate) signature_file_preview: Option<(String, String, Result<mailcraft_model::Signature, String>)>,
+    pub(crate) signature_file_history: signature_files::History,
     /// File › Signatures › Rename: the name being typed for a signature, until it is kept.
     signature_rename: Option<signatures::Rename>,
     /// The last input the window was given, by kind only (never what was typed), for
@@ -1781,6 +1832,8 @@ pub struct MailApp {
     open_shared: open_shared::OpenShared,
     /// Subscribed calendars: their addresses and the look under way ([`subscribed`]).
     subscribed: subscribed::Subscribed,
+    /// Reading an account's calendars from its CalDAV server ([`dav_job`]).
+    dav: dav_job::DavSync,
     /// The access tokens that read shared mailboxes' calendars (they carry
     /// `Calendars.ReadWrite.Shared`, which a shared mailbox's mail token needn't), in memory only.
     shared_calendar_tokens: std::collections::HashMap<Id, Tokens>,
@@ -1986,6 +2039,9 @@ pub struct MailApp {
     pub(crate) resolving: Option<check_names::Resolving>,
     /// People's Address Book while it is shown: who the search found, kept nowhere else (#1262).
     pub(crate) address_book: Option<address_book::AddressBook>,
+    /// The whole address lists of Exchange server accounts, downloaded from their Offline Address
+    /// Books for People's Address Book: in memory while the program runs, never written (#1393).
+    pub(crate) address_lists: Vec<address_book::HeldList>,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
     /// The desktop alerts shown, and the mailbox as the last Send/Receive found it ([`alerts`]).
@@ -2040,9 +2096,12 @@ impl MailApp {
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,
+            recipient_focus_wanted: None,
             signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
+            signature_file_preview: None,
+            signature_file_history: Default::default(),
             signature_rename: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
@@ -2091,6 +2150,7 @@ impl MailApp {
             auto_replies: Default::default(),
             open_shared: Default::default(),
             subscribed: Default::default(),
+            dav: Default::default(),
             shared_calendar_tokens: Default::default(),
             shared_refused: Default::default(),
             shared_checking: Default::default(),
@@ -2176,6 +2236,7 @@ impl MailApp {
             free_busy: Default::default(),
             resolving: None,
             address_book: None,
+            address_lists: Vec::new(),
             updates: Default::default(),
             alerts: Default::default(),
             opening: None,
@@ -2250,6 +2311,18 @@ impl MailApp {
         self.ui.collapsed_folders.truncate(10_000);
         self.ui.recent.truncate(20);
         self.ui.confirmed_mailboxes.truncate(200);
+        self.ui.signature_files.retain(|key, value| {
+            key.len() <= 8192
+                && value.path.len() <= 4096
+                && !value.path.contains('\0')
+                && (value.path.is_empty() || std::path::Path::new(&value.path).is_absolute())
+        });
+        if self.ui.signature_files.len() > 200 {
+            let mut keys: Vec<String> = self.ui.signature_files.keys().cloned().collect();
+            keys.sort();
+            keys.truncate(200);
+            self.ui.signature_files.retain(|key, _| keys.binary_search(key).is_ok());
+        }
         self.ui.collapsed_calendar_groups.truncate(200);
         updates::sanitize(&mut self.ui);
         self.session.prefs = self.ui.options.clone();
@@ -2328,6 +2401,10 @@ impl MailApp {
             // still the ones it took, and a time picked to put them at. A hint only, as above.
             None if id == "ui.calendarPaste" => calendar_view::paste_ready(self),
             None if id == "ui.openDataFolder" => self.services.data_folder.is_some() && !self.data_removed,
+            None if id == attachment_open::OPEN_DRAFT => {
+                self.session.compose.as_ref().is_some_and(|c| !c.attachments.is_empty())
+                    && (self.services.open_file.is_some() || self.services.download.is_some())
+            }
             None => UI_COMMANDS.iter().any(|c| c.0 == id),
         }
     }
@@ -2533,9 +2610,22 @@ impl MailApp {
         if keys::MOVES_IN_LIST.contains(&id) || id == "mail.collapseConversation" {
             self.reveal_selection = true;
         }
+        // The owner's forward is ready for its recipients, including when the
+        // control that opened it still has the keyboard.
+        if !self.driven
+            && self.session.agent.is_none()
+            && matches!(id, "mail.forward" | "mail.forwardAsAttachment")
+            && let Ok(answer) = &r
+        {
+            self.recipient_focus_wanted = answer.get("compose").and_then(Value::as_u64);
+        }
+        // Formatting keeps the keyboard where the owner is typing. If a header field has it,
+        // the ribbon still formats the body without moving the keyboard out of that field.
+        let format_body = id.starts_with("format.")
+            && self.ctx.as_ref().zip(self.session.compose_id()).is_none_or(|(ctx, compose)| compose::focused_header(ctx, compose).is_none());
         // What was done to the text being written leaves the keyboard in it.
         if r.is_ok()
-            && (id.starts_with("format.")
+            && (format_body
                 || matches!(id, "compose.link" | "compose.undo" | "compose.redo" | "edit.paste" | "compose.formatHtml" | "compose.formatPlain"))
         {
             self.want_body_focus();
@@ -2637,7 +2727,12 @@ impl MailApp {
             return Err(e);
         }
         let before: Vec<u64> = self.session.all_composing().map(|c| c.id).collect();
+        let signature_change = signature_files::before_command(self, id, &params);
+        signature_files::prepare(self);
         let r = self.session.run(id, &params);
+        if r.is_ok() {
+            signature_files::after_command(self, id, &params, signature_change);
+        }
         self.drop_secrets_if_replaced();
         self.last_error = r.as_ref().err().cloned();
         let r = r.map_err(|e| e.to_string());
@@ -2777,6 +2872,9 @@ impl MailApp {
     }
 
     fn ui_command(&mut self, id: &str, p: &Value) -> Option<Result<Value, String>> {
+        if let Some(result) = signature_files::command(self, id, p) {
+            return Some(result);
+        }
         let s = |k: &str| p.get(k).and_then(Value::as_str);
         let b = |k: &str| p.get(k).and_then(Value::as_bool);
         if let Some(r) = security::command(self, id, p) {
@@ -2895,7 +2993,7 @@ impl MailApp {
                     self.ui.theme = a;
                     Ok(json!({"value": a.code()}))
                 }
-                None => Err("`value` is light, dark or system".into()),
+                None => Err("`value` is light, classicLight, dark or system".into()),
             },
             "ui.animations" => match s("value").and_then(motion::Motion::from_code) {
                 Some(m) => {
@@ -3377,11 +3475,10 @@ impl MailApp {
     }
 
     /// Whether the entry under `key` is waiting to be removed from the credential store, or is
-    /// being removed. **Every write of a calendar and contacts password to the store must ask
-    /// this first** (D5 wires it in): a write for a name with a forget pending would be removed
+    /// being removed. **Every write of a calendar and contacts password to the store, or into
+    /// [`MailApp::dav_passwords`], must ask this first** ([`MailApp::hold_dav_password`] does): a write for a name with a forget pending would be removed
     /// along with the old password, so it waits until the forget has completed
     /// ([`poll_dav_forgetting`](Self::poll_dav_forgetting)), or is queued again then.
-    #[allow(dead_code)] // D5's writes call it; until then only the tests do
     pub(crate) fn dav_forget_pending(&self, key: &str) -> bool {
         self.dav_forget_queue.iter().any(|k| k == key) || self.dav_forgetting.iter().any(|(_, keys)| keys.iter().any(|k| k == key))
     }
@@ -3897,6 +3994,7 @@ impl MailApp {
                     // A renewed sign-in that isn't the account's own stops the run before the
                     // Outbox goes.
                     signer: Some(request.account.clone()),
+                    contacts: None,
                 };
                 self.session.sync_status = tl!("Sending…").to_string();
                 self.session.sync_progress.phase(account, SyncPhase::Sending);
@@ -4006,6 +4104,7 @@ impl MailApp {
             // A renewed sign-in that isn't the account's own stops the run before the Outbox or
             // anything of the mail goes.
             signer: Some(signer),
+            contacts: None,
         };
         self.resume_fetch();
         self.services.sync_cancel.store(false, std::sync::atomic::Ordering::Relaxed);
@@ -5029,15 +5128,26 @@ impl MailApp {
         }
     }
 
-    /// Open a file by path (the command line, a drop on the window, the system's Open With): a
-    /// mailbox opens, a message, calendar or contact file is imported, anything else is attached
-    /// to the message being written. A failure shows in the status bar.
+    /// Open a file by path (the command line, the system's Open With): a mailbox opens, a
+    /// message, calendar or contact file is imported, anything else is attached to the message
+    /// being written. A failure shows in the status bar. (A file let go over a window:
+    /// [`let_go`](Self::let_go).)
     pub fn open_path(&mut self, path: &str) {
         // Handed over while the mailbox opens: opened once it is.
         if opening::queue(self, path) {
             return;
         }
         files::dropped_path(self, path);
+    }
+
+    /// A file let go over a window ([`files::let_go`]): `writing` is the message being written
+    /// that window shows, if any; a picture goes into its text when it is in HTML.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn let_go(&mut self, path: &str, writing: Option<u64>) {
+        if opening::queue(self, path) {
+            return;
+        }
+        files::let_go(self, path, writing);
     }
 
     /// Open what the system handed MailCraft (the command line, a later start, the Finder): a
@@ -5209,6 +5319,7 @@ impl MailApp {
             self.motion.applied = None;
         }
         let plays = self.motion.plays(self.ui.animations, ctx.input(|i| i.time), self.services.animations_enabled.as_deref());
+        let plays = software::animations_play(self.ui.animations, plays, software::is_software());
         self.motion.apply(ctx, plays);
         let zoom = self.ui.interface_size.zoom_factor();
         if ctx.zoom_factor() != zoom {
@@ -5299,6 +5410,8 @@ impl MailApp {
             self.calendar_tick(ctx);
             // The calendars subscribed to, when they are due ([`subscribed`]).
             self.subscribed_tick();
+            // The calendars of a calendar server, when they are due ([`dav_job`]).
+            self.dav_tick();
             // The tasks by themselves, after the calendar ([`task_sync`]).
             self.tasks_tick(ctx);
             // The rules on the servers by themselves, after the tasks ([`rule_sync`]).
@@ -5354,7 +5467,11 @@ impl MailApp {
             if signatures && self.session.signature_edit.is_some() {
                 signatures::add_picture(self, json!({"path": path}));
             } else {
-                self.open_path(&path);
+                // The message the main window writes: the reading pane's, or, where the windows
+                // are inside it, the one in front (those of the system take their own:
+                // `windows`). Asked for each file: a mailbox let go with them changes it.
+                let writing = if ctx.embed_viewports() { windows::compose_window::target(self) } else { windows::compose_window::pane_compose(self) };
+                self.let_go(&path, writing);
             }
         }
         self.by_hand = false;
@@ -6078,7 +6195,7 @@ const MAX_PROBLEM: usize = 600;
 pub(crate) fn refusal_worth_a_box(id: &str, error: &str) -> bool {
     let quiet = ["not available:", "unknown command", "bad parameters:", "nothing "];
     let lower = error.trim_start().to_lowercase();
-    !id.starts_with("ui.") && !error.trim().is_empty() && !quiet.iter().any(|q| lower.starts_with(q))
+    (!id.starts_with("ui.") || id == attachment_open::OPEN_DRAFT) && !error.trim().is_empty() && !quiet.iter().any(|q| lower.starts_with(q))
 }
 
 fn feedback(id: &str, v: &Value) -> Option<String> {
@@ -6091,6 +6208,19 @@ fn feedback(id: &str, v: &Value) -> Option<String> {
                 && v.get("wait").and_then(Value::as_bool) != Some(true) =>
         {
             Some(tl!("In the Outbox: it waits for its time").to_string())
+        }
+        // What a server refused for good of changes to contacts, said once (#1917).
+        // Each one names its contact, as the engine says it; the first three, and how many more.
+        "sync.applyContactChanges" => {
+            let said: Vec<&str> = v.get("messages").and_then(Value::as_array)?.iter().filter_map(Value::as_str).collect();
+            let mut line = said.iter().take(3).copied().collect::<Vec<_>>().join(" ");
+            // (The engine keeps a few lines; `refused` counts every refusal.)
+            let refused = v.get("refused").and_then(Value::as_u64).map_or(0, |n| usize::try_from(n).unwrap_or(usize::MAX));
+            let more = said.len().max(refused).saturating_sub(said.len().min(3));
+            if more > 0 {
+                line = format!("{line} {}", tln!(more as u64, "And {n} more change was put back.", "And {n} more changes were put back."));
+            }
+            (!line.is_empty()).then_some(line)
         }
         "calendar.selectAll" => {
             let selected = tln!(n("selected")?, "{n} calendar item selected", "{n} calendar items selected");

@@ -1140,6 +1140,9 @@ impl State {
             ["mailFolders", folder, rest @ ..] => self.mail_folders(asked, method, Some(folder), rest),
             ["messages", id, "$value"] if method == "GET" => self.message_value(id),
             ["messages"] if method == "GET" && asked.param("$search").is_some() => self.search_messages(asked, None),
+            ["messages"] if method == "GET" && asked.param("$filter").is_some_and(|f| f.starts_with("receivedDateTime ")) => {
+                self.listed_messages(asked, None)
+            }
             // Its drafts made, changed and sent, and its mail sent, there alone: the copy in its
             // own Sent Items (#70, slice 4). (A large attachment's upload is the owner's only.)
             ["messages"] if method == "POST" => self.create_message(asked),
@@ -2197,6 +2200,9 @@ impl State {
             }
             ["messages"] if method == "POST" => self.create_message(asked),
             ["messages"] if method == "GET" && asked.param("$search").is_some() => self.search_messages(asked, None),
+            ["messages"] if method == "GET" && asked.param("$filter").is_some_and(|f| f.starts_with("receivedDateTime ")) => {
+                self.listed_messages(asked, None)
+            }
             // What carries a category, in the whole mailbox (#851): the owner's own alone.
             ["messages"] if method == "GET" && asked.param("$filter").is_some() => self.messages_with_category(asked),
             ["sendMail"] if method == "POST" => self.send_mail(asked),
@@ -2213,6 +2219,8 @@ impl State {
             ["todo", tail @ ..] => self.todo_at(asked, method, tail),
             ["outlook", "masterCategories", tail @ ..] => self.categories_at(asked, method, tail),
             ["contacts"] if method == "GET" => self.page(asked, Vec::new()),
+            // No contacts and no folders of them under the main one (#1917).
+            ["contactFolders"] if method == "GET" => self.page(asked, Vec::new()),
             ["mailboxSettings", "workingHours"] if method == "GET" => Ok((
                 200,
                 Some(json!({
@@ -2220,7 +2228,7 @@ impl State {
                     "startTime": "08:00:00.0000000", "endTime": "17:00:00.0000000", "timeZone": {"name": "UTC"},
                 })),
             )),
-            ["calendarView"] | ["calendars"] | ["calendarGroups"] | ["contacts"] => Err(no_way()),
+            ["calendarView"] | ["calendars"] | ["calendarGroups"] | ["contacts"] | ["contactFolders"] => Err(no_way()),
             [first, ..] => Err(refuse(400, "BadRequest", format!("Resource not found for the segment '{first}'."))),
             [] => Err(no_way()),
         }

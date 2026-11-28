@@ -51,6 +51,8 @@ pub const TABLE: &[(&str, Class)] = &[
     ("ical", Class::Layer(2)),
     ("vcard", Class::Layer(2)),
     ("pst", Class::Layer(2)),
+    // Exchange Offline Address Books and their LZX compression (#1393): no dependencies, no I/O.
+    ("oab", Class::Layer(2)),
     // TNEF (`winmail.dat`): read by `mime`, with `pst`'s code pages and rich text under it.
     ("tnef", Class::Layer(2)),
     // OpenPGP checking (#30): rPGP under it, no I/O, builds for the browser.
@@ -88,8 +90,9 @@ pub const TABLE: &[(&str, Class)] = &[
 /// format characters of the one list (`names`), the mailbox's messages (`mime-model`) are read
 /// and written by the reader that knows nothing of a mailbox (`mime`), and that reader opens the
 /// TNEF streams (`tnef`) Outlook wraps files in, read with the code pages and rich text of `.pst`
-/// files (`pst`).
-pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["names", "link"], &["pst", "tnef", "mime", "mime-model"]];
+/// files (`pst`), and the socket transport (`net`) runs the calendar server requests that `dav`
+/// builds without any (#209).
+pub const INTRA_LAYER_ORDER: &[&[&str]] = &[&["proto", "net"], &["dav", "net"], &["names", "link"], &["pst", "tnef", "mime", "mime-model"]];
 
 fn intra_layer_allowed(from: &str, to: &str) -> bool {
     let (from, to) = (short_name(from), short_name(to));

@@ -1658,7 +1658,7 @@ checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 [[package]]
 name = "dpi"
 version = "0.1.1"
-source = "git+https://github.com/UCS-Care-Group/winit?rev=1477b126a8c3d3d2add446c93492454ba833074d#1477b126a8c3d3d2add446c93492454ba833074d"
+source = "git+https://github.com/UCSLabs/winit?rev=1477b126a8c3d3d2add446c93492454ba833074d#1477b126a8c3d3d2add446c93492454ba833074d"
 
 [[package]]
 name = "dpi"
@@ -3204,6 +3204,7 @@ dependencies = [
  "mailcraft-ical",
  "mailcraft-link",
  "mailcraft-model",
+ "mailcraft-names",
  "mailcraft-time",
  "mailcraft-vcard",
  "proptest",
@@ -3246,8 +3247,11 @@ version = "0.15.0"
 dependencies = [
  "hmac 0.13.0",
  "log",
+ "mailcraft-charset",
  "mailcraft-mime-model",
  "mailcraft-model",
+ "mailcraft-oab",
+ "mailcraft-smime",
  "mailcraft-time",
  "md-5 0.11.0",
  "md4",
@@ -3419,6 +3423,7 @@ dependencies = [
  "flate2",
  "log",
  "mailcraft-charset",
+ "mailcraft-dav",
  "mailcraft-i18n",
  "mailcraft-mime",
  "mailcraft-mime-model",
@@ -3434,6 +3439,13 @@ dependencies = [
  "schannel",
  "serde_json",
  "thiserror 2.0.21",
+]
+
+[[package]]
+name = "mailcraft-oab"
+version = "0.15.0"
+dependencies = [
+ "proptest",
 ]
 
 [[package]]
@@ -3543,6 +3555,7 @@ dependencies = [
  "mailcraft-time",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "skrifa 0.50.0",
  "tempfile",
  "toml",
@@ -7436,7 +7449,7 @@ checksum = "589f6da84c646204747d1270a2a5661ea66ed1cced2631d546fdfb155959f9ec"
 [[package]]
 name = "winit"
 version = "0.30.13"
-source = "git+https://github.com/UCS-Care-Group/winit?rev=1477b126a8c3d3d2add446c93492454ba833074d#1477b126a8c3d3d2add446c93492454ba833074d"
+source = "git+https://github.com/UCSLabs/winit?rev=1477b126a8c3d3d2add446c93492454ba833074d#1477b126a8c3d3d2add446c93492454ba833074d"
 dependencies = [
  "ahash",
  "android-activity",

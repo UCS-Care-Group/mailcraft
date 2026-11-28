@@ -213,7 +213,11 @@ pub(crate) fn timings_report(app: &MailApp) -> String {
 /// The rows, in the run's order; then any account with problems that isn't in it.
 pub(crate) fn rows(app: &MailApp) -> Vec<Row> {
     let mb = &app.session.mailbox;
-    let problems = |account: Id| app.account_problem_lines(account);
+    let problems = |account: Id| {
+        let mut lines = app.account_problem_lines(account);
+        lines.extend(contacts_waiting(app, account));
+        lines
+    };
     let progress = &app.session.sync_progress;
     let (full, paused) = (|account: Id| progress.full(account), progress.full_paused);
     let mut rows: Vec<Row> = app
@@ -232,7 +236,32 @@ pub(crate) fn rows(app: &MailApp) -> Vec<Row> {
             rows.push(Row { account: *account, name, run: None, problems: problems(*account), full: full(*account), paused });
         }
     }
+    for a in &mb.accounts {
+        if !rows.iter().any(|r| r.account == a.id) && contacts_waiting(app, a.id).is_some() {
+            rows.push(Row { account: a.id, name: a.name.clone(), run: None, problems: problems(a.id), full: full(a.id), paused });
+        }
+    }
     rows
+}
+
+/// The changes to `account`'s contacts that its server hasn't taken yet and that are tried again
+/// (#1917), as one problem line with what the server last said.
+pub(crate) fn contacts_waiting(app: &MailApp, account: Id) -> Option<String> {
+    let failing: Vec<_> = app.session.mailbox.contact_changes.iter().filter(|c| c.account == account && c.attempts > 0).collect();
+    let n = failing.len();
+    if n == 0 {
+        return None;
+    }
+    let line = tln!(
+        n as u64,
+        "{n} change to contacts isn't on the server yet: it is tried again later",
+        "{n} changes to contacts aren't on the server yet: they are tried again later"
+    );
+    let said = failing.iter().rev().map(|c| crate::people_view::one_line(&c.error, 160)).find(|e| !e.is_empty());
+    Some(match said {
+        Some(e) => format!("{line} ({e})"),
+        None => line,
+    })
 }
 
 /// The panel's layer: over the windows.

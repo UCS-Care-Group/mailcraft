@@ -285,7 +285,7 @@ fn tidy_rule(mut rule: Recurrence) -> Recurrence {
 }
 
 /// Category names from outside: one line each, none empty, none twice, a few at most.
-fn names(list: Vec<String>) -> Vec<String> {
+pub(crate) fn names(list: Vec<String>) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for name in list.iter().map(|name| line(name, MAX_NAME)).filter(|name| !name.is_empty()) {
         if out.len() < MAX_ENTRIES && !out.iter().any(|have| crate::sync::same_category(have, &name)) {
@@ -322,9 +322,37 @@ pub struct RemoteContact {
     pub notes: String,
     /// When it was last changed on the server (Unix seconds); 0 when the server didn't say.
     pub modified: Timestamp,
+    /// Its categories, by name; `None` when the server didn't say (they stay as they are here).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub categories: Option<Vec<String>>,
 }
 
 impl RemoteContact {
+    /// A contact of the mailbox as a server is told it: its fields that a server keeps, and
+    /// what the server calls it ([`Origin`]).
+    pub fn of(c: &crate::Contact) -> RemoteContact {
+        RemoteContact {
+            id: c.origin.id.clone(),
+            change_key: c.origin.change_key.clone(),
+            display_name: c.display_name.clone(),
+            first: c.first.clone(),
+            middle: c.middle.clone(),
+            last: c.last.clone(),
+            nickname: c.nickname.clone(),
+            company: c.company.clone(),
+            title: c.title.clone(),
+            department: c.department.clone(),
+            emails: c.emails.clone(),
+            phones: c.phones.clone(),
+            addresses: c.addresses.clone(),
+            websites: c.websites.clone(),
+            birthday: c.birthday,
+            notes: c.notes.clone(),
+            modified: 0,
+            categories: Some(c.categories.clone()),
+        }
+    }
+
     /// Cut everything to the size the mailbox keeps, as [`RemoteEvent::tidy`] does: names are
     /// one line, an e-mail address is one or it is left out, empty entries go, lists are capped.
     pub fn tidy(&mut self) {
@@ -376,6 +404,7 @@ impl RemoteContact {
             .filter(|site| !site.is_empty())
             .take(MAX_ENTRIES)
             .collect();
+        self.categories = self.categories.take().map(names);
     }
 }
 
@@ -441,6 +470,21 @@ pub struct ContactsDownload {
     /// Every contact the server has is here. When not, nothing is removed for not being here.
     pub complete: bool,
     pub contacts: Vec<RemoteContact>,
+    /// The contacts folder they are of; `None` for the account's own main one.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<crate::contact_sync::RemoteContactFolder>,
+    /// Contacts the server says are deleted (what it calls them): a list of changes says so.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub gone: Vec<String>,
+    /// Where the server's list of changes is read up to after this, kept with the folder
+    /// ([`crate::contact_sync::ContactFolder::delta`]); empty leaves it as it is.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub delta: String,
+    /// When the host started reading it from the server (Unix seconds, this computer's clock);
+    /// 0 when not said. Only a list read after a new contact was answered can say the server
+    /// didn't make it ([`crate::contact_sync::ContactChange::unconfirmed`]).
+    #[serde(skip_serializing_if = "is_zero_time")]
+    pub read_at: Timestamp,
 }
 
 impl ContactsDownload {
@@ -1709,7 +1753,7 @@ pub(crate) fn text(text: &str, max: usize) -> String {
 
 /// An e-mail address from outside, or nothing when it isn't one (a server may name people of its
 /// own directory in other ways).
-fn mailbox(email: &str) -> String {
+pub(crate) fn mailbox(email: &str) -> String {
     let email = email.trim();
     let shaped = email.split_once('@').is_some_and(|(local, domain)| !local.is_empty() && !domain.is_empty() && !domain.contains('@'));
     let plain = email.len() <= 254 && !email.chars().any(|c| c.is_control() || c.is_whitespace() || matches!(c, '<' | '>' | ',' | ';' | '"'));

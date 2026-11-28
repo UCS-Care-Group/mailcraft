@@ -159,6 +159,10 @@ fn window_commands_validate() {
     a.services.system_locale = Some("pl-PL".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "pl");
     assert_eq!(a.session.interface_language, crate::i18n::Lang::Polish);
+    // Slovenian too, and Automatic in Slovenia follows it.
+    a.services.system_locale = Some("sl-SI".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "sl");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Slovenian);
     // Czech too.
     a.services.system_locale = Some("cs-CZ".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "cs");
@@ -468,7 +472,7 @@ fn about_credits_the_contributors() {
             );
         harness.run_steps(4);
         assert!(harness.query_by_label_contains("Made by its contributors").is_some(), "{id}");
-        assert!(harness.query_by_label_contains("github.com/UCS-Care-Group/mailcraft/graphs/contributors").is_some(), "{id}");
+        assert!(harness.query_by_label_contains("github.com/UCSLabs/mailcraft/graphs/contributors").is_some(), "{id}");
         assert!(harness.query_by_label_contains("Initial contributor").is_none(), "{id}");
     }
 }

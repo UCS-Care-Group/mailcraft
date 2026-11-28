@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-FileCopyrightText: MailCraft contributors
+  SPDX-License-Identifier: MIT OR Apache-2.0
+
+  The launcher icon's one-colour layer, for themed icons (Android 13 and later tint it): the
+  calendar page with the envelope from MailCraft's icon (assets/app-icon/source/mailcraft.svg),
+  in one colour, its lines left as gaps.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <group
+        android:scaleX="0.046" android:scaleY="0.046"
+        android:translateX="0.18" android:translateY="13.106">
+        <path
+            android:pathData="M690,665 V580 A40,40 0 0 1 730,540 H847.0 A68,68 0 1 0 967.0,540 H1370.0 A68,68 0 1 0 1490.0,540 H1610 A40,40 0 0 1 1650,580 V665 Z"
+            android:fillColor="#FFFFFF" />
+        <path
+            android:pathData="M907,446 H907 A35,35 0 0 1 942,481 V567 A35,35 0 0 1 907,602 H907 A35,35 0 0 1 872,567 V481 A35,35 0 0 1 907,446 Z"
+            android:fillColor="#FFFFFF" />
+        <path
+            android:pathData="M1430,446 H1430 A35,35 0 0 1 1465,481 V567 A35,35 0 0 1 1430,602 H1430 A35,35 0 0 1 1395,567 V481 A35,35 0 0 1 1430,446 Z"
+            android:fillColor="#FFFFFF" />
+        <path
+            android:pathData="M775,735 L1565,735 L1170,1043 Z"
+            android:fillColor="#FFFFFF" />
+        <path
+            android:pathData="M688,752 L1003,997 L688,1243 Z"
+            android:fillColor="#FFFFFF" />
+        <path
+            android:pathData="M1652,752 L1337,997 L1652,1243 Z"
+            android:fillColor="#FFFFFF" />
+        <path
+            android:pathData="M712,1332 L1058,1052 L1170,1137 L1282,1052 L1628,1332 Z"
+            android:fillColor="#FFFFFF" />
+    </group>
+</vector>
