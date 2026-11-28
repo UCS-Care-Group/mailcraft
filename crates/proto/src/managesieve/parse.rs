@@ -49,6 +49,24 @@ impl Token {
             _ => None,
         }
     }
+
+    /// The string as text, only when it is UTF-8 throughout: a script's name or text, which has
+    /// to be sent back byte for byte, is never mended.
+    pub(crate) fn utf8(&self) -> Option<Result<String, ()>> {
+        match self {
+            Token::Str(bytes) => Some(String::from_utf8(bytes.clone()).map_err(|_| ())),
+            _ => None,
+        }
+    }
+
+    /// About how many bytes the part takes, for bounding what one command keeps.
+    pub(crate) fn size(&self) -> usize {
+        match self {
+            Token::Atom(word) => word.len().saturating_add(1),
+            Token::Str(bytes) => bytes.len().saturating_add(2),
+            Token::Open | Token::Close => 1,
+        }
+    }
 }
 
 fn too_long() -> ProtoError {

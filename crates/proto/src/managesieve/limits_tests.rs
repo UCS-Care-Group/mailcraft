@@ -65,17 +65,75 @@ fn a_listing_without_end_is_cut_off() {
     assert!(matches!(ManageSieve::connect(Script::whole(endless)), Err(ProtoError::Protocol(_))));
 }
 
+/// A listing MailCraft can't keep whole is refused, never shortened: the script left out could be
+/// the active one, or MailCraft's own, and a write would take the listing for the whole (#2058).
 #[test]
-fn a_listing_keeps_only_so_many_scripts_and_drops_names_that_cant_be_used() {
+fn a_listing_with_more_scripts_than_kept_or_a_name_that_cant_be_used_is_refused_whole() {
+    // The active script after the cap: an error, not a listing without it.
     let mut server = String::from(GREETING);
-    for n in 0..MAX_LISTED + 10 {
+    for n in 0..MAX_LISTED {
         server.push_str(&format!("\"script {n}\"\r\n"));
     }
-    server.push_str("\"bad\\\u{85}name\"\r\n\"\"\r\nOK\r\n");
+    server.push_str("\"theirs\" ACTIVE\r\nOK\r\n");
+    let mut sieve = ManageSieve::connect(Script::whole(server)).unwrap();
+    let err = sieve.list_scripts().unwrap_err();
+    assert!(matches!(&err, ProtoError::Protocol(why) if why.to_string().contains("more Sieve scripts")), "{err:?}");
+    // Up to the cap, with the active one last, every script is kept.
+    let mut server = String::from(GREETING);
+    for n in 0..MAX_LISTED - 1 {
+        server.push_str(&format!("\"script {n}\"\r\n"));
+    }
+    server.push_str("\"theirs\" ACTIVE\r\nOK\r\n");
     let mut sieve = ManageSieve::connect(Script::whole(server)).unwrap();
     let scripts = sieve.list_scripts().unwrap();
     assert_eq!(scripts.len(), MAX_LISTED);
-    assert!(scripts.iter().all(|s| valid_name(&s.name)));
+    assert!(scripts.last().is_some_and(|s| s.active && s.name == "theirs"));
+    // A name that can't be sent back, first in the listing and well under the cap: refused, not
+    // left out (it could be the active one).
+    for bad in ["\"bad\u{85}name\" ACTIVE".as_bytes(), b"\"\"", b"{3}\r\nb\xffd"] {
+        let mut server = GREETING.as_bytes().to_vec();
+        server.extend_from_slice(bad);
+        server.extend_from_slice(b"\r\n\"mailcraft\"\r\nOK\r\n");
+        let mut sieve = ManageSieve::connect(Script::whole(server)).unwrap();
+        let err = sieve.list_scripts().unwrap_err();
+        assert!(matches!(&err, ProtoError::Protocol(why) if why.to_string().contains("name MailCraft can't use")), "{bad:?}: {err:?}");
+    }
+}
+
+/// What one command keeps is bounded as a whole, not only response by response: a server can't
+/// make one LISTSCRIPTS hold a thousand responses of a megabyte each (#2058).
+#[test]
+fn what_one_command_keeps_is_bounded_across_its_responses() {
+    let piece = MAX_SCRIPT / 2;
+    let mut server = GREETING.as_bytes().to_vec();
+    for _ in 0..3 {
+        server.extend_from_slice(format!("{{{piece}}}\r\n").as_bytes());
+        server.extend(std::iter::repeat_n(b'x', piece));
+        server.extend_from_slice(b"\r\n");
+    }
+    server.extend_from_slice(b"OK\r\n");
+    let mut sieve = ManageSieve::connect(Script::whole(server)).unwrap();
+    let err = sieve.list_scripts().unwrap_err();
+    assert!(matches!(&err, ProtoError::Protocol(why) if why.to_string().contains("too long")), "{err:?}");
+}
+
+/// A script's text that isn't UTF-8 is refused, not mended: written back, it would change.
+#[test]
+fn a_script_that_isnt_utf8_is_refused_not_mended() {
+    let mut server = format!("{GREETING}{{5}}\r\n").into_bytes();
+    server.extend_from_slice(b"k\xe9ep");
+    server.extend_from_slice(b"\r\nOK\r\n");
+    let mut sieve = ManageSieve::connect(Script::whole(server)).unwrap();
+    let err = sieve.get_script("mine").unwrap_err();
+    assert!(matches!(&err, ProtoError::Protocol(why) if why.to_string().contains("UTF-8")), "{err:?}");
+}
+
+/// Exactly as many capabilities as a command may bring, then OK: taken.
+#[test]
+fn capabilities_up_to_the_limit_are_taken() {
+    let mut server = "\"X\" \"y\"\r\n".repeat(MAX_DATA_LINES);
+    server.push_str("OK\r\n");
+    assert!(ManageSieve::connect(Script::whole(server)).is_ok());
 }
 
 #[test]

@@ -23,12 +23,17 @@ use mailcraft_charset::base64::STANDARD;
 use crate::line::Wire;
 use crate::{ProtoError, Secrets, for_trace, tidy, xoauth2};
 use mailcraft_i18n::said;
-use parse::{MAX_STRING, Token, read_response};
+use parse::{MAX_RESPONSE, MAX_STRING, Token, read_response};
 
 /// Most lines of data one command may bring (a listing of scripts, the capabilities).
 const MAX_DATA_LINES: usize = 1_000;
-/// Most extensions, sign-in mechanisms and scripts kept from one listing.
+/// Most extensions, sign-in mechanisms and scripts kept from one listing. A listing of scripts
+/// with more than this is refused whole ([`ManageSieve::list_scripts`]).
 const MAX_LISTED: usize = 256;
+/// Most bytes of data one command may keep, all its responses together (each is bounded by
+/// [`MAX_RESPONSE`] on its own): one script, or a listing of [`MAX_LISTED`] scripts of the longest
+/// names, fit.
+const MAX_COMMAND_DATA: usize = MAX_RESPONSE;
 /// Longest name of an extension, a mechanism or the server's software kept, in bytes.
 const MAX_WORD: usize = 128;
 /// Longest script name sent or kept, in bytes (RFC 5804 §1.6 asks servers to take at least 128
@@ -337,16 +342,23 @@ impl<S: Read + Write> ManageSieve<S> {
         Err(ProtoError::Protocol(said!("the server sent too many responses to one command")))
     }
 
-    /// The scripts on the server, and which of them is active.
+    /// The scripts on the server, and which of them is active: every one of them, or an error. A
+    /// listing MailCraft can't keep whole (more than [`MAX_LISTED`] scripts, or a name it couldn't
+    /// send back: not UTF-8, a control character) is refused rather than shortened, as what is
+    /// left out could be the active script or MailCraft's own, and a caller deciding what to write
+    /// or make active would take the listing for the whole of it.
     pub fn list_scripts(&mut self) -> Result<Vec<ScriptEntry>, ProtoError> {
         let (data, done) = self.command(b"LISTSCRIPTS\r\n", "LISTSCRIPTS")?;
         if done.status != Status::Ok {
             return Err(self.refused(&done));
         }
+        if data.len() > MAX_LISTED {
+            return Err(ProtoError::Protocol(said!("the server has more Sieve scripts than MailCraft reads ({n})", n = MAX_LISTED)));
+        }
         let mut scripts = Vec::new();
         for line in data {
             let mut parts = line.iter();
-            let name = parts.next().and_then(Token::text).ok_or_else(not_managesieve)?;
+            let name = parts.next().and_then(Token::utf8).ok_or_else(not_managesieve)?.map_err(|()| unusable_name())?;
             let active = match parts.next() {
                 None => false,
                 Some(word) if word.keyword().as_deref() == Some("ACTIVE") => true,
@@ -355,15 +367,17 @@ impl<S: Read + Write> ManageSieve<S> {
             if parts.next().is_some() {
                 return Err(not_managesieve());
             }
-            // A name that couldn't be sent back is of no use: left out.
-            if valid_name(&name) && scripts.len() < MAX_LISTED {
-                scripts.push(ScriptEntry { name, active });
+            if !valid_name(&name) {
+                return Err(unusable_name());
             }
+            scripts.push(ScriptEntry { name, active });
         }
         Ok(scripts)
     }
 
-    /// The text of the script `name`; `None` when the server has no script of that name.
+    /// The text of the script `name`; `None` when the server has no script of that name. A script
+    /// that isn't UTF-8 throughout (RFC 5228 §2.2 has scripts in UTF-8) is an error: mended, it
+    /// would no longer be the server's script byte for byte, and written back it would change.
     pub fn get_script(&mut self, name: &str) -> Result<Option<String>, ProtoError> {
         let mut line = b"GETSCRIPT ".to_vec();
         line.extend_from_slice(&name_string(name)?);
@@ -376,10 +390,14 @@ impl<S: Read + Write> ManageSieve<S> {
         }
         let mut lines = data.into_iter();
         let script = match (lines.next(), lines.next()) {
-            (Some(tokens), None) if tokens.len() == 1 => tokens.first().and_then(Token::text),
+            (Some(tokens), None) if tokens.len() == 1 => tokens.first().and_then(Token::utf8),
             _ => None,
         };
-        script.map(Some).ok_or_else(|| ProtoError::Protocol(said!("the server didn't send the script")))
+        match script {
+            Some(Ok(text)) => Ok(Some(text)),
+            Some(Err(())) => Err(ProtoError::Protocol(said!("the Sieve script isn't UTF-8 text, which MailCraft can't change without altering it"))),
+            None => Err(ProtoError::Protocol(said!("the server didn't send the script"))),
+        }
     }
 
     /// Whether the server would take a script of `size` bytes called `name` (HAVESPACE); `false`
@@ -411,7 +429,7 @@ impl<S: Read + Write> ManageSieve<S> {
             Status::Ok => ScriptCheck::Fine,
             _ => {
                 let said = text();
-                ScriptCheck::Errors(if said.is_empty() { done.code.as_deref().map(tidy).unwrap_or_default() } else { said })
+                ScriptCheck::Errors(if said.is_empty() { done.code.as_deref().and_then(known_code).unwrap_or_default().to_string() } else { said })
             }
         })
     }
@@ -478,7 +496,8 @@ impl<S: Read + Write> ManageSieve<S> {
     /// The capabilities, a line each, and then `OK` (a greeting may be `BYE` instead).
     fn read_capabilities(&mut self, greeting: bool) -> Result<(), ProtoError> {
         let mut capabilities = Capabilities::default();
-        for _ in 0..MAX_DATA_LINES {
+        let mut rows = 0usize;
+        loop {
             let tokens = read_response(&mut self.wire)?;
             self.trace(&tokens);
             let line = match classify(tokens) {
@@ -499,6 +518,11 @@ impl<S: Read + Write> ManageSieve<S> {
                 Err(_) if greeting => return Err(ProtoError::Protocol(said!("the server didn't greet like a ManageSieve server"))),
                 Err(e) => return Err(e),
             };
+            // (Each pass reads a line of data or ends: the count bounds the loop.)
+            rows = rows.saturating_add(1);
+            if rows > MAX_DATA_LINES {
+                return Err(ProtoError::Protocol(said!("the server sent too many responses to one command")));
+            }
             let mut parts = line.iter();
             let name = parts.next().and_then(Token::text).ok_or_else(not_managesieve)?.to_ascii_uppercase();
             let value = parts.next().and_then(Token::text).unwrap_or_default();
@@ -515,7 +539,6 @@ impl<S: Read + Write> ManageSieve<S> {
                 _ => {}
             }
         }
-        Err(ProtoError::Protocol(said!("the server sent too many responses to one command")))
     }
 
     /// Send a command and read its answer: the lines of data, and how it ended. `BYE` is an
@@ -523,6 +546,7 @@ impl<S: Read + Write> ManageSieve<S> {
     fn command(&mut self, line: &[u8], shown: &str) -> Result<(Vec<Vec<Token>>, Done), ProtoError> {
         self.send(line, shown)?;
         let mut data = Vec::new();
+        let mut kept = 0usize;
         loop {
             let tokens = read_response(&mut self.wire)?;
             self.trace(&tokens);
@@ -533,6 +557,10 @@ impl<S: Read + Write> ManageSieve<S> {
                 Response::Data(line) => {
                     if data.len() >= MAX_DATA_LINES {
                         return Err(ProtoError::Protocol(said!("the server sent too many responses to one command")));
+                    }
+                    kept = kept.saturating_add(line.iter().map(Token::size).fold(0usize, usize::saturating_add));
+                    if kept > MAX_COMMAND_DATA {
+                        return Err(ProtoError::Protocol(said!("the server's answer to one command is too long")));
                     }
                     data.push(line);
                 }
@@ -559,16 +587,17 @@ impl<S: Read + Write> ManageSieve<S> {
         self.wire.flush()
     }
 
-    /// What the log is told of a response: its status and code, or how many parts of data it had.
+    /// What the log is told of a response: its status and code when they are ones of RFC 5804, or
+    /// how many parts it had. (A server's own words never reach the log: it hasn't been checked yet.)
     fn trace(&self, tokens: &[Token]) {
         if log::log_enabled!(log::Level::Trace) {
-            let shown = match tokens.first() {
-                Some(Token::Atom(word)) => {
-                    let code = match (tokens.get(1), tokens.get(2)) {
-                        (Some(Token::Open), Some(Token::Atom(code))) => format!(" ({code})"),
+            let shown = match tokens.first().and_then(Token::keyword) {
+                Some(word) if matches!(word.as_str(), "OK" | "NO" | "BYE") => {
+                    let code = match (tokens.get(1), tokens.get(2).and_then(Token::keyword)) {
+                        (Some(Token::Open), Some(code)) => format!(" ({})", known_code(&code).unwrap_or("…")),
                         _ => String::new(),
                     };
-                    format!("{}{code}", for_trace(&word.to_ascii_uppercase()))
+                    format!("{word}{code}")
                 }
                 _ => format!("({} parts)", tokens.len()),
             };
@@ -580,9 +609,9 @@ impl<S: Read + Write> ManageSieve<S> {
     fn refused(&self, done: &Done) -> ProtoError {
         // Hidden before it is shortened: a secret cut in half would no longer be recognised.
         let text = tidy(&self.secrets.hide(&done.text));
-        let text = match (&done.code, text.is_empty()) {
+        let text = match (done.code.as_deref().and_then(known_code), text.is_empty()) {
             (_, false) => text,
-            (Some(code), true) => tidy(code),
+            (Some(code), true) => code.to_string(),
             (None, true) => return ProtoError::Rejected(said!("the command was refused")),
         };
         ProtoError::Rejected(text.into())
@@ -663,6 +692,32 @@ fn classify(tokens: Vec<Token>) -> Result<Response, ProtoError> {
 
 fn not_managesieve() -> ProtoError {
     ProtoError::Protocol(said!("the server sent something that isn't a ManageSieve response"))
+}
+
+fn unusable_name() -> ProtoError {
+    ProtoError::Protocol(said!("the server listed a Sieve script whose name MailCraft can't use"))
+}
+
+/// A response code of RFC 5804 §1.3 (upper-cased) as it is shown or logged; a server's own code
+/// isn't, being words nobody checked.
+fn known_code(code: &str) -> Option<&'static str> {
+    const KNOWN: [&str; 14] = [
+        "AUTH-TOO-WEAK",
+        "ENCRYPT-NEEDED",
+        "QUOTA",
+        "QUOTA/MAXSCRIPTS",
+        "QUOTA/MAXSIZE",
+        "REFERRAL",
+        "SASL",
+        "TRANSITION-NEEDED",
+        "TRYLATER",
+        "ACTIVE",
+        "NONEXISTENT",
+        "ALREADYEXISTS",
+        "TAG",
+        "WARNINGS",
+    ];
+    KNOWN.into_iter().find(|k| k.eq_ignore_ascii_case(code))
 }
 
 fn referral() -> ProtoError {
