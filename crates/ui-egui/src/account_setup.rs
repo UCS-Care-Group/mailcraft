@@ -2136,10 +2136,8 @@ impl AccountSetup {
     fn password_page(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) -> Option<Action> {
         let t = pass.t;
         let asks = app.services.test_account.is_some() || app.services.sync.is_some();
-        let google = self.edit.is_none()
-            && self.oauth.is_none()
-            && self.incoming.host.trim().eq_ignore_ascii_case("imap.gmail.com")
-            && app.services.sign_in.is_some();
+        let google_password = self.edit.is_none() && self.oauth.is_none() && self.incoming.host.trim().eq_ignore_ascii_case("imap.gmail.com");
+        let google = google_password && app.services.sign_in.is_some();
         let configured = app.google_registration_ready();
         let oauth_first = self.google_oauth_first(app);
         let title = if self.service.is_empty() {
@@ -2235,6 +2233,8 @@ impl AccountSetup {
                             note(ui, google_testers_note(), t.text_dim);
                         }
                     }
+                }
+                if google_password {
                     note(ui, tl!("Use a Google app password, not your everyday Google account password."), t.text_dim);
                     disclosure(ui, tl!("How do I make an app password?"), &mut self.app_password_steps, &t);
                     if self.app_password_steps {
@@ -2795,13 +2795,17 @@ const GOOGLE_APP_PASSWORDS: &str = "https://myaccount.google.com/apppasswords";
 /// only for an account with 2-Step Verification, and shows each one once.
 fn google_app_password_steps(ui: &mut Ui, t: &Tokens) {
     note(ui, tl!("1. Turn on 2-Step Verification for your Google account, if it isn't on yet: Google offers app passwords only then."), t.text_dim);
-    note(ui, tl!("2. Open Google's App passwords page, sign in, type a name such as MailCraft and press Create."), t.text_dim);
+    note(
+        ui,
+        tl!("2. Open Google's App passwords page, sign in to the account you are adding, type a name such as MailCraft and press Create."),
+        t.text_dim,
+    );
     ui.hyperlink_to(tl!("Open Google's App passwords page"), GOOGLE_APP_PASSWORDS);
     note(ui, tl!("3. Copy the 16-letter password Google shows, which it shows only once, and paste it here."), t.text_dim);
     note(
         ui,
         tl!(
-            "If Google's page says the setting isn't available, either 2-Step Verification is off or the account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection)."
+            "If Google's page says the setting isn't available, either 2-Step Verification is off or the account doesn't allow app passwords (some work or school accounts, accounts with Advanced Protection, and accounts whose 2-Step Verification uses only security keys)."
         ),
         t.text_dim,
     );

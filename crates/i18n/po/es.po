@@ -372,7 +372,7 @@ msgstr "2 años"
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "2. Open Google's App passwords page, sign in, type a name such as MailCraft and press Create."
+msgid "2. Open Google's App passwords page, sign in to the account you are adding, type a name such as MailCraft and press Create."
 msgstr "2. Abre la página Contraseñas de aplicaciones de Google, inicia sesión, escribe un nombre como MailCraft y pulsa Crear."
 
 #. android
@@ -7230,7 +7230,7 @@ msgstr "Si Google indica que la aplicación está en pruebas, pida al desarrolla
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "If Google's page says the setting isn't available, either 2-Step Verification is off or the account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection)."
+msgid "If Google's page says the setting isn't available, either 2-Step Verification is off or the account doesn't allow app passwords (some work or school accounts, accounts with Advanced Protection, and accounts whose 2-Step Verification uses only security keys)."
 msgstr "Si la página de Google dice que el ajuste no está disponible, la verificación en dos pasos está desactivada o la cuenta no permite contraseñas de aplicación (algunas cuentas de trabajo o de centros educativos, y las cuentas con Protección Avanzada)."
 
 #. interface
