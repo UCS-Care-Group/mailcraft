@@ -3,9 +3,10 @@
 //! Shift+Delete (#1438): on Windows the window layer turns the press into a cut (the
 //! system's cut key), so the permanent delete's shortcut arrives as a cut rather than a
 //! key; and a Delete in the ribbon pressed with Shift held runs as Delete Permanently,
-//! as in Outlook.
+//! as in Outlook. Its question puts the keyboard on Delete, so Enter confirms it (#1905).
 
 use egui::{Event, Key, Modifiers, PointerButton};
+use egui_kittest::kittest::Queryable;
 use mailcraft_model::{FolderKind, Id};
 use serde_json::json;
 
@@ -71,6 +72,17 @@ fn a_shift_delete_key_raises_the_question_where_the_cut_does() {
     shift_delete_key(&mut w);
     assert_eq!(testing::dialog(&w), Some("confirm"));
     assert!(w.state().session.mailbox.message(id).is_some(), "the question is still open");
+}
+
+#[test]
+fn enter_confirms_the_permanent_delete_question() {
+    let (mut w, id) = selected();
+    shift_delete_key(&mut w);
+    assert!(w.query_all_by_label("Delete").any(|button| button.is_focused()), "Delete has the keyboard");
+    testing::key(&mut w, Key::Enter);
+    w.run_steps(2);
+    assert_eq!(testing::dialog(&w), None, "Enter answered the question");
+    assert!(w.state().session.mailbox.message(id).is_none(), "Enter permanently deleted the message");
 }
 
 #[test]
