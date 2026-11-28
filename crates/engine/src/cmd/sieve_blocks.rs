@@ -62,6 +62,9 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
+/// Why a rule whose end isn't known ([`super::sieve_elsewhere::Span::whole`]) isn't changed.
+const NOT_WHOLE: &str = "Where this rule ends in your Sieve script isn't clear (a filter of your webmail's without its END:FILTER, or a rule that runs across a filter's marks), so MailCraft doesn't change it: change it in your webmail or in the whole script.";
+
 /// A rule of the owner's own script that the server runs, and where it is in it.
 pub struct Found<'a> {
     pub account: Id,
@@ -88,7 +91,7 @@ pub fn form(s: &Session, rule: Id) -> Option<Result<(), NoForm>> {
 
 /// Whether the rule `rule` of the owner's own script can be changed as Sieve text: it has some.
 pub fn text_offered(s: &Session, rule: Id) -> bool {
-    find(s, rule).is_some_and(|f| has_command(f.script.text.get(f.span.text_at.clone()).unwrap_or_default()))
+    find(s, rule).is_some_and(|f| f.span.whole && has_command(f.script.text.get(f.span.text_at.clone()).unwrap_or_default()))
 }
 
 /// The rule's Sieve text as read.
@@ -161,6 +164,9 @@ pub fn spliced(s: &Session, rule: Id, text: &str, read: Option<&str>) -> Result<
         .ok_or_else(|| if super::sieve_elsewhere::is_elsewhere(rule) { fail(NO_OWN_SCRIPT) } else { failed!("no rule with id {id}", id = rule) })?;
     if read.is_some_and(|d| !d.eq_ignore_ascii_case(&digest(&f.script.text))) {
         return Err(fail(OWN_CHANGED));
+    }
+    if !f.span.whole {
+        return Err(fail(NOT_WHOLE));
     }
     if text.len() > MAX_SCRIPT {
         return Err(failed!("A Sieve script is at most {mb} MB.", mb = MAX_SCRIPT >> 20));

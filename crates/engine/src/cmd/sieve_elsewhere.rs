@@ -91,6 +91,11 @@ pub struct Span {
     pub filter: bool,
     /// Whether the rule builder can change it without loss, or why not.
     pub form: Result<(), NoForm>,
+    /// Whether its bytes are known to end where it ends, so that they can be written again
+    /// alone: false for a webmail's filter with no `END:FILTER` (its Sieve would run on to what
+    /// follows), and for a chain that crosses a filter's marks (writing it again would take them
+    /// out). Such a rule is shown, never changed (#2058).
+    pub whole: bool,
 }
 
 /// Why the rule builder can't change a rule of the owner's own script without loss (#2057): it
@@ -745,16 +750,25 @@ pub fn read(mb: &Mailbox, account: Id, script: &str, text: &str, ours: bool) -> 
         let from = first.checked_sub(1).and_then(|p| ends.get(p)).copied().unwrap_or(0);
         let chain_start = commands.get(first).map_or(c.at.start, |f| f.at.start);
         let chain_end = commands.get(last).map_or(c.at.end, |l| l.at.end);
-        let region = regions.iter().find(|r| r.contains(&c.at.start));
-        let span = match region {
-            Some(r) => {
-                Span { rule: rule.id, text_at: inner(text, r), command_at: c.at.clone(), name_at: None, filter: true, form: Err(NoForm::Filter) }
+        let at = regions.iter().position(|r| r.contains(&c.at.start));
+        let overlaps = |a: &Range<usize>, b: &Range<usize>| a.start < b.end && b.start < a.end;
+        let span = match at.and_then(|i| regions.get(i).zip(filters.get(i))) {
+            Some((r, f)) => {
+                // Its end marked, and its whole chain inside it.
+                let whole = f.end.is_some() && chain_start >= r.start && chain_end <= r.end;
+                let text_at = inner(text, r);
+                Span { rule: rule.id, text_at, command_at: c.at.clone(), name_at: None, filter: true, form: Err(NoForm::Filter), whole }
             }
             None => {
                 let text_at = lead(text, &comments, from, chain_start)..chain_end;
-                let form = form_gate(mb, account, text, c, first == last, &rule);
+                // Nothing of a filter in it: no mark, and none of a filter's Sieve.
+                let crosses = filters
+                    .iter()
+                    .zip(&regions)
+                    .any(|(f, r)| overlaps(&text_at, &f.header) || f.end.as_ref().is_some_and(|e| overlaps(&text_at, e)) || overlaps(&text_at, r));
+                let form = if crosses { Err(NoForm::Filter) } else { form_gate(mb, account, text, c, first == last, &rule) };
                 let name_at = name_at.filter(|at| at.start >= text_at.start);
-                Span { rule: rule.id, text_at, command_at: c.at.clone(), name_at, filter: false, form }
+                Span { rule: rule.id, text_at, command_at: c.at.clone(), name_at, filter: false, form, whole: !crosses }
             }
         };
         out.spans.push(span);
