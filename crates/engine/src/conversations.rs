@@ -210,7 +210,7 @@ fn seen(id: Id, m: &Arc<Message>) -> Seen {
 
 /// The messages `same`, all of one [`Topic`] and in order of id, put by their topic itself (of
 /// which there is one, unless two topics share the hash), each in order of id.
-fn by_topic<'a>(same: Vec<(&'a Message, String)>, into: &mut Vec<Vec<&'a Message>>) {
+pub(crate) fn by_topic<'a>(same: Vec<(&'a Message, String)>, into: &mut Vec<Vec<&'a Message>>) {
     let Some((first, rest)) = same.split_first() else { return };
     if rest.iter().all(|(m, key)| m.account == first.0.account && *key == first.1) {
         into.push(same.into_iter().map(|(m, _)| m).collect());
@@ -387,7 +387,8 @@ fn most_changed(mailbox: &Mailbox) -> usize {
 /// only one that isn't has its hash worked out again, and is pointed at as it is now. The topics
 /// of the messages that came, went or group otherwise are worked out again. Whether it could be
 /// (`false` past [`most_changed`]: `kept` is then to be built afresh), and whether anything about
-/// the conversations changed.
+/// the conversations changed. After `None`, `kept` is dead (its `seen` is taken and left empty,
+/// or only part of it is filled): the caller builds afresh and replaces it.
 fn bring_in_step(kept: &mut Kept, mailbox: &Mailbox) -> Option<bool> {
     let most = most_changed(mailbox);
     let mut gone: Vec<(Id, Topic)> = Vec::new();

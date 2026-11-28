@@ -229,21 +229,31 @@ fn conversations_bench() {
     );
     let _ = s.threads();
     let mut pieces = Vec::new();
+    let mut joined = Vec::new();
     for p in 0..20u32 {
         for k in 0..50u32 {
+            // A reply to an original there is, in its account and its topic.
+            let c = (p * 50 + k) % conversation;
+            let topic = if c.is_multiple_of(20) { "Weekly report".to_string() } else { format!("Plans for the harbour, part {c}") };
             let m = Message {
-                folder: inboxes[1],
-                subject: format!("Re: Plans for the harbour, part {}", p * 50 + k),
+                folder: inboxes[(c % 2) as usize],
+                subject: format!("Re: {topic}"),
                 message_id: format!("<new{p}.{k}@example.org>"),
-                in_reply_to: format!("<c{}.0@example.org>", p * 50 + k),
+                in_reply_to: format!("<c{c}.0@example.org>"),
                 ..Default::default()
             };
-            s.mailbox.add_message(m).unwrap();
+            joined.push((s.mailbox.add_message(m).unwrap(), format!("c{c}.0@example.org")));
         }
         s.mailbox_changed();
         let t = std::time::Instant::now();
         let _ = s.threads();
         pieces.push(ms(t.elapsed()));
+    }
+    // Outside the timer: each reply is of its original's conversation.
+    let threads = s.threads();
+    for (id, original) in joined {
+        let original = s.mailbox.messages.values().find(|m| m.message_id.trim_matches(['<', '>']) == original).map(|m| m.id);
+        assert!(original.is_some_and(|o| threads.same(id, o)));
     }
     eprintln!("CONVERSATIONS_BENCH a piece of 50 new messages brought in step: median {:.1} ms {pieces:.1?}", median(&mut pieces));
     assert_eq!(s.threads_built(), 1);
@@ -323,4 +333,25 @@ fn many_messages_of_one_topic_gone_at_once_are_brought_in_step() {
     assert_eq!(s.threads_built(), 1, "brought in step");
     let afresh = ThreadIndex::build(s.mailbox.messages.values().map(|m| m.as_ref()));
     assert_eq!(conversations(&s, &kept), conversations(&s, &afresh));
+}
+
+/// Two topics that share a hash are told apart by their topic itself, and one topic of two
+/// accounts too.
+#[test]
+fn messages_of_a_shared_hash_are_put_by_their_topic() {
+    let (mut s, inboxes) = mailbox();
+    let mut add = |folder, subject: &str| {
+        let id = s
+            .mailbox
+            .add_message(Message { folder, subject: subject.into(), message_id: format!("<{subject}{folder}@example.org>"), ..Default::default() })
+            .unwrap();
+        s.mailbox.message(id).unwrap().clone()
+    };
+    let (a, b, c) = (add(inboxes[0], "Plans"), add(inboxes[0], "Invoice"), add(inboxes[1], "Plans"));
+    let mut into = Vec::new();
+    crate::conversations::by_topic(vec![(&a, a.topic_key()), (&b, b.topic_key()), (&c, c.topic_key())], &mut into);
+    assert_eq!(into.len(), 3);
+    let mut into = Vec::new();
+    crate::conversations::by_topic(vec![(&a, a.topic_key()), (&a, a.topic_key())], &mut into);
+    assert_eq!(into.len(), 1);
 }

@@ -364,19 +364,24 @@ impl ThreadIndex {
     /// forgotten.
     pub fn take_in(&mut self, joined: Joined) {
         self.work = self.work.saturating_add(joined.work);
+        for ids in joined.groups {
+            self.put(ids);
+        }
+    }
+
+    /// Take in one conversation, its ids smallest first.
+    fn put(&mut self, ids: Vec<Id>) {
         if self.shards.is_empty() {
             self.shards = vec![Shard::default(); SHARDS];
         }
-        for ids in joined.groups {
-            let Some(key) = ids.first().copied().map(ThreadKey) else { continue };
-            for id in &ids {
-                if let Some(shard) = self.shards.get_mut(shard_of(*id)) {
-                    shard.keys.insert(*id, key);
-                }
+        let Some(key) = ids.first().copied().map(ThreadKey) else { return };
+        for id in &ids {
+            if let Some(shard) = self.shards.get_mut(shard_of(*id)) {
+                shard.keys.insert(*id, key);
             }
-            if let Some(shard) = self.shards.get_mut(shard_of(key.0)) {
-                shard.members.insert(key.0, ids);
-            }
+        }
+        if let Some(shard) = self.shards.get_mut(shard_of(key.0)) {
+            shard.members.insert(key.0, ids);
         }
     }
 
@@ -393,6 +398,15 @@ impl ThreadIndex {
             if let Some(part) = ids.first().and_then(|key| groups.get_mut(shard_of(*key))) {
                 part.push(ids);
             }
+        }
+        if threads == 1 {
+            // One thread: each conversation goes in once, not looked for by each of the parts.
+            let mut index = ThreadIndex::default();
+            for ids in groups.into_iter().flatten() {
+                index.put(ids);
+            }
+            index.work = work;
+            return index;
         }
         // The keys of each part are read from all of them, so each part's own conversations go
         // to it after.
