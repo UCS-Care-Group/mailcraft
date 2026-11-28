@@ -625,6 +625,25 @@ fn account_drop(app: &mut MailApp, ui: &mut Ui, blocks: &[Block], end: f32) {
     }
 }
 
+/// While messages or a folder are dragged over the folder pane: near the top or the bottom of what
+/// is in view the pane scrolls, to reach a folder out of view, as it does for an account (#702).
+fn drag_edge_scroll(ui: &mut Ui) {
+    let ctx = ui.ctx().clone();
+    if !egui::DragAndDrop::has_payload_of_type::<crate::mail_view::MessageDrag>(&ctx) && !egui::DragAndDrop::has_payload_of_type::<FolderDrag>(&ctx) {
+        return;
+    }
+    let Some(pos) = ctx.pointer_interact_pos() else { return };
+    let pane = ui.clip_rect();
+    if !ui.rect_contains_pointer(pane) {
+        return;
+    }
+    let step = edge_scroll(pane, pos.y);
+    if step != 0.0 {
+        ui.scroll_with_delta(vec2(0.0, step));
+        ctx.request_repaint();
+    }
+}
+
 /// While an account or a folder (#1514) is being dragged: a small label by the pointer with its name.
 fn drag_ghost(app: &MailApp, ui: &Ui) {
     let name = if let Some(drag) = egui::DragAndDrop::payload::<AccountDrag>(ui.ctx()) {
@@ -1230,6 +1249,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             }
             let end = ui.cursor().min.y;
             account_drop(app, ui, &blocks, end);
+            drag_edge_scroll(ui);
             ui.add_space(8.0);
         });
         drag_ghost(app, ui);
