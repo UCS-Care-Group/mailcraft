@@ -392,9 +392,14 @@ pub struct Message {
     /// False for mail split before, and for a file from before, and it stays so when such mail is
     /// split again here ([`Message::split_headers`]): its block may be one lost (damaged, or
     /// named by a name that isn't one) with the server's hop in it, which no later split can
-    /// tell. Set only as a message is read (`mailcraft_mime_model`), and carried. A mailbox file (one opened from elsewhere too) or a result given to `sync.apply` can
-    /// say true, but whoever writes one writes its header lines too, in any order, so it can say
-    /// nothing a forged header can't.
+    /// tell. Set as a message is read (`mailcraft_mime_model`) and kept only for mail read from a
+    /// server of the owner's (IMAP, Microsoft Graph, JMAP, Exchange): mail from a file (opened,
+    /// imported from .eml, mbox or .pst, or only looked at) leaves it false, since its hops may
+    /// all be the file's giver's. Carried after that. A mailbox file (one opened from elsewhere
+    /// too) or a result given to `sync.apply` can say true, but whoever writes one writes its
+    /// header lines too, in any order, so it can say nothing a forged header can't. A copy
+    /// written out of mail it is false for, without its block, leaves its verdicts behind
+    /// (`Session::loaded_message` in the engine).
     #[serde(skip_serializing_if = "is_false")]
     pub hops_kept: bool,
     /// The message's UID in the server mailbox of the folder it is in (IMAP); 0 for a message

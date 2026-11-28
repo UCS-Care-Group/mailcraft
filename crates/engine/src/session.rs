@@ -2614,7 +2614,15 @@ impl Session {
     /// that can't be read is no reason to keep the message from going anywhere: the copy is
     /// without it then (built from the parts, as before it was kept), with a line in the log.
     pub fn loaded_message(&self, id: Id) -> Result<Arc<Message>, CmdError> {
-        let m = self.with_header_block(self.loaded_message_where(id, |_| true)?);
+        let mut m = self.with_header_block(self.loaded_message_where(id, |_| true)?);
+        // Split by a version before (#2059) and without its block, it may be without the hop at
+        // which its server took it in, and read back as fresh mail its verdicts would stand above
+        // a sender's hop: they stay behind, as they do on a copy put on another server.
+        if !m.header_block.is_loaded() && !m.hops_kept {
+            let mut copy = Message::clone(&m);
+            mailcraft_model::auth_results::forget_stamps(&mut copy);
+            m = Arc::new(copy);
+        }
         if m.original.as_ref().is_none_or(|o| o.is_loaded()) {
             return Ok(m);
         }
