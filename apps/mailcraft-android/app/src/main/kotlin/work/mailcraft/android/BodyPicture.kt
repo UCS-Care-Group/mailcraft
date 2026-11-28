@@ -69,25 +69,28 @@ internal fun PictureBlock(block: BlockView, kind: BlockKindView.Image, env: Body
         Modifier.semantics { contentDescription = alt }
     }
     val decoded = rememberDecoded((state as? PictureState.Ready)?.bytes)
-    Box(modifier = tap.then(described)) {
+    val density = LocalDensity.current.density
+    val wanted = decoded?.let { shownWidth(ref, it.width / density, it.height / density) }
+        ?: ref.width?.toFloat() ?: 0f
+    val pad = paddingAround(block.imagePadding, wanted, room.value)
+    val inner = (room - (pad.left + pad.right).dp).coerceAtLeast(1.dp)
+    Box(modifier = tap.then(described).padding(pad.left.dp, pad.top.dp, pad.right.dp, pad.bottom.dp)) {
         if (decoded != null) {
-            ShownPicture(decoded, ref, room, alt)
+            ShownPicture(decoded, wanted.dp, shownTall(ref, decoded.width, decoded.height), inner, alt)
         } else {
-            Placeholder(ref, alt, room, paper)
+            Placeholder(ref, alt, inner, paper)
         }
     }
 }
 
 @Composable
-private fun ShownPicture(decoded: Decoded, ref: PictureRef, room: Dp, alt: String) {
-    val density = LocalDensity.current.density
-    val natural = (decoded.width / density).dp
-    val wanted = (ref.width?.dp ?: natural).coerceAtMost(room).coerceAtLeast(1.dp)
+private fun ShownPicture(decoded: Decoded, width: Dp, tall: Float, room: Dp, alt: String) {
+    val wanted = width.coerceAtMost(room).coerceAtLeast(1.dp)
     Image(
         bitmap = decoded.bitmap,
         contentDescription = alt.ifBlank { null },
-        contentScale = ContentScale.Fit,
-        modifier = Modifier.pictureBox(wanted, decoded.height.toFloat() / decoded.width.coerceAtLeast(1), null),
+        contentScale = ContentScale.FillBounds,
+        modifier = Modifier.pictureBox(wanted, tall, null),
     )
 }
 
@@ -120,14 +123,18 @@ internal val MAX_PLACEHOLDER_HEIGHT = 120.dp
  * `Constraints.fixed` always takes. (It throws past what it can pack: a width under 8192 px leaves room
  * for a height of 262143 px. A message's picture can be 1 by 40 million pixels.)
  */
-internal fun boxSize(wanted: Int, room: Int, tall: Float, cap: Int): IntSize {
+internal fun boxSize(wanted: Int, room: Int, tall: Float, cap: Int, keepShape: Boolean = false): IntSize {
     val w = wanted.coerceAtMost(room).coerceIn(1, MAX_BOX_WIDTH)
     val h = (w * tall.toDouble()).takeUnless { it.isNaN() } ?: 1.0
-    return IntSize(w, h.coerceIn(1.0, cap.coerceIn(1, MAX_BOX_HEIGHT).toDouble()).roundToInt())
+    val most = cap.coerceIn(1, MAX_BOX_HEIGHT).toDouble()
+    // A picture drawn to fill its box is narrowed as far as it is held lower, so it is not stretched.
+    val narrowed = if (keepShape && h > most) (w * most / h).roundToInt().coerceIn(1, w) else w
+    return IntSize(narrowed, h.coerceIn(1.0, most).roundToInt())
 }
 
-private const val MAX_BOX_WIDTH = 8_000
-private const val MAX_BOX_HEIGHT = 200_000
+/** The widest and tallest box a measure is given, in pixels: what `Constraints.fixed` always takes. */
+internal const val MAX_BOX_WIDTH = 8_000
+internal const val MAX_BOX_HEIGHT = 200_000
 
 /**
  * A picture's box sized from the width there really is, unlike `width().aspectRatio()`: a tinted row
@@ -136,7 +143,8 @@ private const val MAX_BOX_HEIGHT = 200_000
  * answers what it draws.
  */
 private fun Modifier.pictureBox(wanted: Dp, tall: Float, cap: Dp?): Modifier = layout { measurable, constraints ->
-    val size = boxSize(wanted.roundToPx(), constraints.maxWidth, tall, cap?.roundToPx() ?: Int.MAX_VALUE)
+    val most = cap?.roundToPx() ?: Int.MAX_VALUE
+    val size = boxSize(wanted.roundToPx(), constraints.maxWidth, tall, most, keepShape = cap == null)
     val placeable = measurable.measure(Constraints.fixed(size.width, size.height))
     layout(size.width, size.height) { placeable.place(0, 0) }
 }

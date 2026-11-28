@@ -136,7 +136,8 @@ private fun inkOf(span: SpanView, paper: Paper, linked: Boolean): Int {
 
 private fun decorationOf(span: SpanView, linked: Boolean): TextDecoration? {
     val lines = buildList {
-        if (span.underline || linked) add(TextDecoration.Underline)
+        // A link the message draws without its line (`text-decoration: none`) has none.
+        if (span.underline || (linked && !span.bare)) add(TextDecoration.Underline)
         if (span.strike) add(TextDecoration.LineThrough)
     }
     return if (lines.isEmpty()) null else TextDecoration.combine(lines)

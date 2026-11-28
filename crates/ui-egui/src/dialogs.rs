@@ -560,6 +560,7 @@ pub fn confirmation(app: &MailApp, id: &str, params: &Value) -> Option<Question>
             let (title, text, action) = crate::attachment_open::question(app, params)?;
             question(&title, text, &action)
         }
+        crate::attachment_open::OPEN_DRAFT => crate::attachment_open::draft_question(app, params),
         "mail.delete" | "mail.deletePermanently" => {
             // What the selection stands for: a conversation's row, every message of it the list
             // shows (#503).

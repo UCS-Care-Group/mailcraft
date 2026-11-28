@@ -6,8 +6,8 @@
 //! The address is the owner's choice, and it may hold a secret (a private token in its path), so
 //! [`fetch`] says as little as a request can:
 //!
-//! - only `https://` addresses; one with a user name in it, or `http://`, is refused, and so is a
-//!   redirect to anything but `https://`;
+//! - only `https://` addresses (`webcal://` is read as `https://`); one with a user name in it,
+//!   or `http://`, is refused, and so is a redirect to anything but `https://`;
 //! - nothing that says who is asking: no cookie, no credentials, no referrer, the same plain user
 //!   agent as everything else in this crate. What is added is `If-None-Match` and
 //!   `If-Modified-Since` with the marks the server gave for the copy taken before (a mark is
@@ -24,7 +24,7 @@
 
 use std::time::{Duration, Instant};
 
-use mailcraft_model::subscription::{Failure, MAX_TEXT, SubscriptionOutcome, clean_validator};
+use mailcraft_model::subscription::{Failure, MAX_TEXT, SubscriptionOutcome, check_address, clean_validator};
 
 use crate::pictures::{self, Limits, MAX_RETRY_WAIT, PictureError, Reach, Sent};
 
@@ -107,7 +107,9 @@ fn conditions(etag: &str, last_modified: &str) -> String {
 /// [`fetch`], with the reach and the limits said.
 pub(crate) fn fetch_with(address: &str, etag: &str, last_modified: &str, reach: &Reach<'_>, limits: &Limits) -> Result<Fetched, Failure> {
     let deadline = Instant::now() + limits.patience;
-    let first = pictures::address(address).map_err(|_| Failure::Address)?;
+    // One rule for the scheme (`webcal://` is `https://`, #1724) and the address checks: the model's.
+    let checked = check_address(address).map_err(|_| Failure::Address)?;
+    let first = pictures::address(&checked.url).map_err(|_| Failure::Address)?;
     if !first.secure {
         return Err(Failure::Address);
     }
