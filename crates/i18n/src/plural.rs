@@ -14,6 +14,9 @@ pub enum Rule {
     NotOne,
     /// Singular for 0 and 1 (`plural=(n > 1)`): French.
     AboveOne,
+    /// Three forms (`plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2)`):
+    /// 1, 21, 101… / 2–4, 22–24… / the rest, 11–14 among them. Russian.
+    Slavic,
     /// Three forms (`plural=(n==1 ? 0 : (n==0 || (n%100 > 0 && n%100 < 20)) ? 1 : 2)`): Romanian.
     /// One for 1; another for 0 and for 2 to 19 past the hundreds (101, 119); the third, written
     /// with "de", for the rest (20, 100, 120).
@@ -37,6 +40,16 @@ impl Rule {
             Rule::Single => 0,
             Rule::NotOne => usize::from(n != 1),
             Rule::AboveOne => usize::from(n > 1),
+            Rule::Slavic => {
+                let (r10, r100) = (n % 10, n % 100);
+                if r10 == 1 && r100 != 11 {
+                    0
+                } else if (2..=4).contains(&r10) && !(12..=14).contains(&r100) {
+                    1
+                } else {
+                    2
+                }
+            }
             Rule::Polish => match n {
                 1 => 0,
                 n if (2..=4).contains(&(n % 10)) && !(10..20).contains(&(n % 100)) => 1,
@@ -67,7 +80,7 @@ impl Rule {
         match self {
             Rule::Single => 1,
             Rule::NotOne | Rule::AboveOne => 2,
-            Rule::Romanian | Rule::Polish | Rule::Czech => 3,
+            Rule::Slavic | Rule::Romanian | Rule::Polish | Rule::Czech => 3,
             Rule::Slovenian => 4,
         }
     }
@@ -88,6 +101,7 @@ impl Rule {
         match (nplurals, plural.as_deref()) {
             (Some(1), Some("0")) => Rule::Single,
             (Some(2), Some("n>1" | "n>=2" | "n>1?1:0")) => Rule::AboveOne,
+            (Some(3), Some(SLAVIC)) => Rule::Slavic,
             (Some(3), Some("n==1?0:(n==0||(n%100>0&&n%100<20))?1:2")) => Rule::Romanian,
             (Some(3), Some("n==1?0:n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?1:2")) => Rule::Polish,
             (Some(4), Some("n%100==1?0:n%100==2?1:n%100==3||n%100==4?2:3")) => Rule::Slovenian,
@@ -96,6 +110,9 @@ impl Rule {
         }
     }
 }
+
+/// The Russian rule as `normalise` leaves it.
+const SLAVIC: &str = "n%10==1&&n%100!=11?0:n%10>=2&&n%10<=4&&(n%100<10||n%100>=20)?1:2";
 
 /// The expression without blanks and without the brackets around the whole of it.
 fn normalise(expr: &str) -> String {

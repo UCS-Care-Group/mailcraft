@@ -23281,6 +23281,78 @@ msgstr "non corrispondenza"
 msgid "month"
 msgstr "mese"
 
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "April"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "August"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "December"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "February"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "January"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "July"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "June"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "March"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "May"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "November"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "October"
+msgstr ""
+
+#. date and time
+#: crates/i18n/src/date.rs
+msgctxt "month alone"
+msgid "September"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/imap/mod.rs
 #, fuzzy
