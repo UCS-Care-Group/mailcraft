@@ -11,6 +11,8 @@ use super::*;
 use crate::Services;
 
 const NOW: i64 = 1_791_993_600;
+/// The hop at which the account's server took the mail in: what it wrote of it lies above.
+const INTAKE: &str = "from mail.sender.example (mail.sender.example [198.51.100.7]) by mx.example.org with ESMTPS id 1";
 
 fn png() -> Vec<u8> {
     let mut out = std::io::Cursor::new(Vec::new());
@@ -37,7 +39,10 @@ fn window(answer: impl Fn(&str) -> Result<Vec<u8>, String> + 'static) -> (MailAp
         date: NOW,
         // On the server (mail from a file is never vouched for).
         uid: 1,
-        headers: vec![("Authentication-Results".into(), format!("mx.example.org; dmarc=pass header.from={}", from.rsplit('@').next().unwrap_or("")))],
+        headers: vec![
+            ("Authentication-Results".into(), format!("mx.example.org; dmarc=pass header.from={}", from.rsplit('@').next().unwrap_or(""))),
+            ("Received".into(), INTAKE.into()),
+        ],
         ..Default::default()
     };
     mailbox.add_message(mail(sent, "avery@lumen-works.example", "Grace@Shop.example")).unwrap();

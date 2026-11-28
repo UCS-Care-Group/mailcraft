@@ -20,6 +20,9 @@ const NOW: i64 = 1_791_993_600;
 /// What Avery's server writes for mail from the list that passed its checks.
 const PASSED: &str = "mx.example.org; dkim=pass header.d=news.example; dmarc=pass header.from=news.example";
 
+/// The hop at which the account's server took the mail in: what it wrote of it lies above.
+const INTAKE: &str = "from mail.sender.example (mail.sender.example [198.51.100.7]) by mx.example.org with ESMTPS id 1";
+
 /// A window on Avery's mailbox with one message from the list with `headers`; its id.
 fn list_app(headers: &[(&str, &str)]) -> (MailApp, u64) {
     let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
@@ -35,7 +38,7 @@ fn list_app(headers: &[(&str, &str)]) -> (MailApp, u64) {
         // On the server (mail from a file is never vouched for).
         uid: 1,
         date: NOW - 3_600,
-        headers: headers.iter().map(|(h, v)| ((*h).into(), (*v).into())).collect(),
+        headers: headers.iter().map(|(h, v)| ((*h).into(), (*v).into())).chain([("Received".into(), INTAKE.into())]).collect(),
         ..Message::default()
     };
     let id = mailbox.add_message(m).unwrap();
@@ -178,6 +181,7 @@ fn add(app: &mut MailApp, from: &str, list: &str) -> u64 {
             ("List-Unsubscribe".into(), list.into()),
             ("List-Unsubscribe-Post".into(), "List-Unsubscribe=One-Click".into()),
             ("DKIM-Signature".into(), format!("v=1; d={domain}; s=s1; h=from:list-unsubscribe:list-unsubscribe-post; bh=AA; b=BB")),
+            ("Received".into(), INTAKE.into()),
         ],
         ..Message::default()
     };
@@ -242,6 +246,7 @@ fn add_at(app: &mut MailApp, from: &str, ago: i64, headers: &[(&str, &str)]) -> 
     let domain = from.rsplit_once('@').map_or("", |(_, d)| d);
     let mut all = vec![("Authentication-Results".to_string(), format!("mx.example.org; dmarc=pass header.from={domain}"))];
     all.extend(headers.iter().map(|(h, v)| ((*h).to_string(), (*v).to_string())));
+    all.push(("Received".into(), INTAKE.into()));
     let m = Message {
         folder: inbox,
         from: Address::new("", from),

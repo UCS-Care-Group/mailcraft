@@ -18,6 +18,9 @@ fn read(h: &mut Headless, id: u64) -> Value {
     serde_json::from_str(r.content[0]["text"].as_str().unwrap()).unwrap()
 }
 
+/// The hop at which the account's server took the mail in: what it wrote of it lies above.
+const INTAKE: &str = "from mail.sender.example (mail.sender.example [198.51.100.7]) by mx.example.org with ESMTPS id 1";
+
 #[test]
 fn read_message_gives_the_topmost_authentication_results_only() {
     let mut session = Session::new(mailcraft_engine::sample::mailbox(1_791_993_600, 0));
@@ -29,7 +32,11 @@ fn read_message_gives_the_topmost_authentication_results_only() {
         let m = std::sync::Arc::make_mut(session.mailbox.messages.get_mut(id).unwrap());
         m.uid = 5;
         m.account = account;
-        m.headers = headers.iter().map(|v| ("Authentication-Results".to_string(), (*v).to_string())).collect();
+        m.headers = headers
+            .iter()
+            .map(|v| ("Authentication-Results".to_string(), (*v).to_string()))
+            .chain([("Received".to_string(), INTAKE.to_string())])
+            .collect();
     }
     let mut h = Headless::new(session, Vec::new());
     let v = read(&mut h, ids[0]);
@@ -51,7 +58,10 @@ fn the_signers_domain_is_framed_as_untrusted() {
     let m = std::sync::Arc::make_mut(session.mailbox.messages.get_mut(&id).unwrap());
     m.uid = 5;
     m.account = account;
-    m.headers = vec![("Authentication-Results".to_string(), format!("mx.example.org; spf=pass; dkim=pass header.d={hostile}; dmarc=pass"))];
+    m.headers = vec![
+        ("Authentication-Results".to_string(), format!("mx.example.org; spf=pass; dkim=pass header.d={hostile}; dmarc=pass")),
+        ("Received".to_string(), INTAKE.to_string()),
+    ];
     let mut h = Headless::new(session, Vec::new());
     let v = read(&mut h, id);
     assert_eq!(v["authentication"]["dkimDomain"], format!("{UNTRUSTED_OPEN}{hostile}{UNTRUSTED_CLOSE}"));

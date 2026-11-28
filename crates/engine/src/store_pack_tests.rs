@@ -422,7 +422,7 @@ fn the_header_lines_of_mail_let_go_of_leave_the_pack() {
     save(&path, &mb).unwrap();
     let id = *mb.messages.keys().next().unwrap();
     let block = mb.message(id).unwrap().header_block.data.clone();
-    let seen = |bytes: &[u8]| bytes.windows(19).any(|w| w == b"a0.prod.example.org");
+    let seen = |bytes: &[u8]| bytes.windows(21).any(|w| w == b"bounce+0@example.org>");
     assert!(seen(&the_pack(&path).1));
     forget_when_saved(&path, 2, content_names(id, mb.messages.get(&id).unwrap()));
     // Not before a state without it is saved.

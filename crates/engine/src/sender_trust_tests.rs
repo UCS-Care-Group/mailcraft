@@ -84,10 +84,13 @@ fn delivered(uid: u32, subject: &str, headers: &[(&str, &str)]) -> Message {
         subject: subject.into(),
         message_id: format!("{uid}-{}@bank.example", subject.replace(' ', "-")),
         from: Address::new("Bank", BANK),
-        headers: headers.iter().map(|(name, value)| (name.to_string(), value.to_string())).collect(),
+        headers: headers.iter().map(|(name, value)| (name.to_string(), value.to_string())).chain([("Received".into(), INTAKE.into())]).collect(),
         ..Default::default()
     }
 }
+
+/// The hop at which the account's server took the mail in, below what it wrote of it.
+const INTAKE: &str = "from mail.bank.example (mail.bank.example [198.51.100.7]) by mx.lumen.example with ESMTPS id 1; Tue, 3 Nov 2026 10:00:00 +0000";
 
 fn trusted(s: &Session, id: Id) -> bool {
     let m = s.mailbox.message(id).unwrap();

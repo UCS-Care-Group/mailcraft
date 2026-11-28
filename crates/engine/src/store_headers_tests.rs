@@ -17,7 +17,8 @@ pub(super) fn exchange_headers(seed: usize) -> Vec<(String, String)> {
         ("DKIM-Signature".into(), format!("v=1; a=rsa-sha256; d=example.org; s=s1; b={filler}")),
         ("List-Id".into(), "<news.example.org>".into()),
         ("X-MS-Exchange-AntiSpam-MessageData-0".into(), filler),
-        ("Return-Path".into(), "<bounce@example.org>".into()),
+        // Each message's own: the topmost hop stays on the message (`mailcraft_model::headers::split`).
+        ("Return-Path".into(), format!("<bounce+{seed}@example.org>")),
     ]
 }
 

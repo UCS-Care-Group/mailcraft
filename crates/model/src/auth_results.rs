@@ -5,7 +5,9 @@
 //!
 //! The receiving server puts its own header on top; the ones below it were written before, by
 //! whoever, and a sender can write any of them. So only the topmost one is read, and only when
-//! the server of the account the message is in wrote it ([`from_own_server`]); on Exchange
+//! the server of the account the message is in wrote it ([`own_results`]: a provider's that
+//! writes one on every message, or one with the server's id above the hop at which it took the
+//! mail in, since a server that writes none leaves a sender's on top); on Exchange
 //! Online, which writes more of its own above it, the one with its id above the hop at which it
 //! took the mail in from the internet ([`exchange_online_results`]). MailCraft makes
 //! no checks of its own (no DNS, no DKIM, no SPF): a server that says nothing says nothing.
@@ -174,18 +176,72 @@ fn exchange_online_results(m: &Message, for_failure: bool) -> Option<Vec<&str>> 
     Some(headers.get(own..)?.iter().filter(|(name, _)| name.eq_ignore_ascii_case(RESULTS)).map(|(_, value)| value.as_str()).collect())
 }
 
-/// Whether the topmost `Authentication-Results` header of `m` was written by `account`'s own
-/// server, for an account not on Exchange Online ([`exchange_online_results`]): one whose
-/// authserv-id is a known id of its IMAP host's provider (`provider::authserv_ids`), or the IMAP
-/// host's domain one label up, or a name under that. Anything else is not known to be the
-/// account's server's.
-fn from_own_server(account: &Account, value: &str) -> bool {
+/// Whether the topmost `Authentication-Results` value of a message, `value`, carries the id of a
+/// provider that writes its own on every message it takes in, on top of any that came with it
+/// (`provider::authserv_ids` of `account`'s IMAP host): its place says nothing more, since Gmail,
+/// for one, writes it below the hop at which it took the mail in.
+fn from_stamping_provider(account: &Account, value: &str) -> bool {
     let (Some(host), Some(id)) = (incoming_host(account), authserv_id(value)) else { return false };
-    if provider::authserv_ids(&host).contains(&id.as_str()) {
-        return true;
-    }
+    provider::authserv_ids(&host).contains(&id.as_str())
+}
+
+/// Whether `value` carries the id of `account`'s own server by its name alone: the IMAP host's
+/// domain one label up, or a name under that. Such a server may write no verdict at all, and
+/// then the topmost header is one the sender wrote with its id (RFC 8601, 7.1), so for a verdict
+/// that vouches its place must say it is the server's too ([`above_intake`]).
+fn from_own_domain(account: &Account, value: &str) -> bool {
+    let (Some(host), Some(id)) = (incoming_host(account), authserv_id(value)) else { return false };
     let Some((_, rest)) = host.split_once('.') else { return false };
     rest.split('.').count() >= 2 && !provider::is_public_suffix(rest) && (id == rest || id.strip_suffix(rest).is_some_and(|head| head.ends_with('.')))
+}
+
+/// Whether the topmost `Authentication-Results` header of `m` lies above the hop at which the
+/// receiving server took `m` in: the topmost `Received` that is not a hop to the mailbox store
+/// ([`is_delivery_hop`]), with one there below it. Every `Received` is written on top of the ones
+/// before it (RFC 5322, 3.6.7), so nothing a sender wrote lies above that hop. A server that
+/// writes its verdict below it is not believed: its verdict can't be told from a sender's. This
+/// rests on the server keeping its own hop: one that drops it and keeps only a hop to the store
+/// can't be told from a message whose sender wrote the hop below (a server that drops every
+/// `Received` as it takes mail in drops the sender's too, and its message has none to go by).
+fn above_intake(m: &Message) -> bool {
+    let mut seen = false;
+    for (name, value) in m.headers.iter().take(MAX_HEADERS_READ) {
+        if name.eq_ignore_ascii_case(RESULTS) {
+            seen = true;
+        } else if name.eq_ignore_ascii_case("Received") && !is_delivery_hop(value) {
+            return seen;
+        }
+    }
+    false
+}
+
+/// Whether a `Received` value is a hop to the mailbox store inside the receiving system, in the
+/// one plain shape a store writes it: `from <host> [([<address>])] by <host> with LMTP…` (RFC 2033;
+/// LMTPA, LMTPS, LMTPSA: RFC 3848), its only `by` and its only `with`, read whole. The words up to
+/// `with` are the store's own (a sender's HELO is one word and stands where a host does, and its
+/// envelope address comes after), so no hop at which the mail came in from outside, which says
+/// `SMTP` or `ESMTP…` there, is ever taken for one.
+pub(crate) fn is_delivery_hop(value: &str) -> bool {
+    if value.chars().nth(MAX_HEADER_CHARS).is_some() {
+        return false;
+    }
+    let words: Vec<&str> = value.split_whitespace().collect();
+    let once = |keyword: &str| words.iter().filter(|word| word.eq_ignore_ascii_case(keyword)).count() == 1;
+    let host = |word: &str| !word.contains('@') && domain(word).is_some();
+    let address = |word: &str| {
+        word.strip_prefix("([")
+            .and_then(|rest| rest.strip_suffix("])"))
+            .is_some_and(|ip| !ip.is_empty() && ip.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | ':')))
+    };
+    let rest = match words.as_slice() {
+        [from, name, ip, rest @ ..] if from.eq_ignore_ascii_case("from") && host(name) && address(ip) => rest,
+        [from, name, rest @ ..] if from.eq_ignore_ascii_case("from") && host(name) => rest,
+        _ => return false,
+    };
+    once("by")
+        && once("with")
+        && matches!(rest, [by, name, with, protocol, ..] if by.eq_ignore_ascii_case("by") && host(name) && with.eq_ignore_ascii_case("with")
+            && ["lmtp", "lmtpa", "lmtps", "lmtpsa"].contains(&protocol.trim_end_matches(';').to_ascii_lowercase().as_str()))
 }
 
 /// Whether `account`'s mail is on Exchange Online: a Microsoft account, or one whose IMAP host is
@@ -304,9 +360,13 @@ fn clauses(value: &str) -> (Vec<Vec<String>>, bool) {
 /// The `Authentication-Results` headers of `m`, the server's own first, when `m` is on the server
 /// (it has a UID there, or the server's own record of it: mail brought in from a file has the
 /// file's word and nothing else) and the server of `account` wrote one: on Exchange Online the
-/// one [`exchange_online_results`] finds, elsewhere the topmost, when [`from_own_server`] says it
-/// is the server's: the receiving server puts its own on top, and the ones below were written
-/// before it. `None` otherwise: nothing to go by.
+/// one [`exchange_online_results`] finds, elsewhere the topmost, when it is the server's: the
+/// receiving server puts its own on top, and the ones below were written before it. The topmost
+/// is the server's when it carries the id of a provider that always writes one
+/// ([`from_stamping_provider`]), or the server's own id ([`from_own_domain`]) and, for a verdict
+/// that vouches (`for_failure` false), lies above the hop at which the server took the mail in
+/// ([`above_intake`]); a failure is read without that, since a forged one can only add a
+/// warning. `None` otherwise: nothing to go by.
 fn own_results<'a>(account: Option<&Account>, m: &'a Message, for_failure: bool) -> Option<Vec<&'a str>> {
     if m.uid == 0 && m.server.is_none() {
         return None;
@@ -316,7 +376,9 @@ fn own_results<'a>(account: Option<&Account>, m: &'a Message, for_failure: bool)
         return exchange_online_results(m, for_failure);
     }
     let results: Vec<&str> = m.header_values(RESULTS).collect();
-    from_own_server(account, results.first()?).then_some(results)
+    let top = results.first()?;
+    let own = from_stamping_provider(account, top) || (from_own_domain(account, top) && (for_failure || above_intake(m)));
+    own.then_some(results)
 }
 
 /// The clauses of the topmost `Authentication-Results` header of `m`, as [`own_results`] has it.

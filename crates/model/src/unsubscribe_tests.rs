@@ -27,7 +27,7 @@ const SIGNED: &str = "v=1; a=rsa-sha256; d=news.example; s=s1;\r\n h=From:To:Sub
 /// A message from the list, on the server, with `headers`, its server's verdict and its signature.
 fn with(headers: &[(&str, &str)]) -> Message {
     let mut m = bare(headers);
-    m.headers.push(("Authentication-Results".into(), PASSED.into()));
+    m.headers.insert(0, ("Authentication-Results".into(), PASSED.into()));
     m.headers.push(("DKIM-Signature".into(), SIGNED.into()));
     m
 }
@@ -37,10 +37,13 @@ fn bare(headers: &[(&str, &str)]) -> Message {
     Message {
         from: Address::new("Lumen News", "letter@news.example"),
         uid: 1,
-        headers: headers.iter().map(|(h, v)| ((*h).into(), (*v).into())).collect(),
+        headers: headers.iter().map(|(h, v)| ((*h).into(), (*v).into())).chain([("Received".into(), INTAKE.into())]).collect(),
         ..Message::default()
     }
 }
+
+/// The hop at which the account's server took the message in: its verdict is believed above it.
+const INTAKE: &str = "from mail.news.example (mail.news.example [198.51.100.7]) by mx.lumen.example with ESMTPS id 1; Tue, 3 Nov 2026 10:00:00 +0000";
 
 fn of(m: &Message) -> Option<Way> {
     way(Some(&account()), m)
