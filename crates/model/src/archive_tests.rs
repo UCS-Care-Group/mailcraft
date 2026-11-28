@@ -234,6 +234,24 @@ fn a_move_into_the_archive_not_made_yet_is_put_back_not_lost() {
     assert!(mb.message(kickoff).is_none());
 }
 
+/// A file that holds a move into the archive not made yet all the same (written by something
+/// else than [`Mailbox::for_disk`]) has it put back where the server has it when read, not lost
+/// with the archive's mail (#1834 review).
+#[test]
+fn a_file_holding_a_move_into_the_archive_puts_it_back_when_read() {
+    let (mut mb, owner) = mailbox();
+    let archive = mb.add_archive(owner).unwrap();
+    let year = archived(&mut mb, archive);
+    let (kickoff, inbox) = on_owners_server(&mut mb, owner);
+    mb.move_messages(&[kickoff], year).unwrap();
+    let written = serde_json::to_string(&mb).unwrap();
+    let mut read: Mailbox = serde_json::from_str(&written).unwrap();
+    read.repair();
+    let m = read.message(kickoff).expect("kept");
+    assert_eq!((m.account, m.folder), (owner, inbox));
+    assert!(read.messages.values().all(|m| m.account != archive));
+}
+
 /// Taking one archive away puts back only the moves into that one: another's go on; and a
 /// mailbox holding archive mail without folders still leaves it out of the file (#1834 review).
 #[test]

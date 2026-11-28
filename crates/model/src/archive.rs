@@ -184,6 +184,9 @@ impl Mailbox {
             changed |= self.remove_account(archive).is_ok();
         }
         let archives = self.archives();
+        // (Mail moved into one that its server hadn't moved yet goes back where the server has
+        // it, as when an archive is taken away, #1834 review.)
+        changed |= self.put_back_moves_into_archives();
         let before = (self.folders.len(), self.messages.len());
         self.folders.retain(|f| !archives.contains(&f.account));
         self.messages.retain(|_, m| !archives.contains(&m.account));
