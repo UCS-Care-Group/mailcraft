@@ -18,6 +18,7 @@ mod followup;
 mod snooze;
 #[path = "category_sweep.rs"]
 mod sweep;
+use crate::oauth::{ClientAuth, SaslChoice};
 use crate::sync::{RemoteFlags, same_category};
 use crate::{
     Action, Answers, Calendar, Contact, DavServer, Event, EwsServer, Id, JmapServer, KeepOffline, Message, ModelError, Rgb, Rule, Signature, Task,
@@ -684,7 +685,14 @@ struct Identity {
 fn read_accounts<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Vec<Account>, D::Error> {
     let written = crate::load_limit::capped_vec::<_, serde_json::Value>(deserializer)?;
     let mut accounts = Vec::with_capacity(written.len());
-    for value in written {
+    for mut value in written {
+        // (An IMAP account that signs in with an own identity provider is written with a kind of
+        // its own, which earlier versions don't know and so keep whole: it is an IMAP account.)
+        if value.get("kind").and_then(serde_json::Value::as_str) == Some(crate::oauth::OWN_SIGN_IN_KIND)
+            && let Some(fields) = value.as_object_mut()
+        {
+            fields.insert("kind".into(), serde_json::Value::String("imap".into()));
+        }
         // (Only an object has a `kind`; one without says nothing, which is a local account.)
         let unknown = value.get("kind").is_some_and(|kind| AccountKind::deserialize(kind).unwrap_or(AccountKind::Unknown) == AccountKind::Unknown);
         if !unknown {
@@ -722,6 +730,15 @@ fn write_accounts<S: serde::Serializer>(accounts: &[Account], serializer: S) -> 
                 let mut fields = fields.clone();
                 fields.insert("id".into(), account.id.into());
                 list.serialize_element(&fields)?;
+            }
+            // (Only an IMAP account's: one of another kind a file named an unknown provider for
+            // keeps its kind, #1844 review.)
+            None if account.kind == AccountKind::Imap && account.signs_in_with_own_provider() => {
+                let mut value = serde_json::to_value(account).map_err(serde::ser::Error::custom)?;
+                if let Some(fields) = value.as_object_mut() {
+                    fields.insert("kind".into(), serde_json::Value::String(crate::oauth::OWN_SIGN_IN_KIND.into()));
+                }
+                list.serialize_element(&value)?;
             }
             None => list.serialize_element(account)?,
         }
@@ -888,6 +905,23 @@ impl Account {
         if user.is_empty() { self.email.trim() } else { user }
     }
 
+    /// Whether it signs in with an identity provider of the owner's own
+    /// ([`OAuthProvider::Custom`]).
+    pub fn signs_in_with_own_provider(&self) -> bool {
+        self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom)
+    }
+
+    /// The account's incoming or outgoing server that is Microsoft's or Google's
+    /// ([`crate::is_microsoft_or_google_host`]): one a sign-in with an own identity provider is
+    /// never sent to, so such an account can't name it (#1844 review).
+    pub fn microsoft_or_google_server(&self) -> Option<&str> {
+        [self.incoming.as_ref(), self.outgoing.as_ref()]
+            .into_iter()
+            .flatten()
+            .map(|server| server.host.as_str())
+            .find(|host| crate::is_microsoft_or_google_host(host))
+    }
+
     /// A Microsoft account (it signs in with Microsoft) that is still kept in step by IMAP and
     /// SMTP: one that can switch to Microsoft Graph (R3.7).
     pub fn on_imap_with_microsoft(&self) -> bool {
@@ -904,6 +938,11 @@ pub enum OAuthProvider {
     Microsoft,
     /// Gmail and Google Workspace over IMAP/SMTP XOAUTH2.
     Google,
+    /// The owner's own identity provider (an OpenID Connect or OAuth 2.0 server such as Keycloak
+    /// or Authentik) in front of their own IMAP and SMTP servers: its addresses, the client id
+    /// registered there and the rest are the account's own settings ([`OAuth::issuer`] and on),
+    /// not built in. Only an IMAP account signs in with one.
+    Custom,
 }
 
 impl OAuth {
@@ -927,6 +966,7 @@ impl OAuthProvider {
         match s.trim().to_ascii_lowercase().as_str() {
             "microsoft" | "outlook" | "office365" | "microsoft365" => Some(OAuthProvider::Microsoft),
             "google" | "gmail" | "googleworkspace" => Some(OAuthProvider::Google),
+            "custom" | "generic" | "oidc" | "own" => Some(OAuthProvider::Custom),
             _ => None,
         }
     }
@@ -935,6 +975,7 @@ impl OAuthProvider {
         match self {
             OAuthProvider::Microsoft => "microsoft",
             OAuthProvider::Google => "google",
+            OAuthProvider::Custom => "custom",
         }
     }
 
@@ -942,6 +983,7 @@ impl OAuthProvider {
         match self {
             OAuthProvider::Microsoft => "Microsoft",
             OAuthProvider::Google => "Google",
+            OAuthProvider::Custom => "your identity provider",
         }
     }
 }
@@ -951,6 +993,10 @@ impl OAuthProvider {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct OAuth {
+    /// Who signs the owner in. A file that names one this version doesn't know reads as
+    /// [`OAuthProvider::Custom`] with no addresses, which signs in nowhere until it is set up
+    /// again: never as Microsoft, whose page and hosts it would otherwise be given.
+    #[serde(deserialize_with = "crate::oauth::provider_read")]
     pub provider: OAuthProvider,
     /// The application (client) id presented to the provider; empty means the build's own.
     #[serde(skip_serializing_if = "String::is_empty")]
@@ -963,6 +1009,51 @@ pub struct OAuth {
     /// never the directory's id.
     #[serde(skip_serializing_if = "Directory::is_unknown", deserialize_with = "crate::sync::lenient_or_default")]
     pub directory: Directory,
+    /// [`OAuthProvider::Custom`]: the identity provider's own address (its issuer), from which
+    /// its sign-in and token addresses are found (OpenID Connect Discovery, RFC 8414). Empty when
+    /// the two addresses were typed by hand instead.
+    #[serde(skip_serializing_if = "String::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub issuer: String,
+    /// [`OAuthProvider::Custom`]: the page the owner signs in on (the authorization endpoint),
+    /// as found from the issuer or typed.
+    #[serde(skip_serializing_if = "String::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub authorize: String,
+    /// [`OAuthProvider::Custom`]: where a code or a refresh token is traded for tokens.
+    #[serde(skip_serializing_if = "String::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub token: String,
+    /// [`OAuthProvider::Custom`]: where a refresh token is given back when the account is
+    /// removed (RFC 7009); empty for none.
+    #[serde(skip_serializing_if = "String::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub revoke: String,
+    /// [`OAuthProvider::Custom`]: what the tokens are asked for on top of
+    /// [`crate::oauth::CUSTOM_SCOPE`], separated by spaces; empty for nothing more.
+    #[serde(skip_serializing_if = "String::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
+    pub scopes: String,
+    /// [`OAuthProvider::Custom`]: which of [`crate::oauth::CUSTOM_SCOPE`] the tokens are asked
+    /// for, separated by spaces, when the provider's description lists the scopes it has and some
+    /// of those aren't among them (a server may refuse a scope it doesn't know, RFC 6749 §3.3);
+    /// `None` for all of them.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub base_scopes: Option<String>,
+    /// [`OAuthProvider::Custom`]: how the mail servers are given the token.
+    #[serde(skip_serializing_if = "SaslChoice::is_auto", deserialize_with = "crate::sync::lenient_or_default")]
+    pub mechanism: SaslChoice,
+    /// The port on this computer the provider's page sends the owner back to; `None` for any
+    /// free one (what a provider that follows RFC 8252 §7.3 allows).
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub redirect_port: Option<u16>,
+    /// [`OAuthProvider::Custom`]: whether a client secret for it is kept in the system's
+    /// credential store. Never the secret itself.
+    #[serde(skip_serializing_if = "std::ops::Not::not", deserialize_with = "crate::sync::lenient_or_default")]
+    pub has_secret: bool,
+    /// [`OAuthProvider::Custom`]: how the client secret is sent to the token and revocation
+    /// addresses: in the `Authorization` header unless the provider takes it only in the form.
+    #[serde(skip_serializing_if = "ClientAuth::is_basic", deserialize_with = "crate::sync::lenient_or_default")]
+    pub client_auth: ClientAuth,
+    /// [`OAuthProvider::Custom`]: the provider says its page names itself when it sends the
+    /// owner back (RFC 9207), so an answer that doesn't is refused.
+    #[serde(skip_serializing_if = "std::ops::Not::not", deserialize_with = "crate::sync::lenient_or_default")]
+    pub issuer_in_response: bool,
 }
 
 /// A change made here to what a Microsoft account's server has that comparing with what the

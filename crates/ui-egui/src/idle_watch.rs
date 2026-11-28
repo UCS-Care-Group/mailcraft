@@ -196,7 +196,7 @@ impl MailApp {
         let a = self.session.mailbox.account(account)?;
         let mut request = SyncRequest { account: a.clone(), ..Default::default() };
         if a.oauth.is_some() {
-            let token = self.tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now() + 600))?;
+            let token = self.tokens.get(&account).filter(|t| t.fresh_for(mailcraft_time::now(), 600))?;
             request.access_token = token.access.clone();
         } else {
             request.password = self.passwords.get(&account).filter(|p| !p.is_empty())?.clone();

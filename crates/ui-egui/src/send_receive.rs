@@ -81,6 +81,7 @@ fn went_offline(app: &mut MailApp) {
     }
     app.session.driver.round.queue.clear();
     app.session.driver.round.inbox_queue.clear();
+    app.forget_retries_not_under_way();
     app.pause_fetch();
     // (A sender's image being looked up stops before its next request; none is kept.)
     app.sender_images = crate::sender_images::SenderImages::default();

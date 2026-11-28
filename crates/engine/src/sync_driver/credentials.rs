@@ -24,6 +24,8 @@ pub fn effective_oauth(mut oauth: OAuth, ids: &ClientIds) -> OAuth {
         let (chosen, built_in) = match oauth.provider {
             OAuthProvider::Microsoft => (ids.microsoft_chosen, ids.microsoft_built_in),
             OAuthProvider::Google => (ids.google_chosen, ids.google_built_in),
+            // (An own identity provider has no id but the one registered there.)
+            OAuthProvider::Custom => return oauth,
         };
         oauth.client_id = if chosen.is_empty() { built_in } else { chosen }.to_string();
     }
@@ -34,6 +36,12 @@ pub fn effective_oauth(mut oauth: OAuth, ids: &ClientIds) -> OAuth {
 /// is not the account. A Google identity must match the account's address, not an alternate IMAP
 /// user name (that name is plain editable mailbox data and cannot authorise another owner).
 pub fn signed_in_as_other(account: &Account, tokens: &Tokens) -> bool {
+    // An own identity provider's names needn't be the account's: the mail server's user name is
+    // often neither the address nor what the provider calls the owner. What signs in to the mail
+    // servers is the token, which they judge themselves.
+    if account.signs_in_with_own_provider() {
+        return false;
+    }
     if account.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Google) && !tokens.email.trim().is_empty() {
         !tokens.email.trim().eq_ignore_ascii_case(account.email.trim())
     } else {

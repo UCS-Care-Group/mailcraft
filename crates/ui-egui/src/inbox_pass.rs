@@ -207,7 +207,7 @@ impl MailApp {
         // A check every minute goes with the token it had a minute ago while that is still good,
         // as the calendar's job does: one request, not two.
         let access = if check {
-            self.graph_tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now() + 60)).map(|t| t.access.clone()).unwrap_or_default()
+            self.graph_tokens.get(&account).filter(|t| t.fresh_for(mailcraft_time::now(), 60)).map(|t| t.access.clone()).unwrap_or_default()
         } else {
             String::new()
         };

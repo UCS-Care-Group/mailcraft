@@ -3462,6 +3462,7 @@ dependencies = [
  "mailcraft-charset",
  "mailcraft-i18n",
  "proptest",
+ "serde_json",
 ]
 
 [[package]]

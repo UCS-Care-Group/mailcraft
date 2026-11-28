@@ -492,7 +492,7 @@ impl SendReceive {
         }
         let oauth = a.oauth.clone()?;
         let refresh = self.refresh_for(session, ctx, account)?;
-        Some(crate::fetch::Access::Renew { oauth: mailcraft_engine::sync_driver::effective_oauth(oauth, &ctx.ids), refresh })
+        Some(crate::fetch::Access::Renew { oauth: Box::new(mailcraft_engine::sync_driver::effective_oauth(oauth, &ctx.ids)), refresh })
     }
 
     fn start(&mut self, host: &Host, session: &mut Session, ctx: &Context, account: Id, quiet: bool) -> Step {
@@ -522,7 +522,7 @@ impl SendReceive {
             }
             Ok(MailStart::SignIn { oauth, address }) => {
                 session.sync_progress.leave_out(account);
-                return Step::SignIn { account, oauth: Box::new(mailcraft_engine::sync_driver::effective_oauth(oauth, &ctx.ids)), address };
+                return Step::SignIn { account, oauth: Box::new(mailcraft_engine::sync_driver::effective_oauth(*oauth, &ctx.ids)), address };
             }
             Err(MailRefusal::AccountGone) => {
                 session.sync_progress.leave_out(account);

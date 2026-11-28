@@ -37,6 +37,7 @@ pub mod messages;
 #[cfg(test)]
 mod messages_tests;
 mod note;
+pub mod oauth;
 mod offline;
 pub mod outlook_colors;
 pub mod pictures;
@@ -80,7 +81,7 @@ pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
 pub use dav_down::{DavAsk, DavAskCollection, DavCalendar, DavChange, DavDownload, DavKnown, DavListing, DavProblem, DavRead, DavReadState};
 pub use dav_server::{DavCollectionState, DavServer, origin_of};
 pub use device_limits::{DeviceLimits, PHONE_DEFAULTS, PHONE_DOWNLOAD, PHONE_KEEP, PHONE_STORAGE};
-pub use ews_server::{EwsServer, is_exchange_online, is_google_host, is_microsoft_domain, is_within};
+pub use ews_server::{EwsServer, is_exchange_online, is_google_host, is_microsoft_domain, is_microsoft_or_google_host, is_within};
 pub use gmail::{GmailCategory, is_gmail_host};
 pub use headers::{HeaderBlock, HeaderLine};
 pub use jmap_server::{JmapServer, MAX_JMAP_ID, is_jmap_id};
@@ -102,6 +103,7 @@ pub use message::{
 };
 pub use messages::Messages;
 pub use note::{JournalEntry, Note};
+pub use oauth::{ClientAuth, OAuthDefaults, SaslChoice};
 pub use offline::{KeepOffline, OfflineWindow};
 pub use outlook_colors::preset_category_color;
 pub use remote::{AccountChoice, Origin};

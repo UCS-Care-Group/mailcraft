@@ -416,6 +416,8 @@ const SAFE: &[&str] = &[
     "account.senderAddresses",
     "account.offlineSize",
     "account.preset",
+    // The values built in for a provider's sign-in: read only, never a secret.
+    "account.oauthDefaults",
     // What Send/Receive is doing, or did: read only.
     "sync.progress",
     // Calls off the run under way; nothing is sent or lost by it.
@@ -525,6 +527,8 @@ const ACCOUNTS: &[&str] = &[
     "account.remove",
     // An Exchange server account stops trusting the certificate its owner chose to trust (#252).
     "account.forgetEwsCertificate",
+    // An account's sign-in settings back to what is built in: where it signs in is the owner's.
+    "account.oauthRestoreDefaults",
     // Who the owner's mail can say it is from (#797).
     "account.setSenderAddresses",
     // Calendar and contacts servers (#209): choosing where an account's calendars and contacts
@@ -2273,6 +2277,27 @@ fn clip(s: &str, n: usize) -> String {
     if clean.chars().count() > n { format!("{}…", clean.chars().take(n).collect::<String>()) } else { clean.to_string() }
 }
 
+/// An address the owner's sign-in goes to, as an agent's request says it: a short one whole; a
+/// long one with its scheme, host and port always whole (where it goes), and only the path and
+/// query after them shortened, from their start and their end, so that two that differ late are
+/// told apart (#1844 review).
+fn address_said(address: &str) -> String {
+    let clean = clip(address, usize::MAX);
+    if clean.chars().count() <= 120 {
+        return clean;
+    }
+    // (`/`, `?` and `#` are ASCII: the cut is at a character's boundary.)
+    let after_scheme = clean.find("://").map_or(0, |at| at.saturating_add(3));
+    let end = clean.get(after_scheme..).and_then(|rest| rest.find(['/', '?', '#'])).map_or(clean.len(), |at| after_scheme.saturating_add(at));
+    let (origin, rest) = clean.split_at_checked(end).unwrap_or((clean.as_str(), ""));
+    if rest.chars().count() <= 80 {
+        return clean;
+    }
+    let head: String = rest.chars().take(38).collect();
+    let tail: String = rest.chars().rev().take(40).collect::<Vec<_>>().into_iter().rev().collect();
+    format!("{origin}{head}…{tail}")
+}
+
 fn quoted(s: &str) -> String {
     let c = clip(s, 80);
     if c.is_empty() { "(no subject)".to_string() } else { format!("\u{201c}{c}\u{201d}") }
@@ -3570,12 +3595,116 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
                 };
                 // The tick of a relay that takes mail without a sign-in (#836) is named: it decides
                 // whether the password is shown to the outgoing server.
-                match new.map(|new| new.outgoing_without_sign_in) {
+                match new.as_ref().map(|new| new.outgoing_without_sign_in) {
                     Some(true) if !account.outgoing_without_sign_in => {
                         text.push_str("; the outgoing server needs no sign-in (the password is never sent to it)");
                     }
                     Some(false) if account.outgoing_without_sign_in => text.push_str("; MailCraft signs in to the outgoing server again"),
                     _ => {}
+                }
+                // Where it signs in is named when that changes: that is where the owner's sign-in goes.
+                // (Compared whole, the revocation address among them, and only then clipped to be
+                // said: a change past what is shown still asks, #1844 review.)
+                let signs_in_at = |a: &mailcraft_model::Account| {
+                    a.oauth.as_ref().map(|o| {
+                        let used = o.effective();
+                        (o.provider, used.authorize, used.token, used.client_id, used.revoke, used.built_in_client)
+                    })
+                };
+                let was = signs_in_at(account);
+                if let Some(now) = new.as_ref().map(signs_in_at).filter(|now| *now != was) {
+                    match now {
+                        Some((mailcraft_model::OAuthProvider::Custom, page, token, client, revoke, _)) => {
+                            let said = address_said;
+                            text.push_str(&format!(
+                                "; it signs in with its own identity provider, on the page {}, with tokens from {}",
+                                said(&page),
+                                said(&token)
+                            ));
+                            // (What else changed is named too: where the refresh token goes when
+                            // the account is removed, and the client, #1844 review.)
+                            let before = was.as_ref().filter(|w| w.0 == mailcraft_model::OAuthProvider::Custom);
+                            if before.is_none_or(|w| w.4 != revoke) {
+                                if revoke.trim().is_empty() {
+                                    text.push_str("; it names no revocation address");
+                                } else {
+                                    text.push_str(&format!("; the refresh token is given back to {} when the account is removed", said(&revoke)));
+                                }
+                            }
+                            if before.is_none_or(|w| w.3 != client) {
+                                text.push_str(&format!("; as the client \u{201c}{}\u{201d}", clip(&client, 80)));
+                            }
+                        }
+                        Some((provider, _, _, client, _, built_in)) => {
+                            text.push_str(&format!("; it signs in with {}", provider.label()));
+                            // A built-in provider's sign-in re-pointed at another client (an
+                            // organisation's own registration) is named, and so is the way back
+                            // to MailCraft's own (#1844 review).
+                            let before = was.as_ref().filter(|w| w.0 == provider);
+                            let client_changed = match before {
+                                Some(w) => w.3 != client || w.5 != built_in,
+                                None => !built_in,
+                            };
+                            if client_changed {
+                                if built_in {
+                                    text.push_str(" as MailCraft's own client");
+                                } else {
+                                    text.push_str(&format!(" as the client \u{201c}{}\u{201d}", clip(&client, 80)));
+                                }
+                            }
+                        }
+                        None => text.push_str("; it signs in with a password"),
+                    }
+                }
+                // Which identity provider an own provider's sign-in names, and the permissions it
+                // asks it for, are named when they change (or first come with a switch to an own
+                // provider): the owner sees what the next sign-in asks for (#1844 review).
+                let asks = |a: &mailcraft_model::Account| {
+                    a.oauth.as_ref().filter(|o| o.provider == mailcraft_model::OAuthProvider::Custom).map(|o| {
+                        let used = o.effective();
+                        (used.issuer, used.scopes)
+                    })
+                };
+                if let Some((issuer, scopes)) = new.as_ref().and_then(asks) {
+                    let before = asks(account);
+                    if before.as_ref().is_none_or(|w| w.0 != issuer) {
+                        if issuer.is_empty() {
+                            text.push_str("; it names no identity provider (issuer) address");
+                        } else {
+                            text.push_str(&format!("; its identity provider is {}", address_said(&issuer)));
+                        }
+                    }
+                    if before.as_ref().is_none_or(|w| w.1 != scopes) {
+                        // (Every one, in full: the owner is never asked about what they can't read.
+                        // The list is capped where it is checked; the cap here only bounds junk.)
+                        let cap = mailcraft_model::oauth::MAX_SCOPES.saturating_add(mailcraft_model::oauth::CUSTOM_SCOPE.len()).saturating_add(1);
+                        let scopes = clip(&scopes, cap);
+                        if scopes.is_empty() {
+                            text.push_str("; it asks its identity provider for no permissions");
+                        } else {
+                            text.push_str(&format!("; it asks its identity provider for: {scopes}"));
+                        }
+                    }
+                }
+                // How an own provider is checked and how its client secret goes to it are named
+                // when they change: one switches off the RFC 9207 check (#1844 review).
+                let checks = |a: &mailcraft_model::Account| {
+                    a.oauth.as_ref().filter(|o| o.provider == mailcraft_model::OAuthProvider::Custom).map(|o| (o.issuer_in_response, o.client_auth))
+                };
+                if let (Some((named_was, auth_was)), Some((named, auth))) = (checks(account), new.as_ref().and_then(checks)) {
+                    match (named_was, named) {
+                        (true, false) => text.push_str(
+                            "; its identity provider's page no longer has to name itself when it sends the owner back (the RFC 9207 check is switched off)",
+                        ),
+                        (false, true) => text.push_str("; its identity provider's page has to name itself when it sends the owner back (RFC 9207)"),
+                        _ => {}
+                    }
+                    if auth_was != auth {
+                        text.push_str(match auth {
+                            mailcraft_model::ClientAuth::Basic => "; a client secret goes to the identity provider in the Authorization header",
+                            mailcraft_model::ClientAuth::Post => "; a client secret goes to the identity provider in the form",
+                        });
+                    }
                 }
                 text.push_str(&rules);
                 text.push_str(&reads);

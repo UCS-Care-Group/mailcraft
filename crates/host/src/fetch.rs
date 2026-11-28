@@ -41,7 +41,7 @@ pub enum Access {
     /// None is: one is had from the account's refresh token, as a Graph mail run has it.
     Renew {
         /// The account's sign-in settings, with the application id filled in.
-        oauth: mailcraft_model::OAuth,
+        oauth: Box<mailcraft_model::OAuth>,
         refresh: String,
     },
 }

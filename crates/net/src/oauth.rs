@@ -66,6 +66,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{Duration, Instant};
 
 use mailcraft_charset::base64::URL_SAFE_NO_PAD;
+use mailcraft_i18n::said;
 use mailcraft_model::sync::Tokens;
 use mailcraft_model::{OAuth, OAuthProvider};
 use mailcraft_proto::ProtoError;
@@ -100,21 +101,26 @@ const TOKEN_TIMEOUT: Duration = Duration::from_secs(20);
 /// How long an access token is taken to last when the server doesn't say, and the longest it is believed to.
 const DEFAULT_LIFETIME: i64 = 3_600;
 const MAX_LIFETIME: i64 = 7 * 24 * 3_600;
+/// The life a token is taken to have when the provider says it has none at all (0, or less):
+/// used as it comes, never renewed again and again before anything is done with it (seconds).
+/// A life it does say is kept as said, however short (#1844 review): a short token is kept fresh
+/// by the half-life margin ([`Tokens::fresh_for`]), not by a longer life it hasn't got.
+const MIN_LIFETIME: i64 = 60;
 
 /// Longest name or address taken from an identity token.
 const MAX_IDENTITY: usize = 254;
 
-const MICROSOFT_LOGIN: &str = "https://login.microsoftonline.com";
-const GOOGLE_AUTHORIZE: &str = "https://accounts.google.com/o/oauth2/v2/auth";
-const GOOGLE_TOKEN: &str = "https://oauth2.googleapis.com/token";
-const GOOGLE_SCOPE: &str = "https://mail.google.com/ openid email";
+// (The built-in values are the model's, so that what the settings show is what is used.)
+const MICROSOFT_LOGIN: &str = mailcraft_model::oauth::MICROSOFT_LOGIN;
+const GOOGLE_AUTHORIZE: &str = mailcraft_model::oauth::GOOGLE_AUTHORIZE;
+const GOOGLE_TOKEN: &str = mailcraft_model::oauth::GOOGLE_TOKEN;
+const GOOGLE_SCOPE: &str = mailcraft_model::oauth::GOOGLE_SCOPE;
 const GOOGLE_DESKTOP_SECRET: &str = match option_env!("MAILCRAFT_GOOGLE_CLIENT_SECRET") {
     Some(secret) => secret,
     None => "",
 };
 /// IMAP and SMTP, a refresh token to go with the access token, and who it is that signed in.
-const MICROSOFT_SCOPE: &str =
-    "https://outlook.office.com/IMAP.AccessAsUser.All https://outlook.office.com/SMTP.Send offline_access openid profile email";
+const MICROSOFT_SCOPE: &str = mailcraft_model::oauth::MICROSOFT_MAIL_SCOPE;
 /// Microsoft Graph: sending mail, reading the calendar and writing to it (events made, moved,
 /// changed and deleted here go back to the server), and reading the contacts. A sign-in from
 /// before the calendar was written to agreed to reading it only: its refresh token gets no
@@ -356,6 +362,12 @@ impl Endpoints {
                 fewer: String::new(),
                 lesser: String::new(),
             },
+            // The owner's own identity provider: its addresses are the account's own settings,
+            // and it is asked for mail and nothing else (it has no Microsoft Graph).
+            OAuthProvider::Custom => {
+                let used = oauth.effective();
+                Endpoints { authorize: used.authorize, token: used.token, scope: used.scopes, ..Endpoints::default() }
+            }
         }
     }
 }
@@ -400,6 +412,9 @@ pub fn sign_in_for(oauth: &OAuth, login_hint: &str, open: &dyn Fn(&str), cancel:
     if oauth.provider == OAuthProvider::Google && resource != Resource::Mail {
         return Err(NetError::Config("Google sign-in supports mail only, not Microsoft Graph".into()));
     }
+    if oauth.provider == OAuthProvider::Custom && resource != Resource::Mail {
+        return Err(NetError::Config(said!("a sign-in with your own identity provider is for mail only, not Microsoft Graph")));
+    }
     let mut endpoints = Endpoints::for_resource(oauth, resource);
     // (An Outlook.com address is a personal account whatever the settings know yet.)
     if resource != Resource::Mail && oauth.is_personal(login_hint) {
@@ -420,6 +435,11 @@ pub fn sign_in_at(endpoints: &Endpoints, oauth: &OAuth, login_hint: &str, open: 
     if oauth.provider == OAuthProvider::Google {
         return sign_in_google_at(endpoints, oauth, GOOGLE_DESKTOP_SECRET, login_hint, open, cancel);
     }
+    // (Its addresses are its settings': a public client, with no secret. One with a secret signs
+    // in with [`sign_in_custom`], which the host hands it to.)
+    if oauth.provider == OAuthProvider::Custom {
+        return sign_in_custom(&at_endpoints(oauth, endpoints), "", login_hint, open, cancel);
+    }
     sign_in_within(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT)
 }
 
@@ -434,6 +454,10 @@ pub fn sign_in_explained(
 ) -> Result<Tokens, SignInEnd> {
     if oauth.provider == OAuthProvider::Google {
         return google::sign_in_google_refused(endpoints, oauth, GOOGLE_DESKTOP_SECRET, login_hint, open, cancel, SIGN_IN_TIMEOUT)
+            .map_err(SignInEnd::from);
+    }
+    if oauth.provider == OAuthProvider::Custom {
+        return custom::sign_in_custom_refused(&at_endpoints(oauth, endpoints), "", login_hint, open, cancel, SIGN_IN_TIMEOUT)
             .map_err(SignInEnd::from);
     }
     sign_in_refused(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT).map_err(SignInEnd::from)
@@ -1260,6 +1284,12 @@ pub fn refresh_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str) -> 
 /// [`refresh_for`] at endpoints other than the provider's usual ones: the tokens are asked for
 /// [`Endpoints::scope`], and a refusal is read as one of a token for `resource`.
 pub fn refresh_for_at(endpoints: &Endpoints, oauth: &OAuth, refresh_token: &str, resource: Resource) -> Result<Tokens, NetError> {
+    if oauth.provider == OAuthProvider::Custom {
+        if resource != Resource::Mail {
+            return Err(NetError::Config(said!("a sign-in with your own identity provider is for mail only, not Microsoft Graph")));
+        }
+        return refresh_custom(&at_endpoints(oauth, endpoints), "", refresh_token);
+    }
     if oauth.provider == OAuthProvider::Google {
         if resource != Resource::Mail {
             return Err(NetError::Config("Google sign-in supports mail only, not Microsoft Graph".into()));
@@ -1646,11 +1676,17 @@ fn tokens_from(answer: &Answer, earlier_refresh: &str, now: i64, secrets: &[&str
         Some(Value::String(s)) => s.trim().parse::<i64>().ok(),
         _ => None,
     };
-    let lifetime = lifetime.unwrap_or(DEFAULT_LIFETIME).clamp(0, MAX_LIFETIME);
+    // (Its life as the provider said it, up to a week; one said to be none at all, a minute.)
+    let lifetime = match lifetime {
+        Some(seconds) if seconds > 0 => seconds.min(MAX_LIFETIME),
+        Some(_) => MIN_LIFETIME,
+        None => DEFAULT_LIFETIME,
+    };
     Ok(Tokens {
         access: access.to_string(),
         refresh: refresh.to_string(),
         expires_at: now.saturating_add(lifetime),
+        issued_at: now,
         granted_scope: text("scope").chars().take(4096).collect(),
         ..identity(text("id_token"))
     })
@@ -1971,9 +2007,22 @@ impl Redirect {
         Redirect::listen_avoiding(blocked_port)
     }
 
+    /// Listen on `port` of 127.0.0.1 alone: for a provider whose registration names the port, with
+    /// a redirect to the IP literal (no browser takes `127.0.0.1` to be IPv6). A port somebody
+    /// else has is refused rather than another taken: the provider wouldn't send the owner there.
+    fn listen_at(port: u16) -> Result<Redirect, NetError> {
+        if port == 0 || blocked_port(port) {
+            return Err(NetError::Config(said!("that redirect port can't be used: choose another, or automatic")));
+        }
+        let v4 = TcpListener::bind((Ipv4Addr::LOCALHOST, port))
+            .map_err(|_| NetError::Config(said!("port {port} on this computer is in use: choose another redirect port, or automatic", port)))?;
+        v4.set_nonblocking(true).map_err(|_| NetError::Config(said!("couldn't open a port on this computer for the sign-in to come back to")))?;
+        Ok(Redirect { listeners: vec![v4], port })
+    }
+
     /// [`listen`](Self::listen) with the test for a port a browser refuses given, so a test can drive it.
     fn listen_avoiding(blocked: impl Fn(u16) -> bool) -> Result<Redirect, NetError> {
-        let failed = || NetError::Config("couldn't open a port on this computer for the sign-in to come back to".into());
+        let failed = || NetError::Config(said!("couldn't open a port on this computer for the sign-in to come back to"));
         for attempt in 1..=MAX_PORT_TRIES {
             let v4 = TcpListener::bind((Ipv4Addr::LOCALHOST, 0)).map_err(|_| failed())?;
             let port = v4.local_addr().map_err(|_| failed())?.port();
@@ -2095,8 +2144,8 @@ pub fn sign_in_via(
     if matches!(via, RedirectStrategy::Loopback) {
         return sign_in_at(endpoints, oauth, login_hint, open, cancel);
     }
-    if oauth.provider == OAuthProvider::Google {
-        return Err(NetError::Config("Google sign-in comes back through a loopback port only".into()));
+    if oauth.provider != OAuthProvider::Microsoft {
+        return Err(NetError::Config(said!("a sign-in with {provider} comes back through a loopback port only", provider = oauth.provider.label())));
     }
     sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, via).map_err(|refused| refused.error)
 }
@@ -2113,15 +2162,38 @@ pub fn sign_in_explained_via(
     if matches!(via, RedirectStrategy::Loopback) {
         return sign_in_explained(endpoints, oauth, login_hint, open, cancel);
     }
-    if oauth.provider == OAuthProvider::Google {
-        return Err(SignInEnd::Other(NetError::Config("Google sign-in comes back through a loopback port only".into())));
+    if oauth.provider != OAuthProvider::Microsoft {
+        return Err(SignInEnd::Other(NetError::Config(said!(
+            "a sign-in with {provider} comes back through a loopback port only",
+            provider = oauth.provider.label()
+        ))));
     }
     sign_in_refused_via(endpoints, oauth, login_hint, open, cancel, SIGN_IN_TIMEOUT, via).map_err(SignInEnd::from)
 }
 
 mod google;
 pub use google::{refresh_google_at, sign_in_google_at};
+mod custom;
+pub use custom::{refresh_custom, revoke_custom, sign_in_custom, sign_in_custom_explained};
 
+/// An own identity provider's settings with the addresses `endpoints` gives in place of its own
+/// (what the `…_at` functions are for).
+fn at_endpoints(oauth: &OAuth, endpoints: &Endpoints) -> OAuth {
+    let mut oauth = oauth.clone();
+    if !endpoints.authorize.trim().is_empty() {
+        oauth.authorize = endpoints.authorize.clone();
+    }
+    if !endpoints.token.trim().is_empty() {
+        oauth.token = endpoints.token.clone();
+    }
+    oauth
+}
+pub mod discovery;
+
+#[cfg(test)]
+mod custom_tests;
+#[cfg(test)]
+mod discovery_tests;
 #[cfg(test)]
 mod google_tests;
 #[cfg(test)]

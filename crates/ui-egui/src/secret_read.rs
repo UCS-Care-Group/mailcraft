@@ -94,6 +94,14 @@ impl MailApp {
                 })
             })
             .collect();
+        // The client secret of an account that signs in with an own identity provider and has one.
+        let clients = self
+            .session
+            .mailbox
+            .accounts
+            .iter()
+            .filter(|a| a.oauth.as_ref().is_some_and(|o| o.has_secret && o.provider == mailcraft_model::OAuthProvider::Custom));
+        asks.extend(clients.map(|a| Ask { key: Self::secret_key(mailcraft_host::secrets::OAUTH_CLIENT, a), old: None }));
         // The addresses of the calendars subscribed to, which may hold a secret (#209): kept like a password.
         let subscribed = self
             .session
@@ -192,9 +200,14 @@ impl MailApp {
         if a.kind == mailcraft_model::AccountKind::Jmap {
             return false;
         }
-        if a.oauth.is_some() {
+        if let Some(oauth) = &a.oauth {
             let kept = self.tokens.get(&account).or(self.graph_tokens.get(&account)).is_some_and(|t| !t.refresh.is_empty());
-            !kept && !self.secret_cache.contains_key(&Self::secret_key("refresh", a))
+            // An own provider's client secret is asked for too: a refresh token alone can't be used.
+            let client_missing = oauth.provider == mailcraft_model::OAuthProvider::Custom
+                && oauth.has_secret
+                && !self.client_secrets.contains_key(&account)
+                && !self.secret_cache.contains_key(&Self::secret_key(mailcraft_host::secrets::OAUTH_CLIENT, a));
+            client_missing || !kept && !self.secret_cache.contains_key(&Self::secret_key("refresh", a))
         } else {
             !self.passwords.contains_key(&account) && !self.secret_cache.contains_key(&Self::secret_key("password", a))
         }

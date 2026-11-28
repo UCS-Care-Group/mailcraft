@@ -321,7 +321,16 @@ pub(crate) fn get(url: &Url, headers: &[(&str, &str)], patience: Duration) -> Re
 /// POST `fields` as a form to `url`, asking for JSON, and read the answer, whatever its status.
 /// Connecting may take `patience`, and so may the answer.
 pub(crate) fn post_form(url: &Url, fields: &[(&str, &str)], patience: Duration) -> Result<Answer, NetError> {
-    let headers = [("Accept", "application/json"), ("Content-Type", "application/x-www-form-urlencoded")];
+    post_form_as(url, fields, None, patience)
+}
+
+/// [`post_form`] with an `Authorization` header when `authorization` is one (a client's
+/// credentials, RFC 6749 §2.3.1). The caller keeps it out of errors and logs, as the form's secrets.
+pub(crate) fn post_form_as(url: &Url, fields: &[(&str, &str)], authorization: Option<&str>, patience: Duration) -> Result<Answer, NetError> {
+    let mut headers = vec![("Accept", "application/json"), ("Content-Type", "application/x-www-form-urlencoded")];
+    if let Some(authorization) = authorization {
+        headers.push(("Authorization", authorization));
+    }
     send(url, "POST", &headers, Some(&form(fields)), patience)
 }
 

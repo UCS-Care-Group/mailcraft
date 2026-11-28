@@ -791,7 +791,13 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
     // and that is what is said.
     let no_browser = AtomicBool::new(false);
     let open = |url: &str| {
-        if !open_page(url) {
+        // (What the log is told: that the page was asked for and how that went; never its address,
+        // which names the client and the owner.)
+        log::info!("sign-in: asking the browser to open the provider's page");
+        if open_page(url) {
+            log::info!("sign-in: the browser took the page; waiting for it to come back to this computer");
+        } else {
+            log::warn!("sign-in: no browser could be started for the provider's page");
             no_browser.store(true, Ordering::Relaxed);
             request.cancel.store(true, Ordering::Relaxed);
         }
@@ -822,11 +828,13 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
             mailcraft_net::oauth::sign_in_google_explained_at(
                 endpoints,
                 &request.oauth,
-                &request.google_client_secret,
+                &request.client_secret,
                 &request.email,
                 &open,
                 &request.cancel,
             )
+        } else if request.oauth.provider == mailcraft_model::OAuthProvider::Custom {
+            mailcraft_net::oauth::sign_in_custom_explained(&request.oauth, &request.client_secret, &request.email, &open, &request.cancel)
         } else {
             mailcraft_net::oauth::sign_in_explained(endpoints, &request.oauth, &request.email, &open, &request.cancel)
         };
@@ -843,7 +851,7 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
                 SignInEnd::Cancelled => ("it was called off", mailcraft_net::NetError::SignInCancelled.to_string()),
                 // Never hand a potentially sensitive provider response to the window or log.
                 SignInEnd::Other(_) if google => ("it failed", "Google could not complete sign-in. Please retry or use an app password.".into()),
-                SignInEnd::Other(e) => ("it failed", e.to_string()),
+                SignInEnd::Other(e) => ("it failed", in_window_language(&e)),
             };
             // The failure category is enough; no account identifier belongs in this log.
             log::info!("sign-in on the provider's page: {how}");
@@ -858,11 +866,20 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
         return on_the_page(&Endpoints::for_resource(&request.oauth, resource));
     }
     if !request.refresh.is_empty() {
+        log::info!("sign-in: renewing with the refresh token");
         let refreshed = if request.oauth.provider == mailcraft_model::OAuthProvider::Google {
-            mailcraft_net::oauth::refresh_google_at(&Endpoints::of(&request.oauth), &request.oauth, &request.google_client_secret, &request.refresh)
+            mailcraft_net::oauth::refresh_google_at(&Endpoints::of(&request.oauth), &request.oauth, &request.client_secret, &request.refresh)
+        } else if request.oauth.provider == mailcraft_model::OAuthProvider::Custom {
+            mailcraft_net::oauth::refresh_custom(&request.oauth, &request.client_secret, &request.refresh)
         } else {
             mailcraft_net::oauth::refresh(&request.oauth, &request.refresh)
         };
+        match &refreshed {
+            Ok(_) => log::info!("sign-in: renewed"),
+            Err(e) if e.is_refused_sign_in() => log::info!("sign-in: the provider refused the renewal; its page is next if the owner asked"),
+            Err(e) if e.is_unreachable() => log::info!("sign-in: the provider couldn't be reached for the renewal"),
+            Err(_) => log::info!("sign-in: the renewal failed"),
+        }
         match refreshed {
             Ok(tokens) => return Ok(tokens),
             // The machine-readable invalid_grant response confirms this Google refresh
@@ -876,7 +893,7 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
             Err(_) if request.oauth.provider == mailcraft_model::OAuthProvider::Google => {
                 return Err("Google sign-in could not reach the authorization server. Retry later.".into());
             }
-            Err(e) => return Err(e.to_string()),
+            Err(e) => return Err(in_window_language(&e)),
         }
     }
     // Nobody asked for this run: no page is put in front of the owner.
@@ -892,6 +909,13 @@ fn sign_in_with(request: SignInRequest, open_page: &dyn Fn(&str) -> bool) -> Res
         return on_the_page(&mail);
     }
     on_the_page(&Endpoints::of(&request.oauth))
+}
+
+/// What a sign-in or an identity provider's Discover came to, in the window's language: the words
+/// that are MailCraft's own are translated (`said!` in `mailcraft-net`), what a provider or the
+/// system said stays as it was said.
+fn in_window_language(e: &mailcraft_net::NetError) -> String {
+    e.said().in_lang(mailcraft_ui_egui::i18n::current())
 }
 
 /// Have an administrator approve this program for an organisation: Microsoft's admin-consent
@@ -1189,6 +1213,7 @@ fn services(
     let pst_ctx = ctx.clone();
     let alert_ctx = ctx.clone();
     let autodiscover_ctx = ctx.clone();
+    let oauth_discover_ctx = ctx.clone();
     let (keys_ctx, keys_store) = (ctx.clone(), secrets::store());
     let attachment_preview = attachment_render::service(&ctx);
     let (sync_ctx, sign_in_ctx, graph_ctx, mx_ctx, test_ctx) = (ctx.clone(), ctx.clone(), ctx.clone(), ctx.clone(), ctx);
@@ -1311,6 +1336,32 @@ fn services(
         })),
         discover: Some(Box::new(move |domain| {
             background(&mx_ctx, "server discovery", move || mailcraft_net::discover(&domain).map_err(|e| e.to_string()))
+        })),
+        oauth_discover: Some(Box::new(move |issuer: String| {
+            background(&oauth_discover_ctx, "identity provider discovery", move || {
+                mailcraft_net::oauth::discovery::discover(&issuer)
+                    .map(|found| mailcraft_ui_egui::OAuthFound {
+                        no_refresh: found.lacks_offline_access(),
+                        base_scopes: found.base_scopes(),
+                        authorize: found.authorize,
+                        token: found.token,
+                        revoke: found.revoke,
+                        outside: found.outside,
+                        client_auth: found.client_auth,
+                        issuer_in_response: found.issuer_in_response,
+                    })
+                    .map_err(|e| in_window_language(&e))
+            })
+        })),
+        revoke_sign_in: Some(Box::new(|oauth: mailcraft_model::OAuth, secret: String, refresh: String| {
+            let started = std::thread::Builder::new().name("give back a sign-in".into()).spawn(move || {
+                if mailcraft_net::oauth::revoke_custom(&oauth, &secret, &refresh).is_err() {
+                    log::info!("the identity provider couldn't be told to forget a removed account's sign-in");
+                }
+            });
+            if started.is_err() {
+                log::info!("couldn't start giving a removed account's sign-in back");
+            }
         })),
         lookup_autodiscover: Some(Box::new(move |domain| {
             background(&autodiscover_ctx, "autodiscover records", move || mailcraft_net::autodiscover_hosts(&domain).map_err(|e| e.to_string()))

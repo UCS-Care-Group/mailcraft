@@ -22,7 +22,7 @@ use mailcraft_model::sync::{
     FolderDelta, FolderState, GmailLabels, GmailSorted, MAX_GMAIL_MOVES, MAX_TRIES, RemoteFlags, RemoteOp, SyncPhase, SyncRequest, SyncResult,
     SyncStage, SyncStep,
 };
-use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, Security, Server};
+use mailcraft_model::{Account, Body, FlagStatus, FolderKind, GmailCategory, Id, Message, OAuthProvider, SaslChoice, Security, Server};
 use mailcraft_proto::ProtoError;
 use mailcraft_proto::imap::{Fetched, FolderStatus, Imap, Mailbox, uid_sets};
 use mailcraft_time::{Date, DateTime, Timestamp};
@@ -436,7 +436,29 @@ pub fn token_may_go_to(account: &Account, server: &Server, google_host: &str) ->
             }
             Err(NetError::Config(said!("a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server")))
         }
+        Some(OAuthProvider::Custom) => own_provider_destination(account, &server.host),
     }
+}
+
+/// Where a token from the owner's own identity provider may go: the account's own IMAP and SMTP
+/// servers, and never Microsoft's or Google's (they have providers of their own), nor this
+/// computer outside a test.
+fn own_provider_destination(account: &Account, host: &str) -> Result<(), NetError> {
+    let host = host.trim().trim_end_matches('.').to_ascii_lowercase();
+    let named = |server: Option<&Server>| server.is_some_and(|s| s.host.trim().trim_end_matches('.').eq_ignore_ascii_case(&host));
+    if host.is_empty() || !(named(account.incoming.as_ref()) || named(account.outgoing.as_ref())) {
+        return Err(NetError::Config(said!("a sign-in with your identity provider is only used with this account's own mail servers")));
+    }
+    // (Microsoft's mail hosts in every one of its clouds, office365.us and .cn among them, #1844
+    // review.)
+    // (The same check refuses such an account's settings in `account.edit`.)
+    if mailcraft_model::is_microsoft_or_google_host(&host) {
+        return Err(NetError::Config(said!("a sign-in with your identity provider is never sent to Microsoft's or Google's mail servers")));
+    }
+    if crate::transport::is_loopback(&host) && !microsoft_loopback_allowed() {
+        return Err(NetError::Config(said!("a sign-in with your identity provider is only sent to a mail server on this computer in a test")));
+    }
+    Ok(())
 }
 
 /// Whether a fake server on this computer may stand in for Microsoft's mail servers: in this
@@ -523,12 +545,42 @@ pub(crate) fn open_imap_with<'a>(
     if imap.is_authenticated() {
         return Ok(imap);
     }
-    if account.oauth.is_some() {
-        imap.authenticate_xoauth2(user, secret)?;
-    } else {
-        imap.authenticate_password(user, secret)?;
+    match account.oauth.as_ref() {
+        Some(oauth) if oauth.provider == OAuthProvider::Custom => {
+            // What the server takes is known once it has said what it can do.
+            if !imap.offers_mechanism("OAUTHBEARER") && !imap.offers_mechanism("XOAUTH2") {
+                imap.capabilities()?;
+            }
+            let (bearer, xoauth2) = (imap.offers_mechanism("OAUTHBEARER"), imap.offers_mechanism("XOAUTH2"));
+            match token_mechanism(oauth.mechanism, bearer, xoauth2)? {
+                SaslChoice::XOAuth2 => imap.authenticate_xoauth2(user, secret)?,
+                _ => imap.authenticate_oauthbearer(user, server.host.trim(), server.port, secret)?,
+            }
+        }
+        Some(_) => imap.authenticate_xoauth2(user, secret)?,
+        None => imap.authenticate_password(user, secret)?,
     }
     Ok(imap)
+}
+
+/// How a token from an own identity provider is given to a server that offers OAUTHBEARER
+/// (`bearer`) and XOAUTH2 (`xoauth2`) as it does: the account's choice, when the server offers
+/// it; by itself, OAUTHBEARER first. A server that offers neither (or not the one chosen) is
+/// never shown the token.
+pub(crate) fn token_mechanism(choice: SaslChoice, bearer: bool, xoauth2: bool) -> Result<SaslChoice, NetError> {
+    match (choice, bearer, xoauth2) {
+        (SaslChoice::OAuthBearer | SaslChoice::Auto, true, _) => Ok(SaslChoice::OAuthBearer),
+        (SaslChoice::XOAuth2 | SaslChoice::Auto, _, true) => Ok(SaslChoice::XOAuth2),
+        (SaslChoice::OAuthBearer, false, _) => Err(NetError::Proto(ProtoError::Auth(said!(
+            "the server doesn't take a token with OAUTHBEARER, which this account's OAuth settings ask for"
+        )))),
+        (SaslChoice::XOAuth2, _, false) => {
+            Err(NetError::Proto(ProtoError::Auth(said!("the server doesn't take a token with XOAUTH2, which this account's OAuth settings ask for"))))
+        }
+        (SaslChoice::Auto, false, false) => Err(NetError::Proto(ProtoError::Auth(said!(
+            "the server offers no way to sign in with an access token (neither OAUTHBEARER nor XOAUTH2)"
+        )))),
+    }
 }
 
 /// What Exchange calls, in English, the folders of a mailbox that are no folders of mail to

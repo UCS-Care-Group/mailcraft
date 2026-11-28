@@ -225,3 +225,47 @@ proptest! {
         }
     }
 }
+
+/// [`DOCUMENT`] with an `oAuth2` block naming `issuer`.
+fn with_issuer(issuer: &str) -> String {
+    DOCUMENT.replace(
+        r#"  <clientConfigUpdate"#,
+        &format!("  <oAuth2>\n    <issuer>{issuer}</issuer>\n    <scope>openid email</scope>\n  </oAuth2>\n  <clientConfigUpdate"),
+    )
+}
+
+#[test]
+fn the_identity_provider_is_taken_for_an_incoming_server_that_signs_in_with_oauth2() {
+    let config = read(with_issuer("https://id.example.org/realms/mail").as_bytes()).unwrap().unwrap();
+    assert_eq!(config.oauth_issuer, "https://id.example.org/realms/mail");
+    // A bare host, as some documents write it, is that host's address.
+    let config = read(with_issuer("id.example.org").as_bytes()).unwrap().unwrap();
+    assert_eq!(config.oauth_issuer, "https://id.example.org");
+    // Without it, nothing.
+    assert_eq!(read(DOCUMENT.as_bytes()).unwrap().unwrap().oauth_issuer, "");
+}
+
+#[test]
+fn no_issuer_is_taken_for_a_server_that_doesnt_sign_in_with_oauth2() {
+    // The server taken (SSL) is the one that lists OAuth2; with it taken out, none does.
+    let password_only = with_issuer("https://id.example.org").replace("      <authentication>OAuth2</authentication>\n", "");
+    assert_eq!(read(password_only.as_bytes()).unwrap().unwrap().oauth_issuer, "");
+}
+
+#[test]
+fn an_issuer_that_cant_be_used_is_left_out() {
+    for issuer in [
+        "http://id.example.org",
+        "https://user:pw@id.example.org",
+        "https://id.example.org/?x=1",
+        "javascript:alert(1)",
+        "not a host",
+        "https://id.example.org/&#10;x",
+        "&custom;",
+    ] {
+        let config = read(with_issuer(issuer).as_bytes()).ok().flatten();
+        assert_eq!(config.map(|c| c.oauth_issuer).unwrap_or_default(), "", "{issuer:?}");
+    }
+    let long = format!("https://id.example.org/{}", "a".repeat(5_000));
+    assert_eq!(read(with_issuer(&long).as_bytes()).unwrap().unwrap().oauth_issuer, "");
+}

@@ -145,6 +145,7 @@ impl MailApp {
         self.session.driver.round.queue.clear();
         self.session.driver.round.inbox_queue.clear();
         self.session.driver.round.push_only_next.clear();
+        self.token_retried.clear();
         self.shared_checking.clear();
         self.session.sync_progress = Default::default();
         self.session.sync_status.clear();

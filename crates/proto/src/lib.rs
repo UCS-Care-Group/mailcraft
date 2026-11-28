@@ -17,7 +17,10 @@ use mailcraft_i18n::{Arg, Text, said};
 
 pub mod imap;
 mod line;
+mod oauthbearer;
 pub use line::DamagedStream;
+pub use oauthbearer::SaslFailure;
+pub(crate) use oauthbearer::{FAILURE_ANSWER, oauthbearer};
 pub mod smtp;
 
 #[cfg(test)]

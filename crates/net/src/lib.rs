@@ -88,6 +88,9 @@ mod xml_text;
 // (`cfg(test)` on its own line: that is how clippy knows test code, which may unwrap.)
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]
+mod custom_oauth_sync_tests;
+#[cfg(test)]
+#[cfg(not(target_arch = "wasm32"))]
 mod fake;
 #[cfg(test)]
 #[cfg(not(target_arch = "wasm32"))]

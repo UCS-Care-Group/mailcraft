@@ -48,8 +48,10 @@ USAGE:
                                                 Send/Receive with the account's mail server; the
                                                 password is read from MAILCRAFT_PASSWORD. An account
                                                 that signs in on its provider's page prints the
-                                                page to open (application id: MAILCRAFT_MS_CLIENT_ID),
-                                                or takes a token from MAILCRAFT_ACCESS_TOKEN
+                                                page to open (application id: MAILCRAFT_MS_CLIENT_ID;
+                                                an own provider's client secret:
+                                                MAILCRAFT_CLIENT_SECRET), or takes a token from
+                                                MAILCRAFT_ACCESS_TOKEN
   mailcraft-cli detect <address> [--offline]    the mail servers and sign-in an address usually
                                                 takes; for a domain it doesn't know it asks the
                                                 DNS who takes the domain's mail (only the domain
@@ -222,6 +224,10 @@ fn write_stdout(write: impl FnOnce(&mut std::io::StdoutLock<'static>) -> std::io
 
 /// What `sync` says when the owner signed in on the provider's page as somebody other than the
 /// account (#103): nothing of that sign-in is used. (It names nobody: this is printed.)
+/// Why a sign-in at an own identity provider whose client has a secret doesn't start: the command
+/// line takes the secret from the environment only.
+const CLIENT_SECRET_NEEDED: &str = "sync: this account's identity provider wants its client secret: set MAILCRAFT_CLIENT_SECRET to it";
+
 const SOMEONE_ELSE: &str = "sync: you signed in as somebody other than this account; sign in again with the account's own address";
 
 /// `sync` for an account kept in step through Microsoft Graph: the folder changes made here go
@@ -596,8 +602,12 @@ fn run(args: &[String]) -> Result<(), Failure> {
                                     mailcraft_model::OAuthProvider::Google => {
                                         ("MAILCRAFT_GOOGLE_CLIENT_ID", option_env!("MAILCRAFT_GOOGLE_CLIENT_ID").unwrap_or_default())
                                     }
+                                    // (Its client id is the account's own setting: there is no other.)
+                                    mailcraft_model::OAuthProvider::Custom => ("", ""),
                                 };
-                                oauth.client_id = std::env::var(variable).unwrap_or_else(|_| built_in.to_string());
+                                if !variable.is_empty() {
+                                    oauth.client_id = std::env::var(variable).unwrap_or_else(|_| built_in.to_string());
+                                }
                             }
                             let open = |url: &str| {
                                 eprintln!(
@@ -609,6 +619,16 @@ fn run(args: &[String]) -> Result<(), Failure> {
                             let signed_in = match oauth.provider {
                                 mailcraft_model::OAuthProvider::Microsoft => {
                                     mailcraft_net::oauth::sign_in(&oauth, &request.account.email, &open, &cancel)
+                                }
+                                // An own provider's client secret, when its client has one, comes
+                                // from the environment as the other secrets do (the desktop
+                                // program keeps it in the system's credential store).
+                                mailcraft_model::OAuthProvider::Custom => {
+                                    let secret = std::env::var("MAILCRAFT_CLIENT_SECRET").unwrap_or_default();
+                                    if oauth.has_secret && secret.is_empty() {
+                                        return Err(CLIENT_SECRET_NEEDED.into());
+                                    }
+                                    mailcraft_net::oauth::sign_in_custom(&oauth, &secret, &request.account.email, &open, &cancel)
                                 }
                                 mailcraft_model::OAuthProvider::Google => {
                                     let default = option_env!("MAILCRAFT_GOOGLE_CLIENT_SECRET").unwrap_or_default();
@@ -624,7 +644,9 @@ fn run(args: &[String]) -> Result<(), Failure> {
                                 }
                             };
                             let tokens = signed_in.map_err(|e| format!("sync: {e}"))?;
-                            if tokens.someone_else(&request.account.email, &request.account.username) {
+                            // (As the window judges it: an own provider's names needn't be the
+                            // account's; the mail servers judge its token, #1844 review.)
+                            if mailcraft_engine::sync_driver::signed_in_as_other(&request.account, &tokens) {
                                 return Err(SOMEONE_ELSE.to_string().into());
                             }
                             tokens.access

@@ -696,16 +696,37 @@ fn send_receive_signs_in_first_for_an_account_without_a_password() {
     a.poll_sync();
     assert_eq!((asked.lock().unwrap().len(), synced.lock().unwrap().len()), (1, 2));
 
-    // The server refuses the token: the next run renews it with the refresh token.
+    // The server refuses the token: the same Send/Receive renews it with the refresh token and
+    // goes again, nobody having to press anything.
     refuse.store(true, Ordering::Relaxed);
     a.execute("ui.sync", json!({"account": id})).unwrap();
+    refuse.store(false, Ordering::Relaxed);
+    *answer.lock().unwrap() = Some(good("tok-2"));
     a.poll_sync();
+    assert!(a.signing_in(), "the refused token is renewed at once");
+    a.poll_sign_in();
+    assert!(a.syncing(), "and the run goes again");
+    a.poll_sync();
+    assert_eq!(asked.lock().unwrap().last().unwrap().1, "ref-1");
+    assert_eq!(synced.lock().unwrap().last().unwrap().0, "tok-2");
+    assert!(!a.signing_in() && !a.syncing());
+
+    // Refused again with the renewed token: tried once more, never in a loop; the next
+    // Send/Receive renews it.
+    let (signs, runs) = (asked.lock().unwrap().len(), synced.lock().unwrap().len());
+    refuse.store(true, Ordering::Relaxed);
+    *answer.lock().unwrap() = Some(good("tok-x"));
+    a.execute("ui.sync", json!({"account": id})).unwrap();
+    a.poll_sync();
+    a.poll_sign_in();
+    a.poll_sync();
+    assert!(!a.signing_in() && !a.syncing(), "a second refusal waits for the next Send/Receive");
+    assert_eq!((asked.lock().unwrap().len(), synced.lock().unwrap().len()), (signs + 1, runs + 2));
     refuse.store(false, Ordering::Relaxed);
     *answer.lock().unwrap() = Some(good("tok-2"));
     assert_eq!(a.execute("ui.sync", json!({"account": id})).unwrap()["pending"], "signIn");
     a.poll_sign_in();
     a.poll_sync();
-    assert_eq!(asked.lock().unwrap().last().unwrap().1, "ref-1");
     assert_eq!(synced.lock().unwrap().last().unwrap().0, "tok-2");
 
     // A token that runs out before a run could be over is renewed first, not taken along.
@@ -716,12 +737,12 @@ fn send_receive_signs_in_first_for_an_account_without_a_password() {
     a.poll_sync();
     assert_eq!(synced.lock().unwrap().last().unwrap().0, "tok-3");
 
-    // Microsoft ends the session when the token runs out during the run: the next run renews it.
+    // Microsoft ends the session when the token runs out during the run: renewed, and the run
+    // goes again.
     *error.lock().unwrap() = Some("Couldn't open \"Inbox\": the server ended the session: Session invalidated - AccessTokenExpired".into());
     a.execute("ui.sync", json!({"account": id})).unwrap();
-    a.poll_sync();
     *answer.lock().unwrap() = Some(good("tok-4"));
-    assert_eq!(a.execute("ui.sync", json!({"account": id})).unwrap()["pending"], "signIn");
+    a.poll_sync();
     a.poll_sign_in();
     a.poll_sync();
     assert_eq!(synced.lock().unwrap().last().unwrap().0, "tok-4");
@@ -730,10 +751,10 @@ fn send_receive_signs_in_first_for_an_account_without_a_password() {
     // the network); the host decides when the provider has refused it for good.
     refuse.store(true, Ordering::Relaxed);
     a.execute("ui.sync", json!({"account": id})).unwrap();
-    a.poll_sync();
     refuse.store(false, Ordering::Relaxed);
     *answer.lock().unwrap() = Some(Err("Microsoft didn't sign you in: the request was declined".into()));
-    a.execute("ui.sync", json!({"account": id})).unwrap();
+    a.poll_sync();
+    assert!(a.signing_in());
     a.status_msg = None;
     a.poll_sign_in();
     assert!(!a.signing_in() && !a.syncing());

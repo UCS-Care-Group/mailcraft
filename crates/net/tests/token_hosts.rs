@@ -11,15 +11,16 @@ use mailcraft_model::sync::SyncRequest;
 use mailcraft_model::{Account, AccountKind, OAuth, OAuthProvider, Security, Server};
 use mailcraft_net::token_may_go_to;
 
-/// Every provider. (A new one fails to build here until it has its row.)
+/// Every provider with mail servers of its own. (A new one fails to build here until it has its
+/// row; an own identity provider has its own test below.)
 fn providers() -> Vec<OAuthProvider> {
-    let all = [OAuthProvider::Microsoft, OAuthProvider::Google];
-    for provider in all {
-        match provider {
-            OAuthProvider::Microsoft | OAuthProvider::Google => {}
-        }
-    }
-    all.to_vec()
+    let all = [OAuthProvider::Microsoft, OAuthProvider::Google, OAuthProvider::Custom];
+    all.into_iter()
+        .filter(|provider| match provider {
+            OAuthProvider::Microsoft | OAuthProvider::Google => true,
+            OAuthProvider::Custom => false,
+        })
+        .collect()
 }
 
 /// The provider's own IMAP and SMTP servers.
@@ -27,6 +28,7 @@ fn own_hosts(provider: OAuthProvider) -> [&'static str; 2] {
     match provider {
         OAuthProvider::Microsoft => ["outlook.office365.com", "smtp.office365.com"],
         OAuthProvider::Google => ["imap.gmail.com", "smtp.gmail.com"],
+        OAuthProvider::Custom => ["mail.example.org", "mail.example.org"],
     }
 }
 
@@ -128,4 +130,28 @@ fn a_microsoft_account_at_a_loopback_server_is_refused_before_anything_connects(
         // Nothing reached the listener either way.
         assert_eq!(listener.accept().map(|_| ()).map_err(|e| e.kind()), Err(std::io::ErrorKind::WouldBlock), "{host}");
     }
+}
+
+#[test]
+fn a_token_from_an_own_identity_provider_goes_to_the_accounts_own_servers_and_nowhere_else() {
+    // The account's own servers, wherever they are.
+    for host in ["mail.example.org", "imap.attacker.example", "192.0.2.10"] {
+        assert_eq!(allowed(OAuthProvider::Custom, host), [true, true], "{host}");
+    }
+    // Never Microsoft's or Google's, whose tokens come from their own providers, nor this computer.
+    for host in own_hosts(OAuthProvider::Microsoft).into_iter().chain(own_hosts(OAuthProvider::Google)).chain([
+        "gmail.googleapis.com",
+        // Microsoft's other clouds too (#1844 review).
+        "outlook.office365.us",
+        "partner.outlook.cn",
+        "127.0.0.1",
+        "localhost",
+        "[::1]",
+    ]) {
+        assert_eq!(allowed(OAuthProvider::Custom, host), [false, false], "{host}");
+    }
+    // And never a server the account doesn't name.
+    let a = account(OAuthProvider::Custom, "mail.example.org");
+    let elsewhere = Server { host: "imap.attacker.example".into(), port: 993, security: Security::Tls };
+    assert!(token_may_go_to(&a, &elsewhere, "imap.gmail.com").is_err());
 }

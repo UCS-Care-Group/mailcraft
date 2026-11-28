@@ -892,8 +892,13 @@ fn a_file_from_before_the_jmap_setting_reads_and_writes_as_it_was() {
         assert_eq!(serde_json::to_string(&read).unwrap(), written);
     }
 
-    let oauth =
-        OAuth { provider: OAuthProvider::Microsoft, client_id: "app-id".into(), tenant: "organizations".into(), directory: Directory::Organisation };
+    let oauth = OAuth {
+        provider: OAuthProvider::Microsoft,
+        client_id: "app-id".into(),
+        tenant: "organizations".into(),
+        directory: Directory::Organisation,
+        ..Default::default()
+    };
     let microsoft = Account {
         id: 2,
         name: "Noor".into(),

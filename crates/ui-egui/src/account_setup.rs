@@ -21,6 +21,7 @@
 
 mod exchange;
 mod help;
+mod oauth_settings;
 mod senders;
 
 use std::sync::mpsc::{Receiver, TryRecvError};
@@ -217,6 +218,10 @@ pub enum Action {
     Imap,
     /// Ask the domain's DNS again where its Autodiscover is (Search again).
     LookAgain,
+    /// Sign in with an own identity provider (OAuth 2.0) instead of a password.
+    OwnProvider,
+    /// Sign in with a password after all.
+    PasswordInstead,
 }
 
 /// How setting the account up ended, for the last page to say.
@@ -381,6 +386,8 @@ pub struct Preset {
     guessed: (bool, bool),
     /// Where each of the two servers came from, the incoming first; `None` for a guess.
     sources: (Option<Via>, Option<Via>),
+    /// The identity provider the domain's document names for an OAuth 2.0 sign-in; empty for none.
+    oauth_issuer: String,
 }
 
 impl Preset {
@@ -404,6 +411,7 @@ impl Preset {
             found,
             guessed: if found.is_some() { (sources.0.is_none(), sources.1.is_none()) } else { (false, false) },
             sources,
+            oauth_issuer: text("oauthIssuer", 2048),
         }
     }
 
@@ -488,6 +496,9 @@ pub struct AccountSetup {
     client_id: String,
     /// The Microsoft directory an existing account signs in to.
     tenant: String,
+    /// The OAuth settings' fields beside [`AccountSetup::oauth`] (an own identity provider's
+    /// redirect port, client secret, Discover).
+    own: oauth_settings::OwnFields,
     /// What went wrong, shown on the page in view.
     error: String,
     /// The page's first field takes the keyboard.
@@ -640,6 +651,7 @@ impl AccountSetup {
             password: Secret::default(),
             client_id: String::new(),
             tenant: String::new(),
+            own: Default::default(),
             error: String::new(),
             focus: true,
             lookup: None,
@@ -737,6 +749,7 @@ impl AccountSetup {
             w.tenant = line(&oauth.tenant, 64);
         }
         w.oauth = a.oauth.clone();
+        w.own = oauth_settings::OwnFields::of(a.oauth.as_ref());
         w.edit = Some(Editing { id: a.id, baseline: w.fields() });
         if a.kind.has_offline_window() && !a.is_shared() {
             w.keep_offline = Some((a.keep_offline, a.keep_offline));
@@ -798,6 +811,10 @@ impl AccountSetup {
             }
             if !records.is_empty() {
                 records.insert("username".into(), json!(line(&found.username, LINE)));
+                if !found.oauth_issuer.is_empty() {
+                    // (Whole, up to the longest address taken: a cut one would name another.)
+                    records.insert("oauthIssuer".into(), json!(line(&found.oauth_issuer, mailcraft_model::oauth::MAX_ENDPOINT)));
+                }
                 m.insert("found".into(), Value::Object(records));
             }
         }
@@ -826,6 +843,9 @@ impl AccountSetup {
             Some(oauth) => {
                 m.insert("auth".into(), json!("oauth2"));
                 m.insert("provider".into(), json!(oauth.provider.code()));
+                if oauth.provider == OAuthProvider::Custom {
+                    self.oauth_params(&mut m);
+                }
                 // Which kind of Microsoft account it is, once a sign-in has said.
                 if let Some(kind) = self.directory.code() {
                     m.insert("directory".into(), json!(kind));
@@ -918,6 +938,7 @@ impl AccountSetup {
         if self.oauth.is_some() {
             m.insert("clientId".into(), json!(self.client_id.trim()));
             m.insert("tenant".into(), json!(self.tenant.trim()));
+            self.oauth_params(&mut m);
         } else if self.outgoing.value().is_some() {
             m.insert("outgoingWithoutSignIn".into(), json!(self.outgoing_without_sign_in));
         }
@@ -959,6 +980,9 @@ impl AccountSetup {
                 _ => {}
             }
         }
+        if self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom) {
+            return self.oauth_problem();
+        }
         None
     }
 
@@ -989,6 +1013,7 @@ impl AccountSetup {
         self.service = preset.service;
         self.note = preset.note;
         self.oauth = preset.oauth.map(|provider| OAuth { provider, ..Default::default() });
+        self.own = oauth_settings::OwnFields::offering(preset.oauth_issuer);
         self.username = preset.username;
         self.incoming = preset.incoming;
         self.outgoing = preset.outgoing;
@@ -1072,6 +1097,10 @@ impl AccountSetup {
                     // Cancel must not discard Google's detected server settings or typed address.
                     self.oauth = None;
                     self.someone_else = None;
+                    self.go(Page::Password);
+                } else if self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Custom) {
+                    // Back to its OAuth settings as they were typed, as Cancel Sign-In elsewhere
+                    // does (#1844 review).
                     self.go(Page::Password);
                 } else {
                     self.go(Page::Address);
@@ -1173,6 +1202,32 @@ impl AccountSetup {
                     self.oauth = Some(OAuth { provider: mailcraft_model::OAuthProvider::Google, ..Default::default() });
                     self.proceed(app);
                 }
+            }
+            (Page::Password, Action::OwnProvider) => {
+                let offered = self.own.offered.clone();
+                self.choose_own_provider(&offered);
+                // (A client secret typed for another provider before is not this one's, #1844 review.)
+                app.client_secrets.remove(&0);
+            }
+            (Page::Password, Action::PasswordInstead) => {
+                self.oauth = None;
+                self.own.wipe();
+                // (Nor is a client secret typed for that provider kept, #1844 review.)
+                app.client_secrets.remove(&0);
+                self.error.clear();
+            }
+            (Page::Password, Action::Go) if self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom) => {
+                if let Some(problem) = self.settings_problem(true).or_else(|| self.own_sign_in_problem()) {
+                    self.error = problem;
+                } else if !self.hosts_to_ask().is_empty() {
+                    self.go(Page::ServerConsent);
+                } else {
+                    self.start_own_sign_in(app);
+                }
+            }
+            (Page::ServerConsent, Action::Go) if self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom) => {
+                self.agreed_hosts.extend(self.hosts_to_ask());
+                self.start_own_sign_in(app);
             }
             (Page::Password, Action::Go) => {
                 // Do not let an Enter key or a command bypass the OAuth-first choice and
@@ -1399,6 +1454,14 @@ impl AccountSetup {
         }
     }
 
+    /// A new account with its own identity provider: its client secret where the sign-in finds
+    /// it, then the provider's page.
+    fn start_own_sign_in(&mut self, app: &mut MailApp) {
+        self.oauth = self.oauth_now();
+        self.keep_client_secret(app, 0);
+        self.start_sign_in(app);
+    }
+
     /// Send the owner to the provider's page.
     fn start_sign_in(&mut self, app: &mut MailApp) {
         let Some(oauth) = self.oauth.clone() else { return };
@@ -1536,7 +1599,9 @@ impl AccountSetup {
     /// signed in as somebody other than the address typed is not added: the owner is asked
     /// whether to sign in again, set up that account, or confirm a personal custom-domain alias.
     fn add_signed_in(&mut self, app: &mut MailApp, tokens: mailcraft_model::sync::Tokens) {
-        if tokens.someone_else(self.email.trim(), "") {
+        // (An own identity provider's names needn't be the address: its mail servers judge the token.)
+        let own = self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom);
+        if !own && tokens.someone_else(self.email.trim(), "") {
             self.someone_else = Some(tokens);
             self.go(Page::SomeoneElse);
             return;
@@ -1667,11 +1732,17 @@ impl AccountSetup {
             self.error = problem;
             return false;
         }
+        // (As it was: a client secret kept under settings that change goes with them, #1844 review.)
+        let before = app.session.mailbox.account(id).cloned();
         if let Some((command, params)) = self.edit_command()
             && let Err(e) = app.execute(command, params)
         {
             self.error = e;
             return false;
+        }
+        self.keep_client_secret(app, id);
+        if let Some(before) = before {
+            app.drop_stale_client_secret(&before);
         }
         if let Some((_, on)) = self.desktop_mail_alerts.filter(|(was, on)| was != on) {
             if let Err(e) = app.execute("account.edit", json!({"id": id, "desktopMailAlerts": on})) {
@@ -1744,6 +1815,7 @@ impl AccountSetup {
             Page::Checking => self.poll_check(app),
             Page::ExchangeChecking | Page::ExchangeConsent => self.poll_exchange(app),
             Page::Exchange => self.poll_look_again(),
+            Page::Password | Page::Settings => self.poll_discover(),
             _ => {}
         }
     }
@@ -1859,6 +1931,8 @@ impl AccountSetup {
                     } else if self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Google) {
                         self.oauth = None;
                         self.go(Page::Password);
+                    } else if self.oauth.as_ref().is_some_and(|oauth| oauth.provider == OAuthProvider::Custom) {
+                        self.go(Page::Password);
                     } else {
                         self.go(Page::Address);
                     }
@@ -1931,6 +2005,7 @@ impl AccountSetup {
             app.cancel_admin_consent();
         }
         self.forget_password();
+        app.client_secrets.remove(&0);
     }
 
     /// A wizard that went while its owner was in the browser, in a way it couldn't see, left that
@@ -2019,19 +2094,22 @@ impl AccountSetup {
                 (!named.is_empty()).then(|| fmt(why, &[("domain", &domain), ("hosts", &named.join(", "))]))
             })
             .collect();
+        // (Signing in with an own identity provider, the mail servers get a token from it, not
+        // the password: said as it is, #1844 review.)
+        let token = self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom);
         page(ui, &t, |ui| {
-            heading(ui, tl!("Send your password to another server?"), &t);
+            heading(ui, if token { tl!("Send your sign-in to another server?") } else { tl!("Send your password to another server?") }, &t);
             for why in &whys {
                 ui.label(RichText::new(why).font(medium(13.0)).color(t.text));
             }
-            note(
-                ui,
-                &fmt(
-                    tl!("If you go on, your user name and password are sent to {hosts}. Go on only if you know it is your provider's."),
-                    &[("hosts", &hosts)],
-                ),
-                t.text_dim,
-            );
+            let what = if token {
+                tl!(
+                    "If you go on, you sign in on your identity provider's page and the access token it gives is sent to {hosts}. Go on only if you know it is your provider's."
+                )
+            } else {
+                tl!("If you go on, your user name and password are sent to {hosts}. Go on only if you know it is your provider's.")
+            };
+            note(ui, &fmt(what, &[("hosts", &hosts)]), t.text_dim);
             note(ui, tl!("If you don't, nothing is sent, and you can change the servers in Server settings."), t.text_dim);
         });
         let (mut yes, mut no) = (false, false);
@@ -2160,6 +2238,10 @@ impl AccountSetup {
         };
         let mut offered = None;
         let mut change_method = None;
+        // An own identity provider instead of a password: for a new account on servers nobody
+        // here knows the sign-in of (a provider this program knows has its own).
+        let own = self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom);
+        let can_own = self.edit.is_none() && !oauth_first && !google && (own || (self.oauth.is_none() && self.service.is_empty()));
         page(ui, &t, |ui| {
             heading(ui, &title, &t);
             note(ui, &shown(self.email.trim(), 120), t.text_dim);
@@ -2248,11 +2330,28 @@ impl AccountSetup {
                     }
                     note(ui, tl!("Use a Google app password, not your everyday Google account password."), t.text_dim);
                 }
-                if asks {
+                if own {
+                    self.oauth_section(app, ui, pass);
+                    if button(ui, tl!("Use a password instead"), false, true).clicked() {
+                        change_method = Some(Action::PasswordInstead);
+                    }
+                } else if asks {
                     self.password_field(ui, pass, app.secret_watch(), "");
                     note(ui, kept_where(app), t.text_dim);
                 } else {
                     note(ui, tl!("This build can't connect to mail servers. The account can still be added."), t.text_dim);
+                }
+                if can_own && !own && app.services.sign_in.is_some() {
+                    if !self.own.offered.is_empty() {
+                        note(
+                            ui,
+                            &fmt(tl!("{domain} says its mail signs in with an identity provider (OAuth 2.0)."), &[("domain", &domain)]),
+                            t.text_dim,
+                        );
+                    }
+                    if button(ui, tl!("Sign in with your identity provider (OAuth 2.0) instead"), false, true).clicked() {
+                        change_method = Some(Action::OwnProvider);
+                    }
                 }
             }
             ui.add_space(2.0);
@@ -2267,7 +2366,7 @@ impl AccountSetup {
                 ui.hyperlink(GOOGLE_APP_PASSWORDS);
             });
         }
-        let ready = !asks || !self.password.0.is_empty();
+        let ready = own || !asks || !self.password.0.is_empty();
         let (mut go, mut back, mut google_sign_in) = (false, false, false);
         strip(ui, self.page, |ui| {
             if oauth_first {
@@ -2486,11 +2585,8 @@ impl AccountSetup {
             } else if !self.graph {
                 self.settings(ui, pass);
             }
-            if let Some(oauth) = &self.oauth {
-                field(ui, pass, "clientId", tl!("Application (client) ID"), &mut self.client_id, tl!("The one in File › Options"), 200);
-                if oauth.provider == OAuthProvider::Microsoft {
-                    field(ui, pass, "tenant", tl!("Tenant"), &mut self.tenant, "common", 64);
-                }
+            if self.oauth.is_some() {
+                self.oauth_section(app, ui, pass);
             }
             if let Some((_, keep)) = self.keep_offline.as_mut() {
                 caption(ui, tl!("Mail to keep offline"), &t);
@@ -2933,6 +3029,9 @@ mod tests {
     mod help;
     /// Explicit confirmation of personal Outlook.com custom-domain aliases.
     mod legacy_alias;
+    /// An account with its own identity provider: the OAuth settings, Discover, the client
+    /// secret, and a Microsoft or Google account set up for an own provider.
+    mod own_provider;
     /// An outgoing server that needs no sign-in (#836).
     mod relay_without_sign_in;
     /// The password's eye (#438).
@@ -3204,6 +3303,7 @@ mod tests {
             }),
             outgoing: None,
             username: "%EMAILLOCALPART%".into(),
+            oauth_issuer: String::new(),
         };
         let (_, params) = w.preset_command(Some(&found), None).unwrap();
         assert_eq!(
@@ -3354,6 +3454,7 @@ mod tests {
             incoming: Some(provider::FoundServer { server: Server { host: long.clone(), port: 993, security: Security::Tls }, via: Via::Srv }),
             outgoing: None,
             username: long.clone(),
+            oauth_issuer: long.clone(),
         };
         let (_, params) = w.preset_command(Some(&hostile), None).unwrap();
         let passed = params["mx"].as_array().unwrap();

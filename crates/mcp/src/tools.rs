@@ -293,6 +293,12 @@ pub(crate) const NAMING_PARAMS: &[&str] = &[
     "url",
     "mailto",
     "fingerprint",
+    // An own identity provider's addresses, as Discover or an autoconfig document found them.
+    "issuer",
+    "oauthIssuer",
+    "authorizeUrl",
+    "tokenUrl",
+    "revokeUrl",
 ];
 
 /// `v` with every string under one of [`NAMING_PARAMS`] that is one whole frame, as

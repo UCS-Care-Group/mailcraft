@@ -172,6 +172,14 @@ pub fn is_google_host(host: &str) -> bool {
     GOOGLE.iter().any(|google| is_within(&host, google))
 }
 
+/// Whether `host` is Microsoft's ([`is_exchange_online`], every one of its clouds) or Google's
+/// ([`is_google_host`]): mail servers whose sign-in comes from their own provider, so a token
+/// from the owner's own identity provider is never sent there, and an account that signs in with
+/// one never names them (#1844 review).
+pub fn is_microsoft_or_google_host(host: &str) -> bool {
+    is_exchange_online(host.trim()) || is_google_host(host)
+}
+
 /// Whether `host` is `domain` or a name under it (`mail.example.org` is within `example.org`;
 /// `evil-example.org` is not).
 pub fn is_within(host: &str, domain: &str) -> bool {

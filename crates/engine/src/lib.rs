@@ -425,6 +425,8 @@ pub mod p {
 }
 
 #[cfg(test)]
+mod account_oauth_tests;
+#[cfg(test)]
 mod agent_gate_tests;
 #[cfg(test)]
 mod agent_ids_tests;

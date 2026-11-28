@@ -111,7 +111,13 @@ pub(crate) fn open_smtp_with<'a>(
         smtp = Smtp::resume(transport::upgrade(plain, &host)?);
         offered = smtp.hello(CLIENT_NAME)?;
     }
-    if account.oauth.is_some() {
+    if let Some(oauth) = account.oauth.as_ref().filter(|o| o.provider == mailcraft_model::OAuthProvider::Custom) {
+        // An own identity provider's token, the way the server and the settings say.
+        match crate::sync::token_mechanism(oauth.mechanism, offered.auth_oauthbearer, offered.auth_xoauth2)? {
+            mailcraft_model::SaslChoice::XOAuth2 => smtp.auth_xoauth2(user, secret)?,
+            _ => smtp.auth_oauthbearer(user, server.host.trim(), server.port, secret)?,
+        }
+    } else if account.oauth.is_some() {
         // A server that doesn't take tokens is an error, not a reason to go on unsigned.
         smtp.auth_xoauth2(user, secret)?;
     } else if !account.outgoing_without_sign_in && !user.is_empty() && !secret.is_empty() && (offered.auth_plain || offered.auth_login) {

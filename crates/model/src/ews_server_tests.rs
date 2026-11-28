@@ -132,3 +132,23 @@ fn google_hosts_are_google_s_and_nothing_that_looks_like_them() {
         assert!(!is_google_host(host), "{host}");
     }
 }
+
+/// The servers a sign-in with an own identity provider never names or goes to (#1844 review):
+/// Microsoft's in every cloud, Google's, whatever the case, spaces and a dot at the end.
+#[test]
+fn microsofts_and_googles_mail_servers_are_told_apart_from_an_owners_own() {
+    for host in [
+        "outlook.office365.com",
+        "smtp.office365.com",
+        "OUTLOOK.OFFICE365.US",
+        "partner.outlook.cn",
+        "imap.gmail.com.",
+        " smtp.gmail.com ",
+        "imap.googlemail.com",
+    ] {
+        assert!(is_microsoft_or_google_host(host), "{host}");
+    }
+    for host in ["mail.example.org", "outlook.example.org", "gmail.com.example.org", "192.0.2.10", ""] {
+        assert!(!is_microsoft_or_google_host(host), "{host}");
+    }
+}

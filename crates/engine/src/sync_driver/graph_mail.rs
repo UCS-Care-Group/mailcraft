@@ -30,7 +30,7 @@ pub enum MailStart {
     /// the owner. `address` names the account.
     Quiet { address: String },
     /// There is no sign-in to run with: the owner signs in on the provider's page.
-    SignIn { oauth: OAuth, address: String },
+    SignIn { oauth: Box<OAuth>, address: String },
     /// Go ahead.
     Run(Box<MailPlan>),
 }
@@ -63,7 +63,7 @@ pub fn plan_graph_mail(s: &Session, account: Id, quiet: bool, refresh: String) -
     let oauth = owner.oauth.clone().ok_or(Refusal::NoSignIn)?;
     if refresh.is_empty() {
         let address = owner.email.clone();
-        return Ok(if quiet { MailStart::Quiet { address } } else { MailStart::SignIn { oauth, address } });
+        return Ok(if quiet { MailStart::Quiet { address } } else { MailStart::SignIn { oauth: Box::new(oauth), address } });
     }
     let mail = graph_mail_request(s, account).map_err(|e| Refusal::NotGraph(e.to_string()))?;
     Ok(MailStart::Run(Box::new(MailPlan { owner, oauth, refresh, mail })))

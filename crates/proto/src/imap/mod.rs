@@ -4,7 +4,8 @@
 //! mailboxes, and changing flags, moving, copying, removing and filing messages (UID MOVE of
 //! RFC 6851; UID EXPUNGE and the `COPYUID` answer of RFC 4315). Special-use mailbox flags
 //! (RFC 6154) come through in [`Mailbox::flags`] as the server wrote them. Password sign-in prefers
-//! advertised SASL PLAIN, with LOGIN as a fallback when PLAIN is not offered; OAuth uses XOAUTH2.
+//! advertised SASL PLAIN, with LOGIN as a fallback when PLAIN is not offered; OAuth uses
+//! OAUTHBEARER (RFC 7628) or XOAUTH2.
 //!
 //! There is no plain EXPUNGE and no CLOSE here, on purpose: both remove every message marked
 //! `\Deleted` in the mailbox, also those another program marked.
@@ -31,7 +32,7 @@ use parse::{Piece, Status, StatusLine, Value};
 pub use utf7::{decode_utf7, encode_utf7};
 
 use crate::line::Wire;
-use crate::{MAX_LINE, MAX_LITERAL, ProtoError, Secrets, for_trace, tidy, xoauth2};
+use crate::{FAILURE_ANSWER, MAX_LINE, MAX_LITERAL, ProtoError, Secrets, for_trace, oauthbearer, tidy, xoauth2};
 use mailcraft_i18n::{Arg, Text, said};
 
 /// Most responses the server may send to one command.
@@ -132,6 +133,11 @@ pub struct Imap<S> {
     skipped: bool,
     /// The tag of the IDLE command the server is waiting in, if it is ([`Imap::idle_begin`]).
     idle_tag: Option<String>,
+    /// What followed the `+` of the last go-ahead the server sent, capped: the reasons a token
+    /// sign-in is refused for come there.
+    go_ahead: Vec<u8>,
+    /// Why the last token sign-in was refused, when the server said ([`Imap::sasl_failure`]).
+    sasl_failure: Option<crate::SaslFailure>,
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
@@ -689,6 +695,8 @@ impl<S: Read + Write> Imap<S> {
             skip_long: false,
             skipped: false,
             idle_tag: None,
+            go_ahead: Vec::new(),
+            sasl_failure: None,
         }
     }
 
@@ -795,23 +803,52 @@ impl<S: Read + Write> Imap<S> {
     /// go-ahead, so one that doesn't know the mechanism refuses without having seen it.
     pub fn authenticate_xoauth2(&mut self, user: &str, token: &str) -> Result<(), ProtoError> {
         let payload = xoauth2(user, token)?;
+        self.authenticate_token("XOAUTH2", token, &payload, "")
+    }
+
+    /// AUTHENTICATE OAUTHBEARER (RFC 7628): an OAuth access token in place of a password, the
+    /// standard way. `host` and `port` are the server's, as connected to. NO → `ProtoError::Auth`,
+    /// with the server's reasons, when it gave them, in [`Imap::sasl_failure`].
+    ///
+    /// As for [`Imap::authenticate_xoauth2`], the token goes with the command only to a server
+    /// that listed `SASL-IR` and `AUTH=OAUTHBEARER`; any other is asked first.
+    pub fn authenticate_oauthbearer(&mut self, user: &str, host: &str, port: u16, token: &str) -> Result<(), ProtoError> {
+        let payload = oauthbearer(user, host, port, token)?;
+        self.authenticate_token("OAUTHBEARER", token, &payload, FAILURE_ANSWER)
+    }
+
+    /// Whether the server offers the SASL mechanism `name` (`OAUTHBEARER`, `XOAUTH2`), as far as
+    /// it has said what it can do.
+    pub fn offers_mechanism(&self, name: &str) -> bool {
+        self.offers(&format!("AUTH={}", name.to_ascii_uppercase()))
+    }
+
+    /// Why the server refused the last token sign-in, when it said in the way RFC 7628 has it.
+    pub fn sasl_failure(&self) -> Option<&crate::SaslFailure> {
+        self.sasl_failure.as_ref()
+    }
+
+    /// A token sign-in with SASL `mechanism`: `payload` (base64) as the client's message, and
+    /// `failure_answer` for the server's reasons when it refuses.
+    fn authenticate_token(&mut self, mechanism: &str, token: &str, payload: &str, failure_answer: &str) -> Result<(), ProtoError> {
         self.secrets.add(token);
-        self.secrets.add(&payload);
-        let inline = self.offers("SASL-IR") && self.offers("AUTH=XOAUTH2");
+        self.secrets.add(payload);
+        self.sasl_failure = None;
+        let inline = self.offers("SASL-IR") && self.offers(&format!("AUTH={mechanism}"));
         let tag = self.tag();
-        log::trace!("C: {tag} AUTHENTICATE XOAUTH2{}", if inline { " ***" } else { "" });
-        let mut out = format!("{tag} AUTHENTICATE XOAUTH2");
+        log::trace!("C: {tag} AUTHENTICATE {mechanism}{}", if inline { " ***" } else { "" });
+        let mut out = format!("{tag} AUTHENTICATE {mechanism}");
         if inline {
             out.push(' ');
-            out.push_str(&payload);
+            out.push_str(payload);
         }
         out.push_str("\r\n");
         self.wire.write(out.as_bytes())?;
         self.wire.flush()?;
         // What each `+` from the server is answered with: the token (unless it went with the
-        // command), an empty line for the reasons a refusal starts with (JSON in base64), and
-        // for a question after that, the end of the exchange.
-        let answers = [(payload.as_str(), "***"), ("", ""), ("*", "*")];
+        // command), the mechanism's answer to the reasons a refusal starts with (JSON in base64),
+        // and for a question after that, the end of the exchange.
+        let answers = [(payload, "***"), (failure_answer, failure_answer), ("*", "*")];
         let mut asked = usize::from(inline);
         let line = loop {
             if let Some(line) = self.read_until(&tag, true, &mut ignore)? {
@@ -820,6 +857,10 @@ impl<S: Read + Write> Imap<S> {
             let Some((answer, shown)) = answers.get(asked) else {
                 return Err(ProtoError::Protocol(said!("the server asked for more than a sign-in has")));
             };
+            // (The go-ahead after the token is the server's reasons for saying no.)
+            if asked == 1 {
+                self.sasl_failure = crate::SaslFailure::read(&self.go_ahead);
+            }
             asked += 1;
             log::trace!("C: {shown}");
             self.wire.write(format!("{answer}\r\n").as_bytes())?;
@@ -830,7 +871,10 @@ impl<S: Read + Write> Imap<S> {
             _ if asked == answers.len() => Err(ProtoError::Auth(said!("the server asked for more than a user name and access token"))),
             // Nobody is signed in by a token that was never sent.
             Status::Ok if asked == 0 => Err(ProtoError::Protocol(said!("the server ended the command early"))),
-            Status::Ok => self.signed_in(&line),
+            Status::Ok => {
+                self.sasl_failure = None;
+                self.signed_in(&line)
+            }
             Status::No => Err(ProtoError::Auth(self.refusal(&line))),
             _ => Err(ProtoError::Rejected(self.refusal(&line))),
         }
@@ -1341,6 +1385,8 @@ impl<S: Read + Write> Imap<S> {
             log::trace!("S: {}", for_trace(&self.secrets.hide(&String::from_utf8_lossy(&line))));
         }
         if line.first() == Some(&b'+') {
+            let text = line.get(1..).unwrap_or_default();
+            self.go_ahead = text.get(..text.len().min(crate::oauthbearer::MAX_FAILURE.saturating_mul(2))).unwrap_or_default().to_vec();
             return Ok(Response::GoAhead);
         }
         let Some(rest) = line.strip_prefix(b"* ") else {

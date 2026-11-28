@@ -1,0 +1,516 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! The OAuth settings of an account that signs in on its provider's page: every value its sign-in
+//! uses, shown, and those that are the account's own, entered, saved and edited.
+//!
+//! Microsoft's and Google's values are built in ([`OAuthProvider::defaults`]): they are shown as
+//! they are used and only the client id, Microsoft's tenant and the redirect port can change. To
+//! use other addresses, scopes or a mechanism the account becomes one with its own identity
+//! provider, after a question, starting from the values it had: so that what may be sent to
+//! Microsoft's and Google's servers is never loosened from here.
+//!
+//! An own identity provider (Keycloak, Authentik and the like, in front of the owner's own IMAP
+//! and SMTP servers) has every value typed, or its addresses found from its issuer (Discover:
+//! only the issuer's address goes out, and only when the owner presses it). Its client secret,
+//! when it has one, is typed here and kept in the system's credential store alone; the mailbox
+//! says only that there is one. Saving goes through `account.add` and `account.edit`.
+
+use mailcraft_model::{ClientAuth, OAuthProvider, SaslChoice};
+
+use super::*;
+
+/// What the OAuth settings keep beside the account's [`OAuth`] while the dialog is open.
+#[derive(Default)]
+pub(super) struct OwnFields {
+    /// The redirect port as typed; empty for any free one.
+    pub(super) port: String,
+    /// A client secret typed here, to keep in place of the one there is; empty for no change.
+    secret: Secret,
+    /// Its eye was clicked: it is shown.
+    reveal: bool,
+    /// The owner asked to forget the client secret there is.
+    forget_secret: bool,
+    /// The identity provider's description, while it is fetched, with the issuer it was asked
+    /// of: an answer for an issuer the owner has changed since is let go of (#1844 review).
+    discovering: Option<(String, Receiver<Result<crate::OAuthFound, String>>)>,
+    /// What Discover found, said in a line; or why it found nothing.
+    found: String,
+    /// The issuer and addresses Discover last found: they hold while the issuer stays the same.
+    discovered: Option<Discovered>,
+    /// The hosts of the found addresses outside the issuer's own domain, and whether the owner
+    /// agreed to them. Each needs the agreement while an address found on it is used as found
+    /// ([`OwnFields::outside_in_use`]); one typed over by the owner doesn't.
+    outside: Vec<String>,
+    agreed: bool,
+    /// The question whether a Microsoft or Google account is to use its own identity provider.
+    asking: bool,
+    /// The owner said yes: saving sets it up for its own identity provider (`asCustom`).
+    pub(super) as_custom: bool,
+    /// The identity provider the domain's own document names, when it does: offered.
+    pub(super) offered: String,
+}
+
+/// What Discover found for an issuer: its addresses as found.
+#[derive(Clone, Default)]
+struct Discovered {
+    issuer: String,
+    authorize: String,
+    token: String,
+    revoke: String,
+}
+
+/// The host of an address, lower case; empty when it has none.
+fn host_of(address: &str) -> String {
+    let rest = address.split("://").nth(1).unwrap_or("");
+    let authority = rest.split(['/', '?', '#']).next().unwrap_or("");
+    // (An IPv6 address is in brackets, colons and all; Discover names it without them.)
+    let host = match authority.strip_prefix('[') {
+        Some(inside) => inside.split(']').next().unwrap_or(""),
+        None => authority.split(':').next().unwrap_or(""),
+    };
+    host.to_ascii_lowercase()
+}
+
+impl OwnFields {
+    /// The hosts outside the issuer's domain that an address still used as Discover found it is
+    /// on: what the owner has to agree to (#1844 review: an address typed over needs no
+    /// agreement, the others still do).
+    fn outside_in_use(&self, oauth: &OAuth) -> Vec<String> {
+        let Some(found) = &self.discovered else { return self.outside.clone() };
+        let as_found = [(&oauth.authorize, &found.authorize), (&oauth.token, &found.token), (&oauth.revoke, &found.revoke)];
+        self.outside
+            .iter()
+            .filter(|h| {
+                as_found.iter().any(|(now, then)| now.trim() == then.trim() && !then.trim().is_empty() && host_of(then) == h.to_ascii_lowercase())
+            })
+            .cloned()
+            .collect()
+    }
+
+    pub(super) fn of(oauth: Option<&OAuth>) -> OwnFields {
+        OwnFields { port: oauth.and_then(|o| o.redirect_port).map(|p| p.to_string()).unwrap_or_default(), ..OwnFields::default() }
+    }
+
+    /// Nothing typed yet, with the identity provider the domain's document named offered.
+    pub(super) fn offering(issuer: String) -> OwnFields {
+        OwnFields { offered: issuer, ..OwnFields::default() }
+    }
+
+    /// The client secret typed, if any.
+    pub(super) fn typed_secret(&self) -> &str {
+        &self.secret.0
+    }
+
+    /// Blank what was typed of the secret.
+    pub(super) fn wipe(&mut self) {
+        self.secret.wipe();
+    }
+}
+
+/// Takes away from `oauth` what Discover found for `found`'s issuer, once the issuer is another:
+/// each address still as found, and how the provider was to be spoken to. What the owner typed
+/// over stays.
+fn forget_discovered(oauth: &mut OAuth, found: &Discovered) {
+    for (now, then) in [(&mut oauth.authorize, &found.authorize), (&mut oauth.token, &found.token), (&mut oauth.revoke, &found.revoke)] {
+        if now.trim() == then.trim() {
+            now.clear();
+        }
+    }
+    (oauth.client_auth, oauth.issuer_in_response, oauth.base_scopes) = (ClientAuth::default(), false, None);
+}
+
+/// The redirect port as typed: `Ok(None)` for any free one.
+fn port(text: &str) -> Result<Option<u16>, ()> {
+    match text.trim() {
+        "" => Ok(None),
+        digits => digits.parse::<u16>().ok().filter(|p| *p != 0).map(Some).ok_or(()),
+    }
+}
+
+impl AccountSetup {
+    /// Set the account up to sign in with an own identity provider, from nothing (or the issuer
+    /// the domain's document offered, when the owner takes it).
+    pub(super) fn choose_own_provider(&mut self, issuer: &str) {
+        self.forget_password();
+        self.oauth = Some(OAuth { issuer: issuer.to_string(), ..OAuth::custom() });
+        self.client_id.clear();
+        let offered = std::mem::take(&mut self.own.offered);
+        self.own = OwnFields { offered, ..OwnFields::default() };
+        self.error.clear();
+    }
+
+    /// The account's sign-in settings as the fields have them now.
+    pub(super) fn oauth_now(&self) -> Option<OAuth> {
+        let mut oauth = self.oauth.clone()?;
+        oauth.client_id = self.client_id.trim().to_string();
+        if oauth.provider == OAuthProvider::Microsoft {
+            oauth.tenant = self.tenant.trim().to_string();
+        }
+        oauth.redirect_port = port(&self.own.port).unwrap_or(oauth.redirect_port);
+        if oauth.provider == OAuthProvider::Custom {
+            let still_kept = oauth.has_secret && !self.own.forget_secret && self.secret_settings_unchanged(&oauth);
+            oauth.has_secret = !self.own.typed_secret().is_empty() || still_kept;
+        }
+        Some(oauth)
+    }
+
+    /// Whether the settings a kept client secret is kept under (the identity provider, its token
+    /// and revocation addresses, the client and the mail servers) are as they were when Account
+    /// Settings opened: when one changes the secret isn't found under the new ones, and has to be
+    /// typed again (#1844 review). A new account has none kept.
+    fn secret_settings_unchanged(&self, oauth: &OAuth) -> bool {
+        let Some(edit) = self.edit.as_ref() else { return true };
+        let was = |key: &str| edit.baseline.get(key).cloned().unwrap_or(serde_json::Value::Null);
+        let text = |value: &str| serde_json::Value::String(value.trim().to_string());
+        was("issuer") == text(&oauth.issuer)
+            && was("tokenUrl") == text(&oauth.token)
+            && was("revokeUrl") == text(&oauth.revoke)
+            && was("clientId") == text(&self.client_id)
+            && was("incoming") == self.incoming.value().unwrap_or(serde_json::Value::Null)
+            && was("outgoing") == self.outgoing.value().unwrap_or(serde_json::Value::Null)
+    }
+
+    /// What keeps the OAuth settings from being saved, in the interface's language.
+    pub(super) fn oauth_problem(&self) -> Option<String> {
+        let oauth = self.oauth_now()?;
+        if port(&self.own.port).is_err() {
+            return Some(tl!("The redirect port is a number from 1 to 65535, or empty for any free one").to_string());
+        }
+        if self.own.discovering.is_some() {
+            return Some(tl!("Wait for your identity provider's addresses").to_string());
+        }
+        if !self.own.outside_in_use(&oauth).is_empty() && !self.own.agreed {
+            return Some(tl!("Agree to the addresses outside your identity provider's domain, or enter others").to_string());
+        }
+        let secret = self.own.typed_secret();
+        if secret.len() > 1024 || !secret.bytes().all(|b| b.is_ascii_graphic()) {
+            return Some(tl!("The client secret can only be letters, digits and punctuation").to_string());
+        }
+        oauth.check().err().map(|why| why.to_string())
+    }
+
+    /// What signing in needs that the settings don't have yet, before a new account's sign-in.
+    pub(super) fn own_sign_in_problem(&self) -> Option<String> {
+        if let Some(problem) = self.oauth_problem() {
+            return Some(problem);
+        }
+        let oauth = self.oauth_now()?;
+        oauth.ready().err().map(|_| tl!("Find your identity provider's addresses with Discover, or enter them").to_string())
+    }
+
+    /// The OAuth settings, as `account.add` and `account.edit` take them.
+    pub(super) fn oauth_params(&self, m: &mut Map<String, Value>) {
+        let Some(oauth) = self.oauth_now() else { return };
+        m.insert("redirectPort".into(), json!(oauth.redirect_port));
+        if oauth.provider != OAuthProvider::Custom {
+            return;
+        }
+        m.insert("clientId".into(), json!(oauth.client_id));
+        if self.own.as_custom {
+            m.insert("asCustom".into(), json!(true));
+        }
+        for (key, value) in [
+            ("issuer", &oauth.issuer),
+            ("authorizeUrl", &oauth.authorize),
+            ("tokenUrl", &oauth.token),
+            ("revokeUrl", &oauth.revoke),
+            ("scopes", &oauth.scopes),
+        ] {
+            m.insert(key.into(), json!(value.trim()));
+        }
+        m.insert("mechanism".into(), json!(oauth.mechanism.code()));
+        m.insert("clientAuth".into(), json!(oauth.client_auth.code()));
+        m.insert("issuerInResponse".into(), json!(oauth.issuer_in_response));
+        m.insert("baseScopes".into(), json!(oauth.base_scopes));
+        m.insert("hasSecret".into(), json!(oauth.has_secret));
+    }
+
+    /// Keep the client secret typed (or forget the one there is) for `account`, once the
+    /// settings that name it are saved (0: the account being set up, until it exists).
+    pub(super) fn keep_client_secret(&mut self, app: &mut MailApp, account: Id) {
+        if !self.oauth.as_ref().is_some_and(|o| o.provider == OAuthProvider::Custom) {
+            return;
+        }
+        let setup = self.oauth.clone().filter(|_| account == 0);
+        if !self.own.typed_secret().is_empty() {
+            let secret = self.own.typed_secret().to_string();
+            match &setup {
+                Some(oauth) => app.set_setup_client_secret(oauth, &secret),
+                None => app.set_client_secret(account, &secret),
+            }
+            self.own.wipe();
+            // (A replacement typed over a Forget ticked before is kept, not forgotten again.)
+            self.own.forget_secret = false;
+        } else if self.own.forget_secret {
+            match &setup {
+                Some(oauth) => app.set_setup_client_secret(oauth, ""),
+                None => app.set_client_secret(account, ""),
+            }
+            self.own.forget_secret = false;
+        }
+    }
+
+    /// Take in what Discover found, once it has.
+    pub(super) fn poll_discover(&mut self) {
+        let answer = match self.own.discovering.as_ref().map(|(_, rx)| rx.try_recv()) {
+            Some(Err(TryRecvError::Empty)) | None => return,
+            Some(Ok(answer)) => answer,
+            Some(Err(TryRecvError::Disconnected)) => Err(tl!("Finding the addresses stopped unexpectedly").to_string()),
+        };
+        let asked = self.own.discovering.take().map(|(issuer, _)| issuer).unwrap_or_default();
+        let Some(oauth) = self.oauth.as_mut().filter(|o| o.provider == OAuthProvider::Custom) else { return };
+        // (Found for an issuer the owner has changed since: not this one's addresses.)
+        if asked != oauth.issuer.trim() {
+            return;
+        }
+        match answer {
+            Ok(found) => {
+                (oauth.authorize, oauth.token, oauth.revoke) = (line(&found.authorize, 2048), line(&found.token, 2048), line(&found.revoke, 2048));
+                (oauth.client_auth, oauth.issuer_in_response) = (found.client_auth, found.issuer_in_response);
+                oauth.base_scopes = found.base_scopes.clone();
+                let host = |address: &str| address.split("://").nth(1).and_then(|rest| rest.split(['/', '?', ':']).next()).unwrap_or("").to_string();
+                let mut said = fmt(
+                    tl!("Found: sign-in at {signIn}, tokens from {token}."),
+                    &[("signIn", &shown(&host(&oauth.authorize), 80)), ("token", &shown(&host(&oauth.token), 80))],
+                );
+                if found.no_refresh {
+                    said.push(' ');
+                    said.push_str(tl!("It hands out no refresh tokens: you'll be asked to sign in again each time a sign-in runs out."));
+                }
+                self.own.found = said;
+                self.own.outside = found.outside.iter().take(8).map(|h| line(h, 253)).collect();
+                self.own.agreed = false;
+                self.own.discovered =
+                    Some(Discovered { issuer: asked, authorize: oauth.authorize.clone(), token: oauth.token.clone(), revoke: oauth.revoke.clone() });
+            }
+            Err(why) => self.own.found = fmt(tl!("No addresses found: {reason}"), &[("reason", &shown(&why, 200))]),
+        }
+    }
+
+    /// The OAuth settings section of a page, for an account that signs in on its provider's page.
+    pub(super) fn oauth_section(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) {
+        let t = pass.t;
+        let Some(provider) = self.oauth.as_ref().map(|o| o.provider) else { return };
+        caption(ui, tl!("OAuth settings"), &t);
+        if provider != OAuthProvider::Custom {
+            // (No list of where its token goes: Microsoft's and Google's also go to their own
+            // services besides the mail servers, Microsoft Graph for one, #1844 review.)
+            self.built_in_fields(ui, pass, provider);
+            return;
+        }
+        self.own_provider_fields(app, ui, pass);
+        // The servers an own provider's token is for: never chosen here, they follow the server
+        // settings, and it is sent nowhere else.
+        let mut servers: Vec<String> =
+            [self.incoming.host.trim(), self.outgoing.host.trim()].into_iter().filter(|h| !h.is_empty()).map(|h| shown(h, 80)).collect();
+        servers.dedup();
+        let servers = if servers.is_empty() { tl!("the incoming and outgoing servers above").to_string() } else { servers.join(", ") };
+        note(ui, &fmt(tl!("The sign-in is only sent to: {servers}"), &[("servers", &servers)]), t.text_dim);
+        if [&self.incoming.host, &self.outgoing.host].into_iter().any(|host| mailcraft_model::is_microsoft_or_google_host(host)) {
+            note(
+                ui,
+                tl!(
+                    "A sign-in with your own identity provider is never sent to Microsoft's or Google's mail servers: change the servers above to your own."
+                ),
+                t.orange,
+            );
+        }
+    }
+
+    /// Microsoft's or Google's built-in values, shown; the client id, tenant and port, edited.
+    fn built_in_fields(&mut self, ui: &mut Ui, pass: &mut Pass, provider: OAuthProvider) {
+        let t = pass.t;
+        let profile = if provider == OAuthProvider::Google { tl!("Google (built in)") } else { tl!("Microsoft 365 or Outlook.com (built in)") };
+        note(ui, profile, t.text);
+        let used = provider.defaults(&self.tenant);
+        for (label, value) in [
+            (tl!("Identity provider"), used.issuer.as_str()),
+            (tl!("Sign-in address"), used.authorize.as_str()),
+            (tl!("Token address"), used.token.as_str()),
+            (tl!("Scopes"), used.scopes.as_str()),
+            (tl!("Mechanism"), used.mechanism.code()),
+        ] {
+            note(ui, &format!("{label}: {}", shown(value, 200)), t.text_dim);
+        }
+        field(ui, pass, "clientId", tl!("Application (client) ID"), &mut self.client_id, tl!("The one in File › Options"), 200);
+        if provider == OAuthProvider::Microsoft {
+            field(ui, pass, "tenant", tl!("Tenant"), &mut self.tenant, "common", 64);
+        }
+        // (Only an account with IMAP and SMTP servers can: a Microsoft account kept in step
+        // through Graph has none, and an own provider's token goes to its own servers, #1844
+        // review.)
+        if self.incoming.host.trim().is_empty() || self.outgoing.host.trim().is_empty() {
+            return;
+        }
+        // Nor while they are Microsoft's or Google's: an own provider's token is never sent there,
+        // so the servers change first (#1844 review).
+        if [&self.incoming.host, &self.outgoing.host].into_iter().any(|host| mailcraft_model::is_microsoft_or_google_host(host)) {
+            note(
+                ui,
+                &fmt(
+                    tl!(
+                        "To sign in with your own identity provider, first change the incoming and outgoing servers to your own: a sign-in from it is never sent to {provider}'s servers."
+                    ),
+                    &[("provider", provider.label())],
+                ),
+                t.text_dim,
+            );
+            self.own.asking = false;
+            return;
+        }
+        if !self.own.asking {
+            if button(ui, tl!("Use your own identity provider instead…"), false, true).clicked() {
+                self.own.asking = true;
+            }
+            return;
+        }
+        let question = fmt(
+            tl!(
+                "These settings will no longer be {provider}'s: MailCraft will treat this account as one with your own identity provider, starting from the values above, and you'll sign in again."
+            ),
+            &[("provider", provider.label())],
+        );
+        note(ui, &question, t.orange);
+        let (mut yes, mut no) = (false, false);
+        ui.horizontal(|ui| {
+            yes = button(ui, tl!("Use my own identity provider"), true, true).clicked();
+            no = button(ui, tl!("Keep the built-in settings"), false, true).clicked();
+        });
+        if yes {
+            let mut oauth = self.oauth_now().unwrap_or_default();
+            let used = oauth.effective();
+            let extra = used
+                .scopes
+                .split_ascii_whitespace()
+                .filter(|s| !mailcraft_model::oauth::CUSTOM_SCOPE.split(' ').any(|c| c == *s))
+                .collect::<Vec<_>>()
+                .join(" ");
+            oauth = OAuth {
+                provider: OAuthProvider::Custom,
+                client_id: used.client_id.clone(),
+                issuer: used.issuer,
+                authorize: used.authorize,
+                token: used.token,
+                revoke: used.revoke,
+                scopes: extra,
+                mechanism: used.mechanism,
+                client_auth: used.client_auth,
+                redirect_port: oauth.redirect_port,
+                ..OAuth::default()
+            };
+            self.client_id = used.client_id;
+            self.oauth = Some(oauth);
+            (self.own.as_custom, self.own.asking) = (true, false);
+        } else if no {
+            self.own.asking = false;
+        }
+    }
+
+    /// An own identity provider's values, every one entered here.
+    fn own_provider_fields(&mut self, app: &MailApp, ui: &mut Ui, pass: &mut Pass) {
+        let t = pass.t;
+        note(ui, tl!("Your own identity provider"), t.text);
+        if !self.own.offered.is_empty() && self.oauth.as_ref().is_some_and(|o| o.issuer.trim().is_empty()) {
+            note(ui, &fmt(tl!("Your domain names {issuer} for signing in."), &[("issuer", &shown(&self.own.offered, 120))]), t.text_dim);
+            if button(ui, tl!("Use it"), false, true).clicked()
+                && let Some(oauth) = self.oauth.as_mut()
+            {
+                oauth.issuer = self.own.offered.clone();
+            }
+        }
+        let has_secret = self.oauth.as_ref().is_some_and(|o| o.has_secret);
+        // (One kept for settings that have changed since is not kept for these, #1844 review.)
+        let kept_for_others = has_secret && self.oauth.as_ref().is_some_and(|o| !self.secret_settings_unchanged(o));
+        let Some(oauth) = self.oauth.as_mut() else { return };
+        field(ui, pass, "issuer", tl!("Identity provider (issuer)"), &mut oauth.issuer, "https://id.example.org/realms/mail", 2048);
+        // Another issuer: what Discover found for the one before isn't its (#1844 review).
+        if let Some(found) = self.own.discovered.clone().filter(|found| found.issuer != oauth.issuer.trim()) {
+            forget_discovered(oauth, &found);
+            (self.own.discovered, self.own.found, self.own.agreed) = (None, String::new(), false);
+            self.own.outside.clear();
+        }
+        let can_discover = app.services.oauth_discover.is_some() && !oauth.issuer.trim().is_empty() && self.own.discovering.is_none();
+        let mut discover = false;
+        ui.horizontal(|ui| {
+            discover = button(ui, tl!("Discover"), false, can_discover)
+                .on_hover_text(tl!("Find the sign-in and token addresses from the identity provider's address. Only that address is sent."))
+                .clicked();
+            if self.own.discovering.is_some() {
+                ui.spinner();
+            }
+        });
+        if discover && let Some(start) = app.services.oauth_discover.as_ref() {
+            let issuer = oauth.issuer.trim().to_string();
+            self.own.discovering = Some((issuer.clone(), start(issuer)));
+            self.own.found.clear();
+        }
+        if !self.own.found.is_empty() {
+            note(ui, &self.own.found, t.text_dim);
+        }
+        let outside = self.oauth.as_ref().map(|o| self.own.outside_in_use(o)).unwrap_or_default();
+        if !outside.is_empty() {
+            let hosts = outside.join(", ");
+            note(ui, &fmt(tl!("These addresses are outside your identity provider's domain: {hosts}"), &[("hosts", &hosts)]), t.orange);
+            ui.checkbox(&mut self.own.agreed, tl!("I trust these addresses"));
+        }
+        let Some(oauth) = self.oauth.as_mut() else { return };
+        // (An address typed by hand is the owner's own: nothing to agree to for it; the ones still
+        // as Discover found them keep asking, [`OwnFields::outside_in_use`].)
+        field(ui, pass, "authorizeUrl", tl!("Sign-in address"), &mut oauth.authorize, "https://…/auth", 2048);
+        field(ui, pass, "tokenUrl", tl!("Token address"), &mut oauth.token, "https://…/token", 2048);
+        field(ui, pass, "revokeUrl", tl!("Revocation address (optional)"), &mut oauth.revoke, "https://…/revoke", 2048);
+        field(ui, pass, "clientId", tl!("Client ID"), &mut self.client_id, tl!("The one registered for MailCraft"), 200);
+        caption(ui, tl!("Client secret (optional)"), &t);
+        let hint = if has_secret && !self.own.forget_secret && !kept_for_others {
+            tl!("Kept: type a new one to replace it")
+        } else {
+            tl!("Only if your provider gave one")
+        };
+        let resp = secret_field::field(ui, &mut self.own.secret.0, &mut self.own.reveal, app.secret_watch(), FIELD_MARGIN, |edit| {
+            edit.id(field_id(("account", "clientSecret"))).char_limit(1024).hint_text(hint.to_owned())
+        });
+        pass.field(&resp);
+        if kept_for_others && !self.own.forget_secret && self.own.typed_secret().is_empty() {
+            note(
+                ui,
+                tl!(
+                    "The client secret is kept for the settings as they were: enter it again to use it with these, or it is forgotten when you save."
+                ),
+                t.orange,
+            );
+        } else if has_secret {
+            ui.checkbox(&mut self.own.forget_secret, tl!("Forget the client secret"));
+        }
+        note(
+            ui,
+            tl!("Kept in your system's credential store, never in the mailbox. A desktop program can't really keep it secret from you."),
+            t.text_dim,
+        );
+        let Some(oauth) = self.oauth.as_mut() else { return };
+        // RFC 6749 §2.3.1: the header is what every provider takes; Discover says when it is the form.
+        caption(ui, tl!("Client secret sent"), &t);
+        let sent = |way: ClientAuth| match way {
+            ClientAuth::Basic => tl!("In the Authorization header (client_secret_basic)"),
+            ClientAuth::Post => tl!("In the form (client_secret_post)"),
+        };
+        egui::ComboBox::from_id_salt(field_id(("account", "clientAuth"))).selected_text(sent(oauth.client_auth)).show_ui(ui, |ui| {
+            for way in [ClientAuth::Basic, ClientAuth::Post] {
+                ui.selectable_value(&mut oauth.client_auth, way, sent(way));
+            }
+        });
+        field(ui, pass, "scopes", tl!("Extra scopes"), &mut oauth.scopes, tl!("Asked for besides openid email offline_access"), 1024);
+        field(ui, pass, "redirectPort", tl!("Redirect port"), &mut self.own.port, tl!("Automatic"), 5);
+        note(ui, tl!("Register http://127.0.0.1 with any port (or the one above) as the redirect address."), t.text_dim);
+        caption(ui, tl!("Mechanism"), &t);
+        let label = |choice: SaslChoice| match choice {
+            SaslChoice::Auto => tl!("Automatic (OAUTHBEARER, else XOAUTH2)"),
+            SaslChoice::OAuthBearer => "OAUTHBEARER",
+            SaslChoice::XOAuth2 => "XOAUTH2",
+        };
+        egui::ComboBox::from_id_salt(field_id(("account", "mechanism"))).selected_text(label(oauth.mechanism)).show_ui(ui, |ui| {
+            for choice in [SaslChoice::Auto, SaslChoice::OAuthBearer, SaslChoice::XOAuth2] {
+                ui.selectable_value(&mut oauth.mechanism, choice, label(choice));
+            }
+        });
+    }
+}

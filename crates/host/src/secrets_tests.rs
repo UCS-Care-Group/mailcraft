@@ -92,3 +92,41 @@ fn a_dav_user_name_keeps_its_case_in_the_key_and_the_host_and_origin_do_not() {
     assert_eq!(dav_secret_key(&g, "https://outlook.office365.com/"), None);
     assert!(crate::dav_secret_keys(&g).iter().all(|k| !k.contains("googleapis")));
 }
+
+#[test]
+fn an_own_identity_providers_sign_in_is_bound_to_the_provider_and_the_client() {
+    use mailcraft_model::{OAuth, OAuthProvider};
+    let server = |host: &str| Some(Server { host: host.to_string(), port: 993, ..Default::default() });
+    let oauth = OAuth {
+        provider: OAuthProvider::Custom,
+        client_id: "mailcraft".into(),
+        issuer: "https://id.example.org/realms/mail".into(),
+        authorize: "https://id.example.org/auth".into(),
+        token: "https://id.example.org/token".into(),
+        ..OAuth::default()
+    };
+    let account = Account {
+        kind: AccountKind::Imap,
+        email: "alice@example.org".into(),
+        incoming: server("mail.example.org"),
+        outgoing: server("mail.example.org"),
+        oauth: Some(oauth.clone()),
+        ..Default::default()
+    };
+    let key = secret_key("refresh", &account);
+    assert!(key.contains("imap=mail.example.org:993") && key.contains("oauth=custom|34:https://id.example.org/realms/mail|"), "{key}");
+    // A change of anything the sign-in belongs to is another name: nothing remembered is found.
+    for changed in [
+        OAuth { issuer: "https://id.attacker.example".into(), ..oauth.clone() },
+        OAuth { token: "https://id.attacker.example/token".into(), ..oauth.clone() },
+        OAuth { client_id: "other".into(), ..oauth.clone() },
+    ] {
+        assert_ne!(secret_key("refresh", &Account { oauth: Some(changed), ..account.clone() }), key);
+    }
+    assert_ne!(secret_key("refresh", &Account { incoming: server("imap.attacker.example"), ..account.clone() }), key);
+    // Nor are the refresh token and the client secret ever one name.
+    assert_ne!(secret_key(crate::secrets::OAUTH_CLIENT, &account), key);
+    // A Google account is named as ever.
+    let google = Account { oauth: Some(OAuth { provider: OAuthProvider::Google, ..OAuth::default() }), ..account.clone() };
+    assert!(!secret_key("refresh", &google).contains("oauth="));
+}

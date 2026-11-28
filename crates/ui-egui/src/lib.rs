@@ -89,6 +89,8 @@ pub mod chrome;
 mod clicks;
 #[cfg(test)]
 mod clicks_tests;
+#[cfg(test)]
+mod client_secret_store_tests;
 pub mod close_to_tray;
 #[cfg(test)]
 mod close_to_tray_tests;
@@ -478,6 +480,14 @@ pub struct Services {
     /// records, RFC 6186, #1063; what it publishes for mail programs; Mozilla's ISP database,
     /// #1112), for the owner to confirm. Only the domain is given, never the mailbox name.
     pub discover: Option<Box<dyn Fn(String) -> Receiver<Result<mailcraft_model::provider::Discovered, String>>>>,
+    /// Desktop: find an own identity provider's sign-in, token and revocation addresses from its
+    /// issuer, on a background thread (OpenID Connect Discovery, RFC 8414). Only the issuer's
+    /// address goes out; only when the owner presses Discover.
+    pub oauth_discover: Option<Box<dyn Fn(String) -> Receiver<Result<OAuthFound, String>>>>,
+    /// Desktop: give an own identity provider a refresh token back (RFC 7009) on a thread of its
+    /// own, with the account's sign-in settings and its client secret (empty for none), when the
+    /// account is removed. Best effort: nothing waits for it, and nothing it says is shown.
+    pub revoke_sign_in: Option<Box<dyn Fn(mailcraft_model::OAuth, String, String)>>,
     /// Desktop: ask the DNS, on a background thread, for the hosts a domain names for
     /// Autodiscover (its `_autodiscover._tcp` SRV record and the alias of `autodiscover.<domain>`),
     /// so account setup can tell an address on an Exchange server from one on an IMAP server.
@@ -826,6 +836,26 @@ pub trait PictureCache {
     fn clear(&self) -> Result<(), String>;
 }
 
+/// What an own identity provider says of itself ([`Services::oauth_discover`]).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct OAuthFound {
+    pub authorize: String,
+    pub token: String,
+    /// Empty when it names none.
+    pub revoke: String,
+    /// The hosts of those addresses outside the issuer's own domain, for the owner to agree to.
+    pub outside: Vec<String>,
+    /// It says it hands out no refresh tokens: the owner signs in again each time a token runs out.
+    pub no_refresh: bool,
+    /// How it takes a client secret (RFC 6749 §2.3.1): in the header unless it lists only the form.
+    pub client_auth: mailcraft_model::ClientAuth,
+    /// It says its page names itself when it sends the owner back (RFC 9207).
+    pub issuer_in_response: bool,
+    /// Which of the standard scopes it is asked for: `None` for all of them, else those it lists
+    /// ([`mailcraft_model::oauth::base_scopes_for`]).
+    pub base_scopes: Option<String>,
+}
+
 /// What the host needs to sign an account's owner in ([`Services::sign_in`]). A sign-in on the
 /// provider's page that ends without tokens in one of the ways the window has something of its
 /// own to say about is answered with exactly [`approval::NEEDS_APPROVAL`],
@@ -840,9 +870,11 @@ pub struct SignInRequest {
     pub email: String,
     /// A refresh token from earlier in this session to try first; empty when there is none.
     pub refresh: String,
-    /// Google Desktop registration's installed-app secret for this one sign-in. Never stored
-    /// in a mailbox or passed to an IMAP/SMTP server; not an owner credential.
-    pub google_client_secret: String,
+    /// The client secret for this one sign-in: Google Desktop registration's installed-app
+    /// secret, or the one registered at an own identity provider (from the system's credential
+    /// store, or typed this session); empty for none. Sent to the provider's token address alone;
+    /// never stored in a mailbox or passed to an IMAP/SMTP server.
+    pub client_secret: String,
     /// Set when the owner gives up waiting, for the host to stop too.
     pub cancel: std::sync::Arc<std::sync::atomic::AtomicBool>,
     /// Nobody asked for this (a Send/Receive that started by itself): renew with the refresh
@@ -1738,6 +1770,11 @@ pub struct MailApp {
     /// What the credential store gave back for each key this session, read in the background
     /// ([`secret_read`]); only what was found. The window asks this, never the store.
     secret_cache: std::collections::HashMap<String, String>,
+    /// The client secrets typed this session for accounts that sign in with an own identity
+    /// provider (0: the account being set up), each with the settings it was typed for
+    /// ([`mailcraft_model::OAuth::binding`]): used only with those, never with a provider's
+    /// changed settings (#1844 review). Never saved; redacted from `Debug`.
+    pub(crate) client_secrets: std::collections::HashMap<Id, (String, String)>,
     /// The background read of the store under way, with the opening it was started for.
     secret_read: Option<(u64, std::sync::mpsc::Receiver<secret_read::SecretRead>)>,
     /// The opening, and whether remembering was on, when the store was last read by itself.
@@ -1847,6 +1884,10 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
+    /// The accounts whose access token a server refused during a run, renewed and tried once more
+    /// in the same Send/Receive: a second refusal waits for the next one, never a third try. Each
+    /// account's own: another account's renewal neither replaces nor ends it (#1844 review).
+    token_retried: std::collections::HashSet<Id>,
     /// The password the run in flight went with, until the system is asked to remember it: once
     /// a run (#802).
     sync_password: Option<String>,
@@ -2094,6 +2135,7 @@ impl MailApp {
             ews_certificate: Default::default(),
             secrets_opening: 0,
             secret_cache: Default::default(),
+            client_secrets: Default::default(),
             secret_read: None,
             secrets_asked: None,
             sync_after_secrets: Vec::new(),
@@ -2140,6 +2182,7 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
+            token_retried: Default::default(),
             sync_password: None,
             jmap_refused: Default::default(),
             control_rx: None,
@@ -2666,7 +2709,8 @@ impl MailApp {
         } else {
             None
         };
-        let edited = if matches!(id, "account.edit" | "account.davSet" | "account.davOff" | "account.graphSwitch") {
+        // (Restoring the default OAuth settings may change the client a sign-in is for, #1844 review.)
+        let edited = if matches!(id, "account.edit" | "account.oauthRestoreDefaults" | "account.davSet" | "account.davOff" | "account.graphSwitch") {
             // (`account.graphSwitch` names its account `account`.)
             let key = if id == "account.graphSwitch" { "account" } else { "id" };
             params.get(key).and_then(Value::as_u64).and_then(|a| self.session.mailbox.account(a)).cloned()
@@ -2746,6 +2790,9 @@ impl MailApp {
             self.graph_tokens.remove(&account);
             self.passwords.remove(&account);
             self.dav_passwords.retain(|(id, _), _| *id != account);
+            // An own identity provider is given its refresh token back, when it says where
+            // (RFC 7009): on a thread of the host's, best effort; it is forgotten here either way.
+            self.revoke_own_sign_in(&gone);
             self.tokens.remove(&account);
             self.jmap_refused.remove(&account);
             self.ews_unreadable.remove(&account);
@@ -3195,6 +3242,7 @@ impl MailApp {
                 self.pause_fetch();
                 self.session.driver.round.queue.clear();
                 self.session.driver.round.inbox_queue.clear();
+                self.forget_retries_not_under_way();
                 // (Nor does a run called off for something else go on after.)
                 if let Some((_, _, called_off, _)) = self.sync_run.as_mut() {
                     *called_off = false;
@@ -3219,6 +3267,9 @@ impl MailApp {
                 Some(s) => {
                     s.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
                     self.session.sync_status = tl!("Sign-in cancelled").to_string();
+                    // A renewal after a refused token that was called off: the next run may try
+                    // again (its answer, which would have said so, is never read now, #1844 review).
+                    self.token_retried.remove(&s.account);
                     // The one page for an older sign-in: what waited for it takes it as a no (not
                     // put again by itself), and a shared mailbox being added is taken off again
                     // with the reason, not left checking.
@@ -3304,8 +3355,8 @@ impl MailApp {
             && Self::secret_key("refresh", before) == Self::secret_key("refresh", after)
             && before.incoming.as_ref().map(|s| s.security) == after.incoming.as_ref().map(|s| s.security)
             && before.outgoing.as_ref().map(|s| s.security) == after.outgoing.as_ref().map(|s| s.security)
-            && before.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
-                == after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str()))
+            && before.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str(), o.binding()))
+                == after.oauth.as_ref().map(|o| (o.provider, o.client_id.as_str(), o.tenant.as_str(), o.binding()))
     }
 
     /// Stop only this account's pending sign-in and remove its waiting text.
@@ -3315,6 +3366,7 @@ impl MailApp {
         {
             pending.cancel.store(true, std::sync::atomic::Ordering::Relaxed);
             self.session.sync_status.clear();
+            self.token_retried.remove(&account);
         }
     }
 
@@ -3507,7 +3559,7 @@ impl MailApp {
     /// account `account` of this mailbox, with the servers it has now: that account's own, never
     /// one found by its address (another may have it too, with other servers, AU3-03).
     fn remembered(&self, kind: &str, account: Id) -> Option<String> {
-        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || self.unconfirmed {
+        if !matches!(kind, "password" | "refresh" | mailcraft_host::secrets::OAUTH_CLIENT) || !self.ui.remember_sign_in || self.unconfirmed {
             return None;
         }
         let a = self.session.mailbox.account(account)?;
@@ -3519,7 +3571,14 @@ impl MailApp {
     /// Have the operating system remember a secret for the account `account`, when the owner
     /// wants that: under that account's own name.
     fn remember(&mut self, kind: &str, account: Id, secret: &str) {
-        if !matches!(kind, "password" | "refresh") || !self.ui.remember_sign_in || secret.is_empty() || self.data_removed || self.unconfirmed {
+        // (The client secret too: without it a confidential client's refresh fails after a
+        // restart, though the sign-in it renews worked.)
+        if !matches!(kind, "password" | "refresh" | mailcraft_host::secrets::OAUTH_CLIENT)
+            || !self.ui.remember_sign_in
+            || secret.is_empty()
+            || self.data_removed
+            || self.unconfirmed
+        {
             return;
         }
         let Some(account) = self.session.mailbox.account(account) else { return };
@@ -3554,7 +3613,7 @@ impl MailApp {
     pub(crate) fn forget_every_secret(&mut self) -> Vec<String> {
         let mut keys: Vec<String> = std::mem::take(&mut self.ui.remembered_keys);
         for a in &self.session.mailbox.accounts {
-            for kind in ["password", "refresh"] {
+            for kind in ["password", "refresh", mailcraft_host::secrets::OAUTH_CLIENT] {
                 keys.extend(Self::secret_keys_of(kind, a));
             }
             keys.extend(Self::dav_secret_keys(a));
@@ -3611,7 +3670,8 @@ impl MailApp {
         let Some(store) = &self.services.secrets else { return };
         let mut gone = Vec::new();
         let dav = if with_dav { Self::dav_secret_keys(a) } else { Vec::new() };
-        let named = ["password", "refresh"].into_iter().flat_map(|kind| Self::secret_keys_of(kind, a)).chain(dav);
+        let named =
+            ["password", "refresh", mailcraft_host::secrets::OAUTH_CLIENT].into_iter().flat_map(|kind| Self::secret_keys_of(kind, a)).chain(dav);
         for key in named {
             store.delete(&key);
             if store.get(&key).is_none() {
@@ -3662,6 +3722,114 @@ impl MailApp {
         )
     }
 
+    /// The client secret of `account` (0 for the one being set up): [`Self::client_secret_for`]
+    /// the account, or what was typed for the one being set up. For tests: the window asks with
+    /// the account, or the settings, in hand.
+    #[cfg(test)]
+    pub(crate) fn client_secret_of(&self, account: Id) -> String {
+        match self.session.mailbox.account(account) {
+            Some(a) => self.client_secret_for(a),
+            None => self.typed_client_secret(account, None),
+        }
+    }
+
+    /// The client secret of the account `a` (one being removed, say), an account that signs in with
+    /// an own identity provider: typed this session for its settings as they are, else what the
+    /// credential store gave back under them; empty for none.
+    pub(crate) fn client_secret_for(&self, a: &mailcraft_model::Account) -> String {
+        let typed = self.typed_client_secret(a.id, a.oauth.as_ref());
+        if !typed.is_empty() {
+            return typed;
+        }
+        if !a.oauth.as_ref().is_some_and(|o| o.has_secret) {
+            return String::new();
+        }
+        self.secret_cache.get(&Self::secret_key(mailcraft_host::secrets::OAUTH_CLIENT, a)).cloned().unwrap_or_default()
+    }
+
+    /// The client secret typed this session for `account`, when it was typed for `oauth` as it
+    /// is (any, when `None`); else empty.
+    fn typed_client_secret(&self, account: Id, oauth: Option<&mailcraft_model::OAuth>) -> String {
+        match self.client_secrets.get(&account) {
+            Some((bound, secret)) if oauth.is_none_or(|o| o.binding() == *bound) => secret.clone(),
+            _ => String::new(),
+        }
+    }
+
+    /// Keep `secret`, typed for the account being set up with the settings `oauth`; an empty one
+    /// forgets any (#1844 review: a secret typed for one provider never goes to another).
+    pub(crate) fn set_setup_client_secret(&mut self, oauth: &mailcraft_model::OAuth, secret: &str) {
+        if secret.is_empty() {
+            self.client_secrets.remove(&0);
+        } else {
+            self.client_secrets.insert(0, (oauth.binding(), secret.to_string()));
+        }
+    }
+
+    /// Keep the client secret the owner typed for `account` (0 for the one being set up): in
+    /// memory for the session, and in the credential store when sign-ins are remembered. An empty
+    /// one forgets it.
+    pub(crate) fn set_client_secret(&mut self, account: Id, secret: &str) {
+        if secret.is_empty() {
+            self.client_secrets.remove(&account);
+            if let Some(a) = self.session.mailbox.account(account).cloned() {
+                let keys = Self::secret_keys_of(mailcraft_host::secrets::OAUTH_CLIENT, &a);
+                for key in &keys {
+                    self.secret_cache.remove(key);
+                }
+                if let Some(store) = &self.services.secrets {
+                    for key in keys {
+                        store.delete(&key);
+                    }
+                }
+            }
+            return;
+        }
+        let bound = self.session.mailbox.account(account).and_then(|a| a.oauth.as_ref()).map(mailcraft_model::OAuth::binding).unwrap_or_default();
+        self.client_secrets.insert(account, (bound, secret.to_string()));
+        if account != 0 {
+            self.remember(mailcraft_host::secrets::OAUTH_CLIENT, account, secret);
+        }
+    }
+
+    /// Forget, in the credential store, the client secret kept for `before` (the account as it was
+    /// before its settings were saved) under names it no longer has: its own provider's settings
+    /// changed, or it signs in otherwise now. A secret is kept under the settings it is for, so
+    /// one under old settings would never be found again, only left behind (#1844 review).
+    pub(crate) fn drop_stale_client_secret(&mut self, before: &mailcraft_model::Account) {
+        if !before.oauth.as_ref().is_some_and(|o| o.provider == mailcraft_model::OAuthProvider::Custom && o.has_secret) {
+            return;
+        }
+        let now = self.session.mailbox.account(before.id).map(|a| Self::secret_keys_of(mailcraft_host::secrets::OAUTH_CLIENT, a)).unwrap_or_default();
+        let stale: Vec<String> =
+            Self::secret_keys_of(mailcraft_host::secrets::OAUTH_CLIENT, before).into_iter().filter(|k| !now.contains(k)).collect();
+        for key in &stale {
+            self.secret_cache.remove(key);
+        }
+        if let Some(store) = &self.services.secrets {
+            for key in stale {
+                store.delete(&key);
+            }
+        }
+    }
+
+    /// Hand an own identity provider's refresh token for `gone`, an account being removed, to the
+    /// host to give back (`Services::revoke_sign_in`), with its client secret. Nothing when it
+    /// names nowhere to give it back, or there is none.
+    fn revoke_own_sign_in(&mut self, gone: &mailcraft_model::Account) {
+        let Some(oauth) = gone.oauth.clone().filter(|o| o.provider == mailcraft_model::OAuthProvider::Custom && !o.revoke.trim().is_empty()) else {
+            return;
+        };
+        let kept = self.tokens.get(&gone.id).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
+        let refresh = kept.or_else(|| self.secret_cache.get(&Self::secret_key("refresh", gone)).cloned()).unwrap_or_default();
+        // (Read through `gone`: the account is no longer in the mailbox, #1844 review.)
+        let secret = self.client_secret_for(gone);
+        self.client_secrets.remove(&gone.id);
+        if let (false, Some(revoke)) = (refresh.is_empty(), self.services.revoke_sign_in.as_ref()) {
+            revoke(oauth, secret, refresh);
+        }
+    }
+
     /// The host's Desktop registration value. UI preferences never supply or retain it.
     pub(crate) fn google_client_secret(&self) -> &str {
         &self.services.google_client_secret
@@ -3704,15 +3872,41 @@ impl MailApp {
         };
         let cancel = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
         let browser = refresh.is_empty();
-        let waiting = if browser { tl!("Sign in on the page that opened in your browser…") } else { tl!("Renewing the sign-in…") };
-        let google_client_secret =
-            if oauth.provider == mailcraft_model::OAuthProvider::Google { self.google_client_secret().to_string() } else { String::new() };
+        // (A renewal the provider refuses goes on to its page when the owner asked for the run:
+        // the words say so, so that a wait for the browser never looks like a renewal stuck.)
+        let waiting = if browser {
+            tl!("Sign in on the page that opened in your browser…")
+        } else if quiet {
+            tl!("Renewing the sign-in…")
+        } else {
+            tl!("Renewing the sign-in… If it can't be renewed, sign in on the page that opens in your browser.")
+        };
+        let client_secret = match oauth.provider {
+            mailcraft_model::OAuthProvider::Google => self.google_client_secret().to_string(),
+            mailcraft_model::OAuthProvider::Custom => match self.session.mailbox.account(account) {
+                Some(a) => self.client_secret_for(a),
+                // (The account being set up: typed for these very settings, or none.)
+                None => self.typed_client_secret(account, Some(&oauth)),
+            },
+            mailcraft_model::OAuthProvider::Microsoft => String::new(),
+        };
+        // An own provider's client that has a secret, with none here: asking the provider without
+        // it only brings back a refusal that blames the client id. Said as it is instead.
+        if oauth.provider == mailcraft_model::OAuthProvider::Custom && oauth.has_secret && client_secret.is_empty() {
+            if self.secret_read.is_some() {
+                return Err(tl!("Waiting for the system's credential store…").to_string());
+            }
+            return Err(i18n::fmt(
+                tl!("The client secret for {account} isn't stored on this computer: enter it again in Account Settings (File › Info)"),
+                &[("account", email)],
+            ));
+        }
         let request = SignInRequest {
             account,
             oauth: self.effective_oauth(oauth),
             email: email.to_string(),
             refresh,
-            google_client_secret,
+            client_secret,
             cancel: cancel.clone(),
             quiet,
             graph,
@@ -3758,6 +3952,21 @@ impl MailApp {
         }
         if self.signed_in_as_other(account, &tokens) {
             return;
+        }
+        // The client secret typed while it was set up is the account's now, if it was typed for
+        // the settings the account has: one typed for other settings (a provider given up on
+        // since) goes nowhere (#1844 review).
+        let settings = self
+            .session
+            .mailbox
+            .account(account)
+            .and_then(|a| a.oauth.as_ref())
+            .filter(|o| o.provider == mailcraft_model::OAuthProvider::Custom)
+            .map(mailcraft_model::OAuth::binding);
+        if let Some((bound, secret)) = self.client_secrets.remove(&0)
+            && settings.is_some_and(|settings| settings == bound)
+        {
+            self.set_client_secret(account, &secret);
         }
         self.remember("refresh", account, &tokens.refresh);
         self.note_directory(account, &tokens.tenant);
@@ -3909,7 +4118,16 @@ impl MailApp {
             // Good for the whole run: Microsoft ends an IMAP session the moment its token runs
             // out, folders still to go. ponytail: ten minutes covers a run; a longer first
             // download still meets the end, and the next run renews.
-            match self.tokens.get(&account).filter(|t| t.fresh(mailcraft_time::now() + 600)).map(|t| t.access.clone()) {
+            // (A run that goes on after its Send/Receive already renewed once goes with the token
+            // it has, refused or not: a second refusal waits for the next Send/Receive, #1844
+            // review.)
+            let retried = self.token_retried.contains(&account);
+            match self
+                .tokens
+                .get(&account)
+                .filter(|t| t.fresh_for(mailcraft_time::now(), 600) || (retried && !t.access.is_empty()))
+                .map(|t| t.access.clone())
+            {
                 Some(access) => request.access_token = access,
                 None => {
                     self.begin_sign_in(account, oauth, &address, refresh, quiet, false)?;
@@ -4022,7 +4240,7 @@ impl MailApp {
             // Nobody asked for this run: no page is put in front of the owner.
             Ok(MailStart::Quiet { address }) => return Err(i18n::fmt(tl!("Use Send/Receive to sign in to {address}"), &[("address", &address)])),
             Ok(MailStart::SignIn { oauth, address }) => {
-                self.begin_sign_in(account, oauth, &address, String::new(), false, true)?;
+                self.begin_sign_in(account, *oauth, &address, String::new(), false, true)?;
                 return Ok(json!({"pending": "signIn", "account": account}));
             }
             Err(MailRefusal::AccountGone) => return Err(tl!("The account is gone").to_string()),
@@ -4142,6 +4360,8 @@ impl MailApp {
             self.tokens.clear();
             self.graph_tokens.clear();
             self.jmap_refused.clear();
+            // (Typed for the old mailbox's accounts, whose ids another mailbox may reuse.)
+            self.client_secrets.clear();
             self.jmap_send_asks.clear();
             self.ews_unreadable.clear();
             self.ews_signed_in.clear();
@@ -4731,7 +4951,10 @@ impl MailApp {
             Ok(tokens) => {
                 self.remember("refresh", account, &tokens.refresh);
                 self.tokens.insert(account, tokens);
-                if let Err(e) = self.start_sync(&json!({"account": account})) {
+                // (A renewal nobody asked for goes on as quietly as it began: no page opens for
+                // the run after it, #1844 review.)
+                if let Err(e) = self.start_sync(&json!({"account": account, "quiet": !asked_for})) {
+                    self.token_retried.remove(&account);
                     self.session.sync_status.clear();
                     self.status(e);
                 }
@@ -4751,10 +4974,38 @@ impl MailApp {
                     // merely because the sign-in window was closed or the network failed.
                     tokens.access.clear();
                 }
+                // A renewal after a refused token that came to nothing: the next run may try again.
+                self.token_retried.remove(&account);
                 self.session.sync_status.clear();
                 self.note_sync_problems(account, std::slice::from_ref(&e), false);
                 self.sign_in_came_to_nothing(account, &e, asked_for);
             }
+        }
+    }
+
+    /// A server refused an account's access token during a run (it ran out early, or the provider
+    /// revoked it): the token is renewed with the refresh token at once and the run goes again,
+    /// once, rather than leaving the mail for the next Send/Receive. Only for an account that
+    /// signs in on a provider's page and has a refresh token to renew with; a run nobody asked
+    /// for never opens the browser for it (a renewal refused then waits for the owner).
+    fn retry_refused_token(&mut self, account: Id, quiet: bool) {
+        let Some(a) = self.session.mailbox.account(account) else { return };
+        let Some(oauth) = a.oauth.clone() else { return };
+        let address = a.email.clone();
+        let kept = self.tokens.get(&account).map(|t| t.refresh.clone()).filter(|r| !r.is_empty());
+        let Some(refresh) = kept.or_else(|| self.remembered("refresh", account)) else { return };
+        if self.sync_rx.is_some() || self.graph_rx.is_some() || self.offline() {
+            return;
+        }
+        log::info!("send/receive: the server refused the access token; renewing it and trying once more");
+        // (Marked only once the renewal is on its way, and only for this account: one that
+        // can't start, another account's sign-in waiting, say, leaves every other account's mark
+        // as it was. Its words are not logged: they may name the address, #1844 review.)
+        match self.begin_sign_in(account, oauth, &address, refresh, quiet, false) {
+            Ok(()) => {
+                self.token_retried.insert(account);
+            }
+            Err(_) => log::warn!("send/receive: the renewal after a refused token didn't start"),
         }
     }
 
@@ -4902,6 +5153,15 @@ impl MailApp {
         imap.or(graph).or_else(|| self.signing_in.as_ref().filter(|s| !s.graph && !s.favorites).map(|s| s.account))
     }
 
+    /// The Send/Receive that waited is called off: a mark for a renewal after a refused token is
+    /// kept only for the account whose run or renewal is still under way (its end lets go of it).
+    /// One whose run was called off to go on, and now never does, may renew again next time.
+    pub(crate) fn forget_retries_not_under_way(&mut self) {
+        let running = self.sync_running_account();
+        let renewing = self.signing_in.as_ref().map(|s| s.account);
+        self.token_retried.retain(|a| Some(*a) == running || Some(*a) == renewing);
+    }
+
     /// Skip: leave an account that waits its turn out of the run under way.
     fn skip_sync(&mut self, p: &Value) -> Result<Value, String> {
         use mailcraft_engine::cmd::sync_progress::RunState;
@@ -4914,6 +5174,8 @@ impl MailApp {
         if !self.session.driver.round.skip(account) {
             return Err(i18n::fmt(tl!("{name} isn't waiting its turn in a Send/Receive"), &[("name", &name)]));
         }
+        // (A run called off after a renewal that was to go on doesn't now: the next one may renew.)
+        self.token_retried.remove(&account);
         self.session.sync_progress.skip(account);
         Ok(json!({"skipped": account}))
     }
@@ -5050,11 +5312,19 @@ impl MailApp {
             self.session.send_run_answered(account);
             // Called off so that what the owner did could go out: the next run starts at once,
             // tells the server first, and carries on bringing mail down.
-            if let Some((whose, _, true, quiet)) = self.sync_run.take() {
+            let run = self.sync_run.take();
+            let called_off = matches!(run, Some((_, _, true, _)));
+            if let Some((whose, _, true, quiet)) = run {
                 self.session.driver.round.queue.push_front((whose, quiet));
             }
+            let quiet = run.is_none_or(|(_, _, _, quiet)| quiet);
+            // (Only this account's run ends the one retry it had: another account's leaves it,
+            // #1844 review. A run called off to go on at once keeps it: the run that goes on is
+            // the same Send/Receive, and a second refusal there waits for the next one.)
+            let retried = if called_off { self.token_retried.contains(&account) } else { self.token_retried.remove(&account) };
             let totals = std::mem::take(&mut self.sync_totals);
-            if std::mem::take(&mut self.sync_refused) {
+            let refused = std::mem::take(&mut self.sync_refused);
+            if refused {
                 // Forget the password so the next try asks again, and the access token so the
                 // next try renews it (the refresh token stays for that).
                 self.passwords.remove(&account);
@@ -5063,7 +5333,11 @@ impl MailApp {
                     store.delete(&key);
                     self.secret_cache.remove(&key);
                 }
-                if let Some(tokens) = self.tokens.get_mut(&account) {
+                // (Kept for a run called off to go on after this Send/Receive's one renewal: the
+                // run that goes on uses it rather than renewing a second time, #1844 review.)
+                if !(called_off && retried)
+                    && let Some(tokens) = self.tokens.get_mut(&account)
+                {
                     tokens.access.clear();
                 }
             } else if totals.errors.is_empty() {
@@ -5080,6 +5354,10 @@ impl MailApp {
             self.status(summary);
             self.note_pushed(account);
             self.graph_switch_after_sync(account, totals.errors.is_empty() && !totals.stopped);
+            // (Not after the owner stopped the run.)
+            if refused && !retried && !called_off && !totals.stopped {
+                self.retry_refused_token(account, quiet);
+            }
             return;
         }
     }
