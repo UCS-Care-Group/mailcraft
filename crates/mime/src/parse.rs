@@ -139,6 +139,7 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                     | "status"
                     | "x-status"
             ) || name.starts_with("content-")
+                // (`has_words` takes the field's name: Comments, Organization and Thread-Topic, kept only decoded.)
                 || has_words(&name));
         if into_message {
             read_as_it_came(m, &field.name, value);
