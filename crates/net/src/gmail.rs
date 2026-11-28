@@ -126,10 +126,18 @@ fn batch_modify_at(base: &str, token: &str, ids: &[u64], category: GmailCategory
     }
 }
 
-/// Whether a 403's answer is about how fast Gmail is asked, and not about what is allowed.
+/// Whether a 403's answer is about how fast Gmail is asked, and not about what is allowed: its
+/// `error.errors[].reason` (or `error.status`) says so. The free text (`message`, `details`) is
+/// not read: a lasting refusal that mentions a quota project must stay lasting.
 fn is_rate_limit(body: &[u8]) -> bool {
-    let body = String::from_utf8_lossy(body).to_ascii_lowercase();
-    body.contains("ratelimit") || body.contains("quota") || body.contains("limitexceeded")
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(body) else { return false };
+    let Some(error) = value.get("error") else { return false };
+    let speed = |reason: &str| {
+        let reason = reason.to_ascii_lowercase();
+        reason.contains("ratelimit") || reason.contains("quota") || reason.contains("limitexceeded") || reason == "resource_exhausted"
+    };
+    let reasons = error.get("errors").and_then(|e| e.as_array()).into_iter().flatten();
+    reasons.filter_map(|e| e.get("reason")).chain(error.get("status")).filter_map(|r| r.as_str()).any(speed)
 }
 
 /// Whether a Google token may go to `url`: Gmail's API host, over TLS, on its usual port, and no

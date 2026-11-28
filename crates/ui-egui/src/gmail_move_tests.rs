@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Moving mail between Gmail's categories in the window (#911): the message menu's Move to
-//! Category, and messages let go over a category's row or tab. Moves ship switched off; these
-//! tests switch them on, but for the ones that hold the window to offering nothing while off.
+//! Category, and messages let go over a category's row or tab. A build can have them
+//! switched off; these tests set each state, and some hold the window to offering nothing while off.
 
 use egui::accesskit::Role;
 use egui_kittest::kittest::{NodeT as _, Queryable};
@@ -149,7 +149,7 @@ fn switched_off_command_search_finds_no_move_to_category() {
             .into_iter()
             .any(|c| c.0 == "mail.setGmailCategory" && crate::dialogs::score(query, &c.1, &c.2, &c.0).is_some())
     };
-    assert!(!found(false), "not even greyed while it waits for Google's review");
+    assert!(!found(false), "not even greyed while switched off (as a build can be)");
     assert!(found(true));
 }
 

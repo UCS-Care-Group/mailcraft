@@ -144,6 +144,18 @@ fn a_403_about_speed_is_busy_and_any_other_is_lasting() {
 }
 
 #[test]
+fn only_the_reason_of_a_403_says_it_is_about_speed() {
+    let body = |v: serde_json::Value| v.to_string().into_bytes();
+    // Free text that mentions a quota or a limit doesn't make a lasting refusal a busy one.
+    assert!(!is_rate_limit(&body(
+        serde_json::json!({"error": {"message": "quota project not set; rate limit docs", "errors": [{"reason": "accessNotConfigured"}]}})
+    )));
+    assert!(!is_rate_limit(b"quota exceeded, not json"));
+    assert!(is_rate_limit(&body(serde_json::json!({"error": {"errors": [{"reason": "userRateLimitExceeded"}]}}))));
+    assert!(is_rate_limit(&body(serde_json::json!({"error": {"status": "RESOURCE_EXHAUSTED"}}))));
+}
+
+#[test]
 fn a_google_token_goes_to_gmails_api_and_nowhere_else() {
     let ok = |text: &str| may_go_to(&Url::parse(text).unwrap()).is_ok();
     assert!(ok("https://gmail.googleapis.com"));

@@ -874,8 +874,9 @@ fn unchanged(state: &FolderState, now: FolderStatus, limit: u32) -> bool {
 /// ([`SyncResult::gmail_refused`]): the engine asks again at the next run, and after
 /// [`mailcraft_model::gmail::MAX_GMAIL_REFUSALS`] refusals gives the move up. Moves left
 /// when the requests run out go back as unsent ([`SyncResult::gmail_unsent`]) and wait for the
-/// next run. A lasting 403 (the API not enabled, a permission missing) goes back as refused for every move left, and is said. A token Gmail doesn't take, Gmail busy or out of reach stop the
-/// moves for this run, and that is said once.
+/// next run. A lasting 403 (the API not enabled, a permission missing) goes back as refused
+/// for every move left, and is said. A token Gmail doesn't take, Gmail busy or out of reach stop
+/// the moves for this run, and that is said once.
 fn gmail_moves(run: &mut Run, host: Host) {
     /// The most requests to Gmail's API in one run, the halves of refused batches included.
     const MAX_GMAIL_REQUESTS: usize = 32;
