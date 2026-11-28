@@ -59,6 +59,43 @@ fn mail_before(a: &MailApp) -> (serde_json::Value, serde_json::Value) {
     (serde_json::to_value(&a.session.mailbox.messages).unwrap(), serde_json::to_value(&a.session.mailbox.folders).unwrap())
 }
 
+#[test]
+fn google_actions_preserve_unsaved_desktop_alert_changes() {
+    for reconnect in [false, true] {
+        let (mut a, id, _) = existing_google_password_account();
+        if reconnect {
+            a.execute(
+                "account.edit",
+                json!({"id": id, "auth": "oauth2", "provider": "google", "clientId": "synthetic-native.apps.googleusercontent.com"}),
+            )
+            .unwrap();
+        }
+        let requested = sign_ins(&mut a, None);
+        let mut w = AccountSetup::open(&a, &json!({"id": id})).unwrap();
+        assert!(w.unchanged());
+        let (was, on) = w.desktop_mail_alerts.unwrap();
+        w.desktop_mail_alerts = Some((was, !on));
+        if reconnect {
+            w.start_google_reconnect(&mut a);
+        } else {
+            w.start_google_conversion(&mut a);
+        }
+        assert!(!w.waiting, "an unsaved alert change must block Google sign-in");
+        assert!(requested.lock().unwrap().is_empty());
+        assert!(w.error.contains("Save or discard"), "{}", w.error);
+        assert!(!w.unchanged());
+        w.desktop_mail_alerts = Some((was, on));
+        assert!(w.unchanged());
+        if reconnect {
+            w.start_google_reconnect(&mut a);
+        } else {
+            w.start_google_conversion(&mut a);
+        }
+        assert!(w.waiting, "an unchanged alert setting must allow Google sign-in: {}", w.error);
+        assert_eq!(requested.lock().unwrap().len(), 1);
+    }
+}
+
 fn tokens(email: &str) -> SignedIn {
     SignedIn {
         email: email.into(),

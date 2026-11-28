@@ -6,7 +6,7 @@
 
 use mailcraft_engine::{Part, Session};
 use mailcraft_html::Env;
-use mailcraft_model::{Attachment, FlagStatus, Id, Message};
+use mailcraft_model::{Attachment, FlagStatus, Id, Importance, Message};
 
 use crate::blocks::{self, Pictures};
 use crate::records::{AttachmentRecord, MessageView, PictureBytes};
@@ -111,6 +111,8 @@ impl Core {
                 when: mailcraft_engine::list::when(&m),
                 unread: !m.read,
                 flagged: m.flag == FlagStatus::Flagged,
+                important: m.importance == Importance::High,
+                low_importance: m.importance == Importance::Low,
                 categories: text::first(&m.categories, MAX_CATEGORIES, |c| text::clip(c, MAX_NAME)),
                 attachments: text::first(m.attachments.iter().enumerate(), MAX_LISTED, |(i, a)| AttachmentRecord {
                     index: text::count_of(i),

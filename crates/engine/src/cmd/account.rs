@@ -27,7 +27,7 @@ use crate::{CmdError, CmdResult, CommandSpec, Session, p};
 pub fn specs() -> Vec<CommandSpec> {
     vec![
         CommandSpec::new("account.add", "Add Account", "File › Info", add).params(ACCOUNT),
-        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo1Mb"|"upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft or Exchange server account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft or Exchange server account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's), "showGmailCategories"?: bool (a Gmail account: the folder pane shows Gmail's categories, Primary, Social, Promotions, Updates and Forums, under its Inbox; on unless turned off), "alertPrimaryOnly"?: bool (a Gmail account: a desktop alert only for new mail in Gmail's Primary category; off unless turned on)}"#),
+        CommandSpec::new("account.edit", "Account Settings", "File › Info", edit).params(r#"{"id": number, …the fields of account.add, "downloadInFull"?: "upTo1Mb"|"upTo10Mb"|"upTo25Mb"|"upTo50Mb"|"everything" (a Microsoft or Exchange server account: which messages are fetched whole in the background), "keepOffline"?: "3d"|"1w"|"2w"|"1m"|"3m"|"6m"|"12m"|"2y"|"5y"|"10y"|"all" (a Microsoft or Exchange server account's mail to keep offline: how far back, by received date, mail is kept in full on this computer; older mail keeps its headers and preview. A shared mailbox follows its owner's. Shortening it removes nothing by itself: account.thinOffline does), "askBeforeDeletingConversation"?: bool (Delete on a conversation's row that takes more than one message, in its folder or found by a search, asks first in the window; on unless turned off. A shared mailbox follows its owner's), "showGmailCategories"?: bool (a Gmail account: the folder pane shows Gmail's categories, Primary, Social, Promotions, Updates and Forums, under its Inbox; on unless turned off), "desktopMailAlerts"?: bool (whether this account may show desktop new-mail alerts, including rule-triggered alerts; on unless turned off), "alertPrimaryOnly"?: bool (a Gmail account: a desktop alert only for new mail in Gmail's Primary category; off unless turned on)}"#),
         CommandSpec::new("account.forgetEwsCertificate", "Forget Trusted Certificate", "File › Info", forget_ews_certificate)
             .params(r#"{"id": number} — an Exchange server account stops trusting the one certificate it was told to trust although the system doesn't: its fingerprint is forgotten, so the server's certificate is judged by the system alone and the owner is asked again if it isn't trusted. Answers {"id": id, "forgotten": bool}"#),
         CommandSpec::new("account.remove", "Remove Account", "File › Info", remove).params(r#"{"id": number} — removes the account, its mail and what is kept for it on this computer (bodies and attachments leave the content folder once a state without it is saved; no Undo step is kept), and what came from its server: its events, contacts, to-dos and calendars (what was made here and not sent yet stays, as this computer's own), Outlook's list of categories, its rules (those its server keeps stay there; those for every account stay here), and, where the window's settings are kept (the window, not mailcraft-cli), its mailbox's working hours; nothing on the server is touched. Mail moved into it from elsewhere that its server wasn't given yet goes back to where it came from, and so does mail moved into it whose original another server keeps until the copy is safe; once the copy is safe on its server, that original goes as it would have (mail moved onto this computer goes back to its original, as its copy goes with the account). The only account leaves an empty mailbox, as at a first start. Answers {"deleted": id, "leftToSweep": n (content files the sweep removes later)}"#),
@@ -332,6 +332,11 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(Value::Bool(show)) => a.hide_gmail_categories = !show,
         Some(_) => return Err(bad("`showGmailCategories` is true or false")),
     }
+    match v.get("desktopMailAlerts") {
+        None => {}
+        Some(Value::Bool(on)) => a.mute_desktop_mail = !on,
+        Some(_) => return Err(bad("`desktopMailAlerts` is true or false")),
+    }
     match v.get("alertPrimaryOnly") {
         None => {}
         Some(Value::Bool(only)) => a.alert_primary_only = *only,
@@ -470,6 +475,7 @@ fn check_address(a: &Account, before: Option<&Account>) -> Result<(), CmdError> 
                 == Account {
                     skip_conversation_question: a.skip_conversation_question,
                     hide_gmail_categories: a.hide_gmail_categories,
+                    mute_desktop_mail: a.mute_desktop_mail,
                     alert_primary_only: a.alert_primary_only,
                     color: a.color,
                     ..b.clone()
@@ -885,7 +891,7 @@ fn list(s: &mut Session, _: &Value) -> CmdResult {
         .accounts_in_order()
         .into_iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "outgoingWithoutSignIn": a.outgoing_without_sign_in, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "outgoingWithoutSignIn": a.outgoing_without_sign_in, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "desktopMailAlerts": !a.mute_desktop_mail, "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))
@@ -1320,8 +1326,11 @@ fn cut_name(remote: &str) -> String {
 ///   server that didn't say where to) is matched to it instead of being added.
 /// - Nothing taken out here because the server no longer has it is ever told back to the server
 ///   as a deletion, and a change that didn't go through keeps waiting.
-/// - When the server was told to move or delete something, or mail was sent, the undo history is
-///   forgotten: an undo would bring back a mailbox the server no longer has, or send again. A
+/// - When the server was told to delete something, to move mail out of its account, or to move
+///   a message deleted for good meanwhile, or mail was sent, the undo history is forgotten: an
+///   undo would bring back a mailbox the server no longer has, or send again. A move within an
+///   IMAP account keeps it: an undo moves the message back from where the server has it now
+///   (`undo::imap_back`). A
 ///   read mark or a flag going up doesn't cost the history (opening a message would otherwise
 ///   wipe it every few seconds); undoing one after it went up is overruled by the server's copy
 ///   at the next run.
@@ -1500,8 +1509,22 @@ fn apply_sync_piece(s: &mut Session, run: &mut SyncTotals, mut result: SyncResul
 /// Take in what a result has for the mailbox. Returns what that changed, and how many messages
 /// were sent.
 fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Counts, usize) {
-    let told =
-        !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
+    // A move within the account is undone from where the server has the message now
+    // (`undo::imap_back`); one out of it, a deletion for good or a sending is not, nor a move
+    // whose message was deleted for good meanwhile (its deletion now waits where the server put it).
+    // Only an IMAP account's messages are put back there; for any other kind a move ends it too.
+    let imap = s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Imap);
+    let out_of_account =
+        !result.moved.is_empty() && (!imap || result.moved.iter().any(|m| s.mailbox.folder(m.to_folder).is_none_or(|f| f.account != account)));
+    let deleting: HashSet<(&str, u32)> =
+        s.mailbox.pending.iter().filter(|p| matches!(p, Pending::Delete { .. }) && p.account() == account).map(Pending::source).collect();
+    let deleted_meanwhile = result.moved.iter().any(|m| deleting.contains(&(m.from.as_str(), m.uid)));
+    let told = out_of_account
+        || deleted_meanwhile
+        || !result.deleted.is_empty()
+        || !result.sent.is_empty()
+        || !result.placed.is_empty()
+        || !result.unplaced.is_empty();
     let gmail_moves = gmail_moves_go(s, account);
     let clock = s.rule_clock();
     // What the account had before the run's new mail, as an earlier piece of it found it.

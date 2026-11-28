@@ -80,6 +80,8 @@ pub mod oab;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod reply;
+#[deny(missing_docs)]
+#[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]
 pub mod resolve;
 #[deny(missing_docs)]
 #[cfg_attr(not(test), deny(clippy::indexing_slicing, clippy::arithmetic_side_effects))]

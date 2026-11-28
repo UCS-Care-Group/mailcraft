@@ -93,6 +93,8 @@ internal class ShellData(
     val nowMillis: Long = 0L,
     /** The two swipes the owner chose on the mail list. */
     val swipe: SwipeConfig = SwipeConfig(),
+    /** The buttons the owner chose for new-mail notifications. */
+    val noticeButtons: NoticeButtons = NoticeButtons(),
     /** What the owner chose about reading: the light page in the dark theme, the header open or shut. */
     val readingPrefs: ReadingPrefs = ReadingPrefs(),
     /** The message being read, and how its pictures are coming. */
@@ -137,12 +139,13 @@ internal class ShellActions(
     val settings: SettingsActions = SettingsActions(),
     val mail: MailListActions = MailListActions.None,
     val onSwipe: (SwipeConfig) -> Unit = {},
-    val onReadingPrefs: (ReadingPrefs) -> Unit = {},
+    val onReadingPrefs: (ReadingEdit) -> Unit = {},
     val reading: ReadingActions = ReadingActions.None,
     val onPictures: (PicturePrefs) -> Unit = {},
     val onClearPictures: () -> Unit = {},
     val writing: WritingActions = WritingActions(),
     val organiser: OrganiserActions = OrganiserActions(),
+    val onNoticeButtons: (NoticeButtons) -> Unit = {},
 )
 
 /** What the People and Tasks tabs (and Today's cards that open them) ask of the app. */
@@ -571,7 +574,17 @@ private fun MailTab(
 ) {
     val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories, data.avatars)
     val prefs = data.readingPrefs
-    val tools = ReadingTools(context, actions.mail.onTriage, onLeave, prefs, actions.onReadingPrefs, !expanded)
+    // (The place in the list is kept while a message is open; leaving to the list forgets it.)
+    val order = remember(messageId == null) { SwipeOrder() }
+    val around = messageId?.let { order.around(data.mail.snapshot, it) }
+    // The rows either side are read when they are not yet (a list on a phone isn't drawn to ask for them).
+    LaunchedEffect(around?.at) {
+        around?.takeIf { it.at >= 0 }?.let { actions.mail.onRange((it.at - 1).coerceAtLeast(0), it.at + 1) }
+    }
+    val swipe = around?.takeIf { it.at >= 0 }?.let { n ->
+        MessageSwipe(n.previous, n.next, actions.mail.onOpen)
+    }
+    val tools = ReadingTools(context, actions.mail.onTriage, onLeave, prefs, actions.onReadingPrefs, !expanded, swipe)
     if (expanded) {
         Row(modifier = modifier.fillMaxSize()) {
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))
@@ -602,7 +615,7 @@ private fun isDraft(data: ShellData): Boolean {
 private fun ShellActions.copy(mail: MailListActions) =
     ShellActions(
         onFolder, onLanguage, accounts, settings, mail, onSwipe, onReadingPrefs, reading, onPictures,
-        onClearPictures, writing, organiser,
+        onClearPictures, writing, organiser, onNoticeButtons,
     )
 
 @Composable

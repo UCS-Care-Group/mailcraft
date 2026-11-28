@@ -46,9 +46,11 @@ send ([Problem reports](#problem-reports)).
   temporary copy of the selected attachment and rendering arguments to a local executable, which
   runs with your operating system permissions. For PDFs or images respectively, MailCraft uses
   the path in `MAILCRAFT_PDFCRAFT_CLI` or `MAILCRAFT_PHOTOCRAFT_CLI` if set. Otherwise it looks
-  for the expected CLI name in the usual Windows or macOS installation location and then on
-  `PATH`. It selects the file by path and name without verifying the program's publisher or
-  identity. In Junk E-mail and its subfolders, choose Preview Attachment from the attachment menu.
+  for the expected CLI name in the usual installation location (on Windows the program's folder
+  in Program Files, then the ArtCraft Launcher's, `Program Files\ArtCraft\<program>`; on macOS
+  `/Applications`) and then on `PATH`. It selects the file by path and name without verifying
+  the program's publisher or identity. In Junk E-mail and its subfolders, choose Preview
+  Attachment from the attachment menu.
 - **A downloaded new version** (only for a copy that updates itself) is kept in the `updates`
   folder of MailCraft's settings folder until it is installed (when you press Restart to update,
   or when you quit), and is deleted when it doesn't pass MailCraft's release signature or when a
@@ -126,7 +128,7 @@ computer, for you, and for nothing else:
   done go to your own Microsoft account and come back from it, and nowhere else. Once it is given, tasks that exist only on this computer are not sent on their own: the program asks you once ("Send your tasks to your account's To Do?", with the account to choose when you have several, and Not now) and keeps them here until you say yes; File › Info offers it again. A new task goes to the account you choose when you make it, and one made from a message (Add to Tasks) to that message's account when it has To Do;
 - changing the rules your mailbox keeps on Microsoft's servers (with `MailboxSettings.ReadWrite`), so that
   a rule you keep there runs whether MailCraft is open or not, and shows in Outlook on the web and on your
-  phone: the rule's name, what it looks for (words, people's addresses, a size,
+  phone: the rule's name, what it looks for (words, a header's among them, people's addresses, a size,
   categories, an importance, a sensitivity, whether the mail has an attachment, is a meeting invitation
   or an automatic reply, and whether it was sent to you, to you alone, with you in To or Cc, or
   without you in To; and its

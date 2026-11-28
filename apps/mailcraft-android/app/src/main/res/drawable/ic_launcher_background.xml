@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  SPDX-FileCopyrightText: MailCraft contributors
+  SPDX-License-Identifier: MIT OR Apache-2.0
+
+  The launcher icon's back layer: the blue tile of MailCraft's icon
+  (assets/app-icon/source/mailcraft.svg), edge to edge (the launcher gives it its shape).
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path
+        android:pathData="M0,0 H108 V108 H0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="108" android:startY="0" android:endX="0" android:endY="108">
+                    <item android:offset="0" android:color="#4FD8FF" />
+                    <item android:offset="0.45" android:color="#0F68F0" />
+                    <item android:offset="1" android:color="#0634C4" />
+            </gradient>
+        </aapt:attr>
+    </path>
+    <path
+        android:pathData="M0,0 H108 V108 H0 Z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="81" android:centerY="5.4" android:gradientRadius="86.4">
+                    <item android:offset="0" android:color="#1AFFFFFF" />
+                    <item android:offset="1" android:color="#00FFFFFF" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
