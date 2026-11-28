@@ -356,6 +356,13 @@ impl MailApp {
             if let Err(e) = self.session.run("sync.applySieve", &params) {
                 said_error = Some(e.to_string());
             }
+        } else if let (Some(written), Some(write)) = (&result.written, write.as_ref().filter(|w| !w.own)) {
+            // Written, and the server not read after: the write is taken in all the same, so
+            // that MailCraft's script is known again as its own at the next read (#2058).
+            let params = json!({"account": account, "written": {"result": written, "text": write.text}});
+            if let Err(e) = self.session.run("sync.applySieve", &params) {
+                said_error = Some(e.to_string());
+            }
         }
         let count = self.sieve.reads.entry(account).or_default();
         if result.state.is_some() && trouble.is_none() && said_error.is_none() {

@@ -241,3 +241,21 @@ fn another_sieve_server_forgets_what_the_one_before_had() {
     assert!(!s.sieve.contains_key(&account) && !s.auto_replies.contains_key(&account));
     assert!(refusal(&mut s, "account.setAutomaticReplies", json!({"account": account, "status": "disabled"})).contains("read"));
 }
+
+/// A write the server took, and a read after it that failed: the write is taken in all the same,
+/// so the next read knows the script as MailCraft's, not as one changed elsewhere (#2058).
+#[test]
+fn a_write_taken_without_a_read_after_it_is_still_known_as_mailcrafts() {
+    let (mut s, account) = session();
+    read(&mut s, account, state(&ALL, None, None));
+    let change = run(&mut s, "account.setAutomaticReplies", json!({"account": account, "status": "alwaysEnabled", "internal": "Away.", "audience": "none"}));
+    let text = change["sieve"]["text"].as_str().unwrap().to_string();
+    run(&mut s, "sync.applySieve", json!({"account": account, "written": {"result": "done", "text": text}}));
+    assert_eq!(s.mailbox.account(account).unwrap().sieve_written, digest(&text));
+    let answer = read(&mut s, account, state(&ALL, Some(SCRIPT_NAME), Some(&text)));
+    assert_eq!(answer["changedElsewhere"], false);
+    // Without a write, a state is still required; a bad write changes nothing.
+    assert!(refusal(&mut s, "sync.applySieve", json!({"account": account})).contains("state"));
+    assert!(s.run("sync.applySieve", &json!({"account": account, "written": {"result": "odd"}})).is_err());
+    assert_eq!(s.mailbox.account(account).unwrap().sieve_written, digest(&text));
+}
