@@ -107,8 +107,7 @@ impl Lang {
                 Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true }
             }
             Lang::Hebrew => Conventions { twelve_hour: false, week_start: 6, pad_numeric: true, day_first: true },
-            Lang::Polish => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
-            Lang::Czech => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
+            Lang::Polish | Lang::Slovenian | Lang::Czech => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: true },
             Lang::Hungarian | Lang::ChineseSimplified => Conventions { twelve_hour: false, week_start: 0, pad_numeric: true, day_first: false },
         }
     }
