@@ -54,6 +54,7 @@ pub(crate) fn sieve_job(job: SieveJob) -> SieveResult {
             Ok(OwnWritten::TooLarge) => out.written = Some("tooLarge".into()),
             Err(e) => {
                 said(&mut out, &e);
+                read_after_failed_write(&job, &server, &mut out);
                 return out;
             }
         }
@@ -65,6 +66,7 @@ pub(crate) fn sieve_job(job: SieveJob) -> SieveResult {
             Ok(Written::ChangedElsewhere { .. }) => out.written = Some("changedElsewhere".into()),
             Err(e) => {
                 said(&mut out, &e);
+                read_after_failed_write(&job, &server, &mut out);
                 return out;
             }
         }
@@ -74,6 +76,18 @@ pub(crate) fn sieve_job(job: SieveJob) -> SieveResult {
         Err(e) => said(&mut out, &e),
     }
     out
+}
+
+/// After a write that failed once the server was reached and signed in to (a SETACTIVE refused
+/// after the PUTSCRIPT went through, say): what the server has now is read all the same, so that
+/// the window shows it; the write's error stays the one said (#2058).
+fn read_after_failed_write(job: &SieveJob, server: &mailcraft_model::Server, out: &mut SieveResult) {
+    if out.unavailable || out.sign_in_refused {
+        return;
+    }
+    if let Ok(state) = sieve::read(&job.account, server, &job.secret, SCRIPT_NAME) {
+        out.state = Some(state_json(&state));
+    }
 }
 
 /// What the server has, as `sync.applySieve` takes it.

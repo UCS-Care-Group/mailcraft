@@ -516,3 +516,23 @@ fn a_webmails_filter_changed_on_the_server_meanwhile_is_left_as_it_is() {
     assert!(said.contains("changed on the server since you opened it"), "{said}");
     assert!(!fake.world().heard("PUTSCRIPT"));
 }
+
+/// A write the server refuses once signed in to: what it has is read all the same, so the window
+/// shows it, and the refusal is what is said (#2058).
+#[test]
+fn a_refused_write_still_brings_what_the_server_has() {
+    let fake = Fake::sieve(SieveWorld { refuse_scripts_with: Some("vacation".into()), refusal: "no replies here".into(), ..world() });
+    let (app, account) = window(&fake);
+    let a = app.session.mailbox.account(account).cloned().unwrap();
+    let write = mailcraft_ui_egui::sieve_replies::SieveWrite {
+        name: SCRIPT_NAME.into(),
+        text: "require \"vacation\";\r\nvacation \"Away.\";\r\n".into(),
+        last_written: None,
+        activate: true,
+        own: false,
+    };
+    let result = crate::sieve_job::sieve_job(SieveJob { account: a, secret: PASSWORD.into(), write: Some(write), check: None, cancel: Default::default() });
+    assert!(result.error.contains("no replies here"), "{}", result.error);
+    assert!(result.state.is_some(), "what the server has is read after the refusal");
+    assert!(fake.world().scripts.is_empty());
+}
