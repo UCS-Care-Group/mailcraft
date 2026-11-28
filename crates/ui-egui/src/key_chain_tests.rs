@@ -689,6 +689,9 @@ fn escape_and_enter_are_read_through_the_gate_only() {
         ("control.rs", r#""esc" | "escape" => Some(egui::Key::Escape),"#),
         // The search box, with the list under it open: Enter takes the one an arrow chose.
         ("search_suggest.rs", "if self.selected.is_some() && i.consume_key(egui::Modifiers::NONE, egui::Key::Enter) {"),
+        // The colour field of the font dialog has the keyboard: Enter is its own Set, not the
+        // dialog's OK (#1549).
+        ("font_dialog.rs", "let enter = typed && field.has_focus() && ui.input(|i| i.key_pressed(egui::Key::Enter));"),
         // The search box has the keyboard: a held Enter is one press in it.
         ("chrome.rs", "ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Enter, egui::Key::Tab]));"),
         // The body of a message being written has the keyboard: Enter is a new line.

@@ -29,11 +29,19 @@ pub(super) struct TableLayout {
 }
 
 impl TableLayout {
-    pub fn plain(ctx: &egui::Context, table: &PastedTable, tokens: &Tokens, room: f32) -> Self {
+    pub fn plain(
+        ctx: &egui::Context,
+        table: &PastedTable,
+        plain_font: &Style,
+        tokens: &Tokens,
+        room: f32,
+        fonts: &mut crate::fonts::Chooser,
+    ) -> Self {
         let mut job = LayoutJob::default();
         job.wrap.max_width = room;
-        // Plain text is drawn in the window's own fonts (#582).
-        job.append(&table.plain(), 0.0, super::text_format(&Style::default(), true, tokens, &mut crate::fonts::Chooser::none()));
+        // Plain text is drawn in the font the account writes plain text in — the window's own
+        // when it chose none (#582, #1549).
+        job.append(&table.plain(), 0.0, super::text_format(&Style::default(), true, plain_font, tokens, fonts));
         let text = ctx.fonts_mut(|f| f.layout_job(job));
         Self { size: text.size(), cells: Vec::new(), plain: Some(text) }
     }
@@ -73,7 +81,7 @@ impl TableLayout {
                     cell.background.as_deref().and_then(mailcraft_model::rich::safe_color).and_then(|color| Color32::from_hex(&color).ok());
                 let mut format = |style: &Style| {
                     let style = style.clone().clean();
-                    let mut format = super::text_format(&style, false, tokens, &mut fonts);
+                    let mut format = super::text_format(&style, false, &Style::default(), tokens, &mut fonts);
                     let paper = if format.background != Color32::TRANSPARENT { format.background } else { background.unwrap_or(tokens.surface) };
                     let ink = if style.link.is_some() {
                         tokens.accent_text

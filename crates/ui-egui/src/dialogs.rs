@@ -182,6 +182,9 @@ pub enum Dialog {
     FindReplace(crate::find_replace::FindReplace),
     /// Insert › Symbol ([`crate::symbol`]).
     Symbol(crate::symbol::Symbol),
+    /// The font an account writes in (File › Signatures; [`crate::font_dialog`]): it only collects
+    /// the choice, then runs `signature.fonts`.
+    Font(Box<crate::font_dialog::FontDialog>),
 }
 
 /// The tabs of About: the program, the people who made it, and the people who test it
@@ -344,6 +347,7 @@ impl Dialog {
             },
             Dialog::NameChoice(_) => "checkNames",
             Dialog::ViewSource(_) => "viewSource",
+            Dialog::Font(_) => "font",
             Dialog::Security(d) => d.name(),
             Dialog::Symbol(_) => "symbol",
             Dialog::FindReplace(d) => {
@@ -506,6 +510,10 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
     }
     if name == "moveContacts" {
         return crate::move_contacts::MoveContacts::open(app, params).map(|d| Dialog::MoveContacts(Box::new(d)));
+    }
+    if name == "font" {
+        // (Whose font, and which of its three, is said by the params; no such account, no dialog.)
+        return crate::font_dialog::FontDialog::open(app, params).map(|d| Dialog::Font(Box::new(d)));
     }
     if name == "importPst" {
         let path = params.get("path").and_then(Value::as_str)?;
@@ -2129,6 +2137,10 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "compose.replyTo" if !has("value") => Some("replyTo"),
         "compose.delay" if !has("at") && !params.as_object().is_some_and(|m| m.contains_key("at")) => Some("delay"),
         "compose.sendLater" if !has("at") => Some("sendLater"),
+        // "Choose Default Font" from command search says nothing of which font of whose: the
+        // dialog asks, starting on the font new messages are written in (#1549). A call that says
+        // what to change runs, even when what it says is to set nothing.
+        "signature.fonts" if !params.as_object().is_some_and(|m| ["new", "reply", "plain"].iter().any(|k| m.contains_key(*k))) => Some("font"),
         "mail.setSendTime" if !params.as_object().is_some_and(|m| m.contains_key("at")) => Some("sendTime"),
         // (Without an address, a script's `compose.link` removes the link; a person is asked.)
         "compose.link" if !has("url") => Some("link"),
@@ -3153,6 +3165,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             if close {
                 app.want_body_focus();
             }
+        }
+        Dialog::Font(dialog) => {
+            let mut done = false;
+            let title = dialog.title(app);
+            let open = window(ctx, &title, crate::font_dialog::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
         }
         Dialog::FindReplace(dialog) => {
             let mut done = false;

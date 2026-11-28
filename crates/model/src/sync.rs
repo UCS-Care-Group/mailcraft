@@ -577,6 +577,19 @@ where
     lenient(deserializer).map(Option::unwrap_or_default)
 }
 
+/// A font an account chose, as a mailbox file holds it: cleaned, and with what a font has no
+/// business with left out. A file from another program, or from a version that let more through,
+/// is read as what the dialog could have offered — a size within the Size box rather than 255
+/// points drawn at 340 pixels, a colour that is one, no link and no highlight — and a font left
+/// with nothing in it is no font at all, which is the message's own (#1549).
+pub(crate) fn lenient_font<'de, D>(deserializer: D) -> Result<Option<crate::rich::Style>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+{
+    let given: Option<crate::rich::Style> = lenient(deserializer)?;
+    Ok(given.map(crate::rich::Style::font_only).filter(|style| !style.is_plain()))
+}
+
 /// A list from a mailbox file without the entries that aren't what they should be.
 pub(crate) fn lenient_list<'de, D, T>(deserializer: D) -> Result<Vec<T>, D::Error>
 where

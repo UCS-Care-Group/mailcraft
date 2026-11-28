@@ -74,3 +74,15 @@ fn a_replacement_forgets_what_the_background_fetch_knew() {
     assert!(!a.session.driver.fetch.resting(0.0));
     assert!(a.session.driver.fetch.stuck.is_empty());
 }
+
+/// A font being chosen names an account by its id, which the next mailbox may hand to someone
+/// else; it goes with the mailbox it was opened for, as a question does (#503, #1549).
+#[test]
+fn a_replacement_closes_a_font_being_chosen() {
+    let mut a = app_with_secrets();
+    let account = a.session.mailbox.accounts[0].id;
+    a.dialog = crate::dialogs::open_dialog(&mut a, "font", &json!({"account": account, "slot": "new"}));
+    assert!(matches!(a.dialog, Some(dialogs::Dialog::Font(_))), "a font is being chosen");
+    a.execute("file.new", json!({})).ok();
+    assert!(a.dialog.is_none(), "the dialog went with the mailbox it was opened for");
+}

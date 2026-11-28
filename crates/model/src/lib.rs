@@ -88,8 +88,8 @@ pub use junk::{Added, JunkList, JunkLists, MAX_JUNK_ENTRIES, junk_entry, junk_ke
 pub use load_limit::{MIN_ITEM_BYTES, from_json};
 pub use mailbox::{
     Account, AccountKind, AsWritten, BETWEEN_MAILBOXES, COPY_INTO_OUTBOX, Category, DRAFT_MOVED_INTO_OUTBOX, Directory, DownloadInFull,
-    FOLDERS_NOT_DELETED_YET, FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind, FollowUp, FollowUpsSettled, GREY_CATEGORY, GraphSwitch, IMPORTED,
-    INTO_OUTBOX, ImapStatus, MAX_CATEGORIES, MAX_FOLDER_DEPTH, MAX_FOLDERS, MAX_FOLLOW_UP_AHEAD, MAX_RULES, MAX_SHARED, MAX_SNOOZE_AHEAD,
+    FOLDERS_NOT_DELETED_YET, FOLDERS_STAY_YET, Folder, FolderCounts, FolderKind, FollowUp, FollowUpsSettled, FontSlot, GREY_CATEGORY, GraphSwitch,
+    IMPORTED, INTO_OUTBOX, ImapStatus, MAX_CATEGORIES, MAX_FOLDER_DEPTH, MAX_FOLDERS, MAX_FOLLOW_UP_AHEAD, MAX_RULES, MAX_SHARED, MAX_SNOOZE_AHEAD,
     MAX_SNOOZE_REFUSALS, MOVED_INTO_OUTBOX, MailIdentity, Mailbox, OAuth, OAuthProvider, ONLY_SERVER_FOLDERS, PALETTE, Pending, PendingFollowUp,
     Queued, Security, Server, ServerFavorites, ServerFolder, Settled, Snooze, categories_read_only_text, category_key, lead_rank, leads,
     sort_as_listed,
@@ -187,6 +187,8 @@ pub(crate) mod b64 {
 mod account_categories_tests;
 #[cfg(test)]
 mod account_color_tests;
+#[cfg(test)]
+mod account_font_tests;
 #[cfg(test)]
 mod account_order_tests;
 #[cfg(test)]

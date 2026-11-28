@@ -1329,8 +1329,8 @@ fn the_reading_pane_names_nothing_that_could_fetch() {
         checked += 1;
     }
     assert_eq!(
-        checked, 28,
-        "reading.rs, attachment pictures (and its tests), backdrop (and its tests), colors (and its tests), the font faces test, header tests, images (and its tests), invitation, layout, remote, react (and its tests), scroll keys tests, select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
+        checked, 29,
+        "reading.rs, attachment pictures (and its tests), backdrop (and its tests), colors (and its tests), the font faces test, header tests, images (and its tests), invitation, layout, the plain-text font test, remote, react (and its tests), scroll keys tests, select, sharing (and its tests), signature (and its tests), unsubscribe (and its tests), view (and its zoom tests) and warnings (and its tests)"
     );
 }
 

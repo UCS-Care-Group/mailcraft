@@ -130,30 +130,48 @@ pub fn owns_chord(key: Key) -> bool {
 }
 
 /// A size in points as the screen draws it (as the reading pane draws `font-size: Npt`).
-fn on_screen(size: Option<u8>) -> f32 {
+pub(crate) fn on_screen(size: Option<u8>) -> f32 {
     size.map_or(BASE_SIZE, |pt| f32::from(pt) * 4.0 / 3.0)
 }
 
-/// How a run looks on screen; in a plain-text message everything is plain.
-///
-/// The font it asks for is picked by `fonts` ([`Chooser`]): the family installed on this computer,
-/// the window's own while its face is being read or when the family isn't installed, and the
-/// window's monospaced font for a list that asks for `monospace`.
-pub(super) fn text_format(style: &Style, plain: bool, t: &Tokens, fonts: &mut Chooser) -> TextFormat {
-    if plain {
-        return TextFormat::simple(regular(BASE_SIZE), t.text);
-    }
-    let size = on_screen(style.size);
-    // The font chosen, from the face installed on this computer; the window's own when there is
-    // none (#582). A fixed-width family keeps its columns: its own regular face for want of a bold
-    // one, else the window's own fixed-width font (#969) — which the chooser answers for every
-    // family, not Courier New alone.
-    let font = match style.font.as_ref().map(|f| fonts.pick(f.list(), style.bold)) {
+/// The face text with this look is drawn in: the family installed on this computer, the window's
+/// own while its face is being read or when the family isn't installed, and the window's
+/// monospaced font for a list that asks for `monospace` (#582). A fixed-width family keeps its
+/// columns: its own regular face for want of a bold one, else the window's own fixed-width font
+/// (#969) — which the chooser answers for every family, not Courier New alone.
+fn face(style: &Style, size: f32, fonts: &mut Chooser) -> FontId {
+    match style.font.as_ref().map(|f| fonts.pick(f.list(), style.bold)) {
         Some(Pick::Family(family)) => FontId::new(size, family),
         Some(Pick::Mono) => egui::FontId::monospace(size),
         Some(Pick::Own) | None if style.bold => semibold(size),
         Some(Pick::Own) | None => regular(size),
-    };
+    }
+}
+
+/// How a run looks on screen; in a plain-text message nothing of the run shows but its text, and
+/// everything is written in the font the account writes plain text in (`plain_font`).
+pub(super) fn text_format(style: &Style, plain: bool, plain_font: &Style, t: &Tokens, fonts: &mut Chooser) -> TextFormat {
+    if plain {
+        // Plain text carries no look of its own; the account's plain-text font is what it is
+        // written and read in, as the reading pane draws it — its colour included, kept readable
+        // on the page it is written on.
+        let color = plain_font
+            .color
+            .as_deref()
+            .and_then(|c| egui::Color32::from_hex(c).ok())
+            .map(|c| crate::reading::colors::readable(c, t.surface))
+            .unwrap_or(t.text);
+        let underline = if plain_font.underline { Stroke::new(1.0, color) } else { Stroke::NONE };
+        return TextFormat {
+            font_id: face(plain_font, on_screen(plain_font.size), fonts),
+            color,
+            italics: plain_font.italic,
+            underline,
+            ..Default::default()
+        };
+    }
+    let size = on_screen(style.size);
+    let font = face(style, size, fonts);
     let own = style.color.as_deref().and_then(|c| egui::Color32::from_hex(c).ok()).map(|c| crate::reading::colors::readable(c, t.surface));
     let color = if style.link.is_some() { t.accent_text } else { own.unwrap_or(t.text) };
     // A highlight is drawn as it is chosen, and the text over it kept readable on it.
@@ -163,6 +181,15 @@ pub(super) fn text_format(style: &Style, plain: bool, t: &Tokens, fonts: &mut Ch
     TextFormat { font_id: font, color, italics: style.italic, underline, background: background.unwrap_or_default(), ..Default::default() }
 }
 
+/// The font a plain-text message is written in, as a [`LayoutKey`] names it: what it is drawn in,
+/// and nothing else of it.
+fn plain_font_key(style: &Style) -> u64 {
+    use std::hash::{Hash, Hasher};
+    let mut hasher = std::collections::hash_map::DefaultHasher::new();
+    (style.font.as_ref().map(|f| f.list()), style.size, style.bold, style.italic, style.underline, style.color.as_deref()).hash(&mut hasher);
+    hasher.finish()
+}
+
 /// What a layout was made for: when any of it changes, every paragraph is laid out again.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct LayoutKey {
@@ -170,6 +197,9 @@ struct LayoutKey {
     dark: bool,
     scale: u32,
     plain: bool,
+    /// The font a plain-text message is written in, named by what it is: a family read for it
+    /// arrives a frame after it was asked for, and the whole body is laid out again.
+    plain_font: u64,
     /// The pictures' ids and widths.
     pictures: u64,
     /// Which message and document fonts egui has: a family read for a font arrives a frame after
@@ -277,7 +307,16 @@ pub(crate) struct Layout {
 impl Layout {
     /// Bring the layout up to `doc`: the paragraphs that changed (and only those) are laid out
     /// again. Whether anything did.
-    fn sync(&mut self, ctx: &egui::Context, paragraphs: &[Paragraph], pictures: &[Picture], key: LayoutKey, t: &Tokens, width: f32) -> bool {
+    fn sync(
+        &mut self,
+        ctx: &egui::Context,
+        paragraphs: &[Paragraph],
+        pictures: &[Picture],
+        key: LayoutKey,
+        plain_font: &Style,
+        t: &Tokens,
+        width: f32,
+    ) -> bool {
         let atlas = ctx.fonts(|f| f.font_atlas_fill_ratio());
         if self.key != Some(key) || atlas < self.atlas {
             self.paras.clear();
@@ -297,7 +336,9 @@ impl Layout {
         // what isn't there yet is asked for once, at the end.
         let mut fonts = Chooser::new(ctx);
         let fresh: Vec<Para> = (prefix..n_new - suffix)
-            .filter_map(|i| Some(self.lay(ctx, paragraphs.get(i)?, numbers.get(i).copied().unwrap_or(0), key.plain, pictures, t, width, &mut fonts)))
+            .filter_map(|i| {
+                Some(self.lay(ctx, paragraphs.get(i)?, numbers.get(i).copied().unwrap_or(0), key.plain, plain_font, pictures, t, width, &mut fonts))
+            })
             .collect();
         fonts.finish(ctx);
         self.paras.splice(prefix..n_old - suffix, fresh);
@@ -318,6 +359,7 @@ impl Layout {
         p: &Paragraph,
         number: u32,
         plain: bool,
+        plain_font: &Style,
         pictures: &[Picture],
         t: &Tokens,
         width: f32,
@@ -341,7 +383,11 @@ impl Layout {
                 let glued = last.is_some_and(|c| !c.is_whitespace() || c == '\u{A0}');
                 sized.push((r, local, Some(id), size, glued));
             } else if let Some(source) = &run.table {
-                let grid = if plain { table::TableLayout::plain(ctx, source, t, room) } else { table::TableLayout::new(ctx, source, t, room) };
+                let grid = if plain {
+                    table::TableLayout::plain(ctx, source, plain_font, t, room, fonts)
+                } else {
+                    table::TableLayout::new(ctx, source, t, room)
+                };
                 sized.push((r, local, None, grid.size, true));
                 tables.insert(r, grid);
             }
@@ -382,13 +428,13 @@ impl Layout {
                         k += 1;
                     }
                     None => {
-                        job.append(&run.text, carry, text_format(&run.style, plain, t, fonts));
+                        job.append(&run.text, carry, text_format(&run.style, plain, plain_font, t, fonts));
                         carry = 0.0;
                     }
                 }
             }
             if job.sections.is_empty() {
-                job.append("", 0.0, text_format(&Style::default(), plain, t, fonts));
+                job.append("", 0.0, text_format(&Style::default(), plain, plain_font, t, fonts));
             }
             galley = ctx.fonts_mut(|f| f.layout_job(job));
             passes += 1;
@@ -805,7 +851,10 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let id = which.id(app);
     ctx.data_mut(|d| d.insert_temp(id.with(BODY), true));
     let width = ui.available_width().max(40.0);
-    let Some((_, plain)) = now(app, which) else { return };
+    let Some((written, plain)) = body(app, which) else { return };
+    // A plain-text message is written in the account's plain-text font, which the engine puts on
+    // the body when the message is opened; an HTML one is written in what each run asks for.
+    let plain_font = if plain { written.default_style().clone() } else { Style::default() };
     let editable = which == Which::Signature || app.session.signature_edit.is_none();
     let shown = pictures(app, which);
     let key = LayoutKey {
@@ -813,6 +862,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         dark: t.dark,
         scale: ctx.pixels_per_point().to_bits(),
         plain,
+        plain_font: plain_font_key(&plain_font),
         pictures: pictures_key(&shown),
         fonts: crate::fonts::generation(&ctx),
     };
@@ -824,7 +874,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             // An HTML signature drawn as it goes out is not in the text laid out here.
             let html = which == Which::Message && html_signature(app).is_some();
             let end = if html { all.iter().position(|p| p.signature).unwrap_or(all.len()) } else { all.len() };
-            layout.sync(&ctx, all.get(..end).unwrap_or(all), &shown, key, &t, width);
+            layout.sync(&ctx, all.get(..end).unwrap_or(all), &shown, key, &plain_font, &t, width);
         }
     };
     resync(&mut layout, app);
