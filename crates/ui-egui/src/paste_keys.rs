@@ -74,15 +74,16 @@ pub fn translate(events: &mut Vec<Event>, board: Option<&dyn RichClipboard>) {
     *events = out;
 }
 
-/// egui's plain fields and Copy buttons write output commands. Under Wayland those copies
-/// must use the same data device as paste, including where neither data-control nor X11 exists.
+/// Route copies through the host clipboard on Wayland, including where neither data-control
+/// nor X11 exists. Leave failed copies for the window's clipboard to try.
 pub(crate) fn copy_output(ctx: &egui::Context, board: Option<&dyn RichClipboard>) {
     let Some(board) = board else { return };
     ctx.output_mut(|output| {
         output.commands.retain(|command| {
             if let egui::OutputCommand::CopyText(text) = command {
                 if let Err(e) = board.put_text(text) {
-                    log::warn!("the clipboard took no text: {e}");
+                    log::debug!("passing the failed copy to the window's clipboard: {e}");
+                    return true;
                 }
                 false
             } else {

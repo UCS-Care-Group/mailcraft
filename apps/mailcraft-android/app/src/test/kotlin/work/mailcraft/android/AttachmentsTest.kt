@@ -20,6 +20,7 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Test
+import uniffi.mailcraft_mobile.AttachmentRecord
 import uniffi.mailcraft_mobile.OpenVerdict
 
 internal fun item(
@@ -76,6 +77,22 @@ internal class FakeDevice : AttachmentDevice {
     }
 }
 
+class ListedAttachmentsTest {
+    private fun record(index: UInt, name: String, inline: Boolean) = AttachmentRecord(index, name, "image/png", 2_048uL, inline)
+
+    @Test
+    fun picturesTheBodyShowsAreNeverListedEvenWithNoOtherFile() {
+        // Two signature pictures and nothing else: no attachment at all, as Outlook shows it.
+        assertTrue(listedRecords(listOf(record(0u, "image001.png", true), record(1u, "image002.png", true))).isEmpty())
+    }
+
+    @Test
+    fun aFileBesideThemIsListed() {
+        val listed = listedRecords(listOf(record(0u, "image001.png", true), record(1u, "photo.png", false)))
+        assertEquals(listOf("photo.png"), listed.map { it.name })
+    }
+}
+
 class AttachmentRoutingTest {
     @Test
     fun anOrdinaryFileOpensSavesAndShares() {
@@ -106,6 +123,7 @@ class AttachmentRoutingTest {
     fun macrosAndScriptsAskFirst() {
         assertTrue(asksFirst(OpenVerdict.MACROS))
         assertTrue(asksFirst(OpenVerdict.SCRIPTS))
+        assertTrue(asksFirst(OpenVerdict.ACTIVE))
         assertFalse(asksFirst(OpenVerdict.OPEN))
         assertFalse(asksFirst(OpenVerdict.BLOCKED))
         // They can still be opened: after the question.
@@ -113,6 +131,8 @@ class AttachmentRoutingTest {
         // And they are not shared from the message: that would hand them on without the question.
         assertFalse(AttachmentAction.Share in actionsOf(item("budget.xlsm", OpenVerdict.MACROS)))
         assertFalse(AttachmentAction.Share in actionsOf(item("page.html", OpenVerdict.SCRIPTS)))
+        assertTrue(AttachmentAction.Open in actionsOf(item("notes.md", OpenVerdict.ACTIVE)))
+        assertFalse(AttachmentAction.Share in actionsOf(item("notes.md", OpenVerdict.ACTIVE)))
     }
 
     @Test

@@ -6,8 +6,12 @@
 //! about to start has to wait ([`Busy::blocks`]).
 //!
 //! The rule behind every row: one job at a time that renews the same sign-in, and anything that
-//! sends or asks the owner for something goes first. A new kind of job is added to [`JobKind`];
-//! the front end's replacement test has a row for each.
+//! sends or asks the owner for something goes first. A sign-in open in the browser holds only the
+//! jobs of the account it is for: the other accounts' jobs renew sign-ins of their own, and go on
+//! as ever (#1557). A new kind of job is added to [`JobKind`]; the front end's replacement test
+//! has a row for each.
+
+use mailcraft_model::Id;
 
 macro_rules! job_kinds {
     ($($(#[$doc:meta])* $kind:ident),* $(,)?) => {
@@ -102,8 +106,9 @@ pub struct Busy {
     pub graph: bool,
     /// An IMAP, Exchange or JMAP run is at work.
     pub mail_run: bool,
-    /// A sign-in is open.
-    pub signing_in: bool,
+    /// The account whose sign-in is open, if one is (for a shared mailbox, the account it is
+    /// opened through signs in): only that account's jobs wait for it.
+    pub signing_in: Option<Id>,
     /// A Send/Receive is waiting its turn.
     pub queued: bool,
     /// An Inbox pass is waiting its turn.
@@ -115,31 +120,36 @@ pub struct Busy {
 }
 
 impl Busy {
-    /// Whether `job` has to wait for something that is at work now.
-    pub fn blocks(&self, job: Start) -> bool {
-        let signing = self.signing_in;
+    /// Whether `job` for `account` has to wait for something that is at work now. `account` is
+    /// the account whose sign-in the job is done with: for a shared mailbox, its owner.
+    pub fn blocks(&self, job: Start, account: Id) -> bool {
+        self.signing_in == Some(account) || self.blocks_every(job)
+    }
+
+    /// Whether `job` has to wait whichever account it is for: everything at work holds it but a
+    /// sign-in, which holds only its own account's jobs ([`Busy::blocks`]).
+    pub fn blocks_every(&self, job: Start) -> bool {
         match job {
             // A Send/Receive that is about to ask Graph, or is asking, goes first: an answer
             // asked for before a change went up could otherwise be taken in after it. So does a
             // job telling a server what was done to its categories: a list read meanwhile could
             // be from before the change, and put it back here until the next read (#661).
-            Start::Calendar => self.calendar || self.graph || self.mail_run || signing || self.queued || self.categories,
-            Start::CalendarAround => self.calendar || self.graph || signing || self.queued,
-            Start::CalendarCheck => self.calendar || self.graph || signing,
-            // The calendar's job, a Send/Receive and a sign-in go first.
-            Start::Tasks => self.calendar || self.rules || self.graph || self.mail_run || signing || self.queued,
-            // The calendar's job, the to-dos', the automatic replies', a Send/Receive and a
-            // sign-in go first (the jobs renew the same sign-in).
-            Start::Rules => self.calendar || self.tasks || self.auto_replies || self.graph || self.mail_run || signing || self.queued,
-            // The calendar's, the to-dos' and the rules' jobs, a Send/Receive and a sign-in go
-            // first (#661).
-            Start::Categories => self.calendar || self.tasks || self.rules || self.graph || self.mail_run || signing || self.queued,
-            // The calendar's, the to-dos' and the rules' jobs, a Send/Receive and a sign-in go
-            // first; a Send/Receive that is only waiting its turn doesn't hold it back.
-            Start::AutoReplies => self.calendar || self.tasks || self.rules || self.graph || self.mail_run || signing,
-            Start::InboxCheck => self.mail_run || self.graph || self.queued || self.inbox_queued || signing || self.approving || self.switching,
-            // One question at a time, and not while the account's sign-in or calendar is being seen to.
-            Start::FreeBusy => self.free_busy || signing || self.graph || self.calendar,
+            Start::Calendar => self.calendar || self.graph || self.mail_run || self.queued || self.categories,
+            Start::CalendarAround => self.calendar || self.graph || self.queued,
+            Start::CalendarCheck => self.calendar || self.graph,
+            // The calendar's job and a Send/Receive go first.
+            Start::Tasks => self.calendar || self.rules || self.graph || self.mail_run || self.queued,
+            // The calendar's job, the to-dos', the automatic replies' and a Send/Receive go first
+            // (the jobs renew the same sign-in).
+            Start::Rules => self.calendar || self.tasks || self.auto_replies || self.graph || self.mail_run || self.queued,
+            // The calendar's, the to-dos' and the rules' jobs and a Send/Receive go first (#661).
+            Start::Categories => self.calendar || self.tasks || self.rules || self.graph || self.mail_run || self.queued,
+            // The calendar's, the to-dos' and the rules' jobs and a Send/Receive go first; a
+            // Send/Receive that is only waiting its turn doesn't hold it back.
+            Start::AutoReplies => self.calendar || self.tasks || self.rules || self.graph || self.mail_run,
+            Start::InboxCheck => self.mail_run || self.graph || self.queued || self.inbox_queued || self.approving || self.switching,
+            // One question at a time, and not while the calendar is being seen to.
+            Start::FreeBusy => self.free_busy || self.graph || self.calendar,
         }
     }
 }

@@ -23,6 +23,7 @@
 
 use std::collections::HashMap;
 use std::sync::{Arc, PoisonError};
+use std::time::Instant;
 
 use mailcraft_engine::Session;
 use mailcraft_engine::cmd::tasks_remote::task_accounts;
@@ -80,6 +81,9 @@ fn real_runners() -> Runners {
 pub(crate) struct Jobs {
     pub(crate) calendar: CalendarJobs,
     pub(crate) tasks: TasksJobs,
+    /// For the device's log: the account of each job in flight and when it began.
+    calendar_began: Option<(Id, Instant)>,
+    tasks_began: Option<(Id, Instant)>,
 }
 
 impl Jobs {
@@ -119,6 +123,7 @@ impl SyncHost {
         let CalendarPolled::Answer(answer) = inner.jobs.calendar.poll(session) else { return };
         let mut answer = *answer;
         let account = answer.account;
+        self.log_job(inner.jobs.calendar_began.take(), "calendar and contacts", inner.active);
         let mut errors = std::mem::take(&mut answer.result.errors);
         if answer.stopped_early {
             errors.insert(0, words("The calendar couldn't be brought up to date: the job stopped unexpectedly").to_string());
@@ -150,6 +155,7 @@ impl SyncHost {
     fn take_tasks(&self, inner: &mut Inner, session: &mut Session) {
         let lang = session.interface_language;
         let Some(answer) = inner.jobs.tasks.poll(session, lang) else { return };
+        self.log_job(inner.jobs.tasks_began.take(), "to-do", inner.active);
         let mut errors = answer.errors;
         if answer.stopped_early {
             errors.insert(0, words("The to-dos couldn't be kept in step: the job stopped unexpectedly").to_string());
@@ -164,6 +170,15 @@ impl SyncHost {
         }
         for line in errors {
             self.job_error(inner, session, line);
+        }
+    }
+
+    /// The device's log line for a job that ended: its kind, account and time, and whether a
+    /// round's end waited for it.
+    fn log_job(&self, began: Option<(Id, Instant)>, kind: &str, in_round: bool) {
+        if let Some((account, since)) = began {
+            let during = if in_round { ", at the end of a round" } else { "" };
+            self.log(format!("{kind} job: account {account}, {} ms{during}", since.elapsed().as_millis()));
         }
     }
 
@@ -215,6 +230,9 @@ impl SyncHost {
         for dropped in look.dropped.iter().filter(|d| !d.message.is_empty()).take(20) {
             self.job_error(inner, session, dropped.message.clone());
         }
+        for (_, line) in look.said.iter().take(20) {
+            self.job_error(inner, session, line.clone());
+        }
         for plan in &look.plans {
             // (Only an account of the owner's own: a shared mailbox's calendars take a permission of their own.)
             if !inner.sr.eligible(session, plan.account) || session.mailbox.account(plan.account).is_none_or(|a| a.is_shared()) {
@@ -227,6 +245,7 @@ impl SyncHost {
             let wake = self.pacer.clone();
             let launch = |req: GraphRequest| Some(self.host.run_job("mailcraft-calendar", move |_| run(req), move || wake.poke()));
             if inner.jobs.calendar.start(session, plan, auth, now, launch) {
+                inner.jobs.calendar_began = Some((plan.account, Instant::now()));
                 return 1;
             }
         }
@@ -245,6 +264,7 @@ impl SyncHost {
             let wake = self.pacer.clone();
             let launch = |job: TasksJob| Some(self.host.run_job("mailcraft-tasks", move |_| run(job), move || wake.poke()));
             if inner.jobs.tasks.start(session, account, |_| refresh, |o| effective_oauth(o, &ctx.ids), now, launch) {
+                inner.jobs.tasks_began = Some((account, Instant::now()));
                 return 1;
             }
         }

@@ -103,12 +103,11 @@ fn ctrl_shift_g_counts_the_words() {
 #[test]
 fn the_rest_of_insert_and_review_is_pending() {
     let mut app = writing();
-    for (tab, pending) in
-        [("Insert", ["Table", "Diagram", "Saved Text", "Chart"]), ("Review", ["Spelling & Grammar", "Thesaurus", "Translate", "Language"])]
-    {
+    let tabs: [(&str, &[&str]); 2] = [("Insert", &["Table", "Diagram", "Saved Text", "Chart"]), ("Review", &["Thesaurus", "Translate", "Language"])];
+    for (tab, pending) in tabs {
         app.execute("ui.tab", json!({"tab": tab})).unwrap();
         let described = crate::ribbon::describe(&app);
-        for label in pending {
+        for &label in pending {
             let item = described.items().find(|item| item.label == label).unwrap_or_else(|| panic!("{tab}: no {label}"));
             assert!(item.pending && item.command.is_none() && item.menu.is_none(), "{tab}: {label}");
         }

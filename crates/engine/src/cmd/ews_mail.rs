@@ -266,7 +266,15 @@ pub fn ews_resolve_request_for(s: &Session, account: Id, texts: &[String]) -> Re
         username: server.username.clone(),
         trusted: server.trusted.clone(),
         texts: asked,
+        address_list: false,
+        address_list_held: None,
     })
+}
+
+/// What the host is to download the whole address list of `account` with (#1393): its Offline
+/// Address Book, from its own server.
+pub fn ews_address_list_request(s: &Session, account: Id) -> Result<EwsResolveRequest, CmdError> {
+    Ok(EwsResolveRequest { address_list: true, ..ews_resolve_request_for(s, account, &[])? })
 }
 
 fn fetch_request(s: &mut Session, v: &Value) -> CmdResult {
@@ -348,7 +356,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         s.note_saved();
     }
     let mut taken = Taken::default();
-    let mut down = Down::default();
+    let mut down = Down::of_run(s, account);
     // What became of what went up, as for a Microsoft account: the folders, the messages (a
     // refusal is said once per kind and reason), the drafts, and what was sent.
     let mut errors = result.errors.clone();
@@ -426,6 +434,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
         }
     }
     s.graph_index = index;
+    down.end_piece(s, account, result.partial);
     // A rule moved new mail out of the account (#567): there is no going back past it
     // ([`super::graph_mail::apply_graph_mail`] says why).
     if down.left > 0 {
@@ -446,7 +455,7 @@ fn take_in(s: &mut Session, result: EwsMailResult) -> CmdResult {
     }
     // The conversations of mail listed before they were asked for (#795).
     let threaded = super::thread_ids::take(&mut s.mailbox, account, &result.threads);
-    if taken != Taken::default() || down != Down::default() || !result.pages.is_empty() || threaded {
+    if taken != Taken::default() || down.took_anything() || !result.pages.is_empty() || threaded {
         s.mailbox_changed();
     }
     // The view stays on a folder that is there.

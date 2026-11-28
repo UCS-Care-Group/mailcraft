@@ -569,3 +569,186 @@ fn gmail_categories_are_reached_and_chosen_with_the_keyboard() {
     assert_eq!(harness.state().session.view.gmail, Some((inbox, GmailCategory::Promotions)));
     assert_eq!(mailcraft_engine::gmail::in_view(&harness.state().session), Some(GmailCategory::Promotions));
 }
+
+/// #1514: a folder let go over the upper half of a row beside it goes before that row, over the
+/// lower half after it; over itself, or over one it doesn't move among, nothing.
+#[test]
+fn a_folder_dragged_goes_before_or_after_the_row() {
+    let peers = [1, 2, 3, 4];
+    assert_eq!(drop_before(&peers, 4, 2, true), Some(Some(2)));
+    assert_eq!(drop_before(&peers, 1, 2, false), Some(Some(3)));
+    assert_eq!(drop_before(&peers, 1, 4, false), Some(None), "after the last: last");
+    assert_eq!(drop_before(&peers, 2, 2, true), None);
+    assert_eq!(drop_before(&peers, 9, 2, true), None);
+    assert_eq!(drop_before(&peers, 1, 9, true), None);
+    assert_eq!(drop_before(&[], 1, 2, true), None);
+}
+
+/// Three folders of the sample's first account at its top level, Zz Alpha, Zz Beta and Zz Gamma, with the
+/// Favorites folded away; their ids and the account's.
+fn three_folders(harness: &mut egui_kittest::Harness<'static, MailApp>) -> (Id, [Id; 3]) {
+    let account = harness.state().session.mailbox.accounts[0].id;
+    let mut new = |name: &str| {
+        harness.state_mut().session.run("folder.new", &serde_json::json!({"name": name, "account": account, "parent": null})).unwrap()["id"]
+            .as_u64()
+            .unwrap()
+    };
+    // (Named to come last, side by side.)
+    let ids = [new("Zz Alpha"), new("Zz Beta"), new("Zz Gamma")];
+    harness.state_mut().execute("ui.toggleFolder", serde_json::json!({"id": FAVORITES})).unwrap();
+    harness.run_steps(3);
+    (account, ids)
+}
+
+/// #1514: a folder is dragged among the folders beside it and stays where it was let go; its
+/// right-click menu moves it up and down; Inbox's has neither and doesn't drag.
+#[test]
+fn a_folder_is_dragged_and_moved_with_its_menu() {
+    let mut harness = window();
+    let (account, [alpha, beta, gamma]) = three_folders(&mut harness);
+    let order = |h: &egui_kittest::Harness<'static, MailApp>| -> Vec<Id> {
+        h.state().session.mailbox.reorder_siblings(alpha).into_iter().filter(|id| [alpha, beta, gamma].contains(id)).collect()
+    };
+    assert_eq!(order(&harness), [alpha, beta, gamma]);
+    let row = |h: &egui_kittest::Harness<'static, MailApp>, id: Id| h.state().hit.rect("folder", id).unwrap();
+    // Gamma into the upper half of Alpha's row: the line shows while it is held, and it goes first.
+    let from = row(&harness, gamma).center();
+    let to = pos2(from.x, row(&harness, alpha).min.y + 4.0);
+    press_and_move(&mut harness, from, to);
+    assert!(harness.state().hit.rect("folderGap", alpha).is_some(), "the line above Alpha");
+    let_go(&mut harness, to);
+    assert_eq!(order(&harness), [gamma, alpha, beta]);
+    // The menu.
+    let menu = |h: &mut egui_kittest::Harness<'static, MailApp>, id: Id, label: &str| {
+        let at = h.state().hit.rect("folder", id).unwrap().center();
+        right_click(h, at);
+        h.get_by_label(label).click();
+        h.run_steps(3);
+    };
+    menu(&mut harness, beta, "Move Up");
+    assert_eq!(order(&harness), [gamma, beta, alpha]);
+    menu(&mut harness, gamma, "Move Down");
+    assert_eq!(order(&harness), [beta, gamma, alpha]);
+    // Inbox leads: no Move Up in its menu.
+    let inbox = harness.state().session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let at = row(&harness, inbox).center();
+    right_click(&mut harness, at);
+    assert!(harness.query_by_label("Move Up").is_none());
+}
+
+/// #1514: the Favorites kept in MailCraft move with their menu too.
+#[test]
+fn a_favorite_is_moved_with_its_menu() {
+    let mut harness = window();
+    let (account, [alpha, beta, _]) = three_folders(&mut harness);
+    for id in [alpha, beta] {
+        harness.state_mut().session.run("folder.favorite", &serde_json::json!({"id": id, "value": true})).unwrap();
+    }
+    // The Favorites shown, the account folded: each favourite's row is its only one.
+    for id in [FAVORITES, account] {
+        harness.state_mut().execute("ui.toggleFolder", serde_json::json!({"id": id})).unwrap();
+    }
+    harness.run_steps(3);
+    let own = |h: &egui_kittest::Harness<'static, MailApp>| mailcraft_engine::cmd::folder::own_favorites(&h.state().session);
+    let last_two = |v: Vec<Id>| v.into_iter().rev().take(2).collect::<Vec<_>>();
+    assert_eq!(last_two(own(&harness)), [beta, alpha]);
+    let at = harness.state().hit.rect("folder", beta).unwrap().center();
+    right_click(&mut harness, at);
+    harness.get_by_label("Move Up").click();
+    harness.run_steps(3);
+    assert_eq!(last_two(own(&harness)), [alpha, beta]);
+}
+
+/// #1950: a folded account shows the unread mail of its rows beside its name (not Junk Email's,
+/// nor sent or deleted mail), and nothing once it is open again or when none of it is unread;
+/// a screen reader hears it with the name.
+#[test]
+fn a_folded_account_shows_its_unread_mail() {
+    use mailcraft_model::Message;
+    let mut harness = window();
+    let app = harness.state_mut();
+    let work = app.execute("account.add", serde_json::json!({"email": "me@work.example"})).unwrap()["id"].as_u64().unwrap();
+    let mb = &app.session.mailbox;
+    let (inbox, junk, sent) = (
+        mb.folder_of_kind(work, FolderKind::Inbox).unwrap(),
+        mb.folder_of_kind(work, FolderKind::Junk).unwrap(),
+        mb.folder_of_kind(work, FolderKind::Sent).unwrap(),
+    );
+    let projects = app.execute("folder.new", serde_json::json!({"name": "Projects", "parent": inbox})).unwrap()["id"].as_u64().unwrap();
+    for (folder, read) in [(inbox, false), (inbox, false), (inbox, true), (projects, false), (junk, false), (sent, false)] {
+        let m = Message { folder, subject: "Synthetic".into(), read, date: NOW - 60, ..Default::default() };
+        app.session.mailbox.add_message(m).unwrap();
+    }
+    let name = heading_name(app, app.session.mailbox.account(work).unwrap());
+    harness.run_steps(3);
+    // Open, its rows show what is unread, and its heading doesn't.
+    assert!(harness.state().hit.rect("headingCount", work).is_none());
+    assert!(harness.query_by_label(&format!("{name}, 3 unread")).is_none());
+
+    harness.state_mut().execute("ui.toggleFolder", serde_json::json!({"id": work})).unwrap();
+    harness.run_steps(3);
+    let pill = harness.state().hit.rect("headingCount", work).expect("a count on the folded heading");
+    let heading = harness.state().hit.rect("folderHeading", work).unwrap();
+    assert!(heading.contains_rect(pill) && pill.min.x > heading.center().x, "flush right on the heading");
+    // Two in the Inbox and one in Projects; Junk Email's and Sent Items' don't count.
+    harness.get_by_label(&format!("{name}, 3 unread"));
+
+    // All of it read: nothing to show.
+    let app = harness.state_mut();
+    let ids: Vec<Id> = app.session.mailbox.messages.values().filter(|m| m.account == work).map(|m| m.id).collect();
+    app.execute("mail.markRead", serde_json::json!({"ids": ids})).unwrap();
+    harness.run_steps(3);
+    assert!(harness.state().hit.rect("headingCount", work).is_none());
+    harness.get_by_label(&name);
+
+    // Open again: no count on the heading.
+    harness.state_mut().execute("ui.toggleFolder", serde_json::json!({"id": work})).unwrap();
+    harness.run_steps(3);
+    assert!(harness.state().hit.rect("headingCount", work).is_none());
+}
+
+/// #1950: folded, All Accounts shows the unread mail of its rows (All Inboxes, All Archives)
+/// together, every account's.
+#[test]
+fn folded_all_accounts_shows_every_accounts_unread_mail() {
+    use mailcraft_model::Message;
+    let mut harness = window();
+    let app = harness.state_mut();
+    let work = app.execute("account.add", serde_json::json!({"email": "me@work.example"})).unwrap()["id"].as_u64().unwrap();
+    let inbox = app.session.mailbox.folder_of_kind(work, FolderKind::Inbox).unwrap();
+    app.session.mailbox.add_message(Message { folder: inbox, subject: "Synthetic".into(), date: NOW - 60, ..Default::default() }).unwrap();
+    let counts = app.session.folder_counts();
+    let mb = &app.session.mailbox;
+    let expected: usize = [FolderKind::Inbox, FolderKind::Archive]
+        .into_iter()
+        .flat_map(|kind| mailcraft_engine::unified::folders(mb, kind))
+        .map(|f| counts.folder(f).unread)
+        .sum();
+    assert!(expected > 1, "the sample's unread mail and work's");
+    app.execute("ui.toggleFolder", serde_json::json!({"id": ALL_ACCOUNTS})).unwrap();
+    harness.run_steps(3);
+    assert!(harness.state().hit.rect("headingCount", ALL_ACCOUNTS).is_some());
+    harness.get_by_label(&format!("All Accounts, {expected} unread"));
+}
+
+/// #1950: an account's unread mail as its folded heading counts it, every folder's but Junk
+/// Email's, Drafts', the Outbox's, sent and deleted mail; only for the accounts asked about.
+#[test]
+fn unread_by_account_counts_what_the_rows_show_unread() {
+    let mut s = Session::at(mailcraft_engine::sample::mailbox(NOW, 0), NOW, 0);
+    let counts = s.folder_counts();
+    let mb = &s.mailbox;
+    let account = mb.accounts[0].id;
+    let all = unread_by_account(mb, &counts, |a| a == account);
+    let expected: usize = mb
+        .folders
+        .iter()
+        .filter(|f| f.account == account && matches!(f.kind, FolderKind::Inbox | FolderKind::Archive | FolderKind::Custom))
+        .map(|f| mb.unread_count(f.id))
+        .sum();
+    assert!(expected > 0);
+    assert_eq!(all.get(&account).copied(), Some(expected));
+    assert!(unread_by_account(mb, &counts, |_| false).is_empty());
+    assert_eq!(folded_count(0), Count::Nothing);
+    assert_eq!(folded_count(4), Count::Unread(4));
+}

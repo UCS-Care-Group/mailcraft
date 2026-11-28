@@ -26,7 +26,7 @@ use std::sync::{Arc, Mutex};
 
 use egui::epaint::text::CharIndex;
 use egui::text::{CCursor, LayoutJob, TextFormat};
-use egui::{Align2, Event, FontFamily, Galley, Key, Modifiers, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2};
+use egui::{Align2, Event, FontId, Galley, Key, Modifiers, Rect, Sense, Stroke, Ui, Vec2, pos2, vec2};
 use mailcraft_model::RichBody;
 use mailcraft_model::rich::{ListKind, OBJECT, Paragraph, Selection, Style, numbers};
 use mailcraft_model::signature::Picture;
@@ -37,6 +37,8 @@ mod table;
 
 use crate::MailApp;
 use crate::clicks::{Anchor, Unit};
+use crate::fonts::{Chooser, Pick};
+use crate::spelling;
 use crate::theme::{Tokens, regular, semibold};
 
 /// The message's own font size on screen, in points (the reading pane's).
@@ -45,9 +47,11 @@ pub const BASE_SIZE: f32 = 13.0;
 /// How far a list item's text stands in for each level, its bullet or number in the last step.
 const INDENT: f32 = 28.0;
 
-/// How far the text of a paragraph stands in: list items by their level.
+/// How far the text of a paragraph stands in: a list item by its level and its bullet or number,
+/// an ordinary paragraph by its level alone (Increase Indent, #1658).
 fn indent_of(p: &Paragraph) -> f32 {
-    if p.list == ListKind::None { 0.0 } else { INDENT * (f32::from(p.level) + 1.0) }
+    let marker = if p.list == ListKind::None { 0.0 } else { 1.0 };
+    INDENT * (f32::from(p.level) + marker)
 }
 
 /// Longest text an input method is shown composing.
@@ -113,6 +117,9 @@ pub fn key_of(command: &str) -> Option<&'static str> {
         "compose.link" => "Mod+K",
         "compose.undo" => "Mod+Z",
         "compose.redo" => "Mod+Y",
+        "edit.cut" => "Mod+X",
+        "edit.copy" => "Mod+C",
+        "edit.paste" => "Mod+V",
         _ => return None,
     })
 }
@@ -128,21 +135,24 @@ fn on_screen(size: Option<u8>) -> f32 {
 }
 
 /// How a run looks on screen; in a plain-text message everything is plain.
-pub(super) fn text_format(style: &Style, plain: bool, t: &Tokens, has: &dyn Fn(&FontFamily) -> bool) -> TextFormat {
+///
+/// The font it asks for is picked by `fonts` ([`Chooser`]): the family installed on this computer,
+/// the window's own while its face is being read or when the family isn't installed, and the
+/// window's monospaced font for a list that asks for `monospace`.
+pub(super) fn text_format(style: &Style, plain: bool, t: &Tokens, fonts: &mut Chooser) -> TextFormat {
     if plain {
         return TextFormat::simple(regular(BASE_SIZE), t.text);
     }
     let size = on_screen(style.size);
-    // The font chosen, from the face installed on this computer; the window's own when there is none (#582).
-    // A fixed-width font stays fixed width: its regular face for want of a bold one, else the
-    // window's own fixed-width font, so text art keeps its columns while it is written (#969).
-    let font = match crate::theme::document_font(style.font, style.bold, size, has) {
-        Some(font) => font,
-        None if style.font.is_some_and(|f| f.is_fixed_width()) => {
-            crate::theme::document_font(style.font, false, size, has).unwrap_or_else(|| egui::FontId::monospace(size))
-        }
-        None if style.bold => semibold(size),
-        None => regular(size),
+    // The font chosen, from the face installed on this computer; the window's own when there is
+    // none (#582). A fixed-width family keeps its columns: its own regular face for want of a bold
+    // one, else the window's own fixed-width font (#969) — which the chooser answers for every
+    // family, not Courier New alone.
+    let font = match style.font.as_ref().map(|f| fonts.pick(f.list(), style.bold)) {
+        Some(Pick::Family(family)) => FontId::new(size, family),
+        Some(Pick::Mono) => egui::FontId::monospace(size),
+        Some(Pick::Own) | None if style.bold => semibold(size),
+        Some(Pick::Own) | None => regular(size),
     };
     let own = style.color.as_deref().and_then(|c| egui::Color32::from_hex(c).ok()).map(|c| crate::reading::colors::readable(c, t.surface));
     let color = if style.link.is_some() { t.accent_text } else { own.unwrap_or(t.text) };
@@ -162,8 +172,9 @@ struct LayoutKey {
     plain: bool,
     /// The pictures' ids and widths.
     pictures: u64,
-    /// How many font families are installed: the messages' fonts arrive a frame after the first.
-    families: usize,
+    /// Which message and document fonts egui has: a family read for a font arrives a frame after
+    /// it was asked for, and what is drawn in it is laid out again ([`crate::fonts::generation`]).
+    fonts: u64,
 }
 
 /// A picture in a paragraph, laid out: where it stands in the paragraph's text and where it is
@@ -193,10 +204,24 @@ struct Para {
     start: usize,
     top: f32,
     pictures: Vec<PictureBox>,
+    spelling: Option<spelling::Checked>,
+    spelling_retry_at: f64,
     tables: Vec<TableBox>,
 }
 
 impl Para {
+    fn needs_spelling(&self, locale: &str, now: f64) -> bool {
+        self.spelling.as_ref().is_none_or(|checked| checked.locale != locale || (!checked.available && now >= self.spelling_retry_at))
+    }
+
+    fn spelling(&mut self, host: &dyn spelling::HostChecker, locale: &str, now: f64) -> &[spelling::Issue] {
+        if self.needs_spelling(locale, now) {
+            self.spelling = Some(spelling::check(host, locale, &self.source));
+            self.spelling_retry_at = now + 5.0;
+        }
+        self.spelling.as_ref().map_or(&[], |checked| checked.issues.as_slice())
+    }
+
     fn indent(&self) -> f32 {
         indent_of(&self.source)
     }
@@ -268,9 +293,13 @@ impl Layout {
             return false;
         }
         let suffix = (0..shorter - prefix).take_while(|&k| same(n_new - 1 - k, n_old - 1 - k)).count();
+        // One chooser for the paragraphs laid out now: what they ask for is looked up once, and
+        // what isn't there yet is asked for once, at the end.
+        let mut fonts = Chooser::new(ctx);
         let fresh: Vec<Para> = (prefix..n_new - suffix)
-            .filter_map(|i| Some(self.lay(ctx, paragraphs.get(i)?, numbers.get(i).copied().unwrap_or(0), key.plain, pictures, t, width)))
+            .filter_map(|i| Some(self.lay(ctx, paragraphs.get(i)?, numbers.get(i).copied().unwrap_or(0), key.plain, pictures, t, width, &mut fonts)))
             .collect();
+        fonts.finish(ctx);
         self.paras.splice(prefix..n_old - suffix, fresh);
         let (mut start, mut top) = (0, 0.0);
         for p in &mut self.paras {
@@ -283,14 +312,22 @@ impl Layout {
         true
     }
 
-    fn lay(&mut self, ctx: &egui::Context, p: &Paragraph, number: u32, plain: bool, pictures: &[Picture], t: &Tokens, width: f32) -> Para {
+    fn lay(
+        &mut self,
+        ctx: &egui::Context,
+        p: &Paragraph,
+        number: u32,
+        plain: bool,
+        pictures: &[Picture],
+        t: &Tokens,
+        width: f32,
+        fonts: &mut Chooser,
+    ) -> Para {
         let indent = indent_of(p);
         let room = (width - indent).max(24.0);
         // A picture is a gap in the line as wide as the picture before an unseen character, in a
         // line as tall as the picture; it is painted into the gap.
         let object = TextFormat { font_id: regular(1.0), color: egui::Color32::TRANSPARENT, ..Default::default() };
-        let known = ctx.fonts(|f| f.families());
-        let has = |family: &FontFamily| known.contains(family);
         // Each picture shown: its run, its place in the paragraph, its id, its size and whether it
         // comes right after a character egui does not break a line after (a word, or another
         // picture).
@@ -345,13 +382,13 @@ impl Layout {
                         k += 1;
                     }
                     None => {
-                        job.append(&run.text, carry, text_format(&run.style, plain, t, &has));
+                        job.append(&run.text, carry, text_format(&run.style, plain, t, fonts));
                         carry = 0.0;
                     }
                 }
             }
             if job.sections.is_empty() {
-                job.append("", 0.0, text_format(&Style::default(), plain, t, &has));
+                job.append("", 0.0, text_format(&Style::default(), plain, t, fonts));
             }
             galley = ctx.fonts_mut(|f| f.layout_job(job));
             passes += 1;
@@ -389,7 +426,18 @@ impl Layout {
                 }
             }
         }
-        Para { chars: p.chars(), source: p.clone(), number, galley, start: 0, top: 0.0, pictures, tables: grids }
+        Para {
+            chars: p.chars(),
+            source: p.clone(),
+            number,
+            galley,
+            start: 0,
+            top: 0.0,
+            pictures,
+            tables: grids,
+            spelling: None,
+            spelling_retry_at: 0.0,
+        }
     }
 
     /// Characters in the text.
@@ -571,11 +619,25 @@ fn class(c: char) -> u8 {
 /// The size a picture is shown at, in points (a CSS pixel each), within `room`: the width the
 /// owner gave it or its own, its height in proportion.
 fn size_of(ctx: &egui::Context, p: &Picture, room: f32) -> Vec2 {
-    let frame = crate::reading::images::frame(ctx);
-    let own = crate::reading::images::Pictures::of(ctx).lock().ok().and_then(|mut c| c.size(&p.data, frame));
-    let [w, h] = own.map_or([120.0, 40.0], |[w, h]| [w.max(1) as f32, h.max(1) as f32]);
+    let [w, h] = own_size(ctx, p);
     let width = p.width.map_or(w, f32::from).min(room).max(8.0);
     vec2(width, (width * h / w).clamp(4.0, 2000.0))
+}
+
+/// A picture's own size in pixels, or a stand-in when it can't be read; never zero.
+pub(super) fn own_size(ctx: &egui::Context, p: &Picture) -> [f32; 2] {
+    let frame = crate::reading::images::frame(ctx);
+    let own = crate::reading::images::Pictures::of(ctx).lock().ok().and_then(|mut c| c.size(&p.data, frame));
+    own.map_or([120.0, 40.0], |[w, h]| [w.max(1) as f32, h.max(1) as f32])
+}
+
+/// The widest the corner of picture `id` makes it, in a body `room` wide; `None` when it has no
+/// corner there: a signature's pictures are sized in File › Signatures, even in a message.
+fn widest(which: Which, id: u32, room: f32) -> Option<f32> {
+    match which {
+        Which::Signature => Some(f32::from(mailcraft_model::signature::MAX_WIDTH)),
+        Which::Message => (id >= mailcraft_model::pictures::FIRST_ID).then(|| room.min(f32::from(mailcraft_model::pictures::MAX_SHOWN_WIDTH))),
+    }
 }
 
 /// A short fingerprint of the pictures' ids and widths, so that the layout follows them.
@@ -593,23 +655,74 @@ fn store(ctx: &egui::Context, id: egui::Id) -> Arc<Mutex<Layout>> {
     ctx.data_mut(|d| d.get_temp_mut_or_default::<Arc<Mutex<Layout>>>(id.with("layout")).clone())
 }
 
+pub(crate) fn selected_spelling(app: &MailApp, ctx: &egui::Context, locale: &str) -> Option<(spelling::Issue, usize)> {
+    let (selection, _) = now(app, Which::Message)?;
+    let store = store(ctx, id(app));
+    let layout = store.lock().ok()?;
+    let paragraph = layout.para_at(selection.start())?;
+    let checked = paragraph.spelling.as_ref().filter(|checked| checked.locale == locale)?;
+    let start = paragraph.start;
+    let issue = checked.issues.iter().find(|issue| start + issue.span.start == selection.start() && start + issue.span.end == selection.end())?;
+    Some((issue.clone(), start))
+}
+
+#[cfg(test)]
+pub(crate) fn preedit(app: &MailApp, ctx: &egui::Context) -> String {
+    ctx.data(|data| data.get_temp::<State>(id(app).with("state"))).map_or_else(String::new, |state| state.preedit)
+}
+
+pub(crate) fn reveal_spelling(app: &MailApp, ctx: &egui::Context) {
+    ctx.data_mut(|data| data.insert_temp(id(app).with("reveal-spelling"), true));
+}
+
 /// How many paragraphs of the current message's body were laid out since the window opened, for tests.
 #[cfg(test)]
 pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
     store(ctx, id(app)).lock().map_or(0, |l| l.laid)
 }
 
+/// A picture's corner being dragged: the picture, the corner (top left, top right, bottom left,
+/// bottom right), the width it has so far, and whether Escape gave the drag up (it then sets
+/// nothing, and the button is still the drag's until it comes up).
+#[derive(Clone, Copy, Debug)]
+struct Resizing {
+    id: u32,
+    corner: usize,
+    width: f32,
+    cancelled: bool,
+}
+
+/// A rectangle's corners: top left, top right, bottom left, bottom right.
+fn corners(r: Rect) -> [egui::Pos2; 4] {
+    [r.left_top(), r.right_top(), r.left_bottom(), r.right_bottom()]
+}
+
+/// What `ui.inspect` calls the corner `i` of a selected picture: the bottom right one is
+/// `pictureCorner`, as it was when it was the only one.
+const CORNER_NAMES: [&str; 4] = ["pictureCornerTopLeft", "pictureCornerTopRight", "pictureCornerBottomLeft", "pictureCorner"];
+
+/// The picture `r` shown `width` wide in proportion, from the corner opposite corner `i`, which
+/// stays where it is.
+pub(super) fn sized_from(r: Rect, i: usize, width: f32) -> Rect {
+    let size = vec2(width, width * r.height() / r.width().max(1.0));
+    let x = if i % 2 == 1 { r.min.x } else { r.max.x - size.x };
+    let y = if i >= 2 { r.min.y } else { r.max.y - size.y };
+    Rect::from_min_size(egui::pos2(x, y), size)
+}
+
 /// What the body remembers between frames besides its layout.
 #[derive(Clone, Default)]
 struct State {
+    spelling_menu: Option<spelling::Suggestions>,
+    spelling_typed_until: f64,
     /// Where the caret goes up and down from (the column it was in before it went up or down).
     column: Option<f32>,
     /// What the pointer took where it went down, for dragging a selection from there.
     anchor: Option<Anchor<usize>>,
     /// What an input method is composing, not yet typed.
     preedit: String,
-    /// A picture's corner being dragged: its id and the width it has so far.
-    resizing: Option<(u32, f32)>,
+    /// A picture's corner being dragged.
+    resizing: Option<Resizing>,
     /// The selection as the body last saw it, and whether the owner made it here ([`own`]).
     seen: Option<Selection>,
     mine: bool,
@@ -685,6 +798,9 @@ pub(crate) fn show(app: &mut MailApp, ui: &mut Ui, min_height: f32, take_focus: 
 /// the editing commands are the signature's then.
 pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height: f32, take_focus: bool) {
     let ctx = ui.ctx().clone();
+    // Once a frame, as the reading pane does: what the threads brought in is taken in and given
+    // to egui, so a font chosen here is drawn in a frame or two.
+    crate::fonts::tick(&ctx);
     let t = Tokens::get(&ctx);
     let id = which.id(app);
     ctx.data_mut(|d| d.insert_temp(id.with(BODY), true));
@@ -698,7 +814,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         scale: ctx.pixels_per_point().to_bits(),
         plain,
         pictures: pictures_key(&shown),
-        families: ctx.fonts(|f| f.families().len()),
+        fonts: crate::fonts::generation(&ctx),
     };
     let store = store(&ctx, id);
     let mut layout = store.lock().unwrap_or_else(|e| e.into_inner());
@@ -725,28 +841,83 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     if editable && (take_focus || (which == Which::Message && app.take_body_focus()) || (which == Which::Signature && app.take_signature_focus())) {
         resp.request_focus();
     }
-    let mut reveal = false;
+    let mut reveal = ctx.data_mut(|d| d.remove_temp::<bool>(id.with("reveal-spelling")).unwrap_or_default());
+    let spelling_locale = (editable && which == Which::Message).then(|| spelling::locale(app, &ctx)).flatten();
+    let spelling_time = ctx.input(|input| input.time);
 
-    // A selected picture of a signature is made wider or narrower by its corner.
-    if which == Which::Signature
+    // A selected picture is made wider or narrower by any of its four corners: only its outline
+    // follows the pointer (every paragraph is laid out again for a new width), from the corner
+    // opposite the one held, and the width is set once the button is let go. Escape while a
+    // corner is held puts the picture back as it was and does nothing else. (egui ends the drag
+    // on Escape itself, in the same pass: the press is taken before the corners are asked. Until
+    // the button comes up, a press of Escape again is the drag's too, and does nothing.)
+    if let Some(z) = st.resizing.as_mut()
+        && crate::keys::take_escape_any(&ctx, ui.layer_id())
+    {
+        z.cancelled = true;
+    }
+    if editable
         && let Some((sel, _)) = now(app, which)
         && let Some((pid, r)) = layout.selected_picture(sel)
+        && let Some(most) = widest(which, pid, width)
     {
         let r = r.translate(origin.to_vec2());
-        let corner = Rect::from_center_size(r.right_bottom(), vec2(10.0, 10.0));
-        let handle = ui.interact(corner, id.with("corner"), Sense::drag());
-        if handle.hovered() || handle.dragged() {
-            ctx.set_cursor_icon(egui::CursorIcon::ResizeNwSe);
+        for (i, (at, name)) in corners(r).into_iter().zip(CORNER_NAMES).enumerate() {
+            let corner = Rect::from_center_size(at, vec2(10.0, 10.0));
+            let handle = ui.interact(corner, id.with(("corner", pid, i)), Sense::drag());
+            app.hit.add(name, u64::from(pid), corner);
+            if handle.hovered() || handle.dragged() {
+                ctx.set_cursor_icon(if i == 0 || i == 3 { egui::CursorIcon::ResizeNwSe } else { egui::CursorIcon::ResizeNeSw });
+            }
+            // (A right corner widens the picture going right, a left one going left.)
+            let outward = if i % 2 == 1 { 1.0 } else { -1.0 };
+            // (The primary button's, as a click's: Escape's hold on a drag ends when it comes up.
+            // The resize is a drag the primary button started by its press on the corner: one
+            // another button started is nothing, though the primary button was down already or
+            // is pressed as well. A corner senses drags alone, so egui starts one as it is pressed.)
+            let primary = egui::PointerButton::Primary;
+            if handle.drag_started() && ui.input(|i| i.pointer.button_pressed(primary)) && st.resizing.is_none() {
+                st.resizing = Some(Resizing { id: pid, corner: i, width: r.width(), cancelled: false });
+            }
+            if handle.dragged_by(primary)
+                && let Some(z) = st.resizing.as_mut()
+                && !z.cancelled
+                && z.id == pid
+                && z.corner == i
+            {
+                z.width = (z.width + outward * handle.drag_delta().x).clamp(8.0, most);
+            }
+            // (A drag given up stays until the button comes up, below.)
+            // A drag that ends however it ends (egui ends one on Escape with Shift, too) is let go
+            // of; only the primary button coming up sets the width.
+            if handle.drag_stopped()
+                && st.resizing.is_some_and(|z| !z.cancelled && z.id == pid && z.corner == i)
+                && let Some(z) = st.resizing.take()
+                && handle.drag_stopped_by(primary)
+                && (z.width.round() - r.width().round()).abs() >= 1.0
+            {
+                let command = if which == Which::Signature { "signature.picture.set" } else { "compose.picture.set" };
+                let _ = app.run(command, json!({"id": z.id, "width": z.width.round() as u16}));
+            }
         }
-        if handle.dragged() {
-            let w = st.resizing.filter(|(i, _)| *i == pid).map_or(r.width(), |(_, w)| w) + handle.drag_delta().x;
-            st.resizing = Some((pid, w.clamp(8.0, f32::from(mailcraft_model::signature::MAX_WIDTH))));
+    }
+    // The drag is kept while its picture stays selected, so letting go still sets the width
+    // on a frame that did not move the corner. A command that moves the selection while the
+    // corner is held drops it, and a click in the text places the caret again.
+    if let Some(z) = st.resizing {
+        let still = now(app, which).and_then(|(sel, _)| layout.selected_picture(sel)).is_some_and(|(id, _)| id == z.id);
+        if !still {
+            st.resizing = None;
         }
-        if handle.drag_stopped()
-            && let Some((i, w)) = st.resizing.take()
-        {
-            let _ = app.run("signature.picture.set", json!({"id": i, "width": w.round() as u16}));
-        }
+    }
+    // A drag given up by Escape is the button's until it comes up: it neither sizes nor selects.
+    // None is left once the button is up, whatever ended it.
+    if st.resizing.is_some() && !ui.input(|i| i.pointer.primary_down()) {
+        st.resizing = None;
+    }
+    // (Said once the drag is known to go on: an Escape in the pass after it ended is the window's.)
+    if st.resizing.is_some() {
+        crate::keys::hold_escape(&ctx, ui.layer_id(), id);
     }
 
     // The pointer: a click puts the caret, or selects a picture; a drag selects, a double click a
@@ -830,6 +1001,20 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     // A right click: the caret goes where it is, unless that is on the selection; then the text's
     // menu, whose items do what their keys do (`crate::text_menu`).
     if editable {
+        let secondary = resp.secondary_clicked();
+        if secondary {
+            st.spelling_menu = (|| {
+                let locale = spelling_locale.as_deref()?;
+                let host = app.services.spelling.as_deref()?;
+                let pointer = ui.input(|input| input.pointer.interact_pos())?;
+                let at = layout.char_under(pointer - origin)?;
+                let index = layout.paras.partition_point(|p| p.start <= at).checked_sub(1)?;
+                let p = layout.paras.get_mut(index)?;
+                let start = p.start;
+                let issue = p.spelling(host, locale, spelling_time).iter().find(|issue| issue.span.contains(&(at - start)))?.clone();
+                Some(spelling::Suggestions::new(host, locale, issue, start))
+            })();
+        }
         if resp.hovered()
             && ui.input(|i| i.pointer.button_pressed(egui::PointerButton::Secondary))
             && let (Some(pointer), Some((sel, _))) = (ui.input(|i| i.pointer.interact_pos()), now(app, which))
@@ -841,7 +1026,18 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         }
         // Both take pictures: a signature, and a message's text since #547.
         let takes = crate::text_menu::Takes::Pictures;
-        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes);
+        let mut chosen = None;
+        let (selected, plain) = now(app, which).map_or((false, false), |(sel, plain)| (!sel.is_empty(), plain));
+        crate::text_menu::body(&resp, selected, takes, plain, |ui| {
+            st.spelling_menu.as_ref().is_some_and(|suggestions| suggestions.show(ui, &mut chosen))
+        });
+        if let Some(word) = chosen
+            && let Some(suggestions) = st.spelling_menu.take()
+        {
+            suggestions.apply(app, word);
+            resp.request_focus();
+            resync(&mut layout, app);
+        }
     }
 
     // The keyboard.
@@ -853,12 +1049,16 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         let seen = |to: bool| i.events.iter().any(|e| matches!(e, Event::WindowFocused(f) if *f == to));
         (seen(false), seen(true))
     });
-    if left || came_back {
+    if !focused || left || came_back {
         st.preedit.clear();
     }
+    let mut ime_composition = !st.preedit.is_empty();
     if focused {
         ctx.memory_mut(|m| {
-            m.set_focus_lock_filter(id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: false })
+            // (While a corner is held, given up or not, Escape is the drag's: the body keeps the
+            // keyboard, on the key's repeats too.)
+            let escape = st.resizing.is_some();
+            m.set_focus_lock_filter(id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape })
         });
         let page = ui.clip_rect().height().max(40.0) - 20.0;
         for event in ui.input(|i| i.events.clone()) {
@@ -874,6 +1074,7 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 }
                 Event::Ime(egui::ImeEvent::Preedit { text, .. }) => {
                     st.preedit = text.chars().take(MAX_PREEDIT).collect();
+                    ime_composition |= !st.preedit.is_empty();
                     None
                 }
                 Event::Copy | Event::Cut if !sel.is_empty() => {
@@ -885,7 +1086,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                         let html = got.get("html").and_then(Value::as_str);
                         let put = match (&app.services.clipboard, html) {
                             (Some(board), Some(html)) => board.put(html, &text),
-                            _ => Err(String::new()),
+                            (Some(board), None) => board.put_text(&text),
+                            (None, _) => Err(String::new()),
                         };
                         if put.is_err() {
                             ctx.copy_text(text);
@@ -895,16 +1097,17 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                     None
                 }
                 // What is pasted comes as HTML when the clipboard has some (reduced to the set
-                // by `edit.paste`, which takes the text egui read when the HTML comes to no text,
-                // a picture alone), else as that text; into a signature, a picture on the
+                // by `edit.paste`, which takes the text egui read instead in a plain-text message
+                // and when the HTML comes to no text, a picture alone), else as that text; into a signature, a picture on the
                 // clipboard comes as a picture. Nothing to paste changes nothing. What a text's
-                // menu read when its Paste was chosen stands for the clipboard (`crate::text_menu`).
+                // menu read when its Paste was chosen stands for the clipboard (`crate::text_menu`);
+                // its Paste Text Only read no HTML, and the text comes alone.
                 Event::Paste(text) => {
                     let (html, image) = match crate::text_menu::taken_paste(&ctx, id) {
                         Some(found) => (found.html, None),
                         None => {
                             let board = app.services.clipboard.as_ref();
-                            let html = board.and_then(|b| b.html()).filter(|h| !h.trim().is_empty());
+                            let html = board.and_then(|b| b.html_for_text(&text)).filter(|h| !h.trim().is_empty());
                             // Into the message, a picture only when nothing else is on the clipboard (#547),
                             // or when the HTML is that picture alone: a browser's Copy Image puts an
                             // `<img>` of its web address beside the picture itself, which would paste
@@ -960,14 +1163,22 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                 {
                     let _ = app.run(command, params);
                 }
+                st.spelling_typed_until = if command == "compose.type" { spelling_time + 0.6 } else { 0.0 };
                 own(app, which, &mut st, Some(command));
             }
         }
         resync(&mut layout, app);
-    } else {
-        st.preedit.clear();
     }
 
+    if which == Which::Message {
+        // A pending review must not move the caret beneath an IME candidate.
+        let review_locale = if ime_composition { None } else { spelling_locale.as_deref() };
+        spelling::advance_review(app, &ctx, review_locale);
+    }
+    let typing = focused && spelling_time < st.spelling_typed_until;
+    if typing {
+        ctx.request_repaint_after(std::time::Duration::from_secs_f64(st.spelling_typed_until - spelling_time));
+    }
     // Paint what is in view.
     let Some((sel, _)) = now(app, which) else { return };
     let painter = ui.painter();
@@ -975,7 +1186,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let fill = ui.visuals().selection.bg_fill;
     let fill = if focused { fill } else { fill.gamma_multiply(0.55) };
     let first = layout.paras.partition_point(|p| origin.y + p.top + p.height() < clip.min.y);
-    for p in layout.paras.iter().skip(first) {
+    let mut checks = 0;
+    for p in layout.paras.iter_mut().skip(first) {
         if origin.y + p.top > clip.max.y {
             break;
         }
@@ -984,6 +1196,28 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
             paint_selection(painter, p, at, sel, fill);
         }
         painter.galley(at, p.galley.clone(), t.text);
+        if let (Some(locale), Some(host)) = (spelling_locale.as_deref(), app.services.spelling.as_deref()) {
+            if p.needs_spelling(locale, spelling_time) {
+                if checks < 8 {
+                    p.spelling(host, locale, spelling_time);
+                    checks += 1;
+                } else {
+                    ctx.request_repaint();
+                }
+            }
+            if let Some(checked) = p.spelling.as_ref().filter(|checked| checked.locale == locale) {
+                if !checked.available {
+                    ctx.request_repaint_after(std::time::Duration::from_secs_f64((p.spelling_retry_at - spelling_time).max(0.0)));
+                }
+                let mut row_cursor = (0, 0);
+                for issue in &checked.issues {
+                    let is_typing = typing && sel.is_empty() && sel.head > p.start + issue.span.start && sel.head <= p.start + issue.span.end;
+                    if !is_typing {
+                        paint_spelling(painter, p, at, issue.span.clone(), t.icon_red, &mut row_cursor);
+                    }
+                }
+            }
+        }
         for table in &p.tables {
             let rect = table.rect.translate(at.to_vec2());
             table.grid.paint(painter, rect.min, &t);
@@ -1044,15 +1278,17 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         let hint = if which == Which::Message { tl!("Write your message") } else { tl!("Write your signature") };
         painter.text(origin, Align2::LEFT_TOP, hint, regular(BASE_SIZE), t.text_disabled);
     }
-    // The selected picture: a frame, and the corner that sizes it.
+    // The selected picture: a frame, and the corners that size it.
     if let Some((pid, r)) = layout.selected_picture(sel) {
         let mut r = r.translate(origin.to_vec2());
-        if let Some((_, w)) = st.resizing.filter(|(i, _)| *i == pid) {
-            r = Rect::from_min_size(r.min, vec2(w, w * r.height() / r.width().max(1.0)));
+        if let Some(z) = st.resizing.filter(|z| z.id == pid && !z.cancelled) {
+            r = sized_from(r, z.corner, z.width);
         }
         painter.rect_stroke(r, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Outside);
-        if which == Which::Signature {
-            painter.rect_filled(Rect::from_center_size(r.right_bottom(), vec2(8.0, 8.0)), 1.0, t.accent);
+        if editable && widest(which, pid, width).is_some() {
+            for at in corners(r) {
+                painter.rect_filled(Rect::from_center_size(at, vec2(8.0, 8.0)), 1.0, t.accent);
+            }
         }
     }
     let caret = layout.caret(sel.head).translate(origin.to_vec2());
@@ -1152,6 +1388,38 @@ fn paint_selection(painter: &egui::Painter, p: &Para, at: egui::Pos2, sel: Selec
         let x1 = row.pos.x + row.x_offset(CharIndex(hi.saturating_sub(rs))) + if breaks && last { 5.0 } else { 0.0 };
         let r = Rect::from_min_max(pos2(x0, row.min_y()), pos2(x1, row.max_y())).translate(at.to_vec2());
         painter.rect_filled(r, 0.0, fill);
+    }
+}
+
+fn paint_spelling(painter: &egui::Painter, p: &Para, at: egui::Pos2, span: std::ops::Range<usize>, ink: egui::Color32, cursor: &mut (usize, usize)) {
+    let (mut row_index, mut start) = *cursor;
+    for row in p.galley.rows.iter().skip(row_index) {
+        let end = start + row.char_count_including_newline().0;
+        if end <= span.start {
+            row_index += 1;
+            start = end;
+            *cursor = (row_index, start);
+            continue;
+        }
+        let (lo, hi) = (span.start.max(start), span.end.min(end));
+        if lo < hi {
+            let x = at.x + row.pos.x;
+            let left = x + row.x_offset(CharIndex(lo - start));
+            let right = x + row.x_offset(CharIndex(hi - start));
+            let y = at.y + row.max_y() - 1.0;
+            if left < right {
+                let path = std::iter::successors(Some(left), |x| (*x + 2.0 < right).then_some(*x + 2.0))
+                    .chain(std::iter::once(right))
+                    .enumerate()
+                    .map(|(i, x)| pos2(x, y + (i % 2) as f32))
+                    .collect();
+                painter.add(egui::Shape::line(path, Stroke::new(1.0, ink)));
+            }
+        }
+        start = end;
+        if start >= span.end {
+            break;
+        }
     }
 }
 

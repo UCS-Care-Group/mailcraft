@@ -212,6 +212,9 @@ jobs:
   android-e2e:
     name: Android end to end
     needs: [version]
+    # Off unless the repository variable ANDROID_RELEASE is `true`: Android is left out of releases
+    # (docs/releasing.md, The Android release). A variable, not `if: false`, which actionlint refuses.
+    if: vars.ANDROID_RELEASE == 'true'
     uses: ./.github/workflows/android-e2e.yml # zizmor: ignore[self-repository]
     permissions:
       contents: read
@@ -255,7 +258,9 @@ jobs:
   android:
     name: Android
     needs: [version]
-    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    # Off unless the repository variable ANDROID_RELEASE is `true`: Android is left out of releases
+    # (docs/releasing.md, The Android release). A variable, not `if: false`, which actionlint refuses.
+    if: vars.ANDROID_RELEASE == 'true' && github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     uses: ./.github/workflows/android.yml # zizmor: ignore[self-repository]
     permissions:
       contents: read

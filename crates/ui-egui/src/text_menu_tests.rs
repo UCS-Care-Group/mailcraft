@@ -60,6 +60,9 @@ impl RichClipboard for Board {
         self.0.borrow_mut().put.push((html.to_string(), text.to_string()));
         Ok(())
     }
+    fn put_text(&self, text: &str) -> Result<(), String> {
+        self.put("", text)
+    }
     fn html(&self) -> Option<String> {
         self.0.borrow().html.clone()
     }
@@ -339,6 +342,160 @@ fn the_subject_line_cuts_copies_and_pastes_through_its_menu() {
     // What went to the clipboard went through egui's, as Ctrl+C's does; the body's HTML clipboard
     // took nothing.
     assert!(board.0.borrow().put.is_empty());
+}
+
+#[test]
+fn the_classic_composer_ribbon_copies_cuts_and_pastes_the_body() {
+    let board = Board::holding("replacement");
+    let mut h = writing("draft text", Some(&board));
+    h.state_mut().execute("ui.ribbonMode", json!({"value": "classic"})).unwrap();
+    h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    h.state_mut().execute("compose.select", json!({"from": 0, "to": 10})).unwrap();
+    settle(&mut h, 4);
+    for command in ["edit.copy", "edit.cut", "edit.paste"] {
+        let at = h.state().hit.rect("ribbon", crate::ribbon::hit_id(command)).unwrap().center();
+        click(&mut h, at, PointerButton::Primary);
+        settle(&mut h, 4);
+        let body = match command {
+            "edit.copy" => "draft text",
+            "edit.cut" => "",
+            _ => "replacement",
+        };
+        assert_eq!(plain(&h), body, "{command}");
+    }
+    let held = board.0.borrow();
+    assert_eq!(held.put.iter().map(|(_, text)| text.as_str()).collect::<Vec<_>>(), ["draft text", "draft text"]);
+    assert_eq!(held.reads, 1);
+}
+
+#[test]
+fn the_classic_composer_ribbon_uses_the_focused_header_field() {
+    for pop_out in [false, true] {
+        let board = Board::holding("replacement");
+        let mut h = writing("draft text", Some(&board));
+        h.state_mut().execute("ui.ribbonMode", json!({"value": "classic"})).unwrap();
+        h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+        let window = if pop_out { h.state_mut().execute("compose.popOut", json!({})).unwrap()["window"].as_u64().unwrap() } else { 0 };
+        for (field, original) in [
+            ("subject", "Plan for Friday"),
+            ("to", "to@lumen.example"),
+            ("cc", "cc@lumen.example"),
+            ("bcc", "bcc@lumen.example"),
+            ("replyTo", "reply@lumen.example"),
+        ] {
+            h.state_mut().execute("compose.set", json!({field: original})).unwrap();
+            h.state_mut().execute("compose.select", json!({"from": 0, "to": 5})).unwrap();
+            settle(&mut h, 4);
+            let text = |h: &Window| {
+                let draft = h.state().session.compose.as_ref().unwrap();
+                match field {
+                    "subject" => draft.subject.clone(),
+                    "to" => draft.to.clone(),
+                    "cc" => draft.cc.clone(),
+                    "bcc" => draft.bcc.clone(),
+                    _ => draft.reply_to.clone(),
+                }
+            };
+            let at = h.query_all_by_value(original).find(|n| n.accesskit_node().role() == Role::TextInput).unwrap().rect().center();
+            click(&mut h, at, PointerButton::Primary);
+            settle(&mut h, 2);
+            assert_eq!(offered(&h, "Cut"), Some(false), "{pop_out}/{field}: only the body has a selection");
+            assert_eq!(offered(&h, "Copy"), Some(false), "{pop_out}/{field}: only the body has a selection");
+            keys(&mut h, Modifiers::COMMAND, Key::A);
+            for command in ["edit.copy", "edit.cut", "edit.paste"] {
+                let at = h.state().hit.rect_in(window, "ribbon", crate::ribbon::hit_id(command)).unwrap().center();
+                click(&mut h, at, PointerButton::Primary);
+                if command != "edit.paste" {
+                    assert_eq!(copied_within(&mut h, 4).as_deref(), Some(original), "{pop_out}/{field}/{command}");
+                }
+                settle(&mut h, 4);
+                let expected = match command {
+                    "edit.copy" => original,
+                    "edit.cut" => "",
+                    _ => "replacement",
+                };
+                assert_eq!(text(&h), expected, "{pop_out}/{field}/{command}");
+                assert_eq!(plain(&h), "draft text", "{pop_out}/{field}/{command}");
+            }
+        }
+        let held = board.0.borrow();
+        assert_eq!(held.reads, 5);
+        assert!(held.put.is_empty(), "header text went through egui's clipboard, not the body's HTML clipboard");
+    }
+}
+
+#[test]
+fn switching_to_format_text_keeps_the_subject_for_ribbon_paste() {
+    let board = Board::holding("replacement");
+    let mut h = writing("draft text", Some(&board));
+    h.state_mut().execute("ui.ribbonMode", json!({"value": "classic"})).unwrap();
+    h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    settle(&mut h, 4);
+    let at = subject_line(&h).center();
+    click(&mut h, at, PointerButton::Primary);
+    keys(&mut h, Modifiers::COMMAND, Key::A);
+    let tab = h.state().hit.rect_in(0, "ribbonTab", crate::ribbon::hit_id("Format Text")).unwrap().center();
+    click(&mut h, tab, PointerButton::Primary);
+    settle(&mut h, 2);
+    let paste = h.state().hit.rect_in(0, "ribbon", crate::ribbon::hit_id("edit.paste")).unwrap().center();
+    click(&mut h, paste, PointerButton::Primary);
+    settle(&mut h, 4);
+    assert_eq!(subject(&h), "replacement");
+    assert_eq!(plain(&h), "draft text");
+}
+
+#[test]
+fn the_classic_font_size_menu_keeps_the_subject_for_ribbon_paste() {
+    let board = Board::holding("replacement");
+    let mut h = writing("draft text", Some(&board));
+    h.state_mut().execute("ui.ribbonMode", json!({"value": "classic"})).unwrap();
+    h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    settle(&mut h, 4);
+    let at = subject_line(&h).center();
+    click(&mut h, at, PointerButton::Primary);
+    keys(&mut h, Modifiers::COMMAND, Key::A);
+    let size = h.state().hit.rect_in(0, "ribbon", crate::ribbon::hit_id("fontSize")).unwrap().center();
+    click(&mut h, size, PointerButton::Primary);
+    settle(&mut h, 4);
+    let choice = h.get_by_label("✓ 36").rect().center();
+    assert!(choice.y > h.state().hit.rect_in(0, "ribbonBand", 0).unwrap().bottom());
+    click(&mut h, choice, PointerButton::Primary);
+    settle(&mut h, 4);
+    assert_eq!(h.state().session.compose.as_ref().unwrap().body.typing_style().size, Some(36));
+    let paste = h.state().hit.rect_in(0, "ribbon", crate::ribbon::hit_id("edit.paste")).unwrap().center();
+    click(&mut h, paste, PointerButton::Primary);
+    settle(&mut h, 4);
+    assert_eq!(subject(&h), "replacement");
+    assert_eq!(plain(&h), "draft text");
+}
+
+#[test]
+fn the_classic_composer_ribbon_only_uses_the_clipboard_while_its_body_is_visible() {
+    let board = Board::holding("replacement");
+    let mut h = writing("draft text", Some(&board));
+    h.state_mut().execute("ui.ribbonMode", json!({"value": "classic"})).unwrap();
+    h.state_mut().execute("ui.dismissReminder", json!({"all": true})).unwrap();
+    h.state_mut().execute("compose.select", json!({"from": 0, "to": 10})).unwrap();
+    for module in ["view.calendar", "view.people", "view.tasks"] {
+        h.state_mut().execute(module, json!({})).unwrap();
+        settle(&mut h, 4);
+        for command in ["edit.copy", "edit.cut", "edit.paste"] {
+            let at = h.state().hit.rect_in(0, "ribbon", crate::ribbon::hit_id(command)).unwrap().center();
+            click(&mut h, at, PointerButton::Primary);
+            settle(&mut h, 4);
+        }
+        assert_eq!(plain(&h), "draft text", "{module}");
+        assert_eq!(board.0.borrow().reads, 0, "{module}");
+        assert!(board.0.borrow().put.is_empty(), "{module}");
+    }
+    let opened = h.state_mut().execute("compose.popOut", json!({})).unwrap();
+    let window = opened["window"].as_u64().unwrap();
+    settle(&mut h, 4);
+    let at = h.state().hit.rect_in(window, "ribbon", crate::ribbon::hit_id("edit.paste")).unwrap().center();
+    click(&mut h, at, PointerButton::Primary);
+    settle(&mut h, 4);
+    assert_eq!(plain(&h), "replacement");
+    assert_eq!(board.0.borrow().reads, 1);
 }
 
 #[test]
@@ -1863,6 +2020,144 @@ fn a_field_left_after_the_keyboard_was_on_its_menu_is_left() {
         }
     }
     assert_eq!(wrong, Vec::<String>::new());
+}
+
+/// Paste Text Only, as it is read out: it has no key.
+const PASTE_TEXT: &str = "Paste Text Only";
+
+/// HTML in a look of its own, the text beside it and a picture, as a web page copied puts them.
+fn formatted(board: &Board) {
+    let mut held = board.0.borrow_mut();
+    held.html = Some(r#"<span style="font-family: Georgia; font-size: 24pt; color: #c00000"><b><i>Agenda</i></b></span><p>next</p>"#.into());
+    held.text = Some("Agenda\r\nnext".into());
+    held.image = Some(png());
+}
+
+/// The text of the body or the signature open, with its formatting.
+fn rich(h: &Window) -> mailcraft_model::RichText {
+    match h.state().session.signature_edit.as_ref() {
+        Some(e) => e.body.text().clone(),
+        None => h.state().session.compose.as_ref().unwrap().body.text().clone(),
+    }
+}
+
+#[test]
+fn paste_text_only_pastes_the_text_without_its_formatting() {
+    for into in [Into::Body, Into::Signature] {
+        let open = |board: &Board| {
+            let mut h = if matches!(into, Into::Body) { writing("Plan for Friday", Some(board)) } else { signature_page(board) };
+            let kind = if matches!(into, Into::Body) { "composeBody" } else { "signatureBody" };
+            let start = h.state().hit.rect(kind, 0).expect("the text").min + vec2(1.0, 8.0);
+            click(&mut h, start, PointerButton::Primary);
+            h.state_mut().execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
+            settle(&mut h, 2);
+            (h, start)
+        };
+        // What Ctrl+V pastes from a clipboard holding the text alone.
+        let bare = Board::holding("Agenda\r\nnext");
+        let (mut h, _) = open(&bare);
+        frame(&mut h, backend_paste(&bare));
+        settle(&mut h, 3);
+        let want = rich(&h);
+        // Paste Text Only, with the HTML and a picture beside the text: the same, no more.
+        let board = Board::default();
+        formatted(&board);
+        let (mut h, start) = open(&board);
+        menu_at(&mut h, start);
+        assert_eq!(offered(&h, PASTE_TEXT), Some(true), "{into:?}");
+        choose(&mut h, PASTE_TEXT);
+        settle(&mut h, 3);
+        assert_eq!(rich(&h), want, "{into:?}: the text alone");
+        assert!(!rich(&h).paragraphs().iter().flat_map(|p| &p.runs).any(|r| r.style.bold || r.style.italic), "{into:?}");
+        // Paste keeps the clipboard's look, as before.
+        let (mut h, start) = open(&board);
+        menu_at(&mut h, start);
+        choose(&mut h, &paste());
+        settle(&mut h, 3);
+        assert!(rich(&h).paragraphs().iter().flat_map(|p| &p.runs).any(|r| r.style.bold && r.text == "Agenda"), "{into:?}: Paste keeps it");
+    }
+}
+
+#[test]
+fn paste_text_only_with_no_text_on_the_clipboard_changes_nothing() {
+    // A picture alone, and a text that is empty: neither is pasted, the selection stays.
+    for text in [None, Some("")] {
+        let board = Board::default();
+        {
+            let mut held = board.0.borrow_mut();
+            held.text = text.map(str::to_string);
+            held.image = Some(png());
+        }
+        let mut h = writing("Plan for Friday", Some(&board));
+        h.state_mut().execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
+        settle(&mut h, 2);
+        let start = body_start(&h);
+        menu_at(&mut h, start);
+        choose(&mut h, PASTE_TEXT);
+        settle(&mut h, 3);
+        assert_eq!((plain(&h), sel(&h)), ("Plan for Friday".to_string(), Selection { anchor: 0, head: 4 }), "text {text:?}");
+    }
+}
+
+#[test]
+fn paste_text_only_is_the_bodys_alone_and_needs_the_hosts_clipboard() {
+    // Greyed with no clipboard to read (the browser).
+    let mut h = writing("Plan for Friday", None);
+    let start = body_start(&h);
+    menu_at(&mut h, start);
+    assert_eq!(offered(&h, PASTE_TEXT), Some(false));
+    press(&mut h, Key::Escape);
+    settle(&mut h, 2);
+    // A one-line field pastes text alone already: not offered there.
+    let board = Board::holding("Agenda");
+    let mut h = writing("", Some(&board));
+    let line = subject_line(&h);
+    click(&mut h, line.center(), PointerButton::Primary);
+    menu_at(&mut h, line.center());
+    assert_eq!(offered(&h, &paste()), Some(true));
+    assert_eq!(offered(&h, PASTE_TEXT), None);
+    // Nor in a plain-text message, whose Paste brings the text alone already.
+    let board = Board::default();
+    formatted(&board);
+    let mut a = app(Some(&board));
+    a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();
+    a.execute("compose.formatPlain", json!({})).unwrap();
+    a.execute("compose.set", json!({"body": "Plan for Friday"})).unwrap();
+    a.execute("compose.select", json!({"from": 0, "to": 4})).unwrap();
+    a.want_body_focus();
+    let mut h = window(a);
+    let start = body_start(&h);
+    menu_at(&mut h, start);
+    assert_eq!(offered(&h, &paste()), Some(true));
+    assert_eq!(offered(&h, PASTE_TEXT), None, "a plain-text message");
+    choose(&mut h, &paste());
+    settle(&mut h, 3);
+    let text = plain(&h);
+    assert!(text.starts_with("Agenda") && text.ends_with("next for Friday"), "{text:?}");
+    let body = rich(&h);
+    assert!(
+        !body.paragraphs().iter().flat_map(|p| &p.runs).any(|r| r.style.bold || r.style.italic || r.style.size.is_some()),
+        "Paste is the text alone"
+    );
+}
+
+#[test]
+fn paste_text_only_chosen_by_the_control_channel_pastes_nothing() {
+    let board = Board::default();
+    formatted(&board);
+    let mut h = writing("Plan for Friday", Some(&board));
+    let start = body_start(&h);
+    let injected = |h: &mut Window, pos: Pos2, which: PointerButton| {
+        let synthetic = &mut h.state_mut().synthetic;
+        synthetic.push(Event::PointerMoved(pos));
+        synthetic.push(button(pos, which, true));
+        synthetic.push(button(pos, which, false));
+        settle(h, 5);
+    };
+    injected(&mut h, start, PointerButton::Secondary);
+    let item = place_of(&h, PASTE_TEXT).center();
+    injected(&mut h, item, PointerButton::Primary);
+    assert_eq!((plain(&h).as_str(), board.0.borrow().reads), ("Plan for Friday", 0));
 }
 
 #[test]

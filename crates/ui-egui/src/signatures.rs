@@ -90,7 +90,7 @@ pub(crate) fn add_picture(app: &mut MailApp, params: serde_json::Value) {
     }
 }
 
-fn refuse(app: &mut MailApp, why: String) {
+pub(crate) fn refuse(app: &mut MailApp, why: String) {
     app.signature_note = Some(Note { text: why, error: true });
 }
 
@@ -258,22 +258,50 @@ pub(crate) fn finish_rename(app: &mut MailApp, keep: bool) {
 /// The open signature: rich text or HTML, then its formatting bar, the editor, the selected
 /// picture's width and description, and the size its pictures add; or its HTML source.
 fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
+    let Some(name) = app.session.signature_edit.as_ref().map(|e| e.signature.name.clone()) else { return };
+    let file = crate::signature_files::setting_for_name(app, &name);
+    let file_tab = file.enabled;
     let html = app.session.signature_edit.as_ref().and_then(|e| e.signature.html().map(str::to_string));
     ui.horizontal(|ui| {
         for (on, label) in [(html.is_none(), tl!("Rich text")), (html.is_some(), tl!("HTML"))] {
-            if ui.add(egui::Button::selectable(on, label)).clicked() && !on {
-                app.signature_note = None;
-                // HTML starts from what the signature is now.
-                let source = match (&html, app.session.signature_edit.as_ref()) {
-                    (None, Some(e)) => json!(mailcraft_engine::mime::rich::to_html(e.body.text())),
-                    _ => serde_json::Value::Null,
-                };
-                if let Err(why) = app.run("signature.html", json!({"html": source})) {
+            if ui.add(egui::Button::selectable(on && !file_tab, label)).clicked() {
+                if file_tab && let Err(why) = app.run("ui.signatureFile", json!({"name": name, "enabled": false})) {
                     refuse(app, why);
+                    continue;
+                }
+                if !on {
+                    app.signature_note = None;
+                    // HTML starts from what the signature is now.
+                    let source = match (&html, app.session.signature_edit.as_ref()) {
+                        (None, Some(e)) => json!(mailcraft_engine::mime::rich::to_html(e.body.text())),
+                        _ => serde_json::Value::Null,
+                    };
+                    if let Err(why) = app.run("signature.html", json!({"html": source})) {
+                        refuse(app, why);
+                    }
                 }
             }
         }
+        let tab = ui.add_enabled(!cfg!(target_arch = "wasm32"), egui::Button::selectable(file_tab, tl!("File")));
+        app.hit.add("signatureFileTab", 0, tab.rect);
+        if tab.clicked() {
+            if let Err(why) = app.run("ui.signatureFile", json!({"name": name, "enabled": true})) {
+                refuse(app, why);
+            } else {
+                app.signature_note = None;
+            }
+        }
     });
+    if crate::signature_files::setting_for_name(app, &name).enabled {
+        file_source(app, ui, &name);
+        if let Some(note) = &app.signature_note
+            && note.error
+        {
+            ui.colored_label(t.red, &note.text);
+        }
+        preview(app, ui, t);
+        return;
+    }
     match html {
         Some(source) => html_source(app, ui, t, source),
         None => rich(app, ui, t),
@@ -291,6 +319,45 @@ fn editing(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         details_form(app, ui, t);
     }
     preview(app, ui, t);
+}
+
+/// How many characters of a signature file's path the box shows.
+const PATH_SHOWN: usize = 44;
+
+/// The last `max` characters of `path`, with an ellipsis before them when it is longer.
+pub(crate) fn path_tail(path: &str, max: usize) -> String {
+    let count = path.chars().count();
+    if count <= max {
+        return path.to_string();
+    }
+    let tail: String = path.chars().skip(count.saturating_sub(max.saturating_sub(1))).collect();
+    format!("…{tail}")
+}
+
+fn file_source(app: &mut MailApp, ui: &mut Ui, name: &str) {
+    let file = crate::signature_files::setting_for_name(app, name);
+    ui.horizontal(|ui| {
+        // A long path shows its end, where the file name is; the whole of it is the hover text and
+        // what a screen reader reads.
+        let mut shown = path_tail(&file.path, PATH_SHOWN);
+        let hint = tl!("Choose a signature file");
+        let field = ui.add(egui::TextEdit::singleline(&mut shown).interactive(false).desired_width(350.0).hint_text(hint));
+        let field = if file.path.is_empty() { field } else { field.on_hover_text(file.path.as_str()) };
+        field.widget_info(|| egui::WidgetInfo::text_edit(false, file.path.as_str(), file.path.as_str(), hint));
+        let choose = ui.button(tl!("Choose…"));
+        app.hit.add("signatureFileChoose", 0, choose.rect);
+        if choose.clicked() {
+            if let Err(why) = app.run("ui.chooseSignatureFile", json!({"name": name})) {
+                refuse(app, why);
+            } else {
+                app.signature_note = None;
+            }
+        }
+    });
+    if ui.button(tl!("Refresh Preview")).clicked() {
+        app.signature_file_preview = None;
+    }
+    ui.label(tl!("Read again for each new message. If unavailable, the usual signature is used."));
 }
 
 /// An HTML signature's source, as the owner writes it.
@@ -318,11 +385,20 @@ fn html_source(app: &mut MailApp, ui: &mut Ui, t: &Tokens, mut source: String) {
     );
 }
 
+/// A menu that holds a text field the owner clicks in and types into, which keeps that click: the
+/// font menu's search for a family installed here (#1493).
+fn keeps_clicks(ui: &mut Ui, name: &str, content: impl FnOnce(&mut Ui)) {
+    let config = egui::containers::menu::MenuConfig::default().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
+    egui::containers::menu::MenuButton::new(name).config(config).ui(ui, |ui| content(ui));
+}
+
 /// A rich signature: its formatting bar, the editor, its pictures and the size they add.
 fn rich(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let look = crate::ribbon::look_now(app);
     ui.horizontal_wrapped(|ui| {
-        ui.menu_button(tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
+        // The font menu holds a field to search in: a click inside it is for the field, not a way
+        // out of the menu (#1493).
+        keeps_clicks(ui, tl!("Font"), |ui| crate::ribbon::font_menu(ui, app));
         ui.menu_button(tl!("Size"), |ui| crate::ribbon::size_menu(ui, app));
         // The colour menu holds a field for a colour of the owner's own: a click in it is for the
         // field, not a way out of the menu, as on the ribbon (#1493, #1464).
@@ -401,14 +477,14 @@ fn fields_of(d: mailcraft_model::signature::Details) -> [String; 8] {
 }
 
 const FIELDS: [(&str, &str); 8] = [
-    ("name", "Name"),
-    ("title", "Job title"),
-    ("organisation", "Organisation"),
-    ("phone", "Phone"),
-    ("mobile", "Mobile"),
-    ("email", "Email"),
-    ("website", "Website"),
-    ("address", "Address"),
+    ("name", tl_later!("Name")),
+    ("title", tl_later!("Job title")),
+    ("organisation", tl_later!("Organisation")),
+    ("phone", tl_later!("Phone")),
+    ("mobile", tl_later!("Mobile")),
+    ("email", tl_later!("Email")),
+    ("website", tl_later!("Website")),
+    ("address", tl_later!("Address")),
 ];
 
 /// Create from details (S14): the form; changing a field lays the signature out again while it
@@ -498,12 +574,20 @@ fn preview(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     if sig.set_body(e.body.text().clone()).is_err() {
         return;
     }
+    if let Some(file) = crate::signature_files::preview(app, &sig.name) {
+        match file {
+            Ok(loaded) => sig = loaded,
+            Err(why) => {
+                ui.colored_label(t.orange, why);
+            }
+        }
+    }
     let ctx = ui.ctx().clone();
     let key = egui::Id::unique("mailcraft-signature-preview");
     let stamp = (
         mailcraft_model::signature::text_hash(sig.body()),
         format!("{:?}", sig.layout),
-        sig.pictures().iter().map(|p| (p.id, p.width, p.alt.clone())).collect::<Vec<_>>(),
+        sig.pictures().iter().map(|p| (p.id, p.width, p.alt.clone(), p.data.clone())).collect::<Vec<_>>(),
         sig.html().map(str::to_string),
     );
     let kept: Option<(u64, std::sync::Arc<mailcraft_model::Message>)> = ctx.data(|d| d.get_temp(key));
@@ -611,9 +695,9 @@ fn defaults(app: &mut MailApp, ui: &mut Ui, names: &[String]) {
             ui.label(email);
             for (key, now, label) in [("new", new, tl!("New messages")), ("reply", reply, tl!("Replies and forwards"))] {
                 ui.horizontal(|ui| {
-                    ui.label(label);
+                    let label = ui.label(label);
                     let shown = if now.is_empty() { tl!("(none)").to_string() } else { now.clone() };
-                    egui::ComboBox::from_id_salt(("signature_default", id, key)).selected_text(shown).width(150.0).show_ui(ui, |ui| {
+                    let combo = egui::ComboBox::from_id_salt(("signature_default", id, key)).selected_text(shown).width(150.0).show_ui(ui, |ui| {
                         for name in std::iter::once("").chain(names.iter().map(String::as_str)) {
                             let text = if name.is_empty() { tl!("(none)") } else { name };
                             if ui.selectable_label(name.eq_ignore_ascii_case(&now), text).clicked() {
@@ -621,9 +705,14 @@ fn defaults(app: &mut MailApp, ui: &mut Ui, names: &[String]) {
                             }
                         }
                     });
+                    combo.response.labelled_by(label.id);
                 });
             }
             ui.end_row();
         }
     });
 }
+
+#[cfg(test)]
+#[path = "signature_menu_tests.rs"]
+mod signature_menu_tests;

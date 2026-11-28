@@ -1,0 +1,1 @@
+| 2026-11-27 | MR5: Android reading view: boxes keep their padding and frames as the desktop draws them (a box's room round its text, a table's frame over a filled cell, an accent bar the height of its card, the margins of a box on a line), and blank paragraphs and line breaks are blank lines of body text, no longer squashed (#1966) |

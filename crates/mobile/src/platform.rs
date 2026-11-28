@@ -45,6 +45,18 @@ pub struct NotificationRecord {
     pub topic: NotificationTopic,
     pub title: String,
     pub body: String,
+    /// The message it is about, when it tells of one message (new mail told one by one): what its
+    /// buttons act on. None for a count, for "New mail" alone and for a reminder.
+    #[uniffi(default = None)]
+    pub message: Option<NotifiedMessage>,
+}
+
+/// The one message a notification tells of, and the folder it was in then: a button acts on it
+/// only while it is still there (one already moved, deleted or gone is left alone).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct NotifiedMessage {
+    pub id: u64,
+    pub folder: u64,
 }
 
 /// Why the credential store couldn't be used.
@@ -154,7 +166,7 @@ fn record(n: &Notification) -> NotificationRecord {
         NotificationKind::Mail => NotificationTopic::Mail,
         NotificationKind::Reminder => NotificationTopic::Reminder,
     };
-    NotificationRecord { key: n.key, topic, title: n.title.clone(), body: n.body.clone() }
+    NotificationRecord { key: n.key, topic, title: n.title.clone(), body: n.body.clone(), message: None }
 }
 
 impl mailcraft_host::Platform for Native {

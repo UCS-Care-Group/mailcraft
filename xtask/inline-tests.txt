@@ -2,11 +2,9 @@
 # Only ever shrinks: move a file's tests to `<name>_tests.rs` and take its line off.
 apps/mailcraft-cli/src/main.rs
 apps/mailcraft/src/alerts.rs
-apps/mailcraft/src/clipboard.rs
 apps/mailcraft/src/control_server.rs
 apps/mailcraft/src/desktop_theme.rs
 apps/mailcraft/src/diagnostics.rs
-apps/mailcraft/src/graphics.rs
 apps/mailcraft/src/logging.rs
 apps/mailcraft/src/opened_files.rs
 apps/mailcraft/src/picture_cache.rs
@@ -109,11 +107,9 @@ crates/ui-egui/src/reading/images.rs
 crates/ui-egui/src/reading/select.rs
 crates/ui-egui/src/reading/view.rs
 crates/ui-egui/src/reminders.rs
-crates/ui-egui/src/ribbon.rs
 crates/ui-egui/src/scheduling.rs
 crates/ui-egui/src/search_pills.rs
 crates/ui-egui/src/server_search.rs
-crates/ui-egui/src/sync_panel.rs
 crates/ui-egui/src/tasks_view.rs
 crates/ui-egui/src/theme.rs
 crates/ui-egui/src/updates.rs
@@ -124,7 +120,6 @@ crates/vcard/src/lines.rs
 crates/vcard/src/read.rs
 crates/vcard/src/text.rs
 crates/vcard/src/write.rs
-xtask/src/assets.rs
 xtask/src/i18n.rs
 xtask/src/ico.rs
 xtask/src/release_key.rs

@@ -323,6 +323,15 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
             // (What has the keyboard now is in it, or over it: under it, it was given up above.)
             return Some(Owner { layer: top, field: focus });
         }
+        // A picture's corner held in a text being written: Escape is that drag's, as though the
+        // text had the keyboard, so that nothing of its window (File, a message that closes on
+        // Escape) takes it.
+        if key == Key::Escape
+            && let Some((layer, id)) = escape_held(ctx)
+        {
+            let layer = if layer.order == Order::Background { main_layer() } else { window_of(ctx, layer).unwrap_or(layer) };
+            return Some(Owner { layer, field: Some(id) });
+        }
         if key == Key::Escape && ctx.memory(|m| m.areas().is_visible(&crate::sync_panel::layer())) {
             return Some(Owner { layer: crate::sync_panel::layer(), field: None });
         }
@@ -425,6 +434,22 @@ fn ask(ctx: &egui::Context, layer: LayerId, key: Key, want: Want, take: bool) ->
         }
         mine
     })
+}
+
+/// Says, in a pass, that the widget `id` of `layer` holds Escape for itself while something is
+/// held (a picture's corner being dragged): the next new press of Escape in this viewport is its,
+/// for it to take with [`take_escape_any`]. Said again in every pass it is held.
+pub(crate) fn hold_escape(ctx: &egui::Context, layer: LayerId, id: egui::Id) {
+    let held = (ctx.viewport_id(), ctx.cumulative_pass_nr(), layer, id);
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("mailcraft-escape-held"), held));
+}
+
+/// What holds Escape now ([`hold_escape`]): said in this pass or the one before, in this viewport.
+fn escape_held(ctx: &egui::Context) -> Option<(LayerId, egui::Id)> {
+    let (viewport, pass) = (ctx.viewport_id(), ctx.cumulative_pass_nr());
+    ctx.data(|d| d.get_temp::<(ViewportId, u64, LayerId, egui::Id)>(egui::Id::unique("mailcraft-escape-held")))
+        .filter(|(v, p, _, _)| *v == viewport && p.saturating_add(1) >= pass)
+        .map(|(_, _, layer, id)| (layer, id))
 }
 
 /// Whether Escape was pressed for `layer`, with no widget of it keeping the keyboard: it closes
@@ -703,10 +728,11 @@ pub fn resolve(app: &MailApp, key: &str) -> Option<&'static str> {
     hits.into_iter().find(|c| (c.enabled)(&app.session).is_none()).map(|c| c.id)
 }
 
-/// The same key in the other modules: Delete on a selected event, contact or task.
+/// The same key in the other modules: Delete on a selected event (or a set of them), contact or
+/// task.
 fn module_delete(app: &MailApp) -> Option<&'static str> {
     match app.session.view.module {
-        Module::Calendar if app.session.sel.event.is_some() => Some("calendar.delete"),
+        Module::Calendar if app.session.sel.event.is_some() || !app.session.sel.events.is_empty() => Some("calendar.delete"),
         Module::People if app.session.sel.contact.is_some() => Some("people.delete"),
         Module::Tasks if app.session.sel.task.is_some() => Some("tasks.delete"),
         _ => None,
@@ -782,6 +808,17 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         if list && moving {
             continue;
         }
+        // In a message the pointer last went down in, the keys that move scroll it instead of
+        // moving in the message list (#1739).
+        if moving
+            && !typing
+            && let Some(scroll) = crate::reading::scroll_of(key, modifiers)
+            && let Some(place) = app.text_selection.scroll_target(ctx.viewport_id(), crate::reading::images::frame(ctx))
+        {
+            app.text_selection.scroll(place, scroll);
+            ctx.request_repaint();
+            continue;
+        }
         let Some(name) = key_name(key) else { continue };
         let function = name.len() > 1 && name.starts_with('F') && name[1..].chars().all(|c| c.is_ascii_digit());
         if typing {
@@ -817,7 +854,10 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         if k == "Delete"
             && let Some(id) = module_delete(app)
         {
-            let _ = app.run(id, json!({}));
+            // A typed set of more than one is deleted as that set, never as the one series its
+            // focus might name: the occurrence scope keeps its one accurate question.
+            let params = if id == "calendar.delete" && app.session.sel.events.len() > 1 { json!({ "scope": "occurrence" }) } else { json!({}) };
+            let _ = app.run(id, params);
             continue;
         }
         // In a message that is being read (the pointer last went down in it, or is over it),

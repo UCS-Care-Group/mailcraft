@@ -67,6 +67,18 @@ fn ctrl_v_with_nothing_to_paste_sends_nothing() {
 }
 
 #[test]
+fn a_failed_host_copy_is_left_for_the_window_clipboard() {
+    let board = Board { text: None, picture: false };
+    let ctx = egui::Context::default();
+    let mut output = ctx.run_ui(egui::RawInput::default(), |ui| {
+        ui.ctx().copy_text("selected text".into());
+        copy_output(ui.ctx(), Some(&board));
+    });
+    output.textures_delta.clear();
+    assert_eq!(output.platform_output.commands, vec![egui::OutputCommand::CopyText("selected text".into())]);
+}
+
+#[test]
 fn wayland_paste_never_requests_the_unbounded_window_reader() {
     use crate::{MailApp, Services};
     use mailcraft_engine::Session;
@@ -115,6 +127,14 @@ fn cut_and_copy_become_their_events() {
     let board = Board { text: None, picture: false };
     let out = run(vec![press(Key::X, Modifiers::COMMAND), press(Key::C, Modifiers::COMMAND), press(Key::Copy, Modifiers::NONE)], &board);
     assert!(matches!(out.as_slice(), [Event::Cut, Event::Copy, Event::Copy]));
+}
+
+#[test]
+fn linux_control_chords_translate_to_clipboard_events() {
+    let board = Board { text: Some("selected"), picture: false };
+    let control = Modifiers::CTRL | Modifiers::COMMAND;
+    let out = run(vec![press(Key::X, control), press(Key::C, control), press(Key::V, control)], &board);
+    assert!(matches!(out.as_slice(), [Event::Cut, Event::Copy, Event::Paste(text)] if text == "selected"));
 }
 
 #[test]

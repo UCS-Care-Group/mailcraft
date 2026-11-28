@@ -221,10 +221,21 @@ pub struct State {
     /// The server's `SyncFolderItems` won't give the recipients (`ErrorInvalidPropertyForOperation`),
     /// as Exchange 2010's doesn't ([`State::exchange2010`] implies it).
     pub lists_no_recipients: bool,
+    /// Every `GetItem` is refused as a whole: a fault of `ErrorInternalServerError`, HTTP 500.
+    pub refuses_get_item: bool,
+    /// `GetItem` answers these items with `ErrorItemNotFound`, as when they went between the
+    /// listing and the question.
+    pub gone_from_get_item: Vec<String>,
+    /// The server's `SyncFolderItems` takes the recipients in the shape it is asked for and answers
+    /// without them, as Exchange 2013 to 2019 do (#1151); `GetItem` gives them.
+    pub omits_recipients: bool,
     /// The versions every request asked for, in order.
     pub versions: Vec<String>,
-    /// The organisation's address list, for `ResolveNames` (#1262).
+    /// The organisation's address list, for `ResolveNames` (#1262) and its Offline Address Book
+    /// (#1393).
     pub directory: Vec<crate::standin_directory::Person>,
+    /// How the Offline Address Book is published ([`crate::standin_oab`]).
+    pub oab: crate::standin_oab::Publishing,
 }
 
 impl Default for State {
@@ -297,8 +308,12 @@ impl Default for State {
             exchange2010: false,
             takes_any_version: false,
             lists_no_recipients: false,
+            refuses_get_item: false,
+            gone_from_get_item: Vec::new(),
+            omits_recipients: false,
             versions: Vec::new(),
             directory: Vec::new(),
+            oab: crate::standin_oab::Publishing::default(),
         }
     }
 }
@@ -469,6 +484,13 @@ impl State {
             ));
             return Ok((500, "ErrorServerBusy".into(), body));
         }
+        if self.refuses_get_item && operation.name == "GetItem" {
+            let body = envelope(&format!(
+                "<s:Fault><faultcode xmlns:a=\"{TYPES}\">a:ErrorInternalServerError</faultcode><faultstring>An internal server error occurred.</faultstring>\
+                 <detail><e:ResponseCode xmlns:e=\"{ERRORS}\">ErrorInternalServerError</e:ResponseCode></detail></s:Fault>"
+            ));
+            return Ok((500, "ErrorInternalServerError".into(), body));
+        }
         if self.busy_get_item && operation.name == "GetItem" {
             self.busy.0 = self.busy.0.max(1);
         }
@@ -573,6 +595,9 @@ impl State {
         } else if !authorized {
             asked.status = 401;
             HttpResponse::new(401, Vec::new())
+        } else if let Some((operation, response)) = self.offline_address_book(request) {
+            (asked.operation, asked.status) = (operation.to_owned(), response.status());
+            response
         } else if let Some(status) = self.refused_name(request) {
             asked.status = status;
             HttpResponse::new(status, Vec::new())

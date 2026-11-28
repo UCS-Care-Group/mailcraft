@@ -248,6 +248,23 @@ fn two_windows_are_written_in_apart() {
 }
 
 #[test]
+fn the_pop_out_ribbon_has_equal_gutters_in_both_layouts() {
+    let mut h = window(app());
+    h.set_size(egui::vec2(800.0, 620.0));
+    let compose = new_window(&mut h);
+    let id = window_of(&h, compose);
+    for mode in ["classic", "simplified"] {
+        script(&mut h, "ui.ribbonMode", json!({"value": mode}));
+        let hit = &h.state().hit;
+        let window = hit.rect("window", id).unwrap();
+        let ribbon = hit.rect_in(id, "ribbonBand", 0).unwrap();
+        let left = ribbon.min.x - window.min.x;
+        let right = window.max.x - ribbon.max.x;
+        assert!(left >= 7.5 && (left - right).abs() < 1.0, "{mode}: left {left}, right {right}");
+    }
+}
+
+#[test]
 fn the_ribbon_of_a_window_acts_on_its_own_message() {
     let mut h = window(app());
     // (The classic layout, where Importance is in view in the window's width.)
@@ -434,6 +451,123 @@ fn reply_from_a_messages_window_opens_a_window_of_its_own() {
         script(&mut h, "ui.closeWindow", json!({"compose": compose.0, "discard": true}));
     }
     assert!(h.state().windows.of_message(message).is_some(), "the message's window stays");
+}
+
+/// A message open in the reading pane and in a window of its own at another width: a reply asked
+/// for in each quotes it as that one reads it, whichever was drawn last, with what its `@media`
+/// hides there left out.
+#[test]
+fn a_reply_quotes_the_message_as_the_place_it_was_asked_for_reads_it() {
+    use mailcraft_engine::ReadIn;
+    let mut h = window(app());
+    let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
+    script(&mut h, "mail.select", json!({"id": message}));
+    script(&mut h, "ui.openWindow", json!({"message": message}));
+    let win = h.state().windows.of_message(message).unwrap();
+    let width = |h: &Harness, place| h.state().session.read_as(message, place).map(|r| r.0.width()).unwrap();
+    let (pane, own) = (width(&h, ReadIn::Pane), width(&h, ReadIn::Window(win)));
+    assert!(pane.abs_diff(own) > 2, "pane {pane}, window {own}");
+    let mid = pane.min(own) + pane.abs_diff(own) / 2;
+    let html = format!(
+        "<style>@media (max-width:{mid}px){{.w{{display:none}}}}@media (min-width:{}px){{.n{{display:none}}}}</style>\
+         <p>Both</p><p class=w>WIDE WORDS</p><p class=n>NARROW WORDS</p>",
+        mid + 1
+    );
+    let m = h.state_mut().session.mailbox.message_mut(message).unwrap();
+    m.body = mailcraft_model::Body { text: String::new(), html: Some(html) };
+    h.run_steps(4);
+    let words = |pane_wider: bool| if pane_wider { ("WIDE WORDS", "NARROW WORDS") } else { ("NARROW WORDS", "WIDE WORDS") };
+    let quoted = |h: &Harness| {
+        let c = h.state().session.all_composing().find(|c| c.source == Some(message)).unwrap();
+        (c.id, c.quote.clone().unwrap())
+    };
+    // From the main window's ribbon: as the pane reads it.
+    owner(&mut h, "mail.reply", json!({}));
+    let (compose, q) = quoted(&h);
+    let (kept, gone) = words(pane > own);
+    assert!(q.html.contains("Both") && q.html.contains(kept) && !q.html.contains(gone), "pane: {}", q.html);
+    assert!(q.text.contains(kept) && !q.text.contains(gone), "pane: {}", q.text);
+    script(&mut h, "ui.closeWindow", json!({"compose": compose, "discard": true}));
+    let _ = h.state_mut().execute("compose.close", json!({"discard": true}));
+    h.run_steps(3);
+    // From the message's window: as the window reads it.
+    for kind in ["windowReply", "windowForward"] {
+        let rect = h.state().hit.rect(kind, message).unwrap_or_else(|| panic!("no {kind}"));
+        click(&mut h, rect.center());
+        let (compose, q) = quoted(&h);
+        let (kept, gone) = words(own > pane);
+        assert!(q.html.contains("Both") && q.html.contains(kept) && !q.html.contains(gone), "{kind}: {}", q.html);
+        assert!(q.text.contains(kept) && !q.text.contains(gone), "{kind}: {}", q.text);
+        script(&mut h, "ui.closeWindow", json!({"compose": compose, "discard": true}));
+    }
+}
+
+#[test]
+fn insert_link_in_a_forwards_window_comes_up_over_that_window() {
+    let mut h = window(app());
+    let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
+    script(&mut h, "ui.openWindow", json!({"message": message}));
+    let rect = h.state().hit.rect("windowForward", message).expect("Forward in the message's window");
+    click(&mut h, rect.center());
+    let forward = h.state().session.all_composing().find(|c| c.source == Some(message)).map(|c| c.id).unwrap();
+    let w = window_of(&h, forward);
+    script(&mut h, "compose.formatHtml", json!({"compose": forward}));
+    // Link in the forward's own ribbon: the dialog is that window's, not the main window's behind it.
+    ribbon(&mut h, w, "ribbon", "compose.link");
+    assert_eq!(h.state().dialog.as_ref().map(crate::dialogs::Dialog::name), Some("link"));
+    assert_eq!(crate::windows::dialog_compose(h.state()), Some(forward));
+    assert_eq!(h.state().session.compose_id(), Some(forward));
+    // Answered, it belongs to nobody.
+    h.key_press(Key::Escape);
+    h.run_steps(2);
+    assert!(h.state().dialog.is_none(), "Escape closes it");
+    assert_eq!(h.state().windows.dialog_for, None);
+    // One opened from the reading pane's message is the main window's.
+    script(&mut h, "ui.closeWindow", json!({"compose": forward, "discard": true}));
+    owner(&mut h, "mail.new", json!({}));
+    owner(&mut h, "compose.link", json!({}));
+    assert_eq!(h.state().dialog.as_ref().map(crate::dialogs::Dialog::name), Some("link"));
+    assert_eq!(crate::windows::dialog_compose(h.state()), None);
+}
+
+/// The message being written `compose` has a link to `url`.
+fn linked(harness: &Harness, compose: u64, url: &str) -> bool {
+    harness.state().session.composing_by_id(compose).is_some_and(|c| {
+        let text = c.body.text();
+        (0..text.len()).any(|i| text.style_at(i).link.as_deref() == Some(url))
+    })
+}
+
+#[test]
+fn a_main_window_dialog_replaces_the_pop_outs() {
+    let mut h = window(app());
+    let message = h.state().session.mailbox.messages.values().find(|m| !m.draft).map(|m| m.id).unwrap();
+    script(&mut h, "ui.openWindow", json!({"message": message}));
+    let rect = h.state().hit.rect("windowForward", message).expect("Forward in the message's window");
+    click(&mut h, rect.center());
+    let forward = h.state().session.all_composing().find(|c| c.source == Some(message)).map(|c| c.id).unwrap();
+    let w = window_of(&h, forward);
+    script(&mut h, "compose.formatHtml", json!({"compose": forward}));
+    ribbon(&mut h, w, "ribbon", "compose.link");
+    assert_eq!(crate::windows::dialog_compose(h.state()), Some(forward));
+    // An inline reply, then All Categories from the main window: the forward's Insert Link is
+    // replaced, and the new dialog is the main window's, not the forward's.
+    let reply = owner(&mut h, "mail.reply", json!({"id": message}))["compose"].as_u64().unwrap();
+    assert_eq!(pane(&h), Some(reply));
+    script(&mut h, "compose.formatHtml", json!({"compose": reply}));
+    owner(&mut h, "category.list", json!({}));
+    assert_eq!(h.state().dialog.as_ref().map(crate::dialogs::Dialog::name), Some("categories"));
+    assert_eq!((crate::windows::dialog_compose(h.state()), h.state().windows.dialog_for), (None, None));
+    // Insert Link from the reply. OK puts the address in the reply, not in the forward.
+    let url = "https://reply-only.example/1712";
+    owner(&mut h, "compose.link", json!({}));
+    assert_eq!(h.state().dialog.as_ref().map(crate::dialogs::Dialog::name), Some("link"));
+    assert_eq!(crate::windows::dialog_compose(h.state()), None);
+    type_text(&mut h, url);
+    h.key_press(Key::Enter);
+    h.run_steps(3);
+    assert!(linked(&h, reply, url), "the reply has the link");
+    assert!(!linked(&h, forward, url), "the forward has the link");
 }
 
 #[test]
@@ -750,4 +884,117 @@ fn an_agents_pop_out_opens_behind() {
     let w = window_of(&h, inline);
     assert_ne!(crate::keys::active(&h.ctx), crate::windows::embedded_layer(w));
     assert_eq!(h.state().session.compose_id(), Some(mine));
+}
+
+/// A PNG `w` by `h` pixels that can be read.
+fn real_png(w: u32, h: u32) -> Vec<u8> {
+    use image::ImageEncoder as _;
+    let rgb: Vec<u8> = (0..w * h).flat_map(|i| [(i % 251) as u8, 90, 160]).collect();
+    let mut out = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut out).write_image(&rgb, w, h, image::ExtendedColorType::Rgb8).unwrap();
+    out
+}
+
+#[test]
+fn escape_while_a_pictures_corner_is_held_in_a_messages_window_is_the_drags() {
+    let mut h = window(app());
+    let compose = new_window(&mut h);
+    let w = window_of(&h, compose);
+    script(&mut h, "compose.formatHtml", json!({"compose": compose}));
+    let data = crate::files::base64_lite::encode(&real_png(200, 100));
+    let id = script(&mut h, "insert.picture", json!({"compose": compose, "data": data, "file": "logo.png"}))["id"].as_u64().unwrap();
+    script(&mut h, "compose.select", json!({"compose": compose, "from": 0, "to": 1}));
+    // Nothing has the keyboard (a new message's window gives it to To): Escape would be the
+    // window's, and close it.
+    h.ctx.memory_mut(|m| {
+        if let Some(id) = m.focused() {
+            m.surrender_focus(id);
+        }
+    });
+    h.run_steps(2);
+    assert_eq!(h.ctx.memory(|m| m.focused()), None);
+    let picture = |h: &Harness| h.state().session.composing_by_id(compose).and_then(|c| c.pictures.first().map(|p| p.width)).unwrap();
+    let from = h.state().hit.rect_in(w, "pictureCornerTopRight", id).expect("the picture's corner in the message's window").center();
+    let button = |pos, pressed| egui::Event::PointerButton { pos, button: egui::PointerButton::Primary, pressed, modifiers: egui::Modifiers::NONE };
+    h.event(egui::Event::PointerMoved(from));
+    h.step();
+    h.event(button(from, true));
+    h.step();
+    h.event(egui::Event::PointerMoved(from + egui::vec2(30.0, 0.0)));
+    h.step();
+    // Escape, and again, with the button still down: the drag's, not the window's.
+    for _ in 0..2 {
+        h.key_press(Key::Escape);
+        h.step();
+        assert_ne!(windows(&mut h)[0]["asking"], true, "the window asks nothing while the button is down");
+    }
+    h.event(button(from + egui::vec2(30.0, 0.0), false));
+    h.step();
+    assert_eq!(picture(&h), None, "nothing is set");
+    assert!(h.state().windows.of_compose(compose).is_some(), "the message's window is still open");
+    assert_ne!(windows(&mut h)[0]["asking"], true, "and asks nothing");
+    // With the button up, Escape is the window's as ever, even in the very next frame: it asks
+    // about the picture put in.
+    h.key_press(Key::Escape);
+    h.run_steps(3);
+    assert_eq!(windows(&mut h)[0]["asking"], true, "Escape after the drag closes the window");
+}
+
+#[test]
+fn forwarding_starts_with_the_keyboard_in_to_inline_and_in_its_own_window() {
+    for command in ["mail.forward", "mail.forwardAsAttachment"] {
+        for own_window in [false, true] {
+            let mut a = app();
+            a.execute("ui.theme", json!({"value": if own_window { "dark" } else { "light" }})).unwrap();
+            a.ui.replies_in_window = own_window;
+            let message = a.session.mailbox.messages.values().find(|message| !message.draft).unwrap().id;
+            let mut h = window(a);
+            // Search can still own focus when a ribbon or reading-pane control opens a forward.
+            owner(&mut h, "ui.focusSearch", json!({}));
+            let compose = owner(&mut h, command, json!({"id": message}))["compose"].as_u64().unwrap();
+            type_text(&mut h, "forward-recipient@example.org");
+            let c = h.state().session.composing_by_id(compose).unwrap();
+            assert_eq!(c.to, "forward-recipient@example.org", "{command}, own window: {own_window}");
+            assert!(!c.body.plain().contains("forward-recipient@example.org"));
+            // The initial request is consumed, so choosing the body keeps typing there.
+            into_body(&mut h, compose);
+            type_text(&mut h, "Body text");
+            assert_eq!(h.state().session.composing_by_id(compose).unwrap().to, "forward-recipient@example.org");
+            assert!(text_of(&h, compose).contains("Body text"));
+            if let Ok(dir) = std::env::var("MAILCRAFT_SHOTS_DIR") {
+                h.render().unwrap().save(std::path::Path::new(&dir).join(format!("forward-to-{command}-{own_window}.png"))).unwrap();
+            }
+        }
+    }
+}
+#[test]
+fn forwarding_from_a_message_window_starts_with_the_keyboard_in_to() {
+    let mut h = window(app());
+    let message = h.state().session.mailbox.messages.values().find(|message| !message.draft).unwrap().id;
+    script(&mut h, "ui.openWindow", json!({"message": message}));
+    let rect = h.state().hit.rect("windowForward", message).expect("Forward in the message's window");
+    click(&mut h, rect.center());
+    let compose = h.state().session.all_composing().find(|compose| compose.source == Some(message)).unwrap().id;
+    type_text(&mut h, "forward-recipient@example.org");
+    assert_eq!(h.state().session.composing_by_id(compose).unwrap().to, "forward-recipient@example.org");
+}
+
+#[test]
+fn choosing_a_forwards_body_keeps_the_keyboard_there_while_to_is_empty() {
+    for command in ["mail.forward", "mail.forwardAsAttachment"] {
+        for own_window in [false, true] {
+            let mut a = app();
+            a.ui.replies_in_window = own_window;
+            let message = a.session.mailbox.messages.values().find(|message| !message.draft).unwrap().id;
+            let mut h = window(a);
+            owner(&mut h, "ui.focusSearch", json!({}));
+            let compose = owner(&mut h, command, json!({"id": message}))["compose"].as_u64().unwrap();
+            assert!(h.state().session.composing_by_id(compose).unwrap().to.is_empty());
+            into_body(&mut h, compose);
+            type_text(&mut h, "Writing in the body first");
+            let c = h.state().session.composing_by_id(compose).unwrap();
+            assert!(c.to.is_empty(), "{command}, own window: {own_window}");
+            assert!(c.body.plain().contains("Writing in the body first"));
+        }
+    }
 }

@@ -26,12 +26,20 @@
 //! What the change made that the server has already (a copy, a draft, a folder) goes into Deleted
 //! Items, here and there, rather than being deleted for good; what the server hasn't got yet is
 //! taken away here and never made there.
+//!
+//! Events go the same way (#1674): the ones the change made, changed or deleted go back as they
+//! were before it, with the changes they were waiting to send then; every other event is as it
+//! is now, with what its server is to be told and is still looked for ([`events_stay`]). So an
+//! event that a download brought, changed or took away since the change keeps what the download
+//! did, and its server is told nothing of it.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
+use mailcraft_model::contact_sync::ContactField;
+use mailcraft_model::sync::RemoteFlags;
 use mailcraft_model::sync::{DraftState, MovingOut, ServerMessage, same_category};
-use mailcraft_model::{AccountKind, Calendar, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS, category_key};
+use mailcraft_model::{AccountKind, Calendar, Event, Folder, FolderKind, Id, Mailbox, Message, Pending, Queued, RETURNED_LISTINGS, category_key};
 
 /// What a change did to the mail of the Microsoft accounts: the messages and folders it changed,
 /// as they were right after it (`None`: it took them away). Nothing for a mailbox without one.
@@ -43,11 +51,22 @@ pub(crate) struct Touched {
     messages: BTreeMap<Id, Option<Arc<Message>>>,
     folders: BTreeMap<Id, Option<Folder>>,
     changed_messages: BTreeSet<Id>,
+    /// Of those, the ones it moved to another folder: the only ones an undo moves back on an
+    /// IMAP server ([`imap_back`]).
+    moved_messages: BTreeSet<Id>,
+    /// Of those, the ones it took away: an undo brings back only these, not one a server
+    /// removed since ([`imap_back`]).
+    removed_messages: BTreeSet<Id>,
     /// The messages whose reminder the change itself changed (#948).
     follow_up_changed: BTreeSet<Id>,
     changed_folders: BTreeSet<Id>,
     /// The contacts it added, changed or took away.
     changed_contacts: BTreeSet<Id>,
+    /// Of those it changed, the fields a server keeps that it changed (#1917): undone, only
+    /// those go back, and what a server changed since in the others stays.
+    contact_fields: BTreeMap<Id, BTreeSet<ContactField>>,
+    /// Of those it changed, the ones it put in another folder (#1144).
+    moved_contacts: BTreeSet<Id>,
     pending_added: HashSet<String>,
     pending_removed: HashSet<String>,
     /// What the change did to each account's own list of categories (#661).
@@ -61,6 +80,9 @@ pub(crate) struct Touched {
     /// Of those, the ones a change waited to go to the server for once it was made: what it did
     /// to them was to reach their servers, not this computer alone (#661).
     told_events: BTreeSet<Id>,
+    /// The events it made, changed or took away, and those whose changes waiting to go to their
+    /// servers it added, changed or took away (#1674): an undo puts back only those.
+    changed_events: BTreeSet<Id>,
 }
 
 /// What a change did to one account's own list of categories (#661): each category it made,
@@ -96,6 +118,23 @@ impl Touched {
     /// Whether the change added, changed or took away the contact `id`.
     pub(crate) fn changed_contact(&self, id: Id) -> bool {
         self.changed_contacts.contains(&id)
+    }
+
+    /// The contacts the change added, changed or took away.
+    pub(crate) fn changed_contacts(&self) -> &BTreeSet<Id> {
+        &self.changed_contacts
+    }
+
+    /// The fields a server keeps that the change changed of contact `id`, when it changed it
+    /// (rather than adding or taking it away).
+    pub(crate) fn contact_fields(&self, id: Id) -> Option<&BTreeSet<ContactField>> {
+        self.contact_fields.get(&id)
+    }
+
+    /// Whether the change put contact `id` in another folder (#1144), rather than a refusal or a
+    /// move back done outside any step.
+    pub(crate) fn moved_contact(&self, id: Id) -> bool {
+        self.moved_contacts.contains(&id)
     }
 
     /// The events whose categories the change changed, with the categories it left them (#661).
@@ -155,6 +194,7 @@ fn loose_key_of_attached(p: &Pending) -> String {
 /// `before`'s message `id`, which `after` no longer has, noted in `t`.
 fn gone(t: &mut Touched, id: Id, b: &Arc<Message>, g: &BTreeSet<Id>) {
     t.changed_messages.insert(id);
+    t.removed_messages.insert(id);
     if relevant(b, g) {
         t.messages.insert(id, None);
     }
@@ -172,6 +212,9 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
         match (b, a) {
             (Some(b), Some(a)) if a != b => {
                 t.changed_messages.insert(id);
+                if a.folder != b.folder {
+                    t.moved_messages.insert(id);
+                }
                 if a.follow_up != b.follow_up {
                     t.follow_up_changed.insert(id);
                 }
@@ -200,6 +243,10 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
             (Some((id, b)), Some((n, a))) if id == n => {
                 if !(Arc::ptr_eq(a, b) || a == b) {
                     t.changed_contacts.insert(**id);
+                    t.contact_fields.insert(**id, ContactField::changed(b, a));
+                    if a.folder != b.folder {
+                        t.moved_contacts.insert(**id);
+                    }
                 }
                 was.next();
                 is.next();
@@ -218,29 +265,42 @@ pub(crate) fn touched(before: &Mailbox, after: &Mailbox) -> Touched {
             }
         }
     }
-    // The events whose categories it changed (one walk of both maps, as for the contacts).
+    // The events it made, changed or took away, and those whose categories it changed (one walk
+    // of both maps, as for the contacts).
     let mut was = before.events.iter().peekable();
     let mut is = after.events.iter().peekable();
     loop {
         match (was.peek(), is.peek()) {
             (None, None) => break,
             (Some((id, b)), Some((n, a))) if id == n => {
-                if !Arc::ptr_eq(a, b) && a.categories != b.categories {
-                    t.event_categories.insert(**id, a.categories.clone());
+                if !Arc::ptr_eq(a, b) && a != b {
+                    t.changed_events.insert(**id);
+                    if a.categories != b.categories {
+                        t.event_categories.insert(**id, a.categories.clone());
+                    }
                 }
                 was.next();
                 is.next();
             }
             (Some((id, _)), Some((n, _))) if id < n => {
+                t.changed_events.insert(**id);
                 was.next();
             }
-            (Some(_), None) => {
+            (Some((id, _)), None) => {
+                t.changed_events.insert(**id);
                 was.next();
             }
-            (_, Some(_)) => {
+            (_, Some((id, _))) => {
+                t.changed_events.insert(**id);
                 is.next();
             }
         }
+    }
+    // And those whose waiting changes it added, changed or took away (a change noted again for
+    // an event as it is, say).
+    if before.event_changes != after.event_changes {
+        let (was, is) = (by_event(&before.event_changes, |c| c.event), by_event(&after.event_changes, |c| c.event));
+        t.changed_events.extend(was.keys().chain(is.keys()).filter(|id| was.get(id) != is.get(id)).copied());
     }
     if !t.event_categories.is_empty() {
         let update = mailcraft_model::remote::EventChangeKind::Update;
@@ -426,6 +486,7 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     // change: an undo leaves them as they are now (#948).
     out.follow_ups_pending = now.follow_ups_pending.clone();
     returned(&mut out, now);
+    events_stay(&mut out, touched, now);
     subscribed_stay(&mut out, now);
     // A message handed to a server to be sent (AU3-26) is the run's until its answer comes: undo
     // and redo leave it as it is now, or its mark would be lost and it could be sent twice (#950).
@@ -434,7 +495,12 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     }
     let g: BTreeSet<Id> = graph_accounts(now).intersection(&graph_accounts(&out)).copied().collect();
     leave_alone(&mut out, touched, now, &g);
+    imap_back(&mut out, touched, now, &g);
     if g.is_empty() {
+        // A message on its way onto another account's server now still is (a rule's move of mail
+        // that came since the change, #566).
+        queue(&mut out, now, &g);
+        waiting_as_now(&mut out, touched, now);
         return (out, Vec::new());
     }
     let mut said = Said::default();
@@ -458,7 +524,152 @@ pub(crate) fn keep_in_step(mut out: Mailbox, touched: &Touched, now: &Mailbox, l
     // What the server last gave of these is the server's, not the owner's to undo.
     server_lists(&mut out, touched, now, &g, &mut said);
     out.favorites_from_server = now.favorites_from_server.clone();
+    waiting_as_now(&mut out, touched, now);
     (out, said.lines(lang))
+}
+
+/// Where its server has each message a move waits for until then: the first such move's
+/// mailbox, UID and flags.
+fn waiting_moves(mb: &Mailbox) -> HashMap<Id, (String, u32, Option<RemoteFlags>)> {
+    let mut out = HashMap::new();
+    for p in &mb.pending {
+        // (Only a move of its own account's server: one of another account's is that server's.)
+        if let Pending::Move { account, message, from, uid, synced, .. } = p
+            && mb.message(*message).is_some_and(|m| m.account == *account)
+        {
+            out.entry(*message).or_insert_with(|| (from.clone(), *uid, *synced));
+        }
+    }
+    out
+}
+
+/// `folder` of `now`, and the folders it is in, back in `out` when the undo took them away (the
+/// change made it, and the server has it still): where the server has a message is a folder here.
+fn bring_folder(out: &mut Mailbox, now: &Mailbox, folder: Id) {
+    let mut at = Some(folder);
+    for _ in 0..64 {
+        let Some(id) = at.filter(|id| out.folder(*id).is_none()) else { return };
+        let Some(f) = now.folder(id) else { return };
+        at = f.parent;
+        out.folders.push(f.clone());
+    }
+}
+
+/// Where `m`'s IMAP server has it: the mailbox and UID of the move waiting for it (`waiting`, of
+/// `mb`), else of its folder; `None` when the server's UID there isn't known.
+fn server_place(mb: &Mailbox, waiting: &HashMap<Id, (String, u32, Option<RemoteFlags>)>, m: &Message) -> Option<(String, u32)> {
+    match waiting.get(&m.id) {
+        Some((from, uid, _)) => Some((from.clone(), *uid)),
+        None => (m.uid != 0).then(|| (mb.folder(m.folder).map(|f| f.remote.clone()).unwrap_or_default(), m.uid)),
+    }
+}
+
+/// An IMAP account's messages the change touched, as the server has them since (#1842). The
+/// UID a message had then is the server's no more when the server has it elsewhere now (it took
+/// the change: a move into Deleted Items, say), so it is put where the server has it now:
+///
+/// - one the change moved is moved back from there, as the owner would move it, so that the next
+///   run sends the move back (the moves that waited for it are the change's, and go);
+/// - one the change didn't move (it marked it read, say) stays there, with the moves that wait
+///   for it, and only what the change did to it is undone;
+/// - one the server removed since stays removed (one the change removed comes back).
+///
+/// Moves out of the account and deletions for good still end the history (`sync.apply`). The
+/// waiting moves are looked through once, and the moves back are made together, so that a big
+/// undo takes time in proportion to its size; a move back that is refused (its folder is gone)
+/// leaves that message where the server has it, and the others go on.
+fn imap_back(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>) {
+    let (was, is) = (waiting_moves(out), waiting_moves(now));
+    let imap = |m: &Message| !relevant(m, g) && now.account(m.account).is_some_and(|a| a.kind == AccountKind::Imap);
+    let mut back: Vec<(Id, Id)> = Vec::new();
+    let mut kept: HashSet<Id> = HashSet::new();
+    let mut removed: Vec<Id> = Vec::new();
+    for id in &touched.changed_messages {
+        let Some(o) = out.message(*id).filter(|o| imap(o)) else { continue };
+        let Some(c) = now.message(*id) else {
+            if !touched.removed_messages.contains(id) {
+                removed.push(*id);
+            }
+            continue;
+        };
+        if !imap(c) || o.account != c.account || server_place(out, &was, o) == server_place(now, &is, c) {
+            continue;
+        }
+        if touched.moved_messages.contains(id) {
+            back.push((*id, o.folder));
+        } else {
+            kept.insert(*id);
+        }
+    }
+    if back.is_empty() && kept.is_empty() && removed.is_empty() {
+        return;
+    }
+    let ours: HashSet<Id> = back.iter().map(|(id, _)| *id).chain(kept.iter().copied()).chain(removed.iter().copied()).collect();
+    // (The moves of their own account's server; another account's, of one moved in, stay.)
+    let messages = &out.messages;
+    out.pending.retain(|p| {
+        !matches!(p, Pending::Move { account, message, .. } if ours.contains(message) && messages.get(message).is_some_and(|m| m.account == *account))
+    });
+    for id in &removed {
+        out.messages.remove(id);
+    }
+    // (Where the server has it: a folder of the account it is in now, else where the run left it.)
+    let by_remote: HashMap<(Id, &str), Id> =
+        now.folders.iter().filter(|f| !f.remote.is_empty()).map(|f| ((f.account, f.remote.as_str()), f.id)).collect();
+    let mut moves: Vec<(Id, Id)> = Vec::new();
+    for (id, target) in back {
+        let Some(c) = now.message(id) else { continue };
+        let there = is.get(&id).and_then(|(from, uid, synced)| Some((*by_remote.get(&(c.account, from.as_str()))?, *uid, *synced)));
+        let (folder, uid, synced) = match there {
+            Some(place) => place,
+            None if is.contains_key(&id) => {
+                // (The folder the server has it in isn't known here: it stays as the run left it.)
+                kept.insert(id);
+                continue;
+            }
+            None => (c.folder, c.uid, c.synced),
+        };
+        bring_folder(out, now, folder);
+        if let Ok(m) = out.message_mut(id) {
+            (m.folder, m.uid, m.synced) = (folder, uid, synced);
+        }
+        if target != folder && out.folder(target).is_some_and(|f| f.account == c.account) && !out.stays_out_of(id, target) {
+            moves.push((id, target));
+        }
+    }
+    out.pending.extend(
+        now.pending
+            .iter()
+            .filter(|p| {
+                matches!(p, Pending::Move { account, message, .. } if kept.contains(message) && now.message(*message).is_some_and(|m| m.account == *account))
+            })
+            .cloned(),
+    );
+    for id in &kept {
+        let Some(c) = now.message(*id) else { continue };
+        bring_folder(out, now, c.folder);
+        if let Ok(m) = out.message_mut(*id) {
+            (m.folder, m.uid, m.synced) = (c.folder, c.uid, c.synced);
+        }
+    }
+    // (All at once; should that be refused, each on its own, a refused one where the server has it.)
+    if out.move_each(&moves).is_err() {
+        for (id, target) in moves {
+            let _ = out.move_message(id, target);
+        }
+    }
+}
+
+/// The rules waiting for the messages the change touched to be here whole are as they are now
+/// (#566): a move took them away, and moving the message back by undoing it or redoing a move
+/// doesn't bring them back, nor does it have a rule act a second time.
+fn waiting_as_now(out: &mut Mailbox, touched: &Touched, now: &Mailbox) {
+    for id in &touched.changed_messages {
+        let waiting = now.messages.get(id).and_then(|c| c.rules_waiting.clone());
+        if let Some(m) = out.messages.get_mut(id).filter(|m| m.rules_waiting != waiting) {
+            Arc::make_mut(m).rules_waiting = waiting;
+        }
+    }
 }
 
 /// Subscribed calendars and their events are the web's and the refresh's, never the change's to
@@ -483,6 +694,133 @@ fn subscribed_stay(out: &mut Mailbox, now: &Mailbox) {
             out.events.insert(*id, e.clone());
         }
     }
+}
+
+/// The events as they are now, with what their servers are to be told ([`Mailbox::event_changes`])
+/// and what is still looked for in their downloads ([`Mailbox::event_checks`]), but for the
+/// events the change touched (#1674), which are as `out` has them, with their own. What a download
+/// brought for the others since the change (one changed on its server, one new there, one deleted
+/// there) is not the change's to undo: it stays, and their servers are told nothing of it. An
+/// event in a calendar that `out` has not (of an account that the undo takes away again, or one a
+/// download listed since) is as `out` has it, and so are the changes and checks of an account
+/// that `out` has not. When the times have been moved to another clock since the change
+/// ([`Mailbox::rebase`]), the events and theirs are as `out` has them, all by its clock, and are
+/// moved to this one again after the undo (`Session::settle_zone`): times by two clocks in one
+/// mailbox would be hours out.
+fn events_stay(out: &mut Mailbox, touched: &Touched, now: &Mailbox) {
+    if out.zone != now.zone {
+        return;
+    }
+    let mine = |id: &Id| touched.changed_events.contains(id);
+    // (One walk of both maps, as `touched` makes: an event the two share is as now already.)
+    let mut since: Vec<(Id, Option<Arc<Event>>)> = Vec::new();
+    let mut was = out.events.iter().peekable();
+    let mut is = now.events.iter().peekable();
+    loop {
+        match (was.peek(), is.peek()) {
+            (None, None) => break,
+            (Some((id, b)), Some((n, a))) if id == n => {
+                if !Arc::ptr_eq(a, b) && !mine(id) {
+                    since.push((**id, Some(Arc::clone(a))));
+                }
+                was.next();
+                is.next();
+            }
+            (Some((id, _)), Some((n, _))) if id < n => {
+                if !mine(id) {
+                    since.push((**id, None));
+                }
+                was.next();
+            }
+            (Some((id, _)), None) => {
+                if !mine(id) {
+                    since.push((**id, None));
+                }
+                was.next();
+            }
+            (_, Some((id, a))) => {
+                if !mine(id) {
+                    since.push((**id, Some(Arc::clone(a))));
+                }
+                is.next();
+            }
+        }
+    }
+    let calendars: BTreeSet<Id> = out.calendars.iter().map(|c| c.id).collect();
+    for (id, e) in since {
+        match e {
+            Some(e) if calendars.contains(&e.calendar) => {
+                out.events.insert(id, e);
+            }
+            Some(_) => {}
+            None => {
+                out.events.remove(&id);
+            }
+        }
+    }
+    let accounts: BTreeSet<Id> = out.accounts.iter().map(|a| a.id).collect();
+    let then = std::mem::take(&mut out.event_changes);
+    out.event_changes = by_events(then, &now.event_changes, |c| c.event, mine, |c| accounts.contains(&c.account));
+    let then = std::mem::take(&mut out.event_checks);
+    out.event_checks = by_events(then, &now.event_checks, |c| c.event, mine, |c| accounts.contains(&c.account));
+}
+
+/// Whether an undo (or redo) to `then` of a change that did `touched` has the event `id` as `then`
+/// has it, or leaves it out when `then` has none, rather than as it is in `now` (#1674): what
+/// [`events_stay`] and [`subscribed_stay`] do with it. An event of a calendar subscribed in `now`
+/// is never taken away nor put back as another, whatever else (its calendar subscribed since the
+/// change, the clock moved since): [`subscribed_stay`] runs after [`events_stay`] and puts every
+/// one back from `now`. This says nothing of its times: after a move of the clock, the settle that
+/// follows the undo moves them again (#1709). Of the others, an event a download brought, changed
+/// or took away since the change is as now; one the change touched, or one in a calendar that
+/// `then` has not (or had subscribed), or any when the clock moved since, as `then` has it. For
+/// the question asked of an agent's undo (#494): what it would take away.
+pub(crate) fn event_as_then(then: &Mailbox, touched: &Touched, now: &Mailbox, id: Id) -> bool {
+    let Some(e) = now.event(id) else { return true };
+    let subscribed = |m: &Mailbox| m.calendar(e.calendar).map(Calendar::is_subscribed);
+    if subscribed(now) == Some(true) {
+        return false;
+    }
+    then.zone != now.zone || touched.changed_events.contains(&id) || subscribed(then).is_none_or(|was| was)
+}
+
+/// `list` by the event each is about, in its order.
+fn by_event<T>(list: &[T], event: impl Fn(&T) -> Id) -> BTreeMap<Id, Vec<&T>> {
+    let mut by: BTreeMap<Id, Vec<&T>> = BTreeMap::new();
+    for item in list {
+        by.entry(event(item)).or_default().push(item);
+    }
+    by
+}
+
+/// What `then` has of the events that are `mine`, and what `now` has of the others that it
+/// keeps: the others' in `now`'s order, and each of `then`'s for an event that is `mine`, in
+/// `then`'s order, after as many of the others' as came before it in `then` (after all of them,
+/// when `now` keeps fewer). It goes by that count, not by which entries they are. So the order
+/// across events is kept only when the others' that `now` keeps are the very ones `then` had, in
+/// the same order (nothing sent, confirmed or brought for them since): such a list comes back in
+/// `then`'s order, and one that differs from `then` only in the events that are `mine` comes back
+/// as `then` has it. Once others' were sent, confirmed or brought since, an entry of `mine` can
+/// come after one it stood before: with `then` = `[o1, m, o2]`, `o1` sent (`now` = `[o2]`) gives
+/// `[o2, m]`, and `o1` confirmed and `o3` brought (`now` = `[o2, o3]`) gives `[o2, m, o3]`. That
+/// changes only which change goes to its server first within `MAX_EVENT_OPS`, and which check is
+/// the oldest.
+fn by_events<T: Clone>(then: Vec<T>, now: &[T], event: impl Fn(&T) -> Id, mine: impl Fn(&Id) -> bool, keep: impl Fn(&T) -> bool) -> Vec<T> {
+    let mut theirs = now.iter().filter(|item| !mine(&event(item)) && keep(item));
+    let mut out = Vec::with_capacity(then.len().max(now.len()));
+    // How many of the others' `then` had before the next of `mine`, not yet taken from `now`.
+    let mut before = 0usize;
+    for item in then {
+        if mine(&event(&item)) {
+            out.extend(theirs.by_ref().take(before).cloned());
+            before = 0;
+            out.push(item);
+        } else {
+            before = before.saturating_add(1);
+        }
+    }
+    out.extend(theirs.cloned());
+    out
 }
 
 /// Each account's list of categories in `out` with what reads have done to it since kept, and
@@ -511,6 +849,12 @@ fn server_lists(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSe
     out.categories_found.retain(|id, _| !readdressed.contains(id));
     out.categories_found.extend(found);
     out.category_stamp = now.category_stamp;
+    // What items on a server still wait for of a rename is as now too (#851): a rename the undo
+    // takes back is noted the other way round below ([`in_step`]), so that what the server gave
+    // the new name gets the old one again.
+    let waited_then = out.category_sweeps.clone();
+    out.category_sweeps.retain(|account, _| !g.contains(account));
+    out.category_sweeps.extend(now.category_sweeps.iter().filter(|(account, _)| g.contains(account)).map(|(account, s)| (*account, s.clone())));
     let then = out.server_categories.clone();
     out.server_categories.retain(|account, _| !g.contains(account));
     out.server_categories
@@ -583,6 +927,17 @@ fn server_lists(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSe
     let renamed: Vec<Id> = out.category_renames.keys().copied().filter(|account| g.contains(account)).collect();
     for account in renamed {
         out.tidy_renames(account);
+    }
+    let swept: Vec<Id> = out.category_sweeps.keys().copied().filter(|account| g.contains(account)).collect();
+    for account in swept {
+        out.tidy_sweeps(account);
+    }
+    // A rename that waited before a later one took its place (Holiday to Holiday 2026, then
+    // Holiday 2026 to Trips) waits again once the later one is taken back: the list has its
+    // name again, and the server's items still carry its old one.
+    for (account, then) in waited_then.iter().filter(|(account, _)| g.contains(account)) {
+        let replaced = now.category_sweeps.get(account).map(Vec::as_slice).unwrap_or_default();
+        out.resume_sweeps(*account, then, replaced);
     }
 }
 
@@ -700,6 +1055,23 @@ fn in_step(out: &mut Mailbox, account: Id, now: &Mailbox, step: Option<&Category
     if let ([made], [gone]) = (made.as_slice(), gone.as_slice()) {
         out.category_renames.entry(account).or_default().insert((*made).clone(), gone.name.clone());
     }
+    // A rename taken back (#851): one name the server has leaves the list for one that comes back
+    // to it. What the server's items were given of the one gets the other again, and the one's
+    // deletion there waits for that.
+    let stays = |now: bool| -> Vec<&Category> {
+        own.iter().filter(|(k, _)| touched(k) && was_now.contains(k) == now && !local_keys.contains(k)).map(|(_, c)| c).collect()
+    };
+    // (The one that comes back may be on the list already: put back there because some of the
+    // server's items kept it. The others, which were given the new name, get it again all the
+    // same. Only a name the step itself took off the list: never one it made with the other.)
+    let took_off = |c: &&Category| step.is_some_and(|s| s.left.get(&category_key(&c.name)).is_some_and(Option::is_none));
+    let back = Some(stays(false)).filter(|back| !back.is_empty()).unwrap_or_else(|| stays(true).into_iter().filter(took_off).collect());
+    let off: Vec<&Category> =
+        synced.iter().filter(|(k, _)| touched(k) && was_now.contains(k) && !own_keys.contains(k.as_str())).map(|(_, c)| c).collect();
+    let reversed = match (back.as_slice(), off.as_slice()) {
+        ([back], [off]) => Some((off.name.clone(), back.name.clone())),
+        _ => None,
+    };
     out.account_categories.insert(account, own.into_iter().map(|(_, c)| c).collect());
     if local.is_empty() {
         out.local_categories.remove(&account);
@@ -707,6 +1079,9 @@ fn in_step(out: &mut Mailbox, account: Id, now: &Mailbox, step: Option<&Category
         out.local_categories.insert(account, local.into_iter().map(|(_, n)| n).collect());
     }
     out.synced_categories.insert(account, synced.into_iter().map(|(_, c)| c).collect());
+    if let Some((from, to)) = reversed {
+        out.note_category_sweep(account, &from, &to);
+    }
 }
 
 /// A message the undo puts back into the IMAP account it was being moved out of, while the run
@@ -989,6 +1364,13 @@ fn folders(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>
                 if t.favorite != a.favorite {
                     f.favorite = t.favorite;
                 }
+                // (The owner's order, #1514: kept here alone.)
+                if t.place != a.place {
+                    f.place = t.place;
+                }
+                if t.favorite_place != a.favorite_place {
+                    f.favorite_place = t.favorite_place;
+                }
                 kept.push(f);
             }
             // Taken away by the change but put back since (the server refused).
@@ -1006,7 +1388,7 @@ fn folders(out: &mut Mailbox, touched: &Touched, now: &Mailbox, g: &BTreeSet<Id>
             Some(Some(_)) if c.server.is_some() => {
                 let mut f = c.clone();
                 if let Some(deleted) = now.folder_of_kind(c.account, FolderKind::Deleted).filter(|d| *d != c.id) {
-                    f.parent = Some(deleted);
+                    f.set_parent(Some(deleted));
                 }
                 kept.push(f);
             }
@@ -1317,6 +1699,26 @@ fn queue(out: &mut Mailbox, now: &Mailbox, g: &BTreeSet<Id>) {
         Queued::PlaceMessage { account, message, .. } => out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none()),
         _ => true,
     });
+    // A message that lies, after the undo, where it waits now to be made on another account's
+    // server, still waits to be: one moved out of a Microsoft account before its server had it,
+    // which stays where it was moved ([`fields`]), or one put there since the change, in any
+    // mailbox (#566). What the queue makes already is looked up, not searched for: tens of
+    // thousands may wait after a big folder was moved onto a server.
+    let mut placed: HashSet<Id> = queued
+        .iter()
+        .filter_map(|q| match q {
+            Queued::PlaceMessage { message, .. } => Some(*message),
+            _ => None,
+        })
+        .collect();
+    for q in now.queued.iter().filter(|q| !g.contains(&q.account())) {
+        if let Queued::PlaceMessage { account, message, .. } = q
+            && out.messages.get(message).is_some_and(|m| m.account == *account && m.server.is_none())
+            && placed.insert(*message)
+        {
+            queued.push(q.clone());
+        }
+    }
     for q in then.iter().filter(|q| g.contains(&q.account())) {
         if let Queued::CopyMessage { copy, .. } = q
             && out.messages.get(copy).is_some_and(|m| m.server.is_none())

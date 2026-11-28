@@ -1,0 +1,1 @@
+| 2026-11-21 | patch | Composer: a selected picture is sized by any of its four corners; Escape while one is held puts it back; one sized from a left corner keeps its place in the text and grows to the right on release |

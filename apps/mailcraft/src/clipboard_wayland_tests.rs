@@ -8,9 +8,9 @@ fn a_wayland_window_without_its_rich_reader_does_not_open_an_x11_clipboard() {
     assert!(board.paste_text().unwrap().is_none());
     assert!(board.text().is_none());
     assert!(board.html().is_none());
+    assert!(board.html_for_text("already read").is_none());
     assert!(board.image().is_none());
     assert!(!board.has_image());
-    assert!(board.put_text("synthetic clipboard text").is_err());
     assert!(board.open.borrow().is_none());
 }
 

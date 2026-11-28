@@ -237,7 +237,7 @@ impl MailApp {
         }
         // The page that said the copy was being saved has said all it had to.
         if matches!(self.dialog, Some(Dialog::GraphSwitch { account }) if account == c.account) {
-            self.dialog = None;
+            self.set_dialog(None);
         }
         let whose = address(self, c.account);
         match done {
@@ -265,7 +265,7 @@ impl MailApp {
         self.graph_switch_tried.clear();
         self.graph_switch_waiting_shown.clear();
         if matches!(self.dialog, Some(Dialog::GraphSwitch { .. })) {
-            self.dialog = None;
+            self.set_dialog(None);
         }
     }
 
@@ -299,7 +299,7 @@ impl MailApp {
         let asked = accounts.iter().find(|(account, state)| *state == GraphSwitch::NotAsked && !self.graph_switch_shown.contains(account));
         if let Some((account, _)) = asked {
             self.graph_switch_shown.insert(*account);
-            self.dialog = Some(Dialog::GraphSwitch { account: *account });
+            self.set_dialog(Some(Dialog::GraphSwitch { account: *account }));
         }
     }
 
@@ -316,7 +316,7 @@ impl MailApp {
             self.status(fmt(tl!("The switch of {account} to Microsoft Graph waits until MailCraft can reach the server."), &[("account", &whose)]));
             // Once a run of the program, the owner is offered to switch without what waits.
             if self.offer_graph_switch && self.dialog.is_none() && self.graph_switch_waiting_shown.insert(account) {
-                self.dialog = Some(Dialog::GraphSwitch { account });
+                self.set_dialog(Some(Dialog::GraphSwitch { account }));
             }
         }
     }
@@ -342,7 +342,7 @@ impl MailApp {
                 let rx = write(path.clone(), copy);
                 self.graph_switch_copy = Some(Copying { account, answer: answer.to_string(), path, opening: self.session.openings(), rx });
                 if self.dialog.is_none() {
-                    self.dialog = Some(Dialog::GraphSwitch { account });
+                    self.set_dialog(Some(Dialog::GraphSwitch { account }));
                 }
                 self.status(tl!("Saving a copy of your mailbox before the switch…"));
                 return Ok(json!({"account": account, "saving": true}));
@@ -413,7 +413,7 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
         .ok_or_else(|| tl!("No Microsoft account is kept in step by IMAP").to_string());
     Some(match id {
         "ui.graphSwitch" => account.map(|account| {
-            app.dialog = Some(Dialog::GraphSwitch { account });
+            app.set_dialog(Some(Dialog::GraphSwitch { account }));
             json!({"account": account})
         }),
         "ui.switchToGraph" => match (account, p.get("answer").and_then(Value::as_str)) {

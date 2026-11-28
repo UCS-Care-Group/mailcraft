@@ -1,5 +1,5 @@
 # Fuzz targets for the code that reads what arrives from outside: messages, mbox files, HTML,
-# iCalendar, vCard, .pst files, TNEF streams (winmail.dat), OpenPGP signatures and keys, S/MIME Digital signatures, mailbox files, character sets, IMAP/SMTP servers, JMAP servers, gpg-agent and language catalogues. Not part of the
+# iCalendar, vCard, .pst files, Offline Address Books, TNEF streams (winmail.dat), OpenPGP signatures and keys, S/MIME Digital signatures, mailbox files, character sets, IMAP/SMTP servers, JMAP servers, gpg-agent and language catalogues. Not part of the
 # main workspace (it needs nightly): `cargo +nightly fuzz run <target>` from the repository root;
 # `cargo fuzz list` names them.
 [package]
@@ -18,6 +18,7 @@ mailcraft-dav = { path = "../crates/dav" }
 # Mailbox files in every form (`mailbox_file`), with the small limits of its tests.
 mailcraft-engine = { path = "../crates/engine", features = ["test-support"] }
 libfuzzer-sys = "0.4"
+serde_json = "1"
 mailcraft-charset = { path = "../crates/charset" }
 mailcraft-i18n = { path = "../crates/i18n" }
 mailcraft-html = { path = "../crates/html" }
@@ -31,6 +32,7 @@ mailcraft-model = { path = "../crates/model" }
 mailcraft-openpgp = { path = "../crates/openpgp" }
 mailcraft-proto = { path = "../crates/proto" }
 mailcraft-pst = { path = "../crates/pst" }
+mailcraft-oab = { path = "../crates/oab" }
 mailcraft-smime = { path = "../crates/smime" }
 mailcraft-tnef = { path = "../crates/tnef" }
 mailcraft-vcard = { path = "../crates/vcard" }
@@ -172,6 +174,13 @@ doc = false
 bench = false
 
 [[bin]]
+name = "dav_apply"
+path = "fuzz_targets/dav_apply.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
 name = "dav_answers"
 path = "fuzz_targets/dav_answers.rs"
 test = false
@@ -195,6 +204,13 @@ bench = false
 [[bin]]
 name = "pst"
 path = "fuzz_targets/pst.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "oab"
+path = "fuzz_targets/oab.rs"
 test = false
 doc = false
 bench = false
