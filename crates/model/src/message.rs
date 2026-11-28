@@ -397,9 +397,9 @@ pub struct Message {
     /// imported from .eml, mbox or .pst, or only looked at) leaves it false, since its hops may
     /// all be the file's giver's. Carried after that. A mailbox file (one opened from elsewhere
     /// too) or a result given to `sync.apply` can say true, but whoever writes one writes its
-    /// header lines too, in any order, so it can say nothing a forged header can't. A copy
-    /// written out of mail it is false for, without its block, leaves its verdicts behind
-    /// (`Session::loaded_message` in the engine).
+    /// header lines too, in any order, so it can say nothing a forged header can't. Mail it is
+    /// false for is written out as an Internet message (an export, a copy put on a server)
+    /// without its verdicts (`Session::loaded_to_write` in the engine).
     #[serde(skip_serializing_if = "is_false")]
     pub hops_kept: bool,
     /// The message's UID in the server mailbox of the folder it is in (IMAP); 0 for a message

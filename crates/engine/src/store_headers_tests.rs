@@ -398,14 +398,15 @@ fn what_writes_a_message_whole_writes_every_header_line_kept_beside_the_mailbox_
     assert!(s.run("mail.viewSource", &json!({"id": id})).unwrap()["source"].as_str().unwrap().contains("List-Id: <news.example.org>"));
 }
 
-/// A message split by a version before this one (#2059) whose header block can't be read is
-/// written out without the verdicts and Exchange's stamps on it: the server's own hop may be in
-/// the lost block, and the copy, read back as fresh mail (put on a server again, an .eml another
-/// program hands on), would be believed by where its verdict stands among the hops left. The
-/// mailbox keeps them; mail split by this version keeps its hops on it, and its verdicts with
-/// them (`what_writes_a_message_whole_writes_every_header_line_kept_beside_the_mailbox_file`).
+/// A message split by a version before this one (#2059) is written out as an Internet message
+/// (Save Message As, Export Folder, a copy put on a server) without the verdicts and Exchange's
+/// stamps on it: its block may be one lost with the server's hop in it (unreadable, read as
+/// none, or split again without it), and the copy, read back as fresh mail, would be believed by
+/// where its verdict stands among the hops left. The mailbox, and a mailbox file saved of it,
+/// keep them; mail split by this version keeps its hops on it, and its verdicts with them
+/// (`what_writes_a_message_whole_writes_every_header_line_kept_beside_the_mailbox_file`).
 #[test]
-fn a_message_split_before_whose_block_is_lost_is_written_out_without_its_verdicts() {
+fn a_message_split_before_is_written_out_without_its_verdicts() {
     let mut mb = with_exchange_headers(2);
     let ids: Vec<Id> = mb.messages.keys().copied().collect();
     for id in &ids {
@@ -413,15 +414,13 @@ fn a_message_split_before_whose_block_is_lost_is_written_out_without_its_verdict
         m.hops_kept = false;
         mb.messages.insert(*id, Arc::new(m));
     }
-    let tmp = Temp::new("headers-lost-before");
+    let tmp = Temp::new("headers-split-before");
     let path = tmp.file();
     save(&path, &mb).unwrap();
     clear_cache();
     let (mut s, _) = session_on(&path, &mb, 2);
     let id = ids[0];
     assert!(!s.mailbox.message(id).unwrap().header_block.is_loaded() && !s.mailbox.message(id).unwrap().hops_kept);
-    packs(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
-    clear_cache();
     let trust = |m: &Message| {
         m.all_headers()
             .into_iter()
@@ -430,16 +429,31 @@ fn a_message_split_before_whose_block_is_lost_is_written_out_without_its_verdict
             })
             .count()
     };
-    assert!(trust(mb.message(id).unwrap()) > 0);
-    let out = s.loaded_message(id).unwrap();
-    assert_eq!(trust(&out), 0, "{:?}", out.all_headers());
-    assert!(out.has_header("List-Id"), "the rest is written");
-    let eml = s.run("file.exportMessage", &json!({"id": id})).unwrap();
-    let read = mailcraft_mime_model::parse(&crate::cmd::base64_decode(eml["data"].as_str().unwrap()).unwrap());
-    assert_eq!(trust(&read), 0, "{:?}", read.all_headers());
-    assert!(read.has_header("List-Id"));
-    // Left as they are on the message here.
-    assert!(trust(s.mailbox.message(id).unwrap()) > 0);
+    let had = trust(mb.message(id).unwrap());
+    assert!(had > 0);
+    let written = |s: &mut Session| {
+        let eml = s.run("file.exportMessage", &json!({"id": id})).unwrap();
+        let eml = mailcraft_mime_model::parse(&crate::cmd::base64_decode(eml["data"].as_str().unwrap()).unwrap());
+        let folder = s.mailbox.message(id).unwrap().folder;
+        let mbox = s.run("file.exportFolder", &json!({"id": folder})).unwrap();
+        let mbox = mailcraft_mime_model::parse_mbox(&crate::cmd::base64_decode(mbox["data"].as_str().unwrap()).unwrap());
+        let placed = s.placeable(s.mailbox.message(id).unwrap()).unwrap().unwrap();
+        [eml, mbox.into_iter().find(|m| m.message_id == s.mailbox.message(id).unwrap().message_id).unwrap(), Message::clone(&placed)]
+    };
+    // With its block read whole, and with its block gone from the disk.
+    for lost in [false, true] {
+        if lost {
+            packs(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
+            clear_cache();
+        }
+        for m in written(&mut s) {
+            assert_eq!(trust(&m), 0, "lost {lost}: {:?}", m.all_headers());
+            assert!(m.has_header("List-Id"), "the rest is written");
+        }
+    }
+    // Left as they are on the message here, and in a mailbox file saved of it.
+    assert_eq!(trust(s.mailbox.message(id).unwrap()), had);
+    assert_eq!(trust(s.loaded_mailbox().unwrap().message(id).unwrap()), had);
 }
 
 /// Run Rules Now with a rule that looks for words in the header finds them in the lines kept
