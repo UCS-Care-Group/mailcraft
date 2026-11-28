@@ -613,14 +613,19 @@ fn open(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     }
 }
 
-/// A labelled row: the label on the left, the control after it.
+/// A labelled settings row: paint and place its label on the interface reading edge.
 fn row(ui: &mut Ui, label: &str, add: impl FnOnce(&mut Ui)) {
-    ui.horizontal(|ui| {
+    let rtl = crate::i18n::current() == crate::i18n::Lang::Hebrew;
+    let layout = if rtl { egui::Layout::right_to_left(egui::Align::Center) } else { egui::Layout::left_to_right(egui::Align::Center) };
+    // Bound the child layout to one row; an unconstrained RTL layout fills the whole page.
+    ui.allocate_ui_with_layout(vec2(ui.available_width(), 24.0), layout, |ui| {
         let t = Tokens::get(ui.ctx());
-        // A label longer than the column, as a translation can be, pushes its control along.
+        // A long translation gets space without shifting its control outside the row.
         let wide = ui.fonts_mut(|f| f.layout_no_wrap(label.to_string(), regular(12.5), t.text).size().x + 12.0).max(210.0);
         let (r, _) = ui.allocate_exact_size(vec2(wide, 24.0), Sense::hover());
-        ui.painter().text(pos2(r.min.x, r.center().y), Align2::LEFT_CENTER, label, regular(12.5), t.text);
+        let (anchor, align) =
+            if rtl { (pos2(r.max.x, r.center().y), Align2::RIGHT_CENTER) } else { (pos2(r.min.x, r.center().y), Align2::LEFT_CENTER) };
+        ui.painter().text(anchor, align, label, regular(12.5), t.text);
         add(ui);
     });
 }
