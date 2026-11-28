@@ -4918,6 +4918,7 @@ pub(crate) mod rules {
                 Condition::SubjectContains(w) => return words(When::Subject, w),
                 Condition::BodyContains(w) => return words(When::Body, w),
                 Condition::SubjectOrBodyContains(w) => return words(When::SubjectOrBody, w),
+                Condition::HeaderContains(w) => return words(When::HeaderWords, w),
                 Condition::SentOnlyToMe => vec![with(When::SentOnlyToMe)],
                 Condition::ToMe => vec![with(When::ToMe)],
                 Condition::CcMe => vec![with(When::CcMe)],
