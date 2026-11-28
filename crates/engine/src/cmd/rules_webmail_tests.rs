@@ -495,9 +495,7 @@ fn every_rule_command_on_a_filter_that_files_into_deleted_items_is_asked_as_a_de
     let bin = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
     s.mailbox.folder_mut(bin).unwrap().remote = "Trash".into();
     let r = rules(&s, account);
-    let new = |folder: Id| {
-        json!({"webmail": true, "account": account, "name": "Bin", "conditions": [{"type": "toContains", "value": "x@example.org"}], "actions": [{"type": "moveTo", "value": folder}]})
-    };
+    let new = |folder: Id| json!({"webmail": true, "account": account, "name": "Bin", "conditions": [{"type": "toContains", "value": "x@example.org"}], "actions": [{"type": "moveTo", "value": folder}]});
     assert_eq!(classify(&s, "rules.add", &new(bin)), Access::Owner(Class::Delete));
     assert_eq!(classify(&s, "rules.add", &new(junk)), Access::Owner(Class::Settings));
     let to = |id: Id, folder: Id| params(id, "Lists", json!({"type": "toContains", "value": "list@lists.example.org"}), folder);

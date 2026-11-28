@@ -79,7 +79,10 @@ fn a_folder_name_with_spaces_at_its_ends_is_kept_whole() {
     assert!(b.text.contains("fileinto \"Trash \";"), "{}", b.text);
     // A name of only spaces is no folder on the server.
     s.mailbox.folder_mut(lists).unwrap().remote = "  ".into();
-    assert_eq!(block(&s.mailbox, &rule(account, vec![Condition::ToMe], vec![Action::MoveTo(lists)]), account).err(), Some(NotOnServer::FolderNotThere));
+    assert_eq!(
+        block(&s.mailbox, &rule(account, vec![Condition::ToMe], vec![Action::MoveTo(lists)]), account).err(),
+        Some(NotOnServer::FolderNotThere)
+    );
 }
 
 #[test]
@@ -396,7 +399,8 @@ fn a_rule_kept_here_by_choice_stays_here_when_it_could_go_to_the_server() {
     let (mut s, account, lists) = session(&ALL);
     run(&mut s, "sync.applySieve", json!({"account": account, "state": state(None, None)}));
     let attachment = |server: Option<bool>| {
-        let mut v = json!({"name": "Files", "account": account, "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "moveTo", "value": lists}]});
+        let mut v =
+            json!({"name": "Files", "account": account, "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "moveTo", "value": lists}]});
         if let Some(server) = server {
             v["server"] = json!(server);
         }

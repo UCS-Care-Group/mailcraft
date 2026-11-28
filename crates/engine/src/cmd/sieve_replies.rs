@@ -55,7 +55,8 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 /// A replacement the owner chose of a script that has changed again since.
-const CHANGED_AGAIN: &str = "MailCraft's Sieve script on the server changed again since you chose to replace it: look at it again before replacing it.";
+const CHANGED_AGAIN: &str =
+    "MailCraft's Sieve script on the server changed again since you chose to replace it: look at it again before replacing it.";
 
 /// What is known of an account's Sieve scripts, as its server last said. Never saved.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

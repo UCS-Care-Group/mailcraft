@@ -531,7 +531,8 @@ fn a_refused_write_still_brings_what_the_server_has() {
         activate: true,
         own: false,
     };
-    let result = crate::sieve_job::sieve_job(SieveJob { account: a, secret: PASSWORD.into(), write: Some(write), check: None, cancel: Default::default() });
+    let result =
+        crate::sieve_job::sieve_job(SieveJob { account: a, secret: PASSWORD.into(), write: Some(write), check: None, cancel: Default::default() });
     assert!(result.error.contains("no replies here"), "{}", result.error);
     assert!(result.state.is_some(), "what the server has is read after the refusal");
     assert!(fake.world().scripts.is_empty());

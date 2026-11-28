@@ -473,7 +473,8 @@ fn a_write_says_what_it_was_queued_for() {
     read(&mut app, account, &answers, SieveResult { state: Some(state(&RULES, None, None)), ..Default::default() });
     let inbox = app.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
     app.session.mailbox.folder_mut(inbox).unwrap().remote = "INBOX".into();
-    let change = app.session.run("account.setAutomaticReplies", &json!({"account": account, "status": "alwaysEnabled", "internal": "Away."})).unwrap();
+    let change =
+        app.session.run("account.setAutomaticReplies", &json!({"account": account, "status": "alwaysEnabled", "internal": "Away."})).unwrap();
     let text = change["sieve"]["text"].as_str().unwrap().to_string();
     answers.lock().unwrap().push_back(SieveResult {
         account,

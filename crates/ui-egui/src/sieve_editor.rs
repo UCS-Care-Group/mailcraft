@@ -181,7 +181,10 @@ impl SieveEditor {
     /// The Sieve rule `id`, to change; `None` when it isn't one.
     pub(crate) fn open(mb: &Mailbox, id: Id) -> Option<SieveEditor> {
         let r = mb.rules.iter().find(|r| r.id == id && r.is_sieve())?;
-        Some(SieveEditor { account: r.account, id: Some(id), name: r.name.clone(), text: r.sieve.clone(), focus: true, ..Default::default() }.started())
+        Some(
+            SieveEditor { account: r.account, id: Some(id), name: r.name.clone(), text: r.sieve.clone(), focus: true, ..Default::default() }
+                .started(),
+        )
     }
 
     /// The owner's own script `account`'s server runs, whole, as it was last read; `None` when it
