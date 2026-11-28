@@ -177,7 +177,7 @@ fn what_is_refused_on_purpose_is_never_accepted() {
 /// is one the host accepts for it (or one refused on purpose), so that a file that is what its
 /// name says is never refused: the types of `*.kind`, of every doubled `*.x.kind`, and, for a name
 /// with several types (which GIO tells apart by what is in the file, [`SEVERAL`]), every more
-/// particular type of those.
+/// particular type of those. A type is taken by the name it stands for, not an alias of it.
 #[test]
 fn the_known_types_cover_what_this_desktop_says() {
     let Ok(globs) = std::fs::read_to_string("/usr/share/mime/globs2") else {
@@ -186,12 +186,17 @@ fn the_known_types_cover_what_this_desktop_says() {
         return;
     };
     let subclasses = std::fs::read_to_string("/usr/share/mime/subclasses").unwrap_or_default();
+    // A type another package gives under an alias's name (LibreOffice's `application/vnd.ms-word`
+    // for `*.doc`) is the type it stands for: GIO gives that one (#1886).
+    let aliases = std::fs::read_to_string("/usr/share/mime/aliases").unwrap_or_default();
+    let aliases: std::collections::HashMap<&str, &str> = aliases.lines().filter_map(|l| l.split_once(' ')).collect();
     let globs: Vec<(&str, String)> = globs
         .lines()
         .filter(|l| !l.starts_with('#'))
         .filter_map(|l| {
             let mut parts = l.split(':').skip(1);
-            Some((parts.next()?, parts.next()?.to_ascii_lowercase()))
+            let t = parts.next()?;
+            Some((aliases.get(t).copied().unwrap_or(t), parts.next()?.to_ascii_lowercase()))
         })
         .collect();
     let plain = |p: &str| p.chars().all(|c| c.is_ascii_alphanumeric() || "._+-".contains(c));
