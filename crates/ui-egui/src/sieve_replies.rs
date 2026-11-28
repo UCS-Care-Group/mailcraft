@@ -145,6 +145,9 @@ pub struct SieveSync {
     /// Where the job under way went: its account's ManageSieve server when it started
     /// ([`sieve_server_key`]). A result from a server the account no longer names is dropped (#2058).
     rx_server: String,
+    /// The job under way writes the rules' change (else the Automatic Replies'), as it was queued:
+    /// what is said when it ends (#2058).
+    rx_rules: bool,
     /// When each account was last read (milliseconds).
     pub(crate) read: HashMap<Id, f64>,
     /// Accounts to read at the next chance.
@@ -267,6 +270,8 @@ impl MailApp {
             self.sieve.own_saved.remove(&account);
             self.sieve.own_waiting.insert(account, write);
         } else {
+            // (What it is for is said by whoever queued it: the rules mark theirs after, #2058.)
+            self.sieve.rules_writes.remove(&account);
             self.sieve.waiting.insert(account, write);
         }
         self.sieve_tick_at(now_ms());
@@ -305,6 +310,9 @@ impl MailApp {
         let job = SieveJob { account: owner, secret, write: write.clone(), check: None, cancel: Default::default() };
         let Some(host) = self.services.sieve.as_ref() else { return false };
         self.sieve.rx_server = server;
+        // (Taken with the write it was queued for: a rule change queued while another write is under
+        // way isn't said to be saved when that one ends, #2058.)
+        self.sieve.rx_rules = write.as_ref().is_some_and(|w| !w.own) && self.sieve.rules_writes.remove(&account);
         self.sieve.rx = Some((account, write.clone(), host(job)));
         self.sieve.read.insert(account, now);
         match &write {
@@ -336,7 +344,7 @@ impl MailApp {
             }
         };
         let write = write.clone();
-        let rules = write.is_some() && self.sieve.rules_writes.remove(&account);
+        let rules = write.is_some() && std::mem::take(&mut self.sieve.rx_rules);
         self.sieve.rx = None;
         if write.is_some() {
             self.session.sync_status.clear();

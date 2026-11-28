@@ -464,3 +464,30 @@ fn a_read_of_the_server_before_is_dropped_once_another_is_named() {
     assert!(app.session.sieve.get(&account).is_none(), "the server before's answer isn't the account's");
     drop(answers);
 }
+
+/// A rule change queued while a change of the replies is being written isn't said to be saved
+/// when the replies' write ends: each write says what it was for (#2058).
+#[test]
+fn a_write_says_what_it_was_queued_for() {
+    let (mut app, account, answers, _) = window();
+    read(&mut app, account, &answers, SieveResult { state: Some(state(&RULES, None, None)), ..Default::default() });
+    let inbox = app.session.mailbox.folder_of_kind(account, mailcraft_model::FolderKind::Inbox).unwrap();
+    app.session.mailbox.folder_mut(inbox).unwrap().remote = "INBOX".into();
+    let change = app.session.run("account.setAutomaticReplies", &json!({"account": account, "status": "alwaysEnabled", "internal": "Away."})).unwrap();
+    let text = change["sieve"]["text"].as_str().unwrap().to_string();
+    answers.lock().unwrap().push_back(SieveResult {
+        account,
+        state: Some(state(&RULES, Some(SCRIPT_NAME), Some(&text))),
+        written: Some("done".into()),
+        ..Default::default()
+    });
+    app.execute("account.setAutomaticReplies", json!({"account": account, "status": "alwaysEnabled", "internal": "Away."})).unwrap();
+    // Under way; a rule change is queued meanwhile.
+    app.execute(
+        "rules.add",
+        json!({"name": "Lists", "account": account, "conditions": [{"type": "fromContains", "value": "list"}], "actions": [{"type": "moveTo", "value": inbox}]}),
+    )
+    .unwrap();
+    app.poll_sieve();
+    assert_eq!(said(&app), "Automatic replies are on");
+}
