@@ -46,6 +46,49 @@ enum Item {
     SelectAll,
 }
 
+/// Ribbon buttons use the composer's text-menu path for clipboard actions.
+fn compose_clipboard_item(command: &str) -> Option<Item> {
+    match command {
+        "edit.cut" => Some(Item::Cut),
+        "edit.copy" => Some(Item::Copy),
+        "edit.paste" => Some(Item::Paste),
+        _ => None,
+    }
+}
+
+/// The visible draft's focused header field or body, with the commands it can take.
+fn compose_clipboard_target(app: &MailApp, ctx: &Context, command: &str) -> Option<(Item, Option<(Id, Takes)>)> {
+    let item = compose_clipboard_item(command)?;
+    let compose = app.session.compose.as_ref()?;
+    // A pop-out draws its own composer. The main window draws it only in Mail.
+    let visible = app.hit.window() != 0
+        || (app.session.view.module == mailcraft_engine::Module::Mail && crate::windows::compose_window::pane_compose(app) == Some(compose.id));
+    if !visible {
+        // Consume a composer clipboard command without touching the clipboard when its draft is hidden.
+        return Some((item, None));
+    }
+    let (target, takes, selected) = if let Some(field) = crate::compose::focused_header(ctx, compose.id) {
+        let selected = TextEdit::load_state(ctx, field).and_then(|state| state.cursor.char_range()).is_some_and(|r| !r.is_empty());
+        (field, Takes::Text, selected)
+    } else {
+        (crate::compose::editor::id_of(compose.id), Takes::Pictures, !compose.body.selection().is_empty())
+    };
+    let enabled = if item == Item::Paste { app.services.clipboard.is_some() } else { selected };
+    Some((item, enabled.then_some((target, takes))))
+}
+
+pub(crate) fn compose_clipboard_enabled(app: &MailApp, ctx: &Context, command: &str) -> Option<bool> {
+    compose_clipboard_target(app, ctx, command).map(|(_, target)| target.is_some())
+}
+
+pub(crate) fn compose_clipboard(app: &MailApp, ctx: &Context, command: &str) -> bool {
+    let Some((item, target)) = compose_clipboard_target(app, ctx, command) else { return false };
+    if let Some((id, takes)) = target {
+        choose(ctx, id, item, takes);
+    }
+    true
+}
+
 /// What a text takes from the clipboard besides text.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Takes {
@@ -265,9 +308,13 @@ fn menu_with(resp: &Response, kind: Kind, selected: bool, takes: Takes, mut extr
         None => ctx.data_mut(|d| d.remove::<Nested>(shown(resp.id))),
     }
     if let Some(item) = chosen {
-        let viewport = ctx.viewport_id();
-        ctx.data_mut(|d| d.insert_temp(asked(), Asked { viewport, target: resp.id, item, takes }));
+        choose(ctx, resp.id, item, takes);
     }
+}
+
+fn choose(ctx: &Context, target: Id, item: Item, takes: Takes) {
+    let viewport = ctx.viewport_id();
+    ctx.data_mut(|d| d.insert_temp(asked(), Asked { viewport, target, item, takes }));
 }
 
 /// Whether the text field `resp` was left in this pass, as its `lost_focus` says, but not for its

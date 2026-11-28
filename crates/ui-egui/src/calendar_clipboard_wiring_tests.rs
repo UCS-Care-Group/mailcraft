@@ -115,18 +115,18 @@ fn the_clipboard_paste_waits_for_a_clip_and_a_picked_time_not_for_a_focus() {
     let mut w = calendar();
 
     // Nothing selected and nothing copied: all three are greyed.
-    assert!(!usable(w.state(), &control(&w, "ui.calendarCopy")), "Copy is greyed with nothing selected");
-    assert!(!usable(w.state(), &control(&w, "ui.calendarCut")), "Cut is greyed with nothing selected");
-    assert!(!usable(w.state(), &control(&w, "ui.calendarPaste")), "Paste is greyed with an empty clipboard");
+    assert!(!usable(w.state(), &w.ctx, &control(&w, "ui.calendarCopy")), "Copy is greyed with nothing selected");
+    assert!(!usable(w.state(), &w.ctx, &control(&w, "ui.calendarCut")), "Cut is greyed with nothing selected");
+    assert!(!usable(w.state(), &w.ctx, &control(&w, "ui.calendarPaste")), "Paste is greyed with an empty clipboard");
 
     // One appointment of the sample's own selected: Copy and Cut can take it, Paste still has
     // nothing of its own to put.
     let lunch = event(&w, "Lunch with Dev");
     w.state_mut().execute("calendar.select", json!({ "id": lunch })).expect("the sample's appointment is selected");
     w.run_steps(2);
-    assert!(usable(w.state(), &control(&w, "ui.calendarCopy")), "Copy takes the selected set");
-    assert!(usable(w.state(), &control(&w, "ui.calendarCut")), "Cut takes the selected set");
-    assert!(!usable(w.state(), &control(&w, "ui.calendarPaste")), "Paste has nothing of its own to put yet");
+    assert!(usable(w.state(), &w.ctx, &control(&w, "ui.calendarCopy")), "Copy takes the selected set");
+    assert!(usable(w.state(), &w.ctx, &control(&w, "ui.calendarCut")), "Cut takes the selected set");
+    assert!(!usable(w.state(), &w.ctx, &control(&w, "ui.calendarPaste")), "Paste has nothing of its own to put yet");
 
     // Copy it, as the ribbon's Copy does, and let go of the selection: the clipboard keeps the
     // copy, and Paste stays greyed because no time is picked.
@@ -135,14 +135,14 @@ fn the_clipboard_paste_waits_for_a_clip_and_a_picked_time_not_for_a_focus() {
     w.state_mut().execute("calendar.select", json!({ "id": null })).expect("nothing is selected");
     w.run_steps(2);
     assert!(w.state().session.sel.event.is_none() && w.state().session.sel.events.is_empty(), "nothing is selected");
-    assert!(!usable(w.state(), &control(&w, "ui.calendarPaste")), "Paste wants a time picked as well as a clipboard");
+    assert!(!usable(w.state(), &w.ctx, &control(&w, "ui.calendarPaste")), "Paste wants a time picked as well as a clipboard");
 
     // A click in the all-day row picks a day: from now on Paste can put the clipboard there,
     // though nothing is selected and no appointment is in focus.
     let cell = all_day_cell(&w);
     click(&mut w, egui::pos2(cell.center().x, cell.max.y - 3.0), egui::PointerButton::Primary, 1);
     assert!(w.state().session.sel.event.is_none() && w.state().session.sel.events.is_empty(), "a pick selects nothing");
-    assert!(usable(w.state(), &control(&w, "ui.calendarPaste")), "Paste can put the clipboard at the picked day");
+    assert!(usable(w.state(), &w.ctx, &control(&w, "ui.calendarPaste")), "Paste can put the clipboard at the picked day");
 
     // And it does, through the command the control runs.
     let pasted = w.state_mut().execute("ui.calendarPaste", json!({})).expect("Paste at the picked day");
