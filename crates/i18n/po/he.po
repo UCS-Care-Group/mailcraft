@@ -2338,8 +2338,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "צירוף קובץ"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Attach Item"
 msgstr "צירוף פריט"
@@ -2393,6 +2393,12 @@ msgstr "אפשרויות לקובץ המצורף {name}"
 #, fuzzy
 msgid "Attachments"
 msgstr "קבצים מצורפים"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Attachments can't be opened here."
+msgstr "לא ניתן לפתוח קבצים מצורפים כאן."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -5118,8 +5124,20 @@ msgstr "הושלם: הכול מעודכן"
 msgid "Done: {n} new"
 msgstr "הושלם · פריטים חדשים: {n}"
 
-#. android, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Double-click to download {name}"
+msgstr "לחיצה כפולה להורדת {name}"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Double-click to open {name}"
+msgstr "לחיצה כפולה לפתיחת {name}"
+
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Download"
 msgstr "הורדה"
@@ -7084,6 +7102,12 @@ msgstr "שליחת תשובות אל"
 msgid "Have replies sent to other addresses"
 msgstr "שליחת תשובות לכתובות אחרות"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "הכותרת מכילה"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -9007,6 +9031,12 @@ msgstr "כעת MailCraft יכול לסנכרן את {account} מול Microsoft �
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "MailCraft אינו יכול לשמור את כללי החשבון הזה בשרת שלו"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "MailCraft can't open {name} because of its file type."
+msgstr "MailCraft אינו יכול לפתוח את {name} בגלל סוג הקובץ."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11627,7 +11657,7 @@ msgid "Nothing was done: what the agent asked about changed after you were asked
 msgstr "לא בוצעה פעולה: הפריט שהסוכן שאל לגביו השתנה לאחר שנשאלת."
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Nothing was done: what you were asked about has changed since. Ask again."
 msgstr "דבר לא נעשה: מה שנשאלת עליו השתנה מאז. יש לשאול שוב."
@@ -12065,7 +12095,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "רק כאשר MailCraft אינו החלון הפעיל בחזית, ורק עבור תיבות הדואר הנכנס של החשבונות שלך."
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Open"
 msgstr "פתיחה"
@@ -12115,6 +12145,12 @@ msgstr "פתיחת תיבת דו־שיח"
 #, fuzzy
 msgid "Open Draft"
 msgstr "פתיחת טיוטה"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Open Draft Attachment"
+msgstr "פתיחת קובץ מצורף של טיוטה"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -13629,7 +13665,7 @@ msgid "Remove Account"
 msgstr "הסרת חשבון"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Remove Attachment"
 msgstr "הסרת קובץ מצורף"
@@ -15817,7 +15853,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "הצגת התראת שולחן עבודה עבור תזכורות"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "הצגת התראת שולחן עבודה בעת הגעת דואר חדש"
@@ -17987,6 +18023,12 @@ msgstr "הדומיין {domain} מציין שרת להגדרה אוטומטית 
 #, fuzzy
 msgid "The download was called off."
 msgstr "ההורדה בוטלה."
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "The draft isn't open any more"
+msgstr "הטיוטה אינה פתוחה עוד"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -22996,6 +23038,12 @@ msgstr "מכיל יותר מדי קבצים; יתר הקבצים לא הוסרו
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "header contains {words}"
+msgstr "הכותרת מכילה {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "high"
 msgstr "גבוהה"
 
@@ -26354,6 +26402,12 @@ msgstr "{name} היא תיבת דואר משותפת שהחשבון שלה אי�
 #, fuzzy
 msgid "{name} is already in {folder}."
 msgstr "{name} כבר נמצא ב־{folder}."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr "{name} מצורף: לא ניתן להוסיפו לגוף ההודעה ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
