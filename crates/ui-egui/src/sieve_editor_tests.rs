@@ -415,3 +415,42 @@ fn nothing_is_typed_or_cancelled_while_a_save_is_under_way() {
     assert!(editor_open(&mut h), "Escape doesn't close it while saving");
     assert!(!pending.lock().unwrap().is_empty());
 }
+
+/// A draft in the Sieve editor, or in the rule builder, over Rules and Alerts is a change that
+/// isn't saved: the dialog says so, and an agent closing it or opening another asks first (#2058).
+#[test]
+fn a_draft_over_rules_and_alerts_is_unsaved_until_it_is_saved() {
+    let (mut app, _, _) = own_window();
+    app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let mut h = harness(app);
+    let unsaved = |h: &Harness<'static, MailApp>| match h.state().dialog.as_ref() {
+        Some(Dialog::Form(f)) => f.unsaved(),
+        _ => None,
+    };
+    assert!(unsaved(&h).is_none());
+    h.get_by_label("Edit Your Sieve Script…").click();
+    h.run_steps(3);
+    assert!(unsaved(&h).is_none(), "opened, nothing changed");
+    editor(&mut h).text.push_str("keep;\n");
+    h.run_steps(2);
+    let said = unsaved(&h).expect("the draft is unsaved");
+    assert_eq!(said["form"], "rule");
+    assert_eq!(
+        mailcraft_engine::agent::classify(&h.state().session, "ui.closeDialog", &json!({"unsaved": said})),
+        mailcraft_engine::agent::Access::Asked(mailcraft_engine::agent::Class::Delete)
+    );
+}
+
+/// Change Rule through `ui.dialog` opens a rule of the owner's own script in the same editor as its
+/// pencil does (#2058).
+#[test]
+fn change_rule_through_ui_dialog_opens_the_pencils_editor() {
+    let (mut app, account, _) = own_window();
+    let rule = app.session.sieve.get(&account).and_then(|k| k.elsewhere.as_ref()).and_then(|e| e.rules.first()).map(|r| r.id).unwrap();
+    app.execute("ui.dialog", json!({"name": "rules", "edit": rule})).unwrap();
+    let h = harness(app);
+    match h.state().dialog.as_ref() {
+        Some(Dialog::Form(Form::Rules(f))) => assert!(f.modal(), "an editor is open on the rule"),
+        _ => panic!("no Rules dialog"),
+    }
+}

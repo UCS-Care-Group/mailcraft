@@ -161,6 +161,8 @@ pub struct SieveEditor {
     pub(crate) convert: bool,
     /// The problems of the owner's script with a rule's text in place, elsewhere in the script.
     outside: Vec<Problem>,
+    /// The name and the text as it opened: a change since is a draft (#2058).
+    start: (String, String),
 }
 
 /// Whether Rules and Alerts offers Advanced… for `account`: its server keeps MailCraft's Sieve
@@ -173,13 +175,13 @@ pub(crate) fn offered(app: &MailApp, account: Id) -> bool {
 impl SieveEditor {
     /// A new Sieve rule of `account`'s, with a short starter.
     pub(crate) fn new_rule(account: Id) -> SieveEditor {
-        SieveEditor { account, text: STARTER.to_string(), focus: true, ..Default::default() }
+        SieveEditor { account, text: STARTER.to_string(), focus: true, ..Default::default() }.started()
     }
 
     /// The Sieve rule `id`, to change; `None` when it isn't one.
     pub(crate) fn open(mb: &Mailbox, id: Id) -> Option<SieveEditor> {
         let r = mb.rules.iter().find(|r| r.id == id && r.is_sieve())?;
-        Some(SieveEditor { account: r.account, id: Some(id), name: r.name.clone(), text: r.sieve.clone(), focus: true, ..Default::default() })
+        Some(SieveEditor { account: r.account, id: Some(id), name: r.name.clone(), text: r.sieve.clone(), focus: true, ..Default::default() }.started())
     }
 
     /// The owner's own script `account`'s server runs, whole, as it was last read; `None` when it
@@ -197,7 +199,7 @@ impl SieveEditor {
             ..Default::default()
         };
         let shown = if crlf { text.replace("\r\n", "\n") } else { text.to_string() };
-        Some(SieveEditor { account, text: shown, focus: true, own: Some(own), ..Default::default() })
+        Some(SieveEditor { account, text: shown, focus: true, own: Some(own), ..Default::default() }.started())
     }
 
     /// A rule as Sieve (#2057): one of the owner's own script, on its bytes alone; or one of
@@ -227,13 +229,24 @@ impl SieveEditor {
                 ..Default::default()
             };
             let shown = if crlf { text.replace("\r\n", "\n") } else { text.to_string() };
-            return Some(SieveEditor { account: f.account, text: shown, focus: true, own: Some(own), ..Default::default() });
+            return Some(SieveEditor { account: f.account, text: shown, focus: true, own: Some(own), ..Default::default() }.started());
         }
         let mb = &s.mailbox;
         let r = mb.rules.iter().find(|r| r.id == id && convertible(mb, r))?;
         let made = mailcraft_engine::cmd::sieve_rules::block(mb, r, r.account).ok()?;
         let text = made.text.replace("\r\n", "\n");
-        Some(SieveEditor { account: r.account, id: Some(id), name: r.name.clone(), text, focus: true, convert: true, ..Default::default() })
+        Some(SieveEditor { account: r.account, id: Some(id), name: r.name.clone(), text, focus: true, convert: true, ..Default::default() }.started())
+    }
+
+    /// As it opened: what [`SieveEditor::changed`] compares with.
+    fn started(mut self) -> SieveEditor {
+        self.start = (self.name.clone(), self.text.clone());
+        self
+    }
+
+    /// Whether its name or text was changed since it opened (#2058).
+    pub(crate) fn changed(&self) -> bool {
+        self.start.0 != self.name || self.start.1 != self.text
     }
 
     /// Whether one rule of the owner's script is edited, not the whole.

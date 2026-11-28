@@ -48,7 +48,16 @@ impl Form {
             "editTask" => Form::Task(Box::new(task::TaskForm::edit(s, params)?)),
             "account" => Form::Account(Box::new(account::AccountForm::open(app, params)?)),
             "categories" => Form::Categories(Box::new(categories::CategoriesForm::new(s, params)?)),
-            "rules" => Form::Rules(Box::new(rules::RulesForm::new(s, params))),
+            "rules" => {
+                let mut f = rules::RulesForm::new(s, params);
+                // Opened on Change Rule for a rule: the same editor as its pencil opens (#2058).
+                if params.get("folder").and_then(Value::as_u64).is_none()
+                    && let Some(rule) = params.get("edit").and_then(Value::as_u64)
+                {
+                    f.change_rule(app, rule, false);
+                }
+                Form::Rules(Box::new(f))
+            }
             "junkOptions" => Form::Junk(Box::new(junk::JunkForm::new(s, params))),
             _ => return None,
         })
@@ -169,7 +178,8 @@ impl Form {
             Form::Event(f) => f.dirty(),
             Form::Contact(f) => f.dirty(),
             Form::Task(f) => f.dirty(),
-            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => false,
+            Form::Rules(f) => f.dirty(),
+            Form::Account(_) | Form::Categories(_) | Form::Junk(_) => false,
         }
     }
 
@@ -187,7 +197,8 @@ impl Form {
             Form::Event(f) => (if f.is_meeting() { "meeting" } else { "appointment" }, f.subject().to_string()),
             Form::Contact(f) => ("contact", f.subject()),
             Form::Task(f) => ("task", f.subject().to_string()),
-            Form::Account(_) | Form::Categories(_) | Form::Rules(_) | Form::Junk(_) => return None,
+            Form::Rules(f) => ("rule", f.draft_name()),
+            Form::Account(_) | Form::Categories(_) | Form::Junk(_) => return None,
         };
         self.changed().then(|| serde_json::json!({"form": form, "title": title}))
     }
@@ -5641,6 +5652,9 @@ pub(crate) mod rules {
         own: Option<String>,
         /// The list's height as shown, and its whole height, at the last frame (points).
         pub(crate) list: (u32, u32),
+        /// The builder's fields as they were when it opened ([`RulesForm::builder_state`]): a
+        /// change since is a draft an agent asks before taking away (#2058).
+        pristine: Option<String>,
     }
 
     impl RulesForm {
@@ -5656,15 +5670,37 @@ pub(crate) mod rules {
             if let Some(folder) = params.get("folder").and_then(Value::as_u64) {
                 f.fill_from_message(s, folder, params.get("id").and_then(Value::as_u64).or(s.sel.focus()));
             } else if let Some(rule) = params.get("edit").and_then(Value::as_u64) {
-                // Opened on Change Rule for that rule, on its account's list.
+                // Opened on Change Rule for that rule, on its account's list (the editor is
+                // opened by [`RulesForm::change_rule`], as the rule's pencil opens it).
                 if let Some(account) = s.mailbox.rules.iter().find(|r| r.id == rule).map(|r| r.account).filter(|a| *a != 0) {
                     f.choose(&s.mailbox, account);
                 }
-                if !f.edit_filter(s, rule) && !f.edit(&s.mailbox, rule) {
-                    f.sieve = crate::sieve_editor::SieveEditor::open(&s.mailbox, rule);
-                }
             }
             f
+        }
+
+        /// Open the editor for rule `id`, as its pencil does: a Sieve rule's editor; else the
+        /// builder, on a webmail's filter, a rule of the owner's script it changes without loss, or
+        /// one of MailCraft's; else the rule as Sieve text (`as_text`: asked for that). Whether one
+        /// opened; else why not is said.
+        pub(crate) fn change_rule(&mut self, app: &MailApp, id: Id, as_text: bool) -> bool {
+            let s = &app.session;
+            if let Some(editor) = crate::sieve_editor::SieveEditor::open(&s.mailbox, id) {
+                self.close_builder();
+                self.error.clear();
+                self.sieve = Some(editor);
+            } else if !as_text && (self.edit_filter(s, id) || self.edit_own(s, id) || self.edit(&s.mailbox, id)) {
+                self.sieve = None;
+            } else if let Some(editor) = crate::sieve_editor::SieveEditor::as_sieve(app, id) {
+                // (As Sieve text: the builder can't change it without loss, or the owner asked, #2057.)
+                self.close_builder();
+                self.error.clear();
+                self.sieve = Some(editor);
+            } else {
+                self.error = tl!("This rule can't be changed here.").to_string();
+                return false;
+            }
+            true
         }
 
         /// The name Always Move Messages From This Sender gives a rule.
@@ -5752,6 +5788,7 @@ pub(crate) mod rules {
             // Where it is wanted: on the server, or there once it can be when it is here only
             // because the server couldn't keep it (as `rules.edit` reads it); else here.
             let forced = r.keep == Keep::Here
+                && !r.here_by_choice
                 && r.account != 0
                 && (!r.refused.is_empty()
                     || server_cannot(mb, r, r.account).is_some_and(|n| !matches!(n, NotOnServer::NoServer | NotOnServer::NotInStep)));
@@ -5835,6 +5872,7 @@ pub(crate) mod rules {
 
         /// Start the builder over: one empty condition, one action, a new rule.
         fn reset(&mut self) {
+            self.pristine = None;
             self.editing = None;
             self.webmail = None;
             self.own = None;
@@ -5956,6 +5994,26 @@ pub(crate) mod rules {
             self.open || self.sieve.is_some()
         }
 
+        /// The builder's fields, to tell whether anything was changed in it since it opened.
+        fn builder_state(&self) -> String {
+            format!("{:?}", (&self.name, &self.conds, &self.unless, &self.acts, self.stop, self.alert, self.server, self.then_run))
+        }
+
+        /// Whether the builder or the Sieve editor holds a change that isn't saved (#2058): its
+        /// window, and an agent closing the dialog or opening another, ask first.
+        pub(crate) fn dirty(&self) -> bool {
+            let builder = self.open && self.pristine.as_deref().is_some_and(|p| p != self.builder_state());
+            builder || self.sieve.as_ref().is_some_and(crate::sieve_editor::SieveEditor::changed)
+        }
+
+        /// The name of the rule in the builder or the Sieve editor, as typed.
+        pub(crate) fn draft_name(&self) -> String {
+            match &self.sieve {
+                Some(e) => e.own.as_ref().map_or_else(|| e.name.clone(), |o| o.rule.as_ref().map_or_else(|| o.name.clone(), |r| r.name.clone())),
+                None => self.name.clone(),
+            }
+        }
+
         /// Open the rule builder on a new rule of the account shown.
         fn new_rule(&mut self) {
             self.reset();
@@ -5979,6 +6037,12 @@ pub(crate) mod rules {
             // A held Space on a rule's button is one press: its repeats would reach the button
             // that takes its place, the next rule's, and delete or move that one too.
             ui.input_mut(|i| crate::keys::drop_repeats(i, &[egui::Key::Space]));
+            // What the builder had when it opened: a change since is a draft (#2058).
+            if !self.open {
+                self.pristine = None;
+            } else if self.pristine.is_none() {
+                self.pristine = Some(self.builder_state());
+            }
             let t = crate::theme::Tokens::get(ui.ctx());
             let accounts = rule_accounts(&app.session.mailbox);
             if !accounts.iter().any(|(id, _)| *id == self.account)
@@ -6238,21 +6302,7 @@ pub(crate) mod rules {
                 self.sieve = None;
             }
             if let Some((id, as_text)) = change {
-                let s = &app.session;
-                if let Some(editor) = crate::sieve_editor::SieveEditor::open(&s.mailbox, id) {
-                    self.close_builder();
-                    self.error.clear();
-                    self.sieve = Some(editor);
-                } else if !as_text && (self.edit_filter(s, id) || self.edit_own(s, id) || self.edit(&s.mailbox, id)) {
-                    self.sieve = None;
-                } else if let Some(editor) = crate::sieve_editor::SieveEditor::as_sieve(app, id) {
-                    // (As Sieve text: the builder can't change it without loss, or the owner asked, #2057.)
-                    self.close_builder();
-                    self.error.clear();
-                    self.sieve = Some(editor);
-                } else {
-                    self.error = tl!("This rule can't be changed here.").to_string();
-                }
+                self.change_rule(app, id, as_text);
             }
             // The dialogs over the list: the builder, and the Sieve editor.
             let mut add = false;

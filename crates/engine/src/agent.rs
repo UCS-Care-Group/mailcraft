@@ -3812,7 +3812,7 @@ fn form_text(id: &str, params: &Value) -> String {
 fn unsaved_item(params: &Value) -> (String, bool) {
     let field = |k: &str| params.get("unsaved").and_then(|u| u.get(k)).and_then(Value::as_str).unwrap_or("");
     let kind = match field("form") {
-        kind @ ("appointment" | "meeting" | "contact" | "task" | "message") => kind,
+        kind @ ("appointment" | "meeting" | "contact" | "task" | "message" | "rule") => kind,
         _ => "item",
     };
     let title = clip(field("title"), 80);
