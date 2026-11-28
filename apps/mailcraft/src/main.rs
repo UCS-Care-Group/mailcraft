@@ -66,7 +66,7 @@ mod file_launcher;
 mod recent_attachments;
 mod sieve_job;
 #[cfg(test)]
-mod sieve_replies_flow;
+mod sieve_replies_flow_tests;
 // The fake servers of `mailcraft-net`'s tests, for the flow tests here (#2057).
 #[cfg(test)]
 #[allow(dead_code)]
