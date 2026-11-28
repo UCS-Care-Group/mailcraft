@@ -141,7 +141,7 @@ See [docs/mcp.md](docs/mcp.md) and [docs/control-protocol.md](docs/control-proto
 |---|---|---|
 | L0 | `time`, `control-key`, `ber`, `charset`, `link`, `names`, `i18n`, `jmap-types` | Calendar maths and date text; control-port key files; ASN.1 BER and DER; character sets; web addresses; format characters and names; interface languages; JMAP's serde types |
 | L1 | `model`, `html` | The mailbox and its edit primitives, recurrence, search; hostile HTML to safe display blocks |
-| L2 | `mime`, `mime-model`, `ical`, `vcard`, `pst`, `openpgp`, `smime` | Internet messages and mbox, and the mailbox's messages as Internet messages; iCalendar; vCard; Outlook data files (.pst), read; OpenPGP and S/MIME signatures, checked |
+| L2 | `mime`, `mime-model`, `ical`, `vcard`, `pst`, `oab`, `openpgp`, `smime` | Internet messages and mbox, and the mailbox's messages as Internet messages; iCalendar; vCard; Outlook data files (.pst), read; Exchange Offline Address Books, read; OpenPGP and S/MIME signatures, checked |
 | L3 | `proto`, `net`, `jmap`, `dav`, `assuan`, `ews` | IMAP and SMTP without sockets; TLS sockets and synchronisation; JMAP requests and answers; bounded DAV documents; gpg-agent's protocol; Exchange Web Services without sockets |
 | L4 | `engine` | Session, undo, the command registry, the feature catalog, file dispatch |
 | L5 | `host`, `mcp` | What a platform gives the program below the window; MCP server |

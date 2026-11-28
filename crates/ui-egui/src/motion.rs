@@ -2,9 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Animations (#1183): File › Options › General › Animations plays them, stops them, or follows
 //! the system's setting (Windows' Animation effects, read by the desktop app through
-//! [`crate::Services::animations_enabled`]; where the system says nothing, they play). Off, egui's
-//! own animations (menus, collapsing sections, hover fades) take no time, scrolling to a place
-//! jumps there, and the search bar over the list appears at once. A spinner that says something is
+//! [`crate::Services::animations_enabled`]; where the system says nothing, they play;
+//! while drawing in software, "system" stops them too). Off, egui's own
+//! animations (menus, collapsing sections, hover fades) take no time, scrolling to a place jumps there, and the search bar over the list appears at once. A spinner that says something is
 //! still going on keeps turning: it is news, not decoration.
 
 /// How often the system's setting is asked again while the window runs, in seconds.

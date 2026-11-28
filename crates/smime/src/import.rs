@@ -75,6 +75,20 @@ pub fn certificates_in(bytes: &[u8]) -> Vec<Vec<u8>> {
     }
 }
 
+/// The most bytes of a CMS SignedData whose certificates [`carried_certificates`] reads.
+pub const MAX_CARRIER_BYTES: usize = 1024 * 1024;
+
+/// The certificates a CMS SignedData carries (a certificates-only `.p7c`, or the signed
+/// `userSMIMECertificate` an Exchange directory publishes for a person, which holds their
+/// certificate and the authorities above it), in DER, at most [`MAX_IMPORT_CERTIFICATES`]; only
+/// those that can be read, and nothing checked or trusted. Empty when `bytes` is no SignedData.
+pub fn carried_certificates(bytes: &[u8]) -> Vec<Vec<u8>> {
+    if bytes.len() > MAX_CARRIER_BYTES {
+        return Vec::new();
+    }
+    crate::verify::carried_certificates(bytes, MAX_IMPORT_CERTIFICATES)
+}
+
 /// The decoded bodies of the PEM blocks labelled `label` in `bytes` (RFC 7468), each at most a
 /// certificate's size, at most [`MAX_IMPORT_CERTIFICATES`].
 fn pem_blocks(bytes: &[u8], label: &str) -> Vec<Vec<u8>> {

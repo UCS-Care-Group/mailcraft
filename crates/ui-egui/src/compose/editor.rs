@@ -681,6 +681,35 @@ pub(crate) fn laid(ctx: &egui::Context, app: &MailApp) -> usize {
     store(ctx, id(app)).lock().map_or(0, |l| l.laid)
 }
 
+/// A picture's corner being dragged: the picture, the corner (top left, top right, bottom left,
+/// bottom right), the width it has so far, and whether Escape gave the drag up (it then sets
+/// nothing, and the button is still the drag's until it comes up).
+#[derive(Clone, Copy, Debug)]
+struct Resizing {
+    id: u32,
+    corner: usize,
+    width: f32,
+    cancelled: bool,
+}
+
+/// A rectangle's corners: top left, top right, bottom left, bottom right.
+fn corners(r: Rect) -> [egui::Pos2; 4] {
+    [r.left_top(), r.right_top(), r.left_bottom(), r.right_bottom()]
+}
+
+/// What `ui.inspect` calls the corner `i` of a selected picture: the bottom right one is
+/// `pictureCorner`, as it was when it was the only one.
+const CORNER_NAMES: [&str; 4] = ["pictureCornerTopLeft", "pictureCornerTopRight", "pictureCornerBottomLeft", "pictureCorner"];
+
+/// The picture `r` shown `width` wide in proportion, from the corner opposite corner `i`, which
+/// stays where it is.
+pub(super) fn sized_from(r: Rect, i: usize, width: f32) -> Rect {
+    let size = vec2(width, width * r.height() / r.width().max(1.0));
+    let x = if i % 2 == 1 { r.min.x } else { r.max.x - size.x };
+    let y = if i >= 2 { r.min.y } else { r.max.y - size.y };
+    Rect::from_min_size(egui::pos2(x, y), size)
+}
+
 /// What the body remembers between frames besides its layout.
 #[derive(Clone, Default)]
 struct State {
@@ -692,8 +721,8 @@ struct State {
     anchor: Option<Anchor<usize>>,
     /// What an input method is composing, not yet typed.
     preedit: String,
-    /// A picture's corner being dragged: its id and the width it has so far.
-    resizing: Option<(u32, f32)>,
+    /// A picture's corner being dragged.
+    resizing: Option<Resizing>,
     /// The selection as the body last saw it, and whether the owner made it here ([`own`]).
     seen: Option<Selection>,
     mine: bool,
@@ -816,41 +845,79 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let spelling_locale = (editable && which == Which::Message).then(|| spelling::locale(app, &ctx)).flatten();
     let spelling_time = ctx.input(|input| input.time);
 
-    // A selected picture is made wider or narrower by its corner: only its outline follows the
-    // pointer (every paragraph is laid out again for a new width), and the width is set once
-    // the button is let go.
+    // A selected picture is made wider or narrower by any of its four corners: only its outline
+    // follows the pointer (every paragraph is laid out again for a new width), from the corner
+    // opposite the one held, and the width is set once the button is let go. Escape while a
+    // corner is held puts the picture back as it was and does nothing else. (egui ends the drag
+    // on Escape itself, in the same pass: the press is taken before the corners are asked. Until
+    // the button comes up, a press of Escape again is the drag's too, and does nothing.)
+    if let Some(z) = st.resizing.as_mut()
+        && crate::keys::take_escape_any(&ctx, ui.layer_id())
+    {
+        z.cancelled = true;
+    }
     if editable
         && let Some((sel, _)) = now(app, which)
         && let Some((pid, r)) = layout.selected_picture(sel)
         && let Some(most) = widest(which, pid, width)
     {
         let r = r.translate(origin.to_vec2());
-        let corner = Rect::from_center_size(r.right_bottom(), vec2(10.0, 10.0));
-        let handle = ui.interact(corner, id.with(("corner", pid)), Sense::drag());
-        app.hit.add("pictureCorner", u64::from(pid), corner);
-        if handle.hovered() || handle.dragged() {
-            ctx.set_cursor_icon(egui::CursorIcon::ResizeNwSe);
-        }
-        if handle.dragged() {
-            let w = st.resizing.filter(|(i, _)| *i == pid).map_or(r.width(), |(_, w)| w) + handle.drag_delta().x;
-            st.resizing = Some((pid, w.clamp(8.0, most)));
-        }
-        if handle.drag_stopped()
-            && let Some((i, w)) = st.resizing.take()
-            && (w.round() - r.width().round()).abs() >= 1.0
-        {
-            let command = if which == Which::Signature { "signature.picture.set" } else { "compose.picture.set" };
-            let _ = app.run(command, json!({"id": i, "width": w.round() as u16}));
+        for (i, (at, name)) in corners(r).into_iter().zip(CORNER_NAMES).enumerate() {
+            let corner = Rect::from_center_size(at, vec2(10.0, 10.0));
+            let handle = ui.interact(corner, id.with(("corner", pid, i)), Sense::drag());
+            app.hit.add(name, u64::from(pid), corner);
+            if handle.hovered() || handle.dragged() {
+                ctx.set_cursor_icon(if i == 0 || i == 3 { egui::CursorIcon::ResizeNwSe } else { egui::CursorIcon::ResizeNeSw });
+            }
+            // (A right corner widens the picture going right, a left one going left.)
+            let outward = if i % 2 == 1 { 1.0 } else { -1.0 };
+            // (The primary button's, as a click's: Escape's hold on a drag ends when it comes up.
+            // The resize is a drag the primary button started by its press on the corner: one
+            // another button started is nothing, though the primary button was down already or
+            // is pressed as well. A corner senses drags alone, so egui starts one as it is pressed.)
+            let primary = egui::PointerButton::Primary;
+            if handle.drag_started() && ui.input(|i| i.pointer.button_pressed(primary)) && st.resizing.is_none() {
+                st.resizing = Some(Resizing { id: pid, corner: i, width: r.width(), cancelled: false });
+            }
+            if handle.dragged_by(primary)
+                && let Some(z) = st.resizing.as_mut()
+                && !z.cancelled
+                && z.id == pid
+                && z.corner == i
+            {
+                z.width = (z.width + outward * handle.drag_delta().x).clamp(8.0, most);
+            }
+            // (A drag given up stays until the button comes up, below.)
+            // A drag that ends however it ends (egui ends one on Escape with Shift, too) is let go
+            // of; only the primary button coming up sets the width.
+            if handle.drag_stopped()
+                && st.resizing.is_some_and(|z| !z.cancelled && z.id == pid && z.corner == i)
+                && let Some(z) = st.resizing.take()
+                && handle.drag_stopped_by(primary)
+                && (z.width.round() - r.width().round()).abs() >= 1.0
+            {
+                let command = if which == Which::Signature { "signature.picture.set" } else { "compose.picture.set" };
+                let _ = app.run(command, json!({"id": z.id, "width": z.width.round() as u16}));
+            }
         }
     }
     // The drag is kept while its picture stays selected, so letting go still sets the width
     // on a frame that did not move the corner. A command that moves the selection while the
     // corner is held drops it, and a click in the text places the caret again.
-    if let Some((pid, _)) = st.resizing {
-        let still = now(app, which).and_then(|(sel, _)| layout.selected_picture(sel)).is_some_and(|(id, _)| id == pid);
+    if let Some(z) = st.resizing {
+        let still = now(app, which).and_then(|(sel, _)| layout.selected_picture(sel)).is_some_and(|(id, _)| id == z.id);
         if !still {
             st.resizing = None;
         }
+    }
+    // A drag given up by Escape is the button's until it comes up: it neither sizes nor selects.
+    // None is left once the button is up, whatever ended it.
+    if st.resizing.is_some() && !ui.input(|i| i.pointer.primary_down()) {
+        st.resizing = None;
+    }
+    // (Said once the drag is known to go on: an Escape in the pass after it ended is the window's.)
+    if st.resizing.is_some() {
+        crate::keys::hold_escape(&ctx, ui.layer_id(), id);
     }
 
     // The pointer: a click puts the caret, or selects a picture; a drag selects, a double click a
@@ -988,7 +1055,10 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
     let mut ime_composition = !st.preedit.is_empty();
     if focused {
         ctx.memory_mut(|m| {
-            m.set_focus_lock_filter(id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape: false })
+            // (While a corner is held, given up or not, Escape is the drag's: the body keeps the
+            // keyboard, on the key's repeats too.)
+            let escape = st.resizing.is_some();
+            m.set_focus_lock_filter(id, egui::EventFilter { tab: true, horizontal_arrows: true, vertical_arrows: true, escape })
         });
         let page = ui.clip_rect().height().max(40.0) - 20.0;
         for event in ui.input(|i| i.events.clone()) {
@@ -1208,15 +1278,17 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         let hint = if which == Which::Message { tl!("Write your message") } else { tl!("Write your signature") };
         painter.text(origin, Align2::LEFT_TOP, hint, regular(BASE_SIZE), t.text_disabled);
     }
-    // The selected picture: a frame, and the corner that sizes it.
+    // The selected picture: a frame, and the corners that size it.
     if let Some((pid, r)) = layout.selected_picture(sel) {
         let mut r = r.translate(origin.to_vec2());
-        if let Some((_, w)) = st.resizing.filter(|(i, _)| *i == pid) {
-            r = Rect::from_min_size(r.min, vec2(w, w * r.height() / r.width().max(1.0)));
+        if let Some(z) = st.resizing.filter(|z| z.id == pid && !z.cancelled) {
+            r = sized_from(r, z.corner, z.width);
         }
         painter.rect_stroke(r, 0.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Outside);
         if editable && widest(which, pid, width).is_some() {
-            painter.rect_filled(Rect::from_center_size(r.right_bottom(), vec2(8.0, 8.0)), 1.0, t.accent);
+            for at in corners(r) {
+                painter.rect_filled(Rect::from_center_size(at, vec2(8.0, 8.0)), 1.0, t.accent);
+            }
         }
     }
     let caret = layout.caret(sel.head).translate(origin.to_vec2());

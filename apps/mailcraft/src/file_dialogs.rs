@@ -93,6 +93,7 @@ const ALL: Filter = ("All files", &["*"]);
 /// extensions and has no "*", so for Import it gets none (every file stays pickable).
 fn filter_list(purpose: &str, macos: bool) -> Vec<Filter> {
     match purpose {
+        "signatureFile" => vec![("Signature files", &["txt", "text", "htm", "html", "png", "jpg", "jpeg", "gif"])],
         "mailbox" => vec![("MailCraft mailbox", &["mailcraft", "json"]), ALL],
         // An mbox file often has no extension (Thunderbird's `Inbox`, `Sent`), and Import reads a
         // file by what it holds, so All files comes first and is the one the dialog opens on
@@ -117,7 +118,19 @@ fn filter_list(purpose: &str, macos: bool) -> Vec<Filter> {
     }
 }
 
+fn signature_directory(dialog: rfd::AsyncFileDialog) -> rfd::AsyncFileDialog {
+    match signature_home(std::env::var_os("HOME"), std::env::var_os("USERPROFILE"), cfg!(target_os = "windows")) {
+        Some(home) => dialog.set_directory(home),
+        None => dialog,
+    }
+}
+
+fn signature_home(home: Option<std::ffi::OsString>, profile: Option<std::ffi::OsString>, windows: bool) -> Option<std::path::PathBuf> {
+    (if windows { profile } else { home }).filter(|p| !p.is_empty()).map(std::path::PathBuf::from)
+}
+
 fn open_filters(d: rfd::AsyncFileDialog, purpose: &str) -> rfd::AsyncFileDialog {
+    let d = if purpose == "signatureFile" { signature_directory(d) } else { d };
     filter_list(purpose, cfg!(target_os = "macos")).into_iter().fold(d, |d, (name, exts)| d.add_filter(name, exts))
 }
 
