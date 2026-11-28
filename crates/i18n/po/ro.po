@@ -2396,8 +2396,9 @@ msgstr "Atașamente"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Attachments can't be opened here."
-msgstr ""
+msgstr "Atașamentele nu pot fi deschise aici."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -5124,13 +5125,15 @@ msgstr "Gata: {n} noi"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to download {name}"
-msgstr ""
+msgstr "Faceți dublu clic pentru a descărca {name}"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to open {name}"
-msgstr ""
+msgstr "Faceți dublu clic pentru a deschide {name}"
 
 #. android, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
@@ -9042,8 +9045,9 @@ msgstr "MailCraft nu poate păstra regulile acestui cont pe serverul lui"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "MailCraft can't open {name} because of its file type."
-msgstr ""
+msgstr "MailCraft nu poate deschide {name} din cauza tipului de fișier."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -12157,8 +12161,9 @@ msgstr "Deschidere ciornă"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Open Draft Attachment"
-msgstr ""
+msgstr "Deschide atașamentul ciornei"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -18033,8 +18038,9 @@ msgstr "Descărcarea a fost anulată."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "The draft isn't open any more"
-msgstr ""
+msgstr "Ciorna nu mai este deschisă"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

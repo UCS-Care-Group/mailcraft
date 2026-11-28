@@ -2392,8 +2392,9 @@ msgstr "Allegati"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Attachments can't be opened here."
-msgstr ""
+msgstr "Gli allegati non possono essere aperti qui."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -5113,13 +5114,15 @@ msgstr "Fatto: {n} nuovi"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to download {name}"
-msgstr ""
+msgstr "Fai doppio clic per scaricare {name}"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to open {name}"
-msgstr ""
+msgstr "Fai doppio clic per aprire {name}"
 
 #. android, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
@@ -9009,8 +9012,9 @@ msgstr "MailCraft non può conservare le regole di questo account sul suo server
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "MailCraft can't open {name} because of its file type."
-msgstr ""
+msgstr "MailCraft non può aprire {name} a causa del tipo di file."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -12117,8 +12121,9 @@ msgstr "Apri bozza"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Open Draft Attachment"
-msgstr ""
+msgstr "Apri allegato della bozza"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -17964,8 +17969,9 @@ msgstr "Il download è stato annullato."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "The draft isn't open any more"
-msgstr ""
+msgstr "La bozza non è più aperta"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

@@ -2388,8 +2388,9 @@ msgstr "Pièces jointes"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Attachments can't be opened here."
-msgstr ""
+msgstr "Les pièces jointes ne peuvent pas être ouvertes ici."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -5100,13 +5101,15 @@ msgstr "Terminé : {n} nouveau(x)"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to download {name}"
-msgstr ""
+msgstr "Double-cliquez pour télécharger {name}"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to open {name}"
-msgstr ""
+msgstr "Double-cliquez pour ouvrir {name}"
 
 #. android, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
@@ -8975,8 +8978,9 @@ msgstr "MailCraft ne peut pas conserver les règles de ce compte sur son serveur
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "MailCraft can't open {name} because of its file type."
-msgstr ""
+msgstr "MailCraft ne peut pas ouvrir {name} à cause de son type de fichier."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -12076,8 +12080,9 @@ msgstr "Ouvrir le brouillon"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Open Draft Attachment"
-msgstr ""
+msgstr "Ouvrir la pièce jointe du brouillon"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -17901,8 +17906,9 @@ msgstr "Le téléchargement a été annulé."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "The draft isn't open any more"
-msgstr ""
+msgstr "Le brouillon n'est plus ouvert"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs

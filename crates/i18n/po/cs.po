@@ -2389,8 +2389,9 @@ msgstr "Přílohy"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Attachments can't be opened here."
-msgstr ""
+msgstr "Přílohy zde nelze otevřít."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -5115,13 +5116,15 @@ msgstr "Hotovo: {n} nových"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to download {name}"
-msgstr ""
+msgstr "Dvojitým kliknutím stáhnete {name}"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to open {name}"
-msgstr ""
+msgstr "Dvojitým kliknutím otevřete {name}"
 
 #. android, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
@@ -9031,8 +9034,9 @@ msgstr "MailCraft nemůže uchovávat pravidla tohoto účtu na jeho serveru"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "MailCraft can't open {name} because of its file type."
-msgstr ""
+msgstr "MailCraft nemůže otevřít {name} kvůli typu souboru."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -12141,8 +12145,9 @@ msgstr "Otevřít koncept"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Open Draft Attachment"
-msgstr ""
+msgstr "Otevřít přílohu konceptu"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -18009,8 +18014,9 @@ msgstr "Stahování bylo zrušeno."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "The draft isn't open any more"
-msgstr ""
+msgstr "Koncept již není otevřený"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
