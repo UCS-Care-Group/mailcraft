@@ -874,6 +874,11 @@ impl Ctx<'_> {
     fn problem(&mut self, fault: Fault, at: Range<usize>, warning: bool) {
         if self.problems.len() < MAX_PROBLEMS {
             self.problems.push((fault, at, warning));
+        } else if !warning && self.problems.iter().all(|p| p.2) {
+            // Full of warnings: an error still takes a place, or the script would pass (#2058).
+            if let Some(last) = self.problems.last_mut() {
+                *last = (fault, at, warning);
+            }
         }
     }
 
@@ -1110,6 +1115,10 @@ fn known(ext: &str) -> bool {
 }
 
 fn run(script: &str, server: Option<&[String]>, block_mode: bool) -> Result<Checked, Vec<Problem>> {
+    // A raw NUL is nowhere in a script, not even in a comment (RFC 5228 §2.2), #2058.
+    if let Some(at) = script.find('\0') {
+        return Err(positioned(script, vec![(Fault::Control, at..at.saturating_add(1), false)]));
+    }
     let nodes = match parse(script) {
         Ok(n) => n,
         Err(e) => return Err(positioned(script, vec![(e.fault, e.at, false)])),

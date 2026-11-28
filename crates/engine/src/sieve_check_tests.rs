@@ -458,3 +458,21 @@ fn the_scripts_mailcraft_writes_pass() {
         assert_eq!(requires, needs, "{script}");
     }
 }
+
+/// A raw NUL is refused wherever it is, a comment too (#2058).
+#[test]
+fn a_raw_nul_is_refused_even_in_a_comment() {
+    let (fault, line, _, at) = first("# a\0b\r\nkeep;\r\n");
+    assert_eq!((fault, line, at), (Fault::Control, 1, 3..4));
+    assert!(check_block("keep; # \0\r\n", None).is_err());
+}
+
+/// A script with more warnings than are kept still fails on its error (#2058).
+#[test]
+fn an_error_after_a_full_list_of_warnings_still_fails() {
+    let names: Vec<String> = (0..MAX_PROBLEMS + 5).map(|n| format!("\"x-unknown-{n}\"")).collect();
+    let script = format!("require [{}];\r\nkeep \"extra\";\r\n", names.join(", "));
+    let problems = check(&script, None).expect_err("an error");
+    assert!(problems.len() <= MAX_PROBLEMS);
+    assert!(problems.iter().any(|p| !p.warning), "{problems:?}");
+}
