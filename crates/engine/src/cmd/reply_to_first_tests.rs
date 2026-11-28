@@ -218,3 +218,14 @@ fn reply_all_from_a_shared_mailbox_leaves_out_the_account_it_is_opened_through()
     let (to, cc) = reply(&mut s, "mail.replyAll", id);
     assert_eq!((to.as_str(), cc.as_str()), ("customer@example.net; alex@example.net", ""));
 }
+
+#[test]
+fn reply_all_to_own_sent_mail_still_skips_every_owner_address() {
+    let mut s = Session::empty();
+    let imap = |email: &str| json!({"email": email, "incoming": {"host": "imap.example.org"}, "outgoing": {"host": "smtp.example.org"}});
+    let org = s.run("account.add", &imap("ada@example.org")).unwrap()["id"].as_u64().unwrap();
+    s.run("account.add", &imap("ada@example.net")).unwrap();
+    let id = message(&mut s, org, "ada@example.org", &["alex@example.net"], &["ada@example.net", "sam@example.net"], &[]);
+    let (to, cc) = reply(&mut s, "mail.replyAll", id);
+    assert_eq!((to.as_str(), cc.as_str()), ("alex@example.net", "sam@example.net"));
+}

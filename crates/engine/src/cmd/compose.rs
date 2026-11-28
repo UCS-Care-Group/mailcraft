@@ -629,8 +629,10 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
             }
             let mut cc = Vec::new();
             if mode == ComposeMode::ReplyAll {
-                // Less the addresses the reply is from, not those of the owner's other accounts.
-                let is_from = |a: &Address| answers_as(s, m.account, &a.email);
+                // Less the addresses the reply is from, not those of the owner's other accounts;
+                // mail the owner sent skips every owner address, as before.
+                let own_sent = is_mine(&m.from);
+                let is_from = |a: &Address| if own_sent { is_mine(a) } else { answers_as(s, m.account, &a.email) };
                 for a in m.to.iter().filter(|a| !is_from(a)) {
                     add(&mut to, &[], a);
                 }
