@@ -378,11 +378,26 @@ fn a_sign_in_refused_by_status_alone_is_a_sign_in_refused() {
 fn a_page_in_place_of_a_message_is_no_message() {
     // What a server or a proxy answers with 200 when it doesn't take the sign-in: taken for the
     // message, it would be kept as its text and the message never asked for again.
+    // Sent as a page, it is the sign-in that wasn't taken, whatever it holds.
     let html = b"<!DOCTYPE html><html><body>Sign in</body></html>".to_vec();
-    assert_eq!(fetch::answer(&HttpResponse::new(200, html)), Err(Error::AuthRefused));
-    assert_eq!(fetch::answer(&HttpResponse::new(200, b"  \r\n<HTML lang=en>".to_vec())), Err(Error::AuthRefused));
-    let typed = HttpResponse::new(200, b"Subject: x\r\n\r\nbody".to_vec()).with_field("Content-Type", "Text/HTML; charset=utf-8");
-    assert_eq!(fetch::answer(&typed), Err(Error::AuthRefused));
+    for kind in ["text/html", "Text/HTML; charset=utf-8", " application/xhtml+xml"] {
+        assert_eq!(fetch::answer(&HttpResponse::new(200, html.clone()).with_field("Content-Type", kind)), Err(Error::AuthRefused), "{kind}");
+        let typed = HttpResponse::new(200, b"Subject: x\r\n\r\nbody".to_vec()).with_field("Content-Type", kind);
+        assert_eq!(fetch::answer(&typed), Err(Error::AuthRefused), "{kind}");
+    }
+    // One that only begins as a page does, sent as a message or as nothing, is no message
+    // either, but says nothing of the sign-in: a stored message that is broken this way would
+    // otherwise ask the owner to sign in again on every run.
+    for kind in [None, Some("message/rfc822"), Some("text/plain")] {
+        for body in [html.as_slice(), b"  \r\n<HTML lang=en>".as_slice()] {
+            let response = HttpResponse::new(200, body.to_vec());
+            let response = match kind {
+                Some(kind) => response.with_field("Content-Type", kind),
+                None => response,
+            };
+            assert_eq!(fetch::answer(&response), Err(Error::Unreadable), "{kind:?}");
+        }
+    }
     // A message whose own text is HTML is a message, whatever type the service sends it as.
     let mail = b"Subject: x\r\nContent-Type: text/html\r\n\r\n<html>hello</html>".to_vec();
     for kind in [Some("message/rfc822"), Some("text/plain"), None] {

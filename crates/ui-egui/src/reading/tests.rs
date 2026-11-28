@@ -4152,11 +4152,13 @@ fn the_selection_commands_take_anything_and_never_panic() {
 mod bg_pictures;
 mod inline_blocks;
 mod invitation;
+mod picture_lines;
 mod primary;
 mod remote_bar_why;
 mod remote_server;
 mod responsive;
 mod rtl;
+mod spacing;
 mod written_pictures;
 
 /// The original under a reply to HTML mail is laid out as the reading pane lays it out (its

@@ -2349,8 +2349,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "Atașare fișier"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Attach Item"
 msgstr "Atașare element"
@@ -2405,6 +2405,11 @@ msgstr "Opțiuni atașament pentru {name}"
 #, fuzzy
 msgid "Attachments"
 msgstr "Atașamente"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+msgid "Attachments can't be opened here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -5129,8 +5134,18 @@ msgstr "Gata: la zi"
 msgid "Done: {n} new"
 msgstr "Gata: {n} noi"
 
-#. android, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to download {name}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to open {name}"
+msgstr ""
+
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Download"
 msgstr "Descărcare"
@@ -7111,6 +7126,12 @@ msgstr "Răspunsurile să fie trimise la"
 msgid "Have replies sent to other addresses"
 msgstr "Răspunsurile să fie trimise la alte adrese"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "Antetul conține"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -9036,6 +9057,11 @@ msgstr "MailCraft poate acum să sincronizeze {account} cu Microsoft prin Micros
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "MailCraft nu poate păstra regulile acestui cont pe serverul lui"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "MailCraft can't open {name} because of its file type."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11658,7 +11684,7 @@ msgid "Nothing was done: what the agent asked about changed after you were asked
 msgstr "Nu s-a făcut nimic: ce a cerut agentul s-a schimbat după ce ați fost întrebat."
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Nothing was done: what you were asked about has changed since. Ask again."
 msgstr "Nu s-a făcut nimic: ceea ce vi s-a cerut s-a schimbat între timp. Încercați din nou."
@@ -12096,7 +12122,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "Doar cât timp MailCraft nu este fereastra din față și doar pentru dosarele Mesaje primite ale propriilor conturi."
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Open"
 msgstr "Deschidere"
@@ -12146,6 +12172,11 @@ msgstr "Deschidere fereastră de dialog"
 #, fuzzy
 msgid "Open Draft"
 msgstr "Deschidere ciornă"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Open Draft Attachment"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12725,8 +12756,9 @@ msgstr "Lipire imagine"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "Lipire doar text"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -13658,7 +13690,7 @@ msgid "Remove Account"
 msgstr "Eliminare cont"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Remove Attachment"
 msgstr "Eliminare atașament"
@@ -15851,7 +15883,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "Afișați o alertă pe desktop pentru mementouri"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Afișați o alertă pe desktop când sosește un e-mail nou"
@@ -18023,6 +18055,11 @@ msgstr "Domeniul {domain} indică un server pentru configurarea automată (Autod
 #, fuzzy
 msgid "The download was called off."
 msgstr "Descărcarea a fost anulată."
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "The draft isn't open any more"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -23100,6 +23137,12 @@ msgstr "are prea multe fișiere: restul nu a fost eliminat"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "header contains {words}"
+msgstr "antetul conține {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "high"
 msgstr "mare"
 
@@ -26475,6 +26518,12 @@ msgstr "{name} este o cutie poștală partajată al cărei cont nu mai există: 
 #, fuzzy
 msgid "{name} is already in {folder}."
 msgstr "{name} este deja în {folder}."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr "{name} a fost atașat: nu poate fi inserat în text ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

@@ -4,7 +4,7 @@
 //! them up in an order set by hand. Pure: widths come in, a plan goes out, so that the tests run
 //! it at every width without a window.
 
-use super::{Group, Item, MORE_W, Size, Tab};
+use super::{Group, Item, MORE_W, Menu, Size, Tab};
 use crate::widgets::{big_width, small_width};
 
 /// What the classic ribbon sets after a group, past the group's own width: the space either side
@@ -64,14 +64,36 @@ pub(crate) fn cells<'a>(items: &[&'a Item], stage: Stage) -> Vec<Cell<'a>> {
     out
 }
 
-/// A control that opens a menu and nothing else: it has a `▾`.
+/// A control that opens a menu in the classic layout: it has a `▾`.
 pub(crate) fn drops(item: &Item) -> bool {
-    item.command.is_none() && item.menu.is_some()
+    item.menu == Some(Menu::RecentAttachments) || (item.command.is_none() && item.menu.is_some())
 }
 
 /// The controls of a group the classic layout draws.
 pub(crate) fn shown(group: &Group) -> Vec<&Item> {
     group.items.iter().filter(|item| item.size != Size::Hidden).collect()
+}
+
+/// The classic layout can give a menu a field instead of an icon.
+pub(crate) fn picker(item: &Item, stage: Stage) -> Option<(Menu, f32)> {
+    match item.menu? {
+        Menu::Font => Some((Menu::Font, if stage == Stage::Icons { 86.0 } else { 102.0 })),
+        Menu::FontSize => Some((Menu::FontSize, if stage == Stage::Icons { 38.0 } else { 46.0 })),
+        _ => None,
+    }
+}
+
+/// Compact icon cells save horizontal space without changing the row or button order.
+pub(crate) fn packed_icon_width(item: &Item, stage: Stage) -> f32 {
+    small_width(None, drops(item)) - if stage == Stage::Icons { 4.0 } else { 0.0 }
+}
+
+pub(crate) fn packed_rows(group: &Group) -> impl Iterator<Item = Vec<&Item>> {
+    group.classic_rows.iter().map(|row| row.iter().filter_map(|key| group.items.iter().find(|item| item.key == *key)).collect())
+}
+
+pub(crate) fn show_label(stage: Stage) -> bool {
+    stage != Stage::Icons
 }
 
 /// How wide each stage of a group is, with the divider after it: `text(string, size)` measures a
@@ -86,13 +108,23 @@ pub(crate) fn group_widths(group: &Group, text: &dyn Fn(&str, f32) -> f32) -> [f
             *slot = big_width(text(title, 11.5), true) + GROUP_TAIL;
             continue;
         }
+        if !group.classic_rows.is_empty() {
+            let width = packed_rows(group)
+                .map(|row| {
+                    row.iter().map(|item| picker(item, stage).map_or_else(|| packed_icon_width(item, stage), |(_, w)| w)).sum::<f32>()
+                        + CELL_GAP * row.len().saturating_sub(1) as f32
+                })
+                .fold(0.0, f32::max);
+            *slot = width.max(title_w + 10.0) + GROUP_TAIL;
+            continue;
+        }
         let cells = cells(&items, stage);
         let mut content = 0.0;
         for cell in &cells {
             content += match cell {
                 Cell::Big(item) => big_width(tl!(item.label).split('\n').map(|l| text(l, 11.5)).fold(0.0, f32::max), drops(item)),
                 Cell::Column(items) => {
-                    items.iter().map(|item| small_width((stage != Stage::Icons).then(|| text(&item.name(), 11.5)), drops(item))).fold(0.0, f32::max)
+                    items.iter().map(|item| small_width(show_label(stage).then(|| text(&item.name(), 11.5)), drops(item))).fold(0.0, f32::max)
                 }
             };
         }

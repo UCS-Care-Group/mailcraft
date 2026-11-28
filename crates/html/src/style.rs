@@ -23,7 +23,9 @@
 //! | hidden | `display:none`, `visibility:hidden`, `opacity:0`, `max-height:0`, `max-width:0`, a zero `height` or `width` with `overflow:hidden` |
 //! | text too small to read | a font size of 2 pixels or less: the text at that size is not shown; what is inside at a size of its own is, and so are pictures, and so is the text of an element with a `class` or an `id` (or inside one that asks for the size and has one) when the message has no style sheet to say otherwise |
 //! | margins | `margin` and its sides: a size in `px`, `pt`, `em` or `%` (of 600 px), 0 to 64 pixels a side, negative is 0; `auto` is read for centring only |
-//! | padding | `padding` and its sides: the same units, 0 to 64 pixels a side |
+//! | padding | `padding` and its sides: the same units, 0 to 64 pixels a side; a table's `cellpadding` in every one of its cells on the sides the cell gives none of (`blocks.rs`) |
+//! | Outlook's own spacing | `mso-padding-alt` (as `padding`), `mso-margin-top-alt` and `mso-margin-bottom-alt` (as `margin-top` and `margin-bottom`): read only for a side the plain property leaves unsaid, with the same caps |
+//! | a bar of colour | `height` (or a cell's `height` attribute) on a block or cell with a background and nothing in it: a bar that tall, 1 to 64 pixels (`blocks.rs`); without a background it makes no room |
 //! | lines round a box | `border` and its sides, `border-width`, `border-style`, `border-color`: a width of 1 to 4 pixels (`thin`, `medium` and `thick` too), solid, dashed or dotted (every other style is drawn solid), and a colour a UI adjusts to its paper |
 //! | rounded corners | `border-radius`: its first length, 0 to 24 pixels |
 //! | line height | `line-height`: a number, a percentage, `em` or a length, 1 to 2.5 times the font size; also the part after the `/` of `font` |
@@ -142,6 +144,9 @@ pub(crate) struct Css {
     /// The families of `font-family`, as [`family`] gives them.
     pub font: Option<String>,
     pub hidden: bool,
+    /// Hidden by `display: none` in particular: the element is not there at all, where the other
+    /// ways of hiding keep its room (a table cell its place in its row).
+    pub display_none: bool,
     /// Whether the margin above (below) is given, and given as none to speak of: zero, or a
     /// few pixels (a line's own leading is more than that).
     pub margin_top_zero: Option<bool>,
@@ -160,8 +165,9 @@ pub(crate) struct Css {
     /// `Some(None)` is `normal`, which asks for nothing of its own.
     pub line_height: Option<Option<LineHeight>>,
     pub mso_list: Option<MsoList>,
-    /// The width and height when given in absolute units, in CSS pixels (for telling a tracking
-    /// pixel; never used to size anything).
+    /// The width and height when given in absolute units, in CSS pixels: for telling a tracking
+    /// pixel, sizing a picture that gives no size of its own, and the height of a bar of colour
+    /// that holds nothing (`blocks.rs`); nothing else is sized by them.
     pub width: Option<f32>,
     pub height: Option<f32>,
     /// The `width` a table or cell asks for, like its `width` attribute ([`Length`], clamped).
@@ -205,6 +211,11 @@ impl Css {
         // Clipped on the way across and on the way down: it takes both to unclip.
         let (mut clip_x, mut clip_y) = (false, false);
         let mut raw = [RawLine::default(); 4];
+        // Outlook's own spacing, for where the plain property says nothing (after the loop).
+        let mut mso_padding = [None; 4];
+        let (mut mso_top, mut mso_bottom) = (None, None);
+        // Whether a plain margin above (below) is written, `auto` too: Outlook's then says nothing.
+        let mut plain_margin = [false; 2];
         for (property, value) in declarations(truncate(style, max_bytes)).take(max_declarations) {
             if property.len() > 32 {
                 continue;
@@ -336,6 +347,7 @@ impl Css {
                     css.margin_top_zero = top.or(css.margin_top_zero);
                     css.margin_bottom_zero = bottom.or(css.margin_bottom_zero);
                     if let Some(sides) = sides4(value, margin_px) {
+                        plain_margin = [true; 2];
                         for (slot, side) in css.margin.iter_mut().zip(sides) {
                             *slot = side;
                         }
@@ -350,10 +362,12 @@ impl Css {
                     set_side(&mut css.margin, 1, margin_px(value));
                 }
                 "margin-top" | "margin-block-start" => {
+                    plain_margin[0] |= margin_px(value).is_some();
                     css.margin_top_zero = is_slight(value).or(css.margin_top_zero);
                     set_side(&mut css.margin, 0, margin_px(value));
                 }
                 "margin-bottom" | "margin-block-end" => {
+                    plain_margin[1] |= margin_px(value).is_some();
                     css.margin_bottom_zero = is_slight(value).or(css.margin_bottom_zero);
                     set_side(&mut css.margin, 2, margin_px(value));
                 }
@@ -368,6 +382,14 @@ impl Css {
                 "padding-right" => set_side(&mut css.padding, 1, padding_px(value).map(Some)),
                 "padding-bottom" | "padding-block-end" => set_side(&mut css.padding, 2, padding_px(value).map(Some)),
                 "padding-left" => set_side(&mut css.padding, 3, padding_px(value).map(Some)),
+                "mso-padding-alt" => {
+                    if let Some(sides) = sides4(value, padding_px) {
+                        mso_padding = sides.map(Some);
+                    }
+                }
+                // (`auto` takes back one before it; nonsense is ignored.)
+                "mso-margin-top-alt" => mso_top = if value == "auto" { None } else { mso_margin(value).or(mso_top) },
+                "mso-margin-bottom-alt" => mso_bottom = if value == "auto" { None } else { mso_margin(value).or(mso_bottom) },
                 "border" => {
                     if let Some(line) = line_shorthand(value) {
                         raw = [line; 4];
@@ -446,6 +468,20 @@ impl Css {
             || opacity_zero
             || display_none
             || visibility_hidden;
+        css.display_none = display_none;
+        for (side, alt) in css.padding.iter_mut().zip(mso_padding) {
+            *side = side.or(alt);
+        }
+        let sides = [(&mut css.margin_top_zero, 0), (&mut css.margin_bottom_zero, 2)];
+        for (((zero, px), alt), plain) in sides.into_iter().zip([mso_top, mso_bottom]).zip(plain_margin) {
+            // (A plain margin that could not be read says nothing, whatever it set aside.)
+            if let (false, Some((slight, alt))) = (plain, alt)
+                && css.margin.get(px).is_some_and(Option::is_none)
+            {
+                *zero = Some(slight);
+                set_side(&mut css.margin, px, Some(Some(alt)));
+            }
+        }
         for ((line, raw), border) in css.lines.iter_mut().zip(raw).zip(&mut css.borders) {
             *line = raw.finish();
             *border = line.is_set();
@@ -590,6 +626,12 @@ fn box_px(token: &str, negative: bool) -> Option<u8> {
 
 fn padding_px(token: &str) -> Option<u8> {
     box_px(token, false)
+}
+
+/// An Outlook margin (`mso-margin-top-alt`): whether it is slight ([`is_slight`]) and its pixels,
+/// as `margin-top` gives them; nothing for `auto` (Word's own paragraph spacing) or nonsense.
+fn mso_margin(value: &str) -> Option<(bool, u8)> {
+    Some((is_slight(value)?, margin_px(value)??))
 }
 
 /// A margin: `Some(None)` for `auto`, which centres and takes no room of its own.
