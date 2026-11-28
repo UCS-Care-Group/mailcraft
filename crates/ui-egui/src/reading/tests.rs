@@ -4949,6 +4949,57 @@ fn a_shown_picture_can_be_saved_or_copied_and_one_that_is_not_cannot() {
     assert_eq!((named(&harness, save), named(&harness, copy)), (1, 1));
 }
 
+/// A picture still decoding can be the menu's target. When that decode then fails, Save Picture
+/// As… and Copy Picture leave the menu that is already open (#1420).
+#[test]
+fn a_menu_open_on_a_picture_drops_it_when_the_pixels_will_not_decode() {
+    let mut html = String::from("<p>Hello</p>");
+    let mut attachments = Vec::new();
+    // One picture is decoded per frame, so these keep the torn one waiting through the click.
+    for n in 0..24u8 {
+        let bytes = encode(image::DynamicImage::ImageRgba8(mark(8, 8, [n, 40, 80])), image::ImageFormat::Png);
+        let cid = format!("p{n}@example");
+        html.push_str(&format!("<img src=\"cid:{cid}\" alt=\"p{n}\">"));
+        attachments.push(Attachment { content_id: cid, inline: true, ..Attachment::new(format!("p{n}.png"), "image/png", bytes) });
+    }
+    let mut torn = png(16, 10);
+    torn.truncate(48);
+    html.push_str("<img src=\"cid:torn@example\" alt=\"torn\">");
+    attachments.push(Attachment { content_id: "torn@example".into(), inline: true, ..Attachment::new("torn.png", "image/png", torn) });
+    let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
+    let inbox = mailbox.inbox().unwrap();
+    let id = mailbox
+        .add_message(Message {
+            folder: inbox,
+            from: Address::new("Lin", "lin@example.org"),
+            subject: "Still decoding".into(),
+            read: true,
+            body: Body { html: Some(html), text: "Hello".into() },
+            attachments,
+            ..Message::default()
+        })
+        .unwrap();
+    let mut harness = window(MailApp::new(Session::at(mailbox, NOW, 0), Services::default()), (1100.0, 900.0));
+    select(&mut harness, id);
+    let torn_at = super::view::kept(&harness.ctx, id, |laid, origin| {
+        laid.items
+            .iter()
+            .find(|item| matches!(&item.kind, ItemKind::Picture(p) if p.src.as_deref() == Some("cid:torn@example")))
+            .map(|item| item.rect.translate(origin.to_vec2()).center())
+    })
+    .unwrap()
+    .unwrap();
+    menu_click(&mut harness, torn_at);
+    let (save, copy, all) = ("Save Picture As…", "Copy Picture", keyed("Select All", "Mod+A"));
+    let named = |harness: &Window, label: &str| harness.query_all_by_label(label).count();
+    assert_eq!((named(&harness, save), named(&harness, copy)), (1, 1), "still decoding, so the menu offers both");
+    assert_eq!(named(&harness, &all), 1);
+    // The frames after the click are the ones that reach this picture and refuse its pixels.
+    harness.run_steps(24);
+    assert_eq!((named(&harness, save), named(&harness, copy)), (0, 0));
+    assert_eq!(named(&harness, &all), 1);
+}
+
 /// A reply to a message read in the dark theme quotes it as the pane read it: what its style sheet
 /// hides in a dark window is not in the quote.
 #[test]

@@ -856,7 +856,14 @@ pub fn paint(
             }));
         }
         let on_link = state.menu_link();
-        let on_picture = state.menu_picture();
+        // The click remembered a picture that was still decoding. A later frame can find that
+        // its pixels will not decode; the menu already open then loses Save and Copy.
+        let on_picture = state
+            .menu_picture()
+            .filter(|picture| !pictures.as_ref().is_some_and(|store| store.lock().unwrap_or_else(|e| e.into_inner()).undecodable(&picture.bytes)));
+        if on_picture.is_none() {
+            state.set_menu_picture(None);
+        }
         response.context_menu(|ui| asked = select::menu(ui, selected.is_some(), true, on_link.as_ref(), on_picture.as_ref()));
     }
     // While a drag selects, nothing pops up under it; nor over a menu, which opens right where
