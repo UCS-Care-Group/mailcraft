@@ -4071,7 +4071,7 @@ fn a_copy_of_a_message_that_is_still_being_laid_out_waits_for_all_of_it() {
 fn the_selection_commands_take_anything_and_never_panic() {
     let (mut app, ids) = corpus_app(false);
     // Before there is a window, and with nothing selected.
-    for command in ["ui.copySelection", "ui.selectAllInMessage", "ui.copyLinkAddress"] {
+    for command in ["ui.copySelection", "ui.selectAllInMessage", "ui.copyLinkAddress", "ui.copyPicture"] {
         assert!(app.execute(command, json!({})).is_err(), "{command}");
     }
     let junk = [
@@ -4101,7 +4101,7 @@ fn the_selection_commands_take_anything_and_never_panic() {
     let id = id_of(&ids, "strange text");
     let mut harness = window(app, (1280.0, 900.0));
     select(&mut harness, id);
-    for command in ["ui.copySelection", "ui.selectAllInMessage", "ui.copyLinkAddress"] {
+    for command in ["ui.copySelection", "ui.selectAllInMessage", "ui.copyLinkAddress", "ui.copyPicture"] {
         for params in &junk {
             let _ = harness.state_mut().execute(command, params.clone());
             let _ = harness.state_mut().run(command, params.clone());
@@ -4832,6 +4832,224 @@ fn the_bar_turns_on_pictures_in_all_mail_after_asking() {
     // A script or an agent is never asked: the command does what it is told.
     assert_eq!(harness.state_mut().execute("ui.downloadPicturesAutomatically", json!({"value": true})).unwrap()["value"], true);
     assert!(harness.state().dialog.is_none());
+}
+
+/// A picture that is shown can be saved and copied; one that is not, and a tracking picture, cannot (#1420).
+#[test]
+fn a_shown_picture_can_be_saved_or_copied_and_one_that_is_not_cannot() {
+    let shot = png(20, 12);
+    let chart = png(8, 8);
+    // A PNG whose header still names a size, with the pixels cut off.
+    let mut torn = png(16, 10);
+    torn.truncate(48);
+    let chart_b64 = mailcraft_engine::cmd::base64_encode(&chart);
+    let html = format!(
+        "<p>Hello</p><img src=\"cid:shot@example\" alt=\"ridge\"><p>After</p><img src=\"data:image/png;base64,{chart_b64}\" alt=\"chart\"><p>End</p><img src=\"cid:torn@example\" alt=\"torn\"><img src=\"https://t.example/o.gif\" width=\"1\" height=\"1\"><img src=\"https://img.example/blocked.png\" alt=\"blocked\">"
+    );
+    let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
+    let inbox = mailbox.inbox().unwrap();
+    let id = mailbox
+        .add_message(Message {
+            folder: inbox,
+            from: Address::new("Lin", "lin@example.org"),
+            subject: "A picture".into(),
+            read: true,
+            body: Body { html: Some(html), text: "Hello".into() },
+            attachments: vec![
+                Attachment { content_id: "shot@example".into(), inline: true, ..Attachment::new("ridge.png", "image/png", shot.clone()) },
+                Attachment { content_id: "torn@example".into(), inline: true, ..Attachment::new("torn.png", "image/png", torn) },
+            ],
+            ..Message::default()
+        })
+        .unwrap();
+    let copied = Arc::new(Mutex::new(Vec::<Vec<u8>>::new()));
+    struct Board(Arc<Mutex<Vec<Vec<u8>>>>);
+    impl crate::RichClipboard for Board {
+        fn put(&self, _: &str, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn html(&self) -> Option<String> {
+            None
+        }
+        fn put_image(&self, bytes: &[u8]) -> Result<(), String> {
+            self.0.lock().unwrap().push(bytes.to_vec());
+            Ok(())
+        }
+    }
+    let mut app = MailApp::new(Session::at(mailbox, NOW, 0), Services::default());
+    app.autosave = false;
+    app.services.clipboard = Some(Box::new(Board(copied.clone())));
+    let mut harness = window(app, (1100.0, 900.0));
+    select(&mut harness, id);
+
+    let ctx = harness.ctx.clone();
+    let (shot_at, chart_at, torn_at, blocked_at, width, dark) = super::view::kept(&ctx, id, |laid, origin| {
+        let center = |item: &Item| item.rect.translate(origin.to_vec2()).center();
+        let pictures: Vec<_> = laid.items.iter().filter(|item| matches!(item.kind, ItemKind::Picture(_))).collect();
+        assert_eq!(pictures.len(), 3, "the part, the picture written into the message, and the one whose pixels are cut off");
+        let ItemKind::Picture(first) = &pictures[0].kind else { panic!("the first shown picture") };
+        let ItemKind::Picture(second) = &pictures[1].kind else { panic!("the second shown picture") };
+        let ItemKind::Picture(third) = &pictures[2].kind else { panic!("the torn picture") };
+        assert_eq!(
+            (first.src.as_deref(), second.src.as_deref(), third.src.as_deref()),
+            (Some("cid:shot@example"), Some("data:0"), Some("cid:torn@example"))
+        );
+        let blocked = laid.items.iter().find(|item| matches!(&item.kind, ItemKind::Placeholder(p) if p.src.contains("blocked.png"))).unwrap();
+        assert!(laid.items.iter().all(|item| !matches!(&item.kind, ItemKind::Placeholder(p) if p.src.contains("o.gif"))));
+        let (width, dark) = laid.media();
+        (center(pictures[0]), center(pictures[1]), center(pictures[2]), center(blocked), width, dark)
+    })
+    .unwrap();
+    // The width and theme the pane recorded, not the layout's own answer fed back to itself.
+    let (recorded, _) = harness.state().session.read_as(id, mailcraft_engine::ReadIn::Pane).unwrap();
+    assert_eq!((width, dark), (recorded.width(), recorded.dark()));
+    assert!(width > 0);
+
+    let (save, copy) = ("Save Picture As…", "Copy Picture");
+    let named = |harness: &Window, label: &str| harness.query_all_by_label(label).count();
+    menu_click(&mut harness, shot_at);
+    assert_eq!((named(&harness, save), named(&harness, copy)), (1, 1));
+    choose(&mut harness, copy, shot_at);
+    harness.run_steps(3);
+    assert_eq!(copied.lock().unwrap().as_slice(), std::slice::from_ref(&shot));
+
+    menu_click(&mut harness, chart_at);
+    choose(&mut harness, copy, chart_at);
+    harness.run_steps(3);
+    assert_eq!(copied.lock().unwrap().last().map(Vec::as_slice), Some(chart.as_slice()));
+
+    let got = harness.state_mut().execute("mail.savePicture", json!({"id": id, "src": "cid:shot@example", "width": width, "dark": dark})).unwrap();
+    assert_eq!(got["name"], "ridge.png");
+    assert_eq!(mailcraft_engine::cmd::base64_decode(got["data"].as_str().unwrap()).unwrap(), shot);
+    let got = harness.state_mut().execute("mail.savePicture", json!({"id": id, "src": "data:0", "width": width, "dark": dark})).unwrap();
+    assert_eq!(mailcraft_engine::cmd::base64_decode(got["data"].as_str().unwrap()).unwrap(), chart);
+
+    menu_click(&mut harness, blocked_at);
+    assert_eq!((named(&harness, save), named(&harness, copy)), (0, 0));
+    // Laid out from its header, then drawn as a stand-in once the pixels will not decode.
+    harness.run_steps(6);
+    menu_click(&mut harness, torn_at);
+    assert_eq!((named(&harness, save), named(&harness, copy)), (0, 0));
+    let why = harness
+        .state_mut()
+        .execute("mail.savePicture", json!({"id": id, "src": "https://t.example/o.gif", "cached": mailcraft_engine::cmd::base64_encode(&shot)}))
+        .unwrap_err();
+    assert!(why.contains("no such picture"), "{why}");
+    let why = harness.state_mut().execute("mail.savePicture", json!({"id": id, "src": "https://img.example/blocked.png"})).unwrap_err();
+    assert!(why.contains("nothing is downloaded"), "{why}");
+
+    let own = harness.state_mut().execute("ui.openWindow", json!({"message": id})).unwrap()["window"].as_u64().unwrap();
+    harness.run_steps(8);
+    let at = super::view::kept_at(&harness.ctx, Place::Window(own), id, |laid, origin| {
+        laid.items.iter().find(|item| matches!(item.kind, ItemKind::Picture(_))).map(|item| item.rect.translate(origin.to_vec2()).center())
+    })
+    .flatten()
+    .unwrap();
+    menu_click(&mut harness, at);
+    assert_eq!((named(&harness, save), named(&harness, copy)), (1, 1));
+}
+
+/// A picture in a message file that is not in the mailbox can be copied from its window. The
+/// message's number is none, so the command reads the window's own message (#1420).
+#[test]
+fn a_picture_in_an_unfiled_message_can_be_copied_from_its_window() {
+    let shot = png(20, 12);
+    let message = Message {
+        id: 0,
+        from: Address::new("Lin", "lin@example.org"),
+        subject: "Handed over".into(),
+        read: true,
+        body: Body { html: Some(r#"<p>Hello</p><img src="cid:shot@example" alt="ridge">"#.into()), text: "Hello".into() },
+        attachments: vec![Attachment { content_id: "shot@example".into(), inline: true, ..Attachment::new("ridge.png", "image/png", shot.clone()) }],
+        ..Message::default()
+    };
+    let copied = Arc::new(Mutex::new(Vec::<Vec<u8>>::new()));
+    struct Board(Arc<Mutex<Vec<Vec<u8>>>>);
+    impl crate::RichClipboard for Board {
+        fn put(&self, _: &str, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn html(&self) -> Option<String> {
+            None
+        }
+        fn put_image(&self, bytes: &[u8]) -> Result<(), String> {
+            self.0.lock().unwrap().push(bytes.to_vec());
+            Ok(())
+        }
+    }
+    let mut app = MailApp::new(Session::at(Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example"), NOW, 0), Services::default());
+    app.autosave = false;
+    app.services.clipboard = Some(Box::new(Board(copied.clone())));
+    let window_id = app.windows.add_file(Arc::new(message), Arc::new(Vec::new())).unwrap();
+    let mut harness = window(app, (1100.0, 900.0));
+    let at = super::view::kept_at(&harness.ctx, Place::Window(window_id), 0, |laid, origin| {
+        laid.items
+            .iter()
+            .find(|item| matches!(&item.kind, ItemKind::Picture(p) if p.src.as_deref() == Some("cid:shot@example")))
+            .map(|item| item.rect.translate(origin.to_vec2()).center())
+    })
+    .flatten()
+    .expect("the unfiled message shows its picture");
+    menu_click(&mut harness, at);
+    let named = |harness: &Window, label: &str| harness.query_all_by_label(label).count();
+    assert_eq!((named(&harness, "Save Picture As…"), named(&harness, "Copy Picture")), (1, 1));
+    choose(&mut harness, "Copy Picture", at);
+    harness.run_steps(3);
+    assert_eq!(copied.lock().unwrap().as_slice(), std::slice::from_ref(&shot));
+    // The mailbox command will not read a message numbered 0, which an unfiled message is given.
+    let why = harness.state_mut().execute("mail.savePicture", json!({"id": 0, "src": "cid:shot@example"})).unwrap_err();
+    assert!(why.contains("above 0"), "{why}");
+}
+
+/// A picture still decoding can be the menu's target. When that decode then fails, Save Picture
+/// As… and Copy Picture leave the menu that is already open (#1420).
+#[test]
+fn a_menu_open_on_a_picture_drops_it_when_the_pixels_will_not_decode() {
+    let mut html = String::from("<p>Hello</p>");
+    let mut attachments = Vec::new();
+    // One picture is decoded per frame, so these keep the torn one waiting through the click.
+    for n in 0..24u8 {
+        let bytes = encode(image::DynamicImage::ImageRgba8(mark(8, 8, [n, 40, 80])), image::ImageFormat::Png);
+        let cid = format!("p{n}@example");
+        html.push_str(&format!("<img src=\"cid:{cid}\" alt=\"p{n}\">"));
+        attachments.push(Attachment { content_id: cid, inline: true, ..Attachment::new(format!("p{n}.png"), "image/png", bytes) });
+    }
+    let mut torn = png(16, 10);
+    torn.truncate(48);
+    html.push_str("<img src=\"cid:torn@example\" alt=\"torn\">");
+    attachments.push(Attachment { content_id: "torn@example".into(), inline: true, ..Attachment::new("torn.png", "image/png", torn) });
+    let mut mailbox = Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example");
+    let inbox = mailbox.inbox().unwrap();
+    let id = mailbox
+        .add_message(Message {
+            folder: inbox,
+            from: Address::new("Lin", "lin@example.org"),
+            subject: "Still decoding".into(),
+            read: true,
+            body: Body { html: Some(html), text: "Hello".into() },
+            attachments,
+            ..Message::default()
+        })
+        .unwrap();
+    let mut harness = window(MailApp::new(Session::at(mailbox, NOW, 0), Services::default()), (1100.0, 900.0));
+    select(&mut harness, id);
+    let torn_at = super::view::kept(&harness.ctx, id, |laid, origin| {
+        laid.items
+            .iter()
+            .find(|item| matches!(&item.kind, ItemKind::Picture(p) if p.src.as_deref() == Some("cid:torn@example")))
+            .map(|item| item.rect.translate(origin.to_vec2()).center())
+    })
+    .unwrap()
+    .unwrap();
+    menu_click(&mut harness, torn_at);
+    let (save, copy, all) = ("Save Picture As…", "Copy Picture", keyed("Select All", "Mod+A"));
+    let named = |harness: &Window, label: &str| harness.query_all_by_label(label).count();
+    assert_eq!((named(&harness, save), named(&harness, copy)), (1, 1), "still decoding, so the menu offers both");
+    assert_eq!(named(&harness, &all), 1);
+    // The frames after the click are the ones that reach this picture and refuse its pixels.
+    harness.run_steps(24);
+    assert_eq!((named(&harness, save), named(&harness, copy)), (0, 0));
+    assert_eq!(named(&harness, &all), 1);
 }
 
 /// A reply to a message read in the dark theme quotes it as the pane read it: what its style sheet

@@ -176,6 +176,9 @@ pub mod rules_remote;
 mod rules_remote_tests;
 #[cfg(test)]
 mod rules_waiting_tests;
+pub mod save_picture;
+#[cfg(test)]
+mod save_picture_tests;
 #[cfg(test)]
 mod search_scope_tests;
 pub mod search_server;
@@ -237,6 +240,7 @@ pub fn registry() -> Registry {
     v.extend(help::specs());
     v.extend(edit::specs());
     v.extend(mail::specs());
+    v.extend(save_picture::specs());
     v.extend(snooze::specs());
     v.extend(followup::specs());
     v.extend(gmail_move::specs());

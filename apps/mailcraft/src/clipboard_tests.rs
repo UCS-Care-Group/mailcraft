@@ -10,6 +10,13 @@ fn a_picture_on_the_clipboard_is_kept_as_png() {
     assert_eq!(super::png(2, 2, &[0; 8]), None);
     assert_eq!(super::png(0, 0, &[]), None);
     assert_eq!(super::png(MAX_SIDE + 1, 1, &[0; 4 * (MAX_SIDE + 1)]), None);
+    let mut png_bytes = Vec::new();
+    image::DynamicImage::ImageRgba8(image::RgbaImage::from_pixel(2, 1, image::Rgba([255, 0, 0, 255])))
+        .write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
+        .unwrap();
+    let (w, h, rgba) = pixels(&png_bytes).unwrap();
+    assert_eq!((w, h, rgba.as_slice()), (2, 1, [255, 0, 0, 255, 255, 0, 0, 255].as_slice()));
+    assert!(pixels(b"<html></html>").is_err());
 }
 
 #[test]

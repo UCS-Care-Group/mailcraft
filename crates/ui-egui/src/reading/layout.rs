@@ -231,6 +231,9 @@ pub struct PictureItem {
     pub alt: String,
     pub link: Option<Arc<str>>,
     pub paper: Paper,
+    /// How a command names this picture: `cid:…`, `data:<n>`, or an http(s) address. `None` when
+    /// it cannot be named (a picture written into the message whose place among them was lost).
+    pub src: Option<Arc<str>>,
 }
 
 /// What stands where a picture is not shown: it is not the message's own (and was not asked
@@ -294,6 +297,9 @@ pub struct Laid {
     cuts: Arc<[Option<Glue>]>,
     /// How large the text is set, 1.0 as it comes (`view.zoom`).
     zoom: f32,
+    /// The pane the blocks were read for, so `data:<n>` is the same picture the command finds.
+    media_width: u16,
+    media_dark: bool,
 }
 
 impl Laid {
@@ -331,6 +337,17 @@ impl Laid {
         Laid { cuts, ..self }
     }
 
+    /// The same, for blocks read in a pane `width` pixels wide, dark when `dark`. A picture's
+    /// `data:<n>` is counted in that reading (#1420).
+    pub fn for_media(self, width: u16, dark: bool) -> Laid {
+        Laid { media_width: width, media_dark: dark, ..self }
+    }
+
+    /// The pane [`Laid::for_media`] recorded: width in pixels, and whether it was dark.
+    pub(super) fn media(&self) -> (u16, bool) {
+        (self.media_width, self.media_dark)
+    }
+
     /// The `seg`th thing that can be selected.
     pub fn segment(&self, seg: usize) -> Option<&Item> {
         self.segs.get(seg).and_then(|index| self.items.get(*index as usize))
@@ -355,6 +372,7 @@ impl Laid {
             t,
             parts: message.map(|m| mailcraft_model::shown::PartIndex::new(&m.attachments)),
             pictures,
+            blocks,
             remote: self.remote,
             frame: images::frame(ctx),
             items: std::mem::take(&mut self.items),
@@ -394,6 +412,8 @@ struct Cx<'a> {
     /// The message's parts by `Content-ID`, where `cid:` pictures are looked up.
     parts: Option<mailcraft_model::shown::PartIndex<'a>>,
     pictures: &'a mut Pictures,
+    /// The blocks being laid out, so a picture written into the message can be counted.
+    blocks: &'a [Block],
     /// Pictures from the web are shown when they have come.
     remote: bool,
     frame: u64,
@@ -1125,6 +1145,20 @@ fn pictures(cx: &mut Cx<'_>, run: &[Block], x: f32, y: f32, width: f32, paper: P
     y
 }
 
+/// `cid:…` or an http(s) address as the block has it, or `data:<n>` for a picture written into
+/// the message: its place among those the parser kept, in reading order (#1420).
+fn command_src(blocks: &[Block], block: &Block, src: &str) -> Option<Arc<str>> {
+    let src = src.trim();
+    if src.get(..5).is_some_and(|head| head.eq_ignore_ascii_case("data:")) {
+        let n = mailcraft_html::images(blocks)
+            .into_iter()
+            .filter(|other| matches!(&other.kind, BlockKind::Image { data: Some(_), .. }))
+            .position(|other| std::ptr::eq(other, block))?;
+        return Some(Arc::from(format!("data:{n}")));
+    }
+    if src.is_empty() { None } else { Some(Arc::from(src)) }
+}
+
 /// Put a picture, or what stands for it, at `rect`. `said`: a description of a picture in the
 /// same line was given its place in a copy already.
 fn put_tile(cx: &mut Cx<'_>, tile: &Tile<'_>, rect: Rect, paper: Paper, said: &mut bool) {
@@ -1132,7 +1166,10 @@ fn put_tile(cx: &mut Cx<'_>, tile: &Tile<'_>, rect: Rect, paper: Paper, said: &m
     let rect = tile.padding.map_or(rect, |pad| Rect::from_min_max(rect.min + vec2(pad.left, pad.top), rect.max - vec2(pad.right, pad.bottom)));
     let link = link.as_deref().map(Arc::from);
     match &tile.data {
-        Some(data) => cx.push_seg(rect, ItemKind::Picture(PictureItem { data: data.clone(), alt: tile.label.clone(), link, paper })),
+        Some(data) => {
+            let named = command_src(cx.blocks, tile.block, src);
+            cx.push_seg(rect, ItemKind::Picture(PictureItem { data: data.clone(), alt: tile.label.clone(), link, paper, src: named }));
+        }
         None => {
             let remote = !mailcraft_html::is_embedded(src);
             // A picture that is not shown is copied as its description, when it has one;

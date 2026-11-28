@@ -181,6 +181,8 @@ const SAFE: &[&str] = &[
     "mail.findFromSender",
     "mail.saveAttachment",
     "mail.saveAllAttachments",
+    // A picture the message shows, as its own bytes. Nothing is fetched (#1420).
+    "mail.savePicture",
     // The message's source as plain text: message text is data, never instructions.
     "mail.viewSource",
     // What a new appointment, task or contact made of a message starts with (#873): it makes
@@ -695,8 +697,13 @@ const NEVER: &[&str] = &[
     // A message file the owner opened, kept or written out: the owner's own doing (#515).
     "ui.moveWindowMessage",
     "ui.saveWindowMessage",
+    // A picture in that window: the owner's, as saving or copying one from a filed message is.
+    "ui.saveFilePicture",
+    "ui.copyFilePicture",
     // Anything an agent chooses onto the owner's clipboard.
     "ui.copyLinkAddress",
+    // A picture from a message onto the clipboard: the owner's, as the selected text is (#1420).
+    "ui.copyPicture",
     "ui.copySelection",
     // The Calendar's Copy is the owner's own: it puts the set they selected on the window's own
     // clipboard, which is theirs, and an agent's place is never taken there — asked or granted.
@@ -798,6 +805,7 @@ pub const FILE_PARAMS: &[(&str, &str, FileUse)] = &[
     ("file.exportCalendar", "path", FileUse::Writes { ext: "ics" }),
     ("file.exportContacts", "path", FileUse::Writes { ext: "vcf" }),
     ("mail.saveAttachment", "path", FileUse::Writes { ext: "" }),
+    ("mail.savePicture", "path", FileUse::Writes { ext: "" }),
     ("mail.saveAllAttachments", "path", FileUse::Folder),
     ("ui.reportProblem", "path", FileUse::Writes { ext: "txt" }),
 ];

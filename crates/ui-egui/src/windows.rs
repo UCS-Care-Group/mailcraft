@@ -182,6 +182,9 @@ pub struct Windows {
     /// The windows taken out of `open` while they are laid out ([`show`]): their numbers, and the
     /// message being written each shows, so that what runs inside one still finds them.
     out: Vec<(u64, Option<u64>)>,
+    /// Message-file windows taken out with them: a picture's menu runs while `open` is empty, and
+    /// still has to read the message that window holds (#1420).
+    files: Vec<(u64, Arc<Message>)>,
     /// A window of the system drew the dialog this frame, over itself: the main window doesn't.
     pub(crate) dialog_shown: bool,
     /// The message being written whose window opened the dialog that is open (Insert Link, Word
@@ -276,6 +279,16 @@ impl Windows {
     /// The window that shows `event`, by its number.
     pub fn of_event(&self, event: Id) -> Option<u64> {
         self.open.iter().find(|w| w.what.subject() == Some((false, event))).map(|w| w.id)
+    }
+
+    /// The message a message-file window holds, when `id` is that window. While the windows are
+    /// laid out, `open` is empty and the message is the one [`show`] kept aside.
+    pub(crate) fn file_message(&self, id: u64) -> Option<&Arc<Message>> {
+        let shown = self.open.iter().find(|w| w.id == id).and_then(|w| match &w.what {
+            What::File { message, .. } => Some(message),
+            _ => None,
+        });
+        shown.or_else(|| self.files.iter().find(|(window, _)| *window == id).map(|(_, message)| message))
     }
 
     /// Open a window for a message file ([`crate::opened_message`]); `Err` at the bound.
@@ -513,6 +526,40 @@ fn move_opened(app: &mut MailApp, p: &Value) -> Result<Value, String> {
         w.what = What::Message { message: id, seen };
     }
     Ok(json!({"window": number, "message": id}))
+}
+
+/// The picture a message-file window shows, from that window's own message. Nothing is fetched.
+fn held_picture(app: &MailApp, p: &Value) -> Result<(String, Vec<u8>), String> {
+    let id = p.get("window").and_then(Value::as_u64).ok_or_else(|| "`window` is a number".to_string())?;
+    let message = app.windows.file_message(id).ok_or_else(|| tl!("No window shows a message file").to_string())?;
+    mailcraft_engine::cmd::save_picture::from_message(message, p).map_err(|e| e.to_string())
+}
+
+/// `ui.saveFilePicture`: a picture shown in a message-file window, written to `path`; without
+/// one, its bytes are answered as `data` (base64). The message is not in the mailbox.
+fn save_file_picture(app: &mut MailApp, p: &Value) -> Result<Value, String> {
+    let (name, bytes) = held_picture(app, p)?;
+    match p.get("path").and_then(Value::as_str) {
+        #[cfg(not(target_arch = "wasm32"))]
+        Some(path) => {
+            mailcraft_engine::mark::write_from_mail(std::path::Path::new(path), &bytes).map_err(|e| format!("{path}: {e}"))?;
+            Ok(json!({"path": path, "bytes": bytes.len()}))
+        }
+        _ => Ok(json!({"name": name, "bytes": bytes.len(), "data": mailcraft_engine::cmd::base64_encode(&bytes)})),
+    }
+}
+
+/// `ui.copyFilePicture`: that picture, onto the clipboard, as its own bytes.
+fn copy_file_picture(app: &mut MailApp, p: &Value) -> Result<Value, String> {
+    let (name, bytes) = held_picture(app, p)?;
+    let Some(board) = app.services.clipboard.as_ref() else {
+        return Err(tl!("This build can't copy a picture").to_string());
+    };
+    if let Err(e) = board.put_image(&bytes) {
+        log::warn!("the clipboard took no picture: {e}");
+        return Err(tl!("That picture can't be copied").to_string());
+    }
+    Ok(json!({"name": name, "bytes": bytes.len()}))
 }
 
 /// `ui.saveWindowMessage`: the file of a message-file window written to `path`; without one, its
@@ -837,6 +884,8 @@ pub(crate) fn ui_command(app: &mut MailApp, id: &str, p: &Value) -> Option<Resul
         "ui.closeWindow" => close(app, p),
         "ui.moveWindowMessage" => move_opened(app, p),
         "ui.saveWindowMessage" => save_opened(app, p),
+        "ui.saveFilePicture" => save_file_picture(app, p),
+        "ui.copyFilePicture" => copy_file_picture(app, p),
         "ui.eventWindow" => event_window(app, p),
         _ => return None,
     })
@@ -985,6 +1034,13 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     let embedded = ctx.embed_viewports();
     let mut open = std::mem::take(&mut app.windows.open);
     app.windows.out = open.iter().map(|w| (w.id, w.what.compose())).collect();
+    app.windows.files = open
+        .iter()
+        .filter_map(|w| match &w.what {
+            What::File { message, .. } => Some((w.id, message.clone())),
+            _ => None,
+        })
+        .collect();
     // What a window shows may have gone since the last frame, or become something else.
     open.retain_mut(|w| match &mut w.what {
         What::Message { message, seen } => match app.session.mailbox.messages.get(message) {
@@ -1038,6 +1094,7 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         }
     }
     app.windows.out.clear();
+    app.windows.files.clear();
     // A list of monitors is for the frame it was made in.
     app.windows.monitors = None;
     // What ran inside may have opened more: nothing twice, and no more than there may be.

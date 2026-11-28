@@ -4067,6 +4067,12 @@ msgstr "ბმულის მისამართის კოპირებ�
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
+msgid "Copy Picture"
+msgstr "სურათის კოპირება"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Selected Text"
 msgstr "მონიშნული ტექსტის კოპირება"
 
@@ -9536,7 +9542,7 @@ msgid "Merged PRs"
 msgstr ""
 
 #. android, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/save_picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "წერილი"
@@ -14478,6 +14484,12 @@ msgid "Save Message File As"
 msgstr "წერილის ფაილის შენახვა როგორც"
 
 #. command label
+#: crates/engine/src/cmd/save_picture.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Save Picture As…"
+msgstr "სურათის შენახვა როგორც…"
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Save Signature"
@@ -17322,6 +17334,12 @@ msgstr "ეს გასაღები უკვე ბარათზეა"
 msgid "That paste was just made, so nothing was pasted again"
 msgstr "ეს ჩასმა ახლახან შესრულდა, ამიტომ თავიდან არაფერი ჩასმულა"
 
+#. interface
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
+#, fuzzy
+msgid "That picture can't be copied"
+msgstr "ამ სურათის კოპირება შეუძლებელია"
+
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 #, fuzzy
@@ -19446,6 +19464,11 @@ msgstr "ამ ანაწყობს ფოსტის სერვერე
 #. interface
 #: crates/ui-egui/src/ribbon.rs
 msgid "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
+msgid "This build can't copy a picture"
 msgstr ""
 
 #. interface
@@ -23902,7 +23925,7 @@ msgid "select a conversation in conversation view first"
 msgstr "ჯერ მონიშნეთ მიმოწერა მიმოწერების ხედში"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/save_picture.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "ჯერ მონიშნეთ წერილი"
@@ -24056,7 +24079,7 @@ msgid "that event doesn't repeat"
 msgstr "ეს ღონისძიება არ მეორდება"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/engine/src/cmd/save_picture.rs crates/mobile/src/message.rs
 #, fuzzy
 msgid "that is not a picture that can be shown"
 msgstr "ეს არ არის სურათი, რომლის ჩვენებაც შესაძლებელია"
@@ -24604,6 +24627,11 @@ msgstr "წერილს შესანახი დანართები 
 msgid "the message has no recipients"
 msgstr "წერილს მიმღებები არ ჰყავს"
 
+#. what a command says
+#: crates/engine/src/cmd/save_picture.rs
+msgid "the message has no such picture"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/smtp.rs
 #, fuzzy
@@ -24659,10 +24687,15 @@ msgid "the picture could not be read"
 msgstr "სურათის წაკითხვა ვერ მოხერხდა"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/engine/src/cmd/save_picture.rs crates/mobile/src/message.rs
 #, fuzzy
 msgid "the picture is too large"
 msgstr "სურათი ზედმეტად დიდია"
+
+#. what a command says
+#: crates/engine/src/cmd/save_picture.rs
+msgid "the picture isn't kept here, and nothing is downloaded"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/rich/find.rs

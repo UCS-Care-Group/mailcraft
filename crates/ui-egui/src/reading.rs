@@ -18,6 +18,7 @@
 //! that every frame ([`view`]).
 //!
 //! The text of a message can be selected and copied, in its body and in its header ([`select`]).
+//! A picture that is shown can be saved or copied from the same menu; nothing is fetched for it.
 //!
 //! A message that carries a meeting (an invitation, an update, a cancellation, somebody's
 //! answer) says so in a bar between its header and its body, with the ways to answer it
@@ -63,6 +64,8 @@ mod warnings;
 #[cfg(test)]
 mod warnings_tests;
 
+pub(crate) use select::with_kept_picture;
+
 use std::sync::Arc;
 
 use egui::{Align2, Rect, Sense, Stroke, Ui, pos2, vec2};
@@ -70,6 +73,7 @@ use mailcraft_html::Block;
 use mailcraft_model::{FlagStatus, Importance, Message, format_list_capped};
 use serde_json::json;
 
+pub use images::MAX_PICTURE_BYTES;
 pub(crate) use invitation::{list_marks, options as invitation_options, question as invitation_question};
 pub use remote::{Access, RemotePictures};
 pub use select::Selections;

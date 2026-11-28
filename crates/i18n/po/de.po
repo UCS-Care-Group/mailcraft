@@ -3874,6 +3874,12 @@ msgstr "Linkadresse kopieren"
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
+msgid "Copy Picture"
+msgstr "Bild kopieren"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Copy Selected Text"
 msgstr "Markierten Text kopieren"
 
@@ -8988,7 +8994,7 @@ msgid "Merged PRs"
 msgstr "Zusammengeführte PRs"
 
 #. android, interface, name, ribbon, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/save_picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
 msgid "Message"
 msgstr "Nachricht"
@@ -13678,6 +13684,12 @@ msgid "Save Message File As"
 msgstr "Nachricht speichern unter"
 
 #. command label
+#: crates/engine/src/cmd/save_picture.rs crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Save Picture As…"
+msgstr "Bild speichern unter…"
+
+#. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
 msgid "Save Signature"
@@ -16387,6 +16399,12 @@ msgstr "Dieser Schlüssel befindet sich bereits auf der Karte"
 msgid "That paste was just made, so nothing was pasted again"
 msgstr "Dieses Einfügen wurde gerade erst ausgeführt, daher wurde nichts erneut eingefügt"
 
+#. interface
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
+#, fuzzy
+msgid "That picture can't be copied"
+msgstr "Dieses Bild kann nicht kopiert werden"
+
 #. what a command says
 #: crates/mobile/src/jobs.rs crates/mobile/src/sync.rs crates/mobile/src/sync_api.rs
 msgid "That sign-in is for somebody else's mailbox, not this account's. Nothing was kept."
@@ -18372,6 +18390,11 @@ msgstr "Diese Version kann keine Verbindung zu Mailservern herstellen. Verwenden
 #, fuzzy
 msgid "This build can't connect to mail servers. Use the desktop app, or bring mail in with File › Import."
 msgstr "Dieser Build kann sich nicht mit Mailservern verbinden. Verwenden Sie die Desktop-App oder holen Sie E-Mails mit Datei › Importieren herein."
+
+#. interface
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
+msgid "This build can't copy a picture"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -22617,7 +22640,7 @@ msgid "select a conversation in conversation view first"
 msgstr "wählen Sie zuerst eine Unterhaltung in der Unterhaltungsansicht aus"
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/check_again.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/item_from_message.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/mail_source.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/save_all.rs crates/engine/src/cmd/save_picture.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/unsubscribe.rs
 #, fuzzy
 msgid "select a message first"
 msgstr "wählen Sie zuerst eine Nachricht aus"
@@ -22770,7 +22793,7 @@ msgid "that event doesn't repeat"
 msgstr "dieses Ereignis wiederholt sich nicht"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/engine/src/cmd/save_picture.rs crates/mobile/src/message.rs
 msgid "that is not a picture that can be shown"
 msgstr "das ist kein Bild, das angezeigt werden kann"
 
@@ -23284,6 +23307,11 @@ msgstr "die Nachricht enthält keine Anlagen zum Speichern"
 msgid "the message has no recipients"
 msgstr "Die Nachricht hat keine Empfänger"
 
+#. what a command says
+#: crates/engine/src/cmd/save_picture.rs
+msgid "the message has no such picture"
+msgstr ""
+
 #. why a mail server couldn't be used
 #: crates/proto/src/smtp.rs
 #, fuzzy
@@ -23338,9 +23366,14 @@ msgid "the picture could not be read"
 msgstr "das Bild konnte nicht gelesen werden"
 
 #. what a command says
-#: crates/mobile/src/message.rs
+#: crates/engine/src/cmd/save_picture.rs crates/mobile/src/message.rs
 msgid "the picture is too large"
 msgstr "das Bild ist zu groß"
+
+#. what a command says
+#: crates/engine/src/cmd/save_picture.rs
+msgid "the picture isn't kept here, and nothing is downloaded"
+msgstr ""
 
 #. what a command says
 #: crates/model/src/rich/find.rs

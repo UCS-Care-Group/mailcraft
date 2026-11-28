@@ -535,7 +535,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
                     .on_light_page(light)
                     .sender_dark(entry.doc.sender_dark)
                     .cut(entry.doc.cuts.clone())
-                    .zoomed(zoom),
+                    .zoomed(zoom)
+                    .for_media(env.width(), env.dark()),
             ));
             #[cfg(test)]
             {
@@ -544,8 +545,13 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         }
     } else {
         entry.key = Some(key);
-        entry.laid =
-            Laid::new(width).showing_remote(showing).on_light_page(light).sender_dark(entry.doc.sender_dark).cut(entry.doc.cuts.clone()).zoomed(zoom);
+        entry.laid = Laid::new(width)
+            .showing_remote(showing)
+            .on_light_page(light)
+            .sender_dark(entry.doc.sender_dark)
+            .cut(entry.doc.cuts.clone())
+            .zoomed(zoom)
+            .for_media(env.width(), env.dark());
         entry.next = None;
         #[cfg(test)]
         {
@@ -835,14 +841,30 @@ pub fn paint(
             ctx.set_cursor_icon(egui::CursorIcon::Text);
         }
     }
-    // The menu: Copy and Select All, and for the link it was asked for on, its address.
+    // The menu: Copy and Select All, and for the link it was asked for on, its address. On a
+    // picture that is shown, Save Picture As and Copy Picture (#1420).
     let mut asked = None;
     if let Some(state) = state {
         if response.secondary_clicked() {
             state.set_menu_link(link.clone());
+            let at = response.interact_pointer_pos().or(pointer);
+            let message = state.message();
+            state.set_menu_picture(at.and_then(|pos| {
+                select::menu_picture(laid, origin, pos, message, |data| {
+                    pictures.as_ref().is_some_and(|store| store.lock().unwrap_or_else(|e| e.into_inner()).undecodable(data))
+                })
+            }));
         }
         let on_link = state.menu_link();
-        response.context_menu(|ui| asked = select::menu(ui, selected.is_some(), true, on_link.as_ref()));
+        // The click remembered a picture that was still decoding. A later frame can find that
+        // its pixels will not decode; the menu already open then loses Save and Copy.
+        let on_picture = state
+            .menu_picture()
+            .filter(|picture| !pictures.as_ref().is_some_and(|store| store.lock().unwrap_or_else(|e| e.into_inner()).undecodable(&picture.bytes)));
+        if on_picture.is_none() {
+            state.set_menu_picture(None);
+        }
+        response.context_menu(|ui| asked = select::menu(ui, selected.is_some(), true, on_link.as_ref(), on_picture.as_ref()));
     }
     // While a drag selects, nothing pops up under it; nor over a menu, which opens right where
     // the pointer is.

@@ -902,6 +902,8 @@ const WRITTEN_PARAMS: &[&str] = &[
     "text",
     "html",
     "body",
+    // Base64 of a picture the caller already holds (`mail.savePicture`). A frame is not those bytes.
+    "cached",
     "subject",
     "title",
     "notes",
