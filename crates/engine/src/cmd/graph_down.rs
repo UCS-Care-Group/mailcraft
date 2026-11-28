@@ -638,7 +638,8 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     if !mb.message(here).is_some_and(|m| still_to_fetch(mb, m) || wants_from_source(m)) {
         return None;
     }
-    let mut read = crate::mime::parse_fetched(mime);
+    // (Its pictures are marked below, once it is known whether it is a draft.)
+    let mut read = crate::mime::parse_fetched_unmarked(mime);
     // What came brought no original (#30): the server's copy isn't protected either.
     let brought = read.original.is_some();
     // Within what the mailbox keeps of originals in all (#30), counting the one it replaces.
@@ -650,6 +651,9 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         read.original = None;
         no_room = needs.max(1);
     }
+    // Its header as it came, only for the mail of an account a rule looks for words in its header
+    // for (#566).
+    let keeps_header = mb.message(here).is_some_and(|m| mb.keeps_header_as_it_came(m.account));
     let m = mb.message_mut(here).ok()?;
     // Check again asked for the bytes it came as alone (#30), or a move asked the copy it came
     // from for them: nothing else of it changes. Unless the server has had another version of it
@@ -707,6 +711,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     }
     m.parts_removed = false;
     (m.headers, m.header_block, m.fresh_stamps) = (read.headers, read.header_block, read.fresh_stamps);
+    (m.read_header, m.read_header_cut) = if keeps_header { (read.read_header, read.read_header_cut) } else { (String::new(), false) };
     // (What a listing left out of its categories stays left out: they are the server's still,
     // [`Message::categories_cut`].)
     m.headers_cut = read.headers_cut || listing_cut;
@@ -725,6 +730,8 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
     if let Some(server) = m.server.as_mut() {
         server.size = mime.len() as u64;
     }
+    // The pictures its body draws are the body's, but in a draft, which goes up as it is.
+    crate::mime::mark_drawn(m);
     // A draft as the server has it now: what a change made here is worked out from.
     if m.draft {
         let state = mailcraft_model::sync::DraftState::of(m);

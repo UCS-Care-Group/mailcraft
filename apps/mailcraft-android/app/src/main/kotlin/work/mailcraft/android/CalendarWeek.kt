@@ -86,10 +86,13 @@ internal fun WeekView(
     locale: Locale,
     actions: CalendarActions,
 ) {
-    val days = remember(events, anchor, today, weekStart) {
+    val minMinutes = minBlockMinutes()
+    val days = remember(events, anchor, today, weekStart, minMinutes) {
         // By the wall clock (a day of 24 hours), so that the seven columns share one set of hour lines;
         // on the day the clocks change, the day view has that day's own hours.
-        CalendarPaging.weekOf(anchor, weekStart).map { WeekDay(it, dayLayout(events, it, ZoneOffset.UTC), it == today) }
+        CalendarPaging.weekOf(anchor, weekStart).map {
+            WeekDay(it, dayLayout(events, it, ZoneOffset.UTC, minMinutes), it == today)
+        }
     }
     val hourFmt = hourFormat(locale)
     val labels = days.first().layout.hours.map { LocalTime.of(it.hour, 0).format(hourFmt) }
@@ -264,9 +267,14 @@ private fun WeekGrid(
     }
 }
 
+private const val TITLE_AND_TIME_LINES = 2
+
 /** The words in a block of the week: its title, cut short to fit, and its times when the block has room for them. */
 @Composable
 private fun WeekBlockText(texts: Texts, e: CalendarEvent, date: LocalDate, locale: Locale, width: Dp, height: Dp) {
+    val line = lineHeight(MaterialTheme.typography.labelSmall)
+    val fits = (height / line).toInt()
+    val times = width >= RoomForTimes && height >= ShortBlock * 2 && fits > TITLE_AND_TIME_LINES
     Column(modifier = Modifier.padding(horizontal = Thin)) {
         Text(
             e.title.ifBlank { texts.t("(No title)") },
@@ -275,9 +283,9 @@ private fun WeekBlockText(texts: Texts, e: CalendarEvent, date: LocalDate, local
             fontWeight = FontWeight.Bold,
             textDecoration = if (e.cancelled) TextDecoration.LineThrough else null,
             overflow = TextOverflow.Ellipsis,
-            maxLines = if (height < ShortBlock) 1 else Int.MAX_VALUE,
+            maxLines = if (times) fits - 1 else if (height < ShortBlock) 1 else Int.MAX_VALUE,
         )
-        if (width >= RoomForTimes && height >= ShortBlock * 2) {
+        if (times) {
             Text(timeLine(texts, e, date, locale), style = MaterialTheme.typography.labelSmall, maxLines = 1)
         }
     }

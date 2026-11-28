@@ -45,6 +45,8 @@ fn gmail_window(google: bool, on: bool) -> (Harness, Id, Id) {
         FolderDelta { id: Some(inbox), remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 3, new, ..Default::default() };
     app.execute("sync.apply", json!({"result": SyncResult { account, folders: vec![delta], ..Default::default() }})).unwrap();
     app.execute("folder.select", json!({"id": inbox})).unwrap();
+    // All Accounts (#625) folded, so that the Gmail Inbox's categories are inside the window.
+    app.ui.collapsed_folders.push(crate::nav::ALL_ACCOUNTS);
     harness.run_steps(4);
     (harness, account, inbox)
 }

@@ -15,7 +15,11 @@ pub mod brands;
 mod calendar;
 pub mod confusables;
 mod contact;
+pub mod contact_sync;
+#[cfg(test)]
+mod contact_sync_tests;
 pub mod dav;
+pub mod dav_down;
 mod dav_server;
 pub mod device_limits;
 #[cfg(test)]
@@ -73,6 +77,7 @@ pub use calendar::{
     OpenedCalendar, Proposal, Recurrence, Response, ResponseOptions, Rights, ShowAs,
 };
 pub use contact::{Contact, ContactKey, KeyKind, Labeled, PostalAddress};
+pub use dav_down::{DavAsk, DavAskCollection, DavCalendar, DavChange, DavDownload, DavKnown, DavListing, DavProblem, DavRead, DavReadState};
 pub use dav_server::{DavCollectionState, DavServer, origin_of};
 pub use device_limits::{DeviceLimits, PHONE_DEFAULTS, PHONE_DOWNLOAD, PHONE_KEEP, PHONE_STORAGE};
 pub use ews_server::{EwsServer, is_exchange_online, is_google_host, is_microsoft_domain, is_within};
@@ -91,9 +96,9 @@ pub use mailbox::{
 };
 pub use mailcraft_time as time;
 pub use message::{
-    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, MAX_ORIGINAL, MAX_ORIGINALS, Message, NOT_DOWNLOADED,
-    NOT_DOWNLOADED_NOTE, ORIGINAL_PATIENCE, ORIGINAL_TRIES, Original, PREVIEW_CHARS, RETURNED_LISTINGS, Sensitivity, normalize_subject, size_label,
-    size_label_in, text_hash,
+    Answers, Attachment, Body, ContentRef, FlagStatus, Importance, KeptBody, MAX_HIDDEN_TEXT, MAX_ORIGINAL, MAX_ORIGINALS, MAX_READ_HEADER, Message,
+    NOT_DOWNLOADED, NOT_DOWNLOADED_NOTE, ORIGINAL_PATIENCE, ORIGINAL_TRIES, Original, PREVIEW_CHARS, RETURNED_LISTINGS, Sensitivity,
+    normalize_subject, size_label, size_label_in, text_hash,
 };
 pub use messages::Messages;
 pub use note::{JournalEntry, Note};
@@ -103,12 +108,12 @@ pub use remote::{AccountChoice, Origin};
 pub use rich::{RichBody, RichText};
 pub use rule::{
     Action, Condition, FlagDue, Keep, MAX_RULE_GONE, MAX_WORD, MAX_WORDS_EACH, Marks, Matching, Rule, RuleClock, RuleGone, RuleWaiting, RulesWaiting,
-    ServerRule, Words, fold_exceptions, same_word,
+    ServerRule, Words, fold_exceptions, said, same_word,
 };
 pub use senders::{MAX_SENDER_ADDRESSES, SenderAddress, SenderProblem, clean_sender_addresses};
 pub use signature::Signature;
 pub use task::{LocalTasks, MAX_TASK_GONE, SharedTaskList, SharedTaskLists, Task, TaskFields, TaskGone, TaskPatch};
-pub use thread_index::{ThreadIndex, ThreadKey};
+pub use thread_index::{Joined, ThreadIndex, ThreadKey};
 
 /// An item's identity inside one mailbox. 0 means "not assigned yet".
 pub type Id = u64;

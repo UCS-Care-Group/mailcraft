@@ -6,6 +6,9 @@ use mailcraft_model::sync::Tokens;
 
 use super::{GraphRequest, GraphResult};
 
+#[cfg(test)]
+mod contacts_tests;
+
 /// How far back and ahead of today the calendar is brought down (seconds).
 const CALENDAR_BEHIND: i64 = 31 * 86_400;
 const CALENDAR_AHEAD: i64 = 366 * 86_400;
@@ -67,6 +70,168 @@ pub fn graph_in_with(
     zone: &str,
     renew_calendars: &dyn Fn(&mailcraft_model::OAuth, &str) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError>,
 ) -> GraphResult {
+    let mail = crate::tasks::mail_resource(&request.account);
+    let renew_contacts =
+        move |oauth: &mailcraft_model::OAuth, refresh: &str, shared: bool| mailcraft_net::oauth::refresh_graph_contacts(oauth, refresh, shared, mail);
+    graph_in_contacts(request, zone, renew_calendars, &renew_contacts)
+}
+
+/// How a job gets a token that may change contacts (#1917): from the sign-in settings and the
+/// refresh token, with what the shared mailboxes' contacts take when `shared`.
+pub type RenewContacts<'a> = &'a dyn Fn(&mailcraft_model::OAuth, &str, bool) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError>;
+
+/// [`graph_in_with`], with how a token that may change contacts is had as `renew_contacts` (the
+/// tests' own). The contacts go last: what waits to go up is told first, then the folders come
+/// down ([`contacts_part`]).
+pub fn graph_in_contacts(
+    mut request: GraphRequest,
+    zone: &str,
+    renew_calendars: &dyn Fn(&mailcraft_model::OAuth, &str) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError>,
+    renew_contacts: RenewContacts<'_>,
+) -> GraphResult {
+    let contacts = request.contacts.take();
+    let (account, oauth, refresh, signer) = (request.account.clone(), request.oauth.clone(), request.refresh.clone(), request.signer.clone());
+    let (mut out, handed) = graph_in_calendar(request, zone, renew_calendars);
+    let Some(ask) = contacts else { return out };
+    // Nothing more when the run went no further, or with somebody else's sign-in.
+    let foreign = signer.as_ref().is_some_and(|s| crate::job_sign_in::foreign_sign_in(s, out.tokens.as_ref()).is_some());
+    if out.consent_needed || out.sign_in_refused || out.token_refused || foreign || account.is_shared() {
+        return out;
+    }
+    let access = out.tokens.as_ref().map_or(handed, |t| t.access.clone());
+    let renew = |shared: bool| {
+        // (The newest refresh token there is: the run's own, when it got one.)
+        let newest = out.tokens.as_ref().map(|t| t.refresh.clone()).filter(|r| !r.is_empty()).unwrap_or_else(|| refresh.clone());
+        if newest.is_empty() { Err(mailcraft_net::NetError::Config("no sign-in to renew".into())) } else { renew_contacts(&oauth, &newest, shared) }
+    };
+    let got = contacts_part(&ask, &access, &renew, signer.as_ref());
+    // The newest refresh token goes back to the window: on the run's own tokens, or (a run that
+    // used the token it was handed) with the contacts' token, which covers Graph as well.
+    keep_newest(&mut out.tokens, got.tokens);
+    out.contacts_consent_needed = got.consent_needed;
+    out.contacts_uploaded = got.uploaded.map(|u| u.for_account(&account));
+    out.errors.extend(got.errors);
+    out.token_refused |= got.token_refused;
+    out.sign_in_refused |= got.sign_in_refused;
+    for download in got.downloads {
+        let download = download.for_account(&account);
+        if download.folder.is_none() && out.contacts.is_none() {
+            out.contacts = Some(download);
+        } else {
+            out.more_contacts.push(download);
+        }
+    }
+    out
+}
+
+/// `folders` as the read after an upload is to take them: somebody else's folder that refused a
+/// change just now (403) is one that can only be read, so the read doesn't say otherwise.
+fn refused_folders(
+    folders: &[mailcraft_model::contact_sync::ContactFolder],
+    uploaded: Option<&mailcraft_model::contact_sync::ContactsUploaded>,
+) -> Vec<mailcraft_model::contact_sync::ContactFolder> {
+    use mailcraft_model::contact_sync::{ContactFolder, ContactResult};
+    let denied = |f: &ContactFolder| {
+        uploaded.into_iter().flat_map(|u| &u.outcomes).any(|o| o.result == ContactResult::Denied && o.op.folder == f.remote && o.op.owner == f.owner)
+    };
+    folders.iter().map(|f| ContactFolder { writable: f.writable && (f.owner.is_own() || !denied(f)), ..f.clone() }).collect()
+}
+
+/// The run's `kept` tokens given the refresh token of `newer` (the contacts' own), or `newer`
+/// whole when the run has none.
+fn keep_newest(kept: &mut Option<Tokens>, newer: Option<Tokens>) {
+    match (kept.as_mut(), newer) {
+        (Some(kept), Some(newer)) if !newer.refresh.is_empty() => kept.refresh = newer.refresh,
+        (None, Some(newer)) => *kept = Some(newer),
+        _ => {}
+    }
+}
+
+/// What [`contacts_part`] came to.
+#[derive(Default)]
+struct ContactsGot {
+    uploaded: Option<mailcraft_model::contact_sync::ContactsUploaded>,
+    downloads: Vec<mailcraft_model::remote::ContactsDownload>,
+    consent_needed: bool,
+    /// The tokens got for changing contacts: their refresh token is the account's newest.
+    tokens: Option<Tokens>,
+    errors: Vec<String>,
+    /// The sign-in itself was refused when a token for changing contacts was asked for.
+    sign_in_refused: bool,
+    /// Graph stopped taking a token: the run's own, or the one for changing contacts.
+    token_refused: bool,
+}
+
+/// The contacts of a calendar job (#1917): a token that may change them when something waits to
+/// go up or a shared mailbox's are to be read (`renew`), what waits told to the server, then the
+/// folders read. Without that token nothing goes up (every change waits, as for a server that is
+/// busy) and only the account's own folders are read, with the run's `access`; when the sign-in
+/// doesn't cover it, the answer says the owner is to be asked. Nothing of a contact is logged.
+fn contacts_part(
+    ask: &crate::graph::ContactsAsk,
+    access: &str,
+    renew: &dyn Fn(bool) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError>,
+    signer: Option<&mailcraft_model::Account>,
+) -> ContactsGot {
+    use mailcraft_model::contact_sync::ContactResult;
+    use mailcraft_net::graph;
+    let mut got = ContactsGot::default();
+    let shared = !ask.mailboxes.is_empty() || ask.folders.iter().any(|f| !f.owner.is_own());
+    let mut write: Option<String> = None;
+    if !ask.upload.ops.is_empty() || (ask.read && shared) {
+        match renew(shared) {
+            Ok(renewed) if signer.is_some_and(|s| crate::job_sign_in::foreign_sign_in(s, Some(&renewed.tokens)).is_some()) => {
+                log::warn!("contacts: the renewed sign-in is another account's; nothing sent or read");
+                return got;
+            }
+            Ok(renewed) => {
+                write = Some(renewed.tokens.access.clone());
+                got.tokens = Some(renewed.tokens);
+            }
+            Err(e) if e.is_consent_needed() => {
+                log::info!("contacts: the sign-in doesn't cover changing contacts; the changes wait for the owner's permission");
+                got.consent_needed = true;
+            }
+            // A sign-in the server no longer takes: the owner is to sign in again.
+            Err(e) if e.is_refused_sign_in() => {
+                log::info!("contacts: the sign-in was refused; the changes wait");
+                got.sign_in_refused = true;
+            }
+            // (Said as the job's error: the next job waits out the back-off.)
+            Err(e) => got.errors.push(format!("Contact changes wait: no token for changing them ({e})")),
+        }
+    }
+    // Without that token nothing goes up and nothing is answered: not one of them may have
+    // reached the server, and each waits as it was.
+    if let Some(token) = write.as_deref().filter(|_| !ask.upload.ops.is_empty()) {
+        let uploaded = graph::push_contacts(token, &ask.upload);
+        let done = uploaded.outcomes.iter().filter(|o| o.result == ContactResult::Done).count();
+        log::info!("contacts: {} of {} changes answered, {done} taken by the server", uploaded.outcomes.len(), ask.upload.ops.len());
+        got.token_refused = uploaded.token_refused;
+        got.uploaded = Some(uploaded);
+    }
+    if ask.read {
+        // (Without the token that covers them, the shared mailboxes' and other people's folders
+        // aren't read.)
+        let (token, known, mailboxes) = match &write {
+            Some(token) => (token.as_str(), refused_folders(&ask.folders, got.uploaded.as_ref()), ask.mailboxes.clone()),
+            None => (access, ask.folders.iter().filter(|f| f.owner.is_own()).cloned().collect(), Vec::new()),
+        };
+        let read = graph::read_contacts(token, &known, &mailboxes);
+        got.token_refused |= read.token_refused;
+        got.errors.extend(read.errors);
+        got.downloads = read.downloads;
+    }
+    got
+}
+
+/// [`graph_in_with`] without the contacts: the run, and the Graph token it was handed (after a
+/// token of its own for other people's calendars, when it got one).
+fn graph_in_calendar(
+    request: GraphRequest,
+    zone: &str,
+    renew_calendars: &dyn Fn(&mailcraft_model::OAuth, &str) -> Result<mailcraft_net::oauth::GraphTokens, mailcraft_net::NetError>,
+) -> (GraphResult, String) {
     use mailcraft_net::oauth;
     // A token for everything Graph is asked for, and for reading the Favorites of Outlook when
     // the window wants that too (it stops wanting it for the day once it was told no).
@@ -92,8 +257,9 @@ pub fn graph_in_with(
     // (And for sending from a shared mailbox, when it has mail to send: #70.)
     let (request, opened) = opened_token(request, shared, renew_calendars);
     if let Some(refused) = refused_for_sign_in(&request, opened.tokens.as_ref()) {
-        return refused;
+        return (refused, String::new());
     }
+    let handed = request.access.clone();
     // (And a shared mailbox's calendar change that makes the server send mail from it.)
     let mut out = if shared_calendars {
         graph_sending_with(request, zone, renew, &oauth::refresh_graph_shared_calendars_send)
@@ -104,7 +270,7 @@ pub fn graph_in_with(
     if out.tokens.is_none() {
         out.tokens = opened.tokens;
     }
-    out
+    (out, handed)
 }
 
 /// What [`opened_token`] found out.
@@ -492,13 +658,6 @@ pub fn graph_sending_with(mut request: GraphRequest, zone: &str, renew: Renew<'_
                 // A calendar that is gone, or may not be read: the list says so the next time.
                 Err(e) => log::debug!("one of the account's other calendars didn't come down: {e}"),
             }
-        }
-    }
-    if request.directory && !refused && shared_address.is_none() {
-        match graph::contacts(&access) {
-            Ok(contacts) => out.contacts = Some(contacts.for_account(&request.account)),
-            Err(e) if e.is_refused_sign_in() => refused = true,
-            Err(e) => out.errors.push(format!("Couldn't bring the contacts down: {e}")),
         }
     }
     // The mailbox's own categories and their colours: an extra that an older sign-in doesn't

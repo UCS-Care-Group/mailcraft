@@ -84,29 +84,37 @@ impl Launcher {
     }
 }
 
+type Filter = (&'static str, &'static [&'static str]);
+
+const ALL: Filter = ("All files", &["*"]);
+
 /// The file types Open offers, by what the file is for: a mailbox to open, something to import,
-/// or anything at all to attach.
-fn open_filters(d: rfd::AsyncFileDialog, purpose: &str) -> rfd::AsyncFileDialog {
+/// or anything at all to attach. `macos`: its open panel merges every filter into one list of
+/// extensions and has no "*", so for Import it gets none (every file stays pickable).
+fn filter_list(purpose: &str, macos: bool) -> Vec<Filter> {
     match purpose {
-        "signatureFile" => signature_directory(d).add_filter("Signature files", &["txt", "text", "htm", "html", "png", "jpg", "jpeg", "gif"]),
-        "mailbox" => d.add_filter("MailCraft mailbox", &["mailcraft", "json"]).add_filter("All files", &["*"]),
-        "import" => d
-            .add_filter("Mail, calendar and contact files", &["eml", "mbox", "mbx", "ics", "ical", "vcf", "vcard"])
-            .add_filter("Messages", &["eml", "mbox", "mbx"])
-            .add_filter("Calendars", &["ics", "ical"])
-            .add_filter("Contacts", &["vcf", "vcard"])
-            .add_filter("All files", &["*"]),
-        "pst" => d.add_filter(".pst files", &["pst"]).add_filter("All files", &["*"]),
-        "picture" => d.add_filter("Pictures (PNG, JPEG, GIF)", &["png", "jpg", "jpeg", "gif"]),
-        "bodyPicture" => d.add_filter("Pictures (PNG, JPEG, GIF, WebP)", &["png", "jpg", "jpeg", "gif", "webp"]),
-        "privateKeySmime" => d.add_filter("Certificate files (.p12, .pfx)", &["p12", "pfx"]).add_filter("All files", &["*"]),
-        "privateKeyOpenpgp" => {
-            d.add_filter("OpenPGP secret keys (.asc, .gpg, .key, .pgp)", &["asc", "gpg", "key", "pgp"]).add_filter("All files", &["*"])
+        "signatureFile" => vec![("Signature files", &["txt", "text", "htm", "html", "png", "jpg", "jpeg", "gif"])],
+        "mailbox" => vec![("MailCraft mailbox", &["mailcraft", "json"]), ALL],
+        // An mbox file often has no extension (Thunderbird's `Inbox`, `Sent`), and Import reads a
+        // file by what it holds, so All files comes first and is the one the dialog opens on
+        // (#1768).
+        "import" if macos => vec![],
+        "import" => vec![
+            ALL,
+            ("Mail, calendar and contact files", &["eml", "mbox", "mbx", "ics", "ical", "vcf", "vcard"]),
+            ("Messages", &["eml", "mbox", "mbx"]),
+            ("Calendars", &["ics", "ical"]),
+            ("Contacts", &["vcf", "vcard"]),
+        ],
+        "pst" => vec![(".pst files", &["pst"]), ALL],
+        "picture" => vec![("Pictures (PNG, JPEG, GIF)", &["png", "jpg", "jpeg", "gif"])],
+        "bodyPicture" => vec![("Pictures (PNG, JPEG, GIF, WebP)", &["png", "jpg", "jpeg", "gif", "webp"])],
+        "privateKeySmime" => vec![("Certificate files (.p12, .pfx)", &["p12", "pfx"]), ALL],
+        "privateKeyOpenpgp" => vec![("OpenPGP secret keys (.asc, .gpg, .key, .pgp)", &["asc", "gpg", "key", "pgp"]), ALL],
+        "publicKey" | "cardKey" => {
+            vec![("Public keys (.cer, .crt, .der, .pem, .asc, .gpg, .pgp)", &["cer", "crt", "der", "pem", "asc", "gpg", "pgp"]), ALL]
         }
-        "publicKey" | "cardKey" => d
-            .add_filter("Public keys (.cer, .crt, .der, .pem, .asc, .gpg, .pgp)", &["cer", "crt", "der", "pem", "asc", "gpg", "pgp"])
-            .add_filter("All files", &["*"]),
-        _ => d,
+        _ => vec![],
     }
 }
 
@@ -121,6 +129,11 @@ fn signature_home(home: Option<std::ffi::OsString>, profile: Option<std::ffi::Os
     (if windows { profile } else { home }).filter(|p| !p.is_empty()).map(std::path::PathBuf::from)
 }
 
+fn open_filters(d: rfd::AsyncFileDialog, purpose: &str) -> rfd::AsyncFileDialog {
+    let d = if purpose == "signatureFile" { signature_directory(d) } else { d };
+    filter_list(purpose, cfg!(target_os = "macos")).into_iter().fold(d, |d, (name, exts)| d.add_filter(name, exts))
+}
+
 #[cfg(test)]
 #[path = "file_dialogs_tests.rs"]
-mod tests;
+mod file_dialogs_tests;

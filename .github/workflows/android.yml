@@ -90,7 +90,7 @@ jobs:
           VERSION: ${{ steps.v.outputs.version }}
           CODE: ${{ steps.v.outputs.code }}
         run: |
-          export JAVA_HOME="$JAVA_HOME_17_X64"
+          export JAVA_HOME="$JAVA_HOME_21_X64"  # Paparazzi 2 needs 21 to configure; the app still targets 17
           cd apps/mailcraft-android
           ./gradlew --console=plain --no-daemon -PversionName="$VERSION" -PversionCode="$CODE" \
             :app:assembleRelease :app:bundleRelease

@@ -31,6 +31,8 @@ pub mod cmd;
 pub mod composing;
 mod conversations;
 pub mod counts;
+#[cfg(not(target_arch = "wasm32"))]
+pub mod dav_raw;
 mod digital_signature;
 #[cfg(test)]
 mod digital_signature_tests;
@@ -74,6 +76,9 @@ pub mod sync_driver;
 #[cfg(any(test, feature = "test-support"))]
 pub mod test_support;
 mod undo;
+pub mod unified;
+#[cfg(test)]
+mod unified_tests;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod words;
 
@@ -432,7 +437,11 @@ mod category_rows_tests;
 #[cfg(test)]
 mod composing_tests;
 #[cfg(test)]
+mod conversations_tests;
+#[cfg(test)]
 mod counts_tests;
+#[cfg(test)]
+mod draft_in_thread_tests;
 #[cfg(test)]
 mod ews_account_tests;
 #[cfg(test)]
@@ -463,6 +472,8 @@ mod list_sort_tests;
 mod many_folders_tests;
 #[cfg(test)]
 mod pop_out_tests;
+#[cfg(test)]
+mod read_header_kept_tests;
 #[cfg(test)]
 mod read_pane_off_tests;
 #[cfg(test)]

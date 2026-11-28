@@ -269,7 +269,7 @@ fn a_word_longer_than_rules_add_takes_is_said_not_cut() {
     let mut f = RulesForm::new(&s, &json!({}));
     f.name = "Old reports".into();
     let word = "x".repeat(200);
-    for kind in [When::From, When::To, When::Subject, When::Body, When::SubjectOrBody] {
+    for kind in [When::From, When::To, When::Subject, When::Body, When::SubjectOrBody, When::Header] {
         f.conds = vec![Cond { kind, text: format!("short; {word}-2026"), ..Default::default() }];
         assert_eq!(f.lacks(), Some(tl!("A word to look for is at most 200 characters.")), "{kind:?}");
         let (command, params) = f.command();
@@ -298,6 +298,7 @@ fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
     f.unless = vec![
         Cond { kind: When::Sensitivity, sensitivity: Sensitivity::Private, ..Default::default() },
         Cond { kind: When::Category, category: "Red category".into(), ..Default::default() },
+        Cond { kind: When::Header, text: "X-Spam-Flag: YES".into(), ..Default::default() },
     ];
     f.acts = vec![
         Act { kind: Do::Copy, folder: receipts, ..f.fresh_action() },
@@ -319,6 +320,7 @@ fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
             ],
             "exceptions": [
                 {"type": "sensitivity", "value": "private"}, {"type": "category", "value": "Red category"},
+                {"type": "headerContains", "value": "X-Spam-Flag: YES"},
             ],
             "actions": [{"type": "copyTo", "value": receipts}, {"type": "flagFor", "value": "tomorrow"}, {"type": "clearCategories"}],
             "stop": false,
@@ -328,12 +330,12 @@ fn the_new_conditions_exceptions_and_actions_are_spelled_out_and_made() {
     let id = s.run(command, &params).unwrap()["id"].as_u64().unwrap();
     let rule = s.mailbox.rules.iter().find(|r| r.id == id).unwrap();
     assert!(rule.alert);
-    assert_eq!(rule.exceptions.len(), 2);
+    assert_eq!(rule.exceptions.len(), 3);
     assert_eq!(
         describe(&s.mailbox, rule),
         "When from \"news@club.example\" and subject or body contains \"meeting\" or \"agenda\" and my address is in To or Cc and \
-         size is 0 KB to 512 KB and received on or after 2026-10-01, except if sensitivity is private or category is \"Red category\": \
-         copy it to Receipts, flag it for tomorrow, clear its categories, show a desktop alert"
+         size is 0 KB to 512 KB and received on or after Oct 1, 2026, except if sensitivity is private or category is \"Red category\" \
+         or header contains \"X-Spam-Flag: YES\": copy it to Receipts, flag it for tomorrow, clear its categories, show a desktop alert"
     );
     // The rest: a plain flag, clearing it, deleting, and the other conditions that
     // take nothing.

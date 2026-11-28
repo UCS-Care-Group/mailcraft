@@ -206,7 +206,7 @@ impl Summary {
     pub fn text(&self, s: &Session) -> String {
         let lang = s.interface_language;
         let w = s.dated();
-        let twelve = s.prefs.twelve_hour;
+        let twelve = s.dated().conventions.twelve_hour; // text for recipients: the language's clock, not the owner's display choice
         let clock = |at: DateTime| mailcraft_i18n::date::time(&w, at.hour, at.minute, twelve);
         let mut out = String::new();
         out.push_str(&self.subject(w));
