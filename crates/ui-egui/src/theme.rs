@@ -738,7 +738,7 @@ pub const GEORGIAN_FACES: &[&str] = &["sylfaen.ttf", "segoeui.ttf"];
 pub const FALLBACK_FACES: &[&[&str]] = &[
     &["Hiragino Sans GB.ttc", "STHeiti Light.ttc", "STHeiti Medium.ttc", "Arial Unicode.ttf", "PingFang.ttc"],
     &["AppleSDGothicNeo.ttc", "AppleGothic.ttf", "Arial Unicode.ttf"],
-    &["ArialHB.ttc", "Arial Unicode.ttf"],
+    &["SFHebrew.ttf", "ArialHB.ttc", "Arial Unicode.ttf"],
     &["GeezaPro.ttc", "Arial Unicode.ttf"],
     &["Thonburi.ttc", "Arial Unicode.ttf"],
     &["Kohinoor.ttc", "DevanagariMT.ttc", "Arial Unicode.ttf"],
@@ -771,7 +771,7 @@ pub const FALLBACK_FACES: &[&[&str]] = &[
         "DroidSansFallback.ttf",
     ],
     &["NotoSansCJK-Regular.ttc", "NotoSansCJKkr-Regular.otf", "NotoSansKR-Regular.otf", "NanumGothic.ttf", "UnDotum.ttf"],
-    &["NotoSansHebrew-Regular.ttf"],
+    &["NotoSansHebrew-Regular.ttf", "NotoSansHebrew[wdth,wght].ttf"],
     &["NotoSansArabic-Regular.ttf", "NotoNaskhArabic-Regular.ttf"],
     &["NotoSansThai-Regular.ttf"],
     &["NotoSansDevanagari-Regular.ttf"],

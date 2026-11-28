@@ -172,6 +172,11 @@ fn window_commands_validate() {
     a.services.system_locale = Some("ka-GE".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "ka");
     assert_eq!(a.session.interface_language, crate::i18n::Lang::Georgian);
+    // Hebrew too (including legacy `iw` tags).
+    assert_eq!(a.execute("ui.language", json!({"language": "he"})).unwrap()["inForce"], "he");
+    a.services.system_locale = Some("iw-IL".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "he");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Hebrew);
     assert_eq!(a.execute("ui.language", json!({"language": "en"})).unwrap()["inForce"], "en");
     assert_eq!(a.execute("ui.interfaceSize", json!({"value": 9000})).unwrap()["value"], 200);
     assert!(a.execute("ui.interfaceSize", json!({"value": "big"})).is_err());

@@ -25,21 +25,28 @@ internal val LANGUAGES: List<LanguageOption> = listOf(
     LanguageOption("sl", "Slovenščina"),
     LanguageOption("cs", "Čeština"),
     LanguageOption("ka", "ქართული"),
+    LanguageOption("he", "עברית"),
 )
+
+private fun normalizeTagPrimary(raw: String): String =
+    when (val code = raw.lowercase(java.util.Locale.ROOT).substringBefore('-').substringBefore('_')) {
+        "iw" -> "he"
+        else -> code
+    }
 
 /**
  * The language the core is to speak for a locale's language code: one the app offers, or English.
  * (The system has already put the owner's own choice, or its own language, into the configuration.)
  */
 internal fun coreLanguage(language: String?): String {
-    val code = language?.lowercase(java.util.Locale.ROOT)?.substringBefore('-')?.substringBefore('_')
+    val code = language?.let(::normalizeTagPrimary)
     return LANGUAGES.firstOrNull { it.tag == code }?.tag ?: LANGUAGES.first().tag
 }
 
 /** Which of [LANGUAGES] the owner has chosen in the app (or the system's per-app setting): "" for none. */
 internal fun chosenTag(applicationLocales: List<String>): String =
     applicationLocales.firstNotNullOfOrNull { tag ->
-        val code = tag.substringBefore('-').lowercase(java.util.Locale.ROOT)
+        val code = normalizeTagPrimary(tag)
         LANGUAGES.firstOrNull { it.tag == code }?.tag
     }.orEmpty()
 
