@@ -66,3 +66,30 @@ fn pictures_beside_each_other_still_share_a_line() {
         assert!(shown[0].rect.max.x <= shown[1].rect.min.x && shown[1].rect.max.x <= shown[2].rect.min.x);
     });
 }
+
+/// Text "Aa" in a first column set as `width`, "Bb" in a second, and a 400 pixel picture across both.
+fn spanning(width: &str) -> f32 {
+    let html = format!(
+        r#"<table cellpadding="0" cellspacing="0" border="0"><tr><td width="{width}">Aa</td><td>Bb</td></tr><tr><td colspan="2"><img src="cid:wide@example.org" width="400" height="20" alt="W"></td></tr></table>"#
+    );
+    let m = with_pictures(&html, &[("wide@example.org", 400, 20)]);
+    in_frame(false, |ctx| {
+        let laid = lay_out(ctx, &m, 1400.0);
+        let (a, b) = (find(&laid, "Aa").rect.min.x, find(&laid, "Bb").rect.min.x);
+        let picture = shown_pictures(&laid)[0].rect.width();
+        assert_eq!(picture, 400.0, "{width}");
+        b - a
+    })
+}
+
+#[test]
+fn a_spanning_cell_leaves_a_pixel_column_alone() {
+    assert_eq!(spanning("120"), 120.0);
+}
+
+#[test]
+fn a_spanning_cell_leaves_a_percent_column_to_its_share() {
+    // 20% of the 400 the picture needs; the room the spanning cell wants lands on the other column
+    // through the spare-room step, so a percent column mixed into the span loses none of it.
+    assert_eq!(spanning("20%"), 80.0);
+}
