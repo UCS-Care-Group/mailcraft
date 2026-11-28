@@ -8,10 +8,21 @@ import kotlin.math.pow
  * The colours of a message, adjusted to stay readable on the paper they are drawn on. A message asks
  * for colours as `0xRRGGBB`; a pair whose contrast falls short is changed (the text only, towards
  * black or white, whichever reads better) and a pair that reads well is left as the sender wrote it.
+ *
+ * In a dark reading of a message written for a white page (the dark theme, its light page off, #1966)
+ * the message's colours are recoloured by the desktop's rule (`crates/ui-egui/src/reading/colors.rs`):
+ * a light background has its lightness turned over, keeping its hue, muted ([darkBackground]); a dark
+ * or strong one stays; and a text colour that then falls short has its lightness turned over too
+ * before it is moved towards black or white ([darkInk]). Pictures are never recoloured.
  */
 internal object Readability {
     /** The contrast ratio a text colour must have against its paper (WCAG's AA for body text). */
     const val MIN_CONTRAST = 4.5
+
+    /** The least contrast a line round a box keeps with its paper: not text, but never invisible (the desktop's). */
+    const val LINE_CONTRAST = 1.5
+
+    private const val LINE_STEPS = 16
 
     private const val BYTE = 255
     private const val RED_SHIFT = 16
@@ -66,7 +77,7 @@ internal object Readability {
         if (contrast(ink, paper) >= MIN_CONTRAST) return ink
         val target = targetFor(paper)
         for (step in 1..STEPS) {
-            val mixed = mix(ink, target, step / STEPS.toDouble())
+            val mixed = mixRgb(ink, target, step / STEPS.toDouble())
             if (contrast(mixed, paper) >= MIN_CONTRAST) return mixed
         }
         return target
@@ -79,12 +90,105 @@ internal object Readability {
         return if (contrast(BLACK, paper) >= contrast(WHITE, paper)) BLACK else WHITE
     }
 
-    private fun mix(from: Int, to: Int, amount: Double): Int {
-        fun part(shift: Int): Int {
-            val a = from shr shift and BYTE
-            val b = to shr shift and BYTE
-            return (a + (b - a) * amount + MIDDLE).toInt().coerceIn(0, BYTE)
-        }
-        return (part(RED_SHIFT) shl RED_SHIFT) or (part(GREEN_SHIFT) shl GREEN_SHIFT) or part(0)
+    private const val RGB = 0xFFFFFF
+    private const val MAX_FLOOR = 0.4
+    private const val MUTE = 0.6
+
+    /**
+     * [rgb] as a background in a dark reading: one lighter than a half has its lightness turned
+     * over, white landing on the lightness of [surface] (the reader's dark paper) and a half
+     * staying a half, its hue kept and muted a little; one a half or darker (black, a navy footer,
+     * a saturated red) stays as the sender wrote it.
+     */
+    fun darkBackground(rgb: Int, surface: Int): Int {
+        val (h, s, l) = hsl(rgb)
+        if (l <= MIDDLE) return rgb and RGB
+        val floor = hsl(surface).third.coerceIn(0.0, MAX_FLOOR)
+        return fromHsl(h, s * MUTE, floor + (1.0 - l) * (1.0 - TWO * floor))
     }
+
+    /**
+     * [line] on [paper]: itself when it is seen, else moved towards black or white just until it is
+     * (the least move, found by halving, so a lighter colour never lands past a darker one).
+     */
+    fun lineOn(line: Int, paper: Int): Int {
+        val own = line and RGB
+        if (contrast(own, paper) >= LINE_CONTRAST) return own
+        val end = if (contrast(BLACK, paper) >= contrast(WHITE, paper)) BLACK else WHITE
+        var low = 0.0
+        var high = 1.0
+        repeat(LINE_STEPS) {
+            val middle = (low + high) / 2
+            if (contrast(mixRgb(own, end, middle), paper) >= LINE_CONTRAST) high = middle else low = middle
+        }
+        return mixRgb(own, end, high)
+    }
+
+    /**
+     * [ink] on [paper] in a dark reading: itself when it reads, else its lightness turned over (a
+     * dark blue a light blue), else [adjust]ed.
+     */
+    fun darkInk(ink: Int, paper: Int): Int {
+        val own = ink and RGB
+        if (contrast(own, paper) >= MIN_CONTRAST) return own
+        val (h, s, l) = hsl(own)
+        val turned = fromHsl(h, s, 1.0 - l)
+        return adjust(if (contrast(turned, paper) > contrast(own, paper)) turned else own, paper)
+    }
+}
+
+private const val HSL_BYTE = 255
+private const val HSL_RED = 16
+private const val HSL_GREEN = 8
+private const val HSL_ROUND = 0.5
+private const val HUE_SIXTHS = 6.0
+private const val TWO = 2.0
+private const val THREE = 3
+private const val FOUR = 4
+private const val TINY = 1e-6
+
+/** Hue (0 to 6), saturation and lightness, as the desktop reckons them. */
+internal fun hsl(rgb: Int): Triple<Double, Double, Double> {
+    val r = (rgb shr HSL_RED and HSL_BYTE) / HSL_BYTE.toDouble()
+    val g = (rgb shr HSL_GREEN and HSL_BYTE) / HSL_BYTE.toDouble()
+    val b = (rgb and HSL_BYTE) / HSL_BYTE.toDouble()
+    val max = maxOf(r, g, b)
+    val min = minOf(r, g, b)
+    val l = (max + min) / TWO
+    val d = max - min
+    if (d < TINY) return Triple(0.0, 0.0, l)
+    val s = d / (1.0 - kotlin.math.abs(TWO * l - 1.0)).coerceAtLeast(TINY)
+    val h = when (max) {
+        r -> ((g - b) / d).mod(HUE_SIXTHS)
+        g -> (b - r) / d + TWO
+        else -> (r - g) / d + FOUR
+    }
+    return Triple(h, s.coerceIn(0.0, 1.0), l)
+}
+
+/** The colour of hue [h] (0 to 6), saturation [s] and lightness [l]. */
+internal fun fromHsl(h: Double, s: Double, l: Double): Int {
+    val c = (1.0 - kotlin.math.abs(TWO * l - 1.0)) * s
+    val x = c * (1.0 - kotlin.math.abs(h.mod(TWO) - 1.0))
+    val (r, g, b) = when (h.mod(HUE_SIXTHS).toInt()) {
+        0 -> Triple(c, x, 0.0)
+        1 -> Triple(x, c, 0.0)
+        2 -> Triple(0.0, c, x)
+        THREE -> Triple(0.0, x, c)
+        FOUR -> Triple(x, 0.0, c)
+        else -> Triple(c, 0.0, x)
+    }
+    val m = l - c / TWO
+    fun byte(v: Double): Int = ((v + m) * HSL_BYTE + HSL_ROUND).toInt().coerceIn(0, HSL_BYTE)
+    return (byte(r) shl HSL_RED) or (byte(g) shl HSL_GREEN) or byte(b)
+}
+
+/** [from] moved [amount] (0 to 1) of the way to [to], channel by channel. */
+internal fun mixRgb(from: Int, to: Int, amount: Double): Int {
+    fun part(shift: Int): Int {
+        val a = from shr shift and HSL_BYTE
+        val b = to shr shift and HSL_BYTE
+        return (a + (b - a) * amount + HSL_ROUND).toInt().coerceIn(0, HSL_BYTE)
+    }
+    return (part(HSL_RED) shl HSL_RED) or (part(HSL_GREEN) shl HSL_GREEN) or part(0)
 }

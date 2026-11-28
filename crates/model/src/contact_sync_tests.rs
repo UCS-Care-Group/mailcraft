@@ -220,6 +220,37 @@ fn repair_drops_before_it_caps_keeps_deletions_keys_and_tidies_folders() {
     assert!(mb.repair().is_empty());
 }
 
+/// Re-review of #1944: a move's link to the contact it came from follows that one's new key, so
+/// the deletion waiting for the move stays held.
+#[test]
+fn repair_gives_a_moves_link_the_new_key_of_the_contact_it_came_from() {
+    const MAX: crate::Id = 1 << 53;
+    let mut mb = Mailbox::default();
+    let account = mb.add_account(Account { email: "ada@example.org".into(), ..Default::default() });
+    let main = mb.ensure_main_contact_folder(account).unwrap();
+    let team = mb.add_contact_folder(ContactFolder { account, remote: "f-team".into(), ..Default::default() }).unwrap();
+    // Moved from main (its deletion waits, under a key out of range) into team (to be made
+    // there), itself under a key out of range.
+    mb.contacts.insert(MAX + 7, std::sync::Arc::new(Contact { id: MAX + 7, folder: team, moved_from: MAX + 3, ..ada() }));
+    mb.contact_changes.push(ContactChange { account, kind: ContactChangeKind::Create, contact: MAX + 7, folder: team, ..Default::default() });
+    let base = Some(Box::new(Contact { folder: main, origin: Origin { account, id: "c-ada".into(), ..Default::default() }, ..ada() }));
+    mb.contact_changes.push(ContactChange {
+        account,
+        kind: ContactChangeKind::Delete,
+        contact: MAX + 3,
+        folder: main,
+        remote: "c-ada".into(),
+        base,
+        ..Default::default()
+    });
+    let mut file: Mailbox = serde_json::from_str(&serde_json::to_string(&mb).unwrap()).unwrap();
+    file.repair();
+    let moved = file.contacts.values().next().unwrap();
+    let delete = file.contact_changes.iter().find(|c| c.kind == ContactChangeKind::Delete).unwrap();
+    assert!(moved.id <= MAX && delete.contact <= MAX);
+    assert_eq!(moved.moved_from, delete.contact);
+}
+
 /// Review of #1935/#1936: a contact of an account that is gone is this computer's, and a change
 /// that couldn't be sent or put back doesn't wait for ever.
 #[test]

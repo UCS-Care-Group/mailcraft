@@ -247,7 +247,14 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
     // back to what had it when the dialog closes (#406).
     let fresh = keyboard && !c.dirty && ui.memory(|m| m.focused().is_none() && m.allows_interaction(ui.layer_id()));
 
-    let focus_to = fresh && c.to.is_empty();
+    let requested_to = keyboard
+        && ui.memory(|memory| memory.allows_interaction(ui.layer_id()))
+        && app.recipient_focus_wanted == app.session.compose_id()
+        && app.recipient_focus_wanted.is_some();
+    if requested_to {
+        app.recipient_focus_wanted = None;
+    }
+    let focus_to = c.to.is_empty() && (fresh || requested_to);
 
     if window.is_some() {
         ui.horizontal_top(|ui| {

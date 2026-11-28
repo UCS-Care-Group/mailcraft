@@ -6,7 +6,7 @@
 //! runs `people.moveToFolder`.
 
 use egui::{RichText, Ui};
-use mailcraft_engine::cmd::contacts_move::already_in;
+use mailcraft_engine::cmd::contacts_move::{NAMED, already_in};
 use mailcraft_engine::cmd::contacts_remote::home;
 use mailcraft_engine::cmd::people::contact_accounts;
 use mailcraft_model::contact_sync::{ContactFolder, FolderOwner};
@@ -152,8 +152,23 @@ impl MoveContacts {
 
     fn go(&mut self, app: &mut MailApp, folder: Id) -> bool {
         match app.execute("people.moveToFolder", json!({"ids": self.ids, "folder": folder})) {
-            Ok(_) => {
+            Ok(said) => {
                 app.people_picked.clear();
+                // (The engine gives each name cleaned and short.)
+                let skipped: Vec<&str> = said["skipped"].as_array().into_iter().flatten().filter_map(|c| c["name"].as_str()).collect();
+                if !skipped.is_empty() {
+                    let line = tln!(
+                        skipped.len(),
+                        "{n} contact wasn't moved, as it is still being sent to its server: {names}. Try again shortly.",
+                        "{n} contacts weren't moved, as they are still being sent to their servers: {names}. Try again shortly."
+                    );
+                    let mut names = skipped.iter().take(NAMED).copied().collect::<Vec<_>>().join(", ");
+                    let more = skipped.len().saturating_sub(NAMED);
+                    if more > 0 {
+                        names = crate::i18n::fmt(&tln!(more, "{people} and {n} more", "{people} and {n} more"), &[("people", &names)]);
+                    }
+                    app.status(crate::i18n::fmt(&line, &[("names", &names)]));
+                }
                 true
             }
             Err(e) => {

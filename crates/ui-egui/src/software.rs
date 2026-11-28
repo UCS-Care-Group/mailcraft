@@ -2,8 +2,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Drawing without the graphics card. When the window is drawn by a software rasteriser (the
 //! host says so: the adapter eframe got is a processor), every frame costs processor time, so
-//! this module (a) says so once in a line above the status bar and (b) holds the window's own
-//! animation and progress repaints to a few a second. Input still repaints at once: only the
+//! this module (a) says so once in a line above the status bar, (b) holds the window's own
+//! animation and progress repaints to a few a second and (c) stops egui's animations unless the
+//! owner chose Always play. Input still repaints at once: only the
 //! repaints MailCraft asks for itself go through [`repaint_after`].
 
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -66,6 +67,13 @@ pub fn spinner_at(ui: &Ui, rect: egui::Rect, color: Option<egui::Color32>) {
 /// How soon a still spinner asks for the next look: `None` when the real spinner is drawn.
 pub(crate) fn spinner_wake(software: bool) -> Option<Duration> {
     software.then_some(SOFTWARE_MIN_WAIT)
+}
+
+/// Whether animations play, with `plays` what the owner's choice and the system say: while
+/// drawing in software they stop too, unless the owner chose Always play (every animated frame is
+/// the whole window drawn by the processor).
+pub(crate) fn animations_play(choice: crate::motion::Motion, plays: bool, software: bool) -> bool {
+    plays && !(software && choice == crate::motion::Motion::System)
 }
 
 /// Whether the line should be on screen.

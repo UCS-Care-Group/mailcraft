@@ -9,10 +9,6 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.Color
-import android.graphics.Paint
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,8 +19,6 @@ import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
 import androidx.core.content.ContextCompat
 import androidx.core.content.edit
-import androidx.core.graphics.createBitmap
-import androidx.core.graphics.drawable.IconCompat
 import uniffi.mailcraft_mobile.Event
 import uniffi.mailcraft_mobile.NotificationRecord
 import uniffi.mailcraft_mobile.NotificationTopic
@@ -104,7 +98,9 @@ internal fun AskForNotificationsOnce(hasAccount: Boolean, answered: () -> Unit) 
  * switch for the app and for the channel). The notification is private: where the system hides
  * private content on the lock screen (its sensitive-content setting), only "New mail" shows there
  * and what the message says waits until the phone is unlocked; where the owner lets the lock
- * screen show all of it, the sender and subject show there too. Tapping one opens the app.
+ * screen show all of it, the sender and subject show there too. Tapping one opens the app; a
+ * notification about one message has the buttons the owner chose ([NoticeButtons]), which Android
+ * 12 and later let be used only once the phone is unlocked.
  */
 internal class MailNotifier(
     private val context: Context,
@@ -113,6 +109,8 @@ internal class MailNotifier(
     private val onlyNewMail: () -> Boolean = { false },
     /** The owner's Reminders switch, read as each one is shown: off, no calendar reminder is posted. */
     private val remindersOn: () -> Boolean = { true },
+    /** The buttons the owner chose for new mail, read as each one is shown. */
+    private val buttons: () -> NoticeButtons = { NoticeButtons(emptyList()) },
 ) {
     fun handle(event: Event) {
         if (event !is Event.Notification) return
@@ -128,7 +126,6 @@ internal class MailNotifier(
         if (!mailNotificationsAllowed(context, channel)) return
         // The "New mail only" privacy switch is about mail; a reminder says what the core says.
         val record = if (reminder) sent else privateRecord(sent, onlyNewMail(), t("New mail"))
-        val icon = IconCompat.createWithBitmap(envelope())
         val open = PendingIntent.getActivity(
             context,
             0,
@@ -136,11 +133,11 @@ internal class MailNotifier(
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
         )
         val hidden = NotificationCompat.Builder(context, channel)
-            .setSmallIcon(icon)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(if (reminder) t("Reminders") else t("New mail"))
             .build()
-        val notification = NotificationCompat.Builder(context, channel)
-            .setSmallIcon(icon)
+        val builder = NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(record.title)
             .setContentText(record.body)
             .setCategory(if (reminder) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_EMAIL)
@@ -148,7 +145,20 @@ internal class MailNotifier(
             .setPublicVersion(hidden)
             .setContentIntent(open)
             .setAutoCancel(true)
-            .build()
+        // A notification about one message has the owner's buttons; they carry its number alone, and
+        // the version a locked screen shows (the hidden one) has none.
+        val about = record.message.takeIf { !reminder }
+        if (about != null) {
+            buttons().chosen.forEach { button ->
+                val press = noticePendingIntent(context, button, about)
+                val action = NotificationCompat.Action.Builder(0, button.label(t), press)
+                    // Nothing is done from a locked phone (Android 12 and later ask for it to be unlocked first).
+                    .setAuthenticationRequired(true)
+                    .build()
+                builder.addAction(action)
+            }
+        }
+        val notification = builder.build()
         try {
             val tag = if (reminder) REMINDER_NOTIFICATION_TAG else MAIL_NOTIFICATION_TAG
             NotificationManagerCompat.from(context).notify(tag, notificationId(record.key), notification)
@@ -170,33 +180,4 @@ internal fun postsNotification(topic: NotificationTopic, remindersOn: Boolean): 
  * [newMail] and nothing of the message, whatever the lock screen shows.
  */
 internal fun privateRecord(record: NotificationRecord, onlyNewMail: Boolean, newMail: String): NotificationRecord =
-    if (onlyNewMail) record.copy(title = newMail, body = "") else record
-
-/** The status-bar icon, an envelope drawn here in white on nothing (the system tints it). */
-internal fun envelope(): Bitmap {
-    val size = ICON_PX
-    val bitmap = createBitmap(size, size)
-    val canvas = Canvas(bitmap)
-    val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        color = Color.WHITE
-        style = Paint.Style.STROKE
-        strokeWidth = size * STROKE
-        strokeJoin = Paint.Join.ROUND
-        strokeCap = Paint.Cap.ROUND
-    }
-    val left = size * MARGIN
-    val right = size - left
-    val top = size * TOP
-    val bottom = size - top
-    canvas.drawRoundRect(left, top, right, bottom, size * CORNER, size * CORNER, paint)
-    canvas.drawLine(left, top, size / 2f, size * FOLD, paint)
-    canvas.drawLine(size / 2f, size * FOLD, right, top, paint)
-    return bitmap
-}
-
-private const val ICON_PX = 96
-private const val STROKE = 0.08f
-private const val MARGIN = 0.12f
-private const val TOP = 0.24f
-private const val CORNER = 0.08f
-private const val FOLD = 0.55f
+    if (onlyNewMail) record.copy(title = newMail, body = "", message = null) else record

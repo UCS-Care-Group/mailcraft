@@ -22,7 +22,16 @@ pub fn is_asset(path: &str) -> bool {
 
 /// Paths that need an ATTRIBUTION.md entry but lack one.
 pub fn missing(files: &[String], assets_md: &str) -> Vec<String> {
-    files.iter().filter(|f| is_asset(f) && !assets_md.contains(&format!("`{f}`"))).cloned().collect()
+    files.iter().filter(|f| is_asset(f) && !attributed(f, assets_md)).cloned().collect()
+}
+
+/// Brand files are not under the project licence: their row must say so by pointing at TRADEMARKS.md.
+const TRADEMARKS_DIR: &str = "assets/trademarks/";
+
+fn attributed(file: &str, assets_md: &str) -> bool {
+    let key = format!("`{file}`");
+    let mut rows = assets_md.lines().filter(|l| l.contains(&key));
+    if file.starts_with(TRADEMARKS_DIR) { rows.any(|l| l.contains("TRADEMARKS.md")) } else { rows.next().is_some() }
 }
 
 pub fn run(root: &Path) -> Result<(), String> {
@@ -43,15 +52,5 @@ pub fn run(root: &Path) -> Result<(), String> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn detects_unattributed_assets() {
-        let files = vec!["assets/icons/a.svg".to_string(), "crates/x/src/lib.rs".into(), "docs/images/b.png".into(), "tests/fixture.png".into()];
-        let md = "| `assets/icons/a.svg` | me | here | MIT |";
-        assert_eq!(missing(&files, md), vec!["docs/images/b.png".to_string(), "tests/fixture.png".into()]);
-        assert!(!is_asset("crates/x/src/lib.rs"));
-        assert!(is_asset("assets/fonts/OFL.txt"));
-    }
-}
+#[path = "assets_tests.rs"]
+mod assets_tests;
