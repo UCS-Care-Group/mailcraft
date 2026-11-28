@@ -177,6 +177,10 @@ pub struct EwsMailRequest {
     /// asked for those ids after the rest of the run, at most [`MAX_THREAD_ASKS`] (#795).
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub threads: Vec<String>,
+    /// A page asked with the read state named the MAPI way (`PR_IS_READ` as an extended property)
+    /// died on the way back, or was refused, on an earlier run of this account: name it no more.
+    /// The remembering lives as long as the process does.
+    pub naming_refused: bool,
 }
 
 /// Messages of an Exchange server account to fetch whole (their MIME content), by server id, in
@@ -340,6 +344,11 @@ pub struct EwsMailResult {
     /// read to its end.
     #[serde(skip_serializing_if = "is_false")]
     pub whole: bool,
+    /// This run had to give up the MAPI naming of the read state: it was refused, or the page
+    /// carrying it died on the way back. The runner remembers it for the account, for as long
+    /// as the process lives, and the next run doesn't ask (#1784: a Kerio whose servlet dies
+    /// on the naming — every ask that carries it costs the server a restart).
+    pub naming_refused: bool,
     /// The owner stopped the run (Cancel) after the piece in hand: the next one goes on from there.
     #[serde(skip_serializing_if = "is_false")]
     pub stopped: bool,

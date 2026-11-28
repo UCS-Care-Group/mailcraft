@@ -44,7 +44,7 @@ fn session() -> (Session, Id) {
     let account = s.run("account.add", &json!({"email": ACCOUNT_EMAIL, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
     take(&mut s, account, server(), Vec::new());
     let ch = s.mailbox.folder_by_server(account, "ch").unwrap();
-    let server = ServerMessage { id: "m1".into(), folder: "ch".into(), ..Default::default() };
+    let server = ServerMessage { read_said: true, flag_said: true, id: "m1".into(), folder: "ch".into(), ..Default::default() };
     s.mailbox.add_message(Message { folder: ch, subject: "Plan".into(), server: Some(server), ..Default::default() }).unwrap();
     (s, account)
 }

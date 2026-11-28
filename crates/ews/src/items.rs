@@ -43,20 +43,42 @@ const MAX_CATEGORY: usize = 255;
 /// and received at no time, by nobody, at the bottom of the Inbox and the last to be fetched.
 const LISTED: [&str; 6] = ["item:DateTimeReceived", "item:DateTimeSent", "item:Size", "item:Importance", "message:From", "message:InternetMessageId"];
 
-/// Which properties `SyncFolderItems` asks for besides the default ones.
+/// Which shape of properties `SyncFolderItems` asks. Every one of them asks over the `IdOnly`
+/// base and names everything it needs — since 2026-11-24 the shapes differ only in which
+/// properties they can afford to name, on servers that refuse some (measured on the lab: the
+/// `Default` base is what makes Kerio answer a listing with whole messages, see
+/// [`SyncFolderItems::element`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Shape {
-    /// The recipients, the categories, the preview and the flag. (Not the conversation, #795: a
-    /// server that didn't know it would lose the preview and the flag with it; it is asked by
-    /// itself, [`GetItemConversations`].)
+    /// Everything a list shows: the recipients, the categories, the preview and the flag named
+    /// with the rest. (Not the conversation, #795: a server that didn't know it would lose the
+    /// preview and the flag with it; it is asked by itself, [`GetItemConversations`].)
     Full,
-    /// The recipients and the categories alone: for a server that doesn't know the preview and the
-    /// flag (it answers `ErrorInvalidPropertyRequest`, or a schema fault), which are then left out.
+    /// Without the preview and the flag: for a server that doesn't know them (it answers
+    /// `ErrorInvalidPropertyRequest`, or a schema fault), which are then left out.
     Lean,
-    /// The categories alone: for a server that won't give the recipients in `SyncFolderItems`
-    /// (Exchange 2007 and 2010 answer `ErrorInvalidPropertyForOperation`, #1349). The recipients
-    /// are then asked with `GetItem` ([`GetItemRecipients`]), where Microsoft documents them.
+    /// Without the recipients either: for a server that won't give them in `SyncFolderItems`
+    /// (Exchange 2007 and 2010 answer `ErrorInvalidPropertyForOperation`, #1349). The
+    /// recipients are then asked with `GetItem` ([`GetItemRecipients`]), where Microsoft
+    /// documents them. (What this leaves to name is exactly what [`Shape::Ids`] asks without
+    /// its flag — the same bytes on the wire, which is why a `Bare` run takes no ids fallback:
+    /// it is already asking the sparsest ask there is.)
     Bare,
+    /// The names of the run's schema shape, less the preview and the recipients — for the
+    /// page that wants only what a change says: the bodies stay at home, opened when read.
+    /// This is also the fallback for a server that answers a page heavy with named extras by
+    /// hanging whole messages on every item of it (Kerio's servlet, #964 — which measures to
+    /// answer this sparse naming with the properties alone). The read state is asked even
+    /// here: an answer that omits it parses as unread, and an `Update` so parsed turns read
+    /// messages unread on the way in (#1784).
+    /// `flag` says whether the run's schema shape asks the flag: when it does (`Full`), an ids
+    /// page asks `item:Flag` too, so a sparse `Update` under ids says what the flag is rather
+    /// than nothing; a leaner run's server is one that doesn't know the flag, and asking it
+    /// there would only be refused.
+    Ids {
+        /// The run's schema shape asked the flag, so this ids page asks it as well.
+        flag: bool,
+    },
 }
 
 /// The request `SyncFolderItems` of one folder.
@@ -66,6 +88,8 @@ pub struct SyncFolderItems {
     state: String,
     max: u32,
     shape: Shape,
+    /// Ask the read state as an extended property too, as Outlook for Mac does (#1784).
+    pub(crate) extended: bool,
 }
 
 impl std::fmt::Debug for SyncFolderItems {
@@ -108,23 +132,68 @@ impl SyncFolderItems {
     /// Reads folder `folder` (its server id) from `state` (empty: from its start), `max` changes
     /// at the most (1 to 512).
     pub fn new(folder: &str, state: &str, max: u32, shape: Shape) -> Self {
-        Self { folder: folder.to_owned(), state: state.to_owned(), max: max.clamp(1, MAX_CHANGES), shape }
+        Self { folder: folder.to_owned(), state: state.to_owned(), max: max.clamp(1, MAX_CHANGES), shape, extended: false }
     }
 
-    /// The operation as the schema has it: `ItemShape` (the `Default` shape and what a list
-    /// shows that it may lack, [`LISTED`]), `SyncFolderId`, `SyncState`, `MaxChangesReturned`,
-    /// `SyncScope`.
+    /// The operation as the schema has it: `ItemShape` (the `IdOnly` base with every property a
+    /// list shows it may lack named — [`LISTED`] and the shape's own; the `Default` base is no
+    /// longer asked of anyone), `SyncFolderId`, `SyncState`, `MaxChangesReturned`, `SyncScope`.
+    ///
+    /// (The `Default` base was measured into retirement on the lab server, 2026-11-24: six
+    /// messages of 215 MB between them answer as 7 KB over `IdOnly` with everything named —
+    /// which is Outlook for Mac's own ask, captured through a proxy — and as 287 MB, whole
+    /// MIME bodies and all, over `Default` with four properties named on top. Kerio's servlet
+    /// hangs the message on every item of a `Default` page; naming the properties is what
+    /// keeps the answer to the properties. Nothing the parser reads was ever a reason to ask
+    /// `Default`: every property a list shows is named below, and the id and change key the
+    /// base also brings come over `IdOnly` like everything else.)
     pub fn element(&self) -> Element {
         let uri = |name: &str| Element::new("t:FieldURI").attr("FieldURI", name);
         let mut extra = LISTED.iter().fold(Element::new("t:AdditionalProperties"), |all, name| all.child(uri(name)));
-        if self.shape != Shape::Bare {
+        // (What the `Default` base used to bring by itself, now named for every shape: the
+        // subject, the attachment flag and the read and draft state. The read state above
+        // all: an answer without it parses as unread, and an `Update` so parsed turns read
+        // messages unread on the way in (#1784, benandez's repro). Kerio 10.0.9 answers
+        // `message:IsRead` both ways — measured 2026-11-24 across read and unread messages
+        // in one mailbox; older builds answer it silent, which is what the extended tag
+        // below is still there for. `item:IsDraft`, not `message:` it: the schema puts the
+        // flag on the item, and Kerio answers a bare SOAP fault for the misnamed one,
+        // measured 2026-11-24 — which is likely some of the old "refuses the ids asking"
+        // behaviour, the asking earning a refusal its name had not earned.)
+        extra = extra.child(uri("item:Subject")).child(uri("item:HasAttachments")).child(uri("message:IsRead")).child(uri("item:IsDraft"));
+        if self.shape == Shape::Full || self.shape == Shape::Lean {
             extra = extra.child(uri("message:ToRecipients")).child(uri("message:CcRecipients"));
         }
         extra = extra.child(uri("item:Categories"));
         if self.shape == Shape::Full {
             extra = extra.child(uri("item:Preview")).child(uri("item:Flag"));
         }
-        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("Default")).child(extra);
+        // (`Ids` asks the flag only when its run's schema shape does: a server lean enough to
+        // have lost the flag refuses it, and the refusal would lose the page.)
+        if let Shape::Ids { flag: true } = self.shape {
+            extra = extra.child(uri("item:Flag"));
+        }
+        // (The read state as MAPI knows it, `PR_IS_READ` (0x0E67), next to the SOAP one: older
+        // Kerio answers the listing silently over `IsRead` yet answers this tag, which is how
+        // Outlook for Mac knows a message is read on it (#964, #1784). It rides every page of
+        // the run, the schema shapes with the sparse one: measured 2026-11-24, the tag answers
+        // lean inside an `IdOnly` page over 215 MB of mail — the old crash was the weight of
+        // what the page asked for, not the door.
+        // The schema's own spelling, leading `0x` and all (as the Outlook capture spells every
+        // tag): the bare `0E67` Kerio answers by dropping the connection, measured twice
+        // 2026-11-24, servlet and all.)
+        // (The flag as MAPI knows it, `PR_FLAG_STATUS` (0x1090), next to the read tag: Kerio's
+        // schema has no `item:Flag` at all — naming it poisons the whole page, the same fault
+        // class as a misspelling, measured 2026-11-24 — and the flag its web mail sets and its
+        // IMAP clients set as `\Flagged` lives behind this tag, which answers lean inside an
+        // `IdOnly` page and maps both ways (measured the same day). Outlook asks this tag too.)
+        if self.extended {
+            extra = extra
+                .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x0E67").attr("PropertyType", "Boolean"))
+                .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x1090").attr("PropertyType", "Integer"))
+                .child(Element::new("t:ExtendedFieldURI").attr("PropertyTag", "0x1081").attr("PropertyType", "Integer"));
+        }
+        let shape = Element::new("m:ItemShape").child(Element::new("t:BaseShape").text("IdOnly")).child(extra);
         let folder = Element::new("m:SyncFolderId").child(Element::new("t:FolderId").attr("Id", &self.folder));
         let mut operation = Element::new("m:SyncFolderItems").child(shape).child(folder);
         if !self.state.is_empty() {
@@ -202,8 +271,76 @@ fn time(node: &Node, name: &str) -> i64 {
     node.child_in(TYPES, name).and_then(|n| mailcraft_time::iso_to_timestamp(n.text.trim(), 0)).unwrap_or(0)
 }
 
+/// An item's answer to one extended-property tag: the `Value` text, when the answer names it.
+/// Servers quote the tag every way the schema allows — hex with or without the `0x` and in
+/// either case, and plain decimal — so all do. The decimal is written out because a
+/// prefix-less hex spelling reads back as whatever base it matches, so the two spellings of
+/// one tag must never collide with another tag's two spellings; a tag added here must keep
+/// that true (0x0E67/3687, 0x1081/4225, 0x1090/4240 are clean apart).
+fn extended_value<'a>(item: &'a Node, decimal: &str, hex: u32) -> Option<&'a str> {
+    item.children
+        .iter()
+        .filter(|p| p.is(TYPES, "ExtendedProperty"))
+        .find(|p| {
+            p.child_in(TYPES, "ExtendedFieldURI").and_then(|u| u.attribute("PropertyTag")).is_some_and(|tag| {
+                let tag = tag.trim();
+                tag == decimal || u32::from_str_radix(tag.trim_start_matches("0x").trim_start_matches("0X"), 16) == Ok(hex)
+            })
+        })
+        .and_then(|p| p.child_in(TYPES, "Value"))
+        .map(|v| v.text.trim())
+}
+
+/// The item's read state as an extended property: `PR_IS_READ` (0x0E67). None: the answer
+/// didn't name it, or didn't answer it in words; a value that means neither yes nor no is no
+/// answer (#1784).
+fn extended_read(item: &Node) -> Option<bool> {
+    extended_value(item, "3687", 0x0E67).and_then(|t| match t {
+        "1" => Some(true),
+        "0" => Some(false),
+        t if t.eq_ignore_ascii_case("true") => Some(true),
+        t if t.eq_ignore_ascii_case("false") => Some(false),
+        _ => None,
+    })
+}
+
+/// The answered and forwarded marks as `PR_LAST_VERB_EXECUTED` (0x1081): what the server
+/// last saw done with the message — 102 a reply to the sender, 103 to all, 108 to the
+/// folder, 104 a forward ([MS-OXOMSG]'s verbs; 0x1082 carries its time, unasked). A
+/// server derives it from its real marks: measured on Kerio 2026-11-24, a web-mail or
+/// IMAP `\Answered` came back 102 and `\Forwarded` 104 — the door Outlook's replied
+/// arrow rides, read. One verb says one thing: reply then forward shows the forward,
+/// and the reply waits for a server that names them apart. A server that never got the
+/// verb says nothing, which is no answer and not no mark — the marks are said apart
+/// (`marks_said`), so one held here for a send the server never heard of survives.
+fn extended_verb(item: &Node) -> Option<(bool, bool)> {
+    extended_value(item, "4225", 0x1081).and_then(|t| t.parse::<i64>().ok()).map(|verb| match verb {
+        102 | 103 | 108 => (true, false),
+        104 => (false, true),
+        _ => (false, false),
+    })
+}
+
 fn flag(node: &Node, name: &str) -> bool {
     node.child_in(TYPES, name).is_some_and(|n| n.text.trim().eq_ignore_ascii_case("true"))
+}
+
+/// The item's flag as an extended property: `PR_FLAG_STATUS` (0x1090), the flag as MAPI
+/// numbers it ([MS-OXOFLAG], same numbering as Outlook's `OlFlagStatus`): 0 is no flag,
+/// 1 is a flag worked through, 2 is flagged; anything else is no answer. The tag is
+/// quoted as the server likes, read the way [`extended_read`] reads its own — decimal
+/// only ever matches 4240 and a prefix-less hex spelling only ever reads back as this
+/// tag, the two not colliding; a tag added this way must keep that true. On Kerio this
+/// is the only flag there is (#1784, the flag: measured 2026-11-24, the tag answers lean
+/// and follows what the web mail and IMAP's `\Flagged` set — its own web mail's flag
+/// coming back as 2, a completed follow-up as 1).
+fn extended_flag(item: &Node) -> Option<FlagStatus> {
+    extended_value(item, "4240", 0x1090).and_then(|t| t.parse::<i64>().ok()).and_then(|value| match value {
+        0 => Some(FlagStatus::None),
+        1 => Some(FlagStatus::Complete),
+        2 => Some(FlagStatus::Flagged),
+        _ => None,
+    })
 }
 
 /// A `Mailbox` element as an address. An address in the server's own directory (routing type
@@ -243,17 +380,29 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
         _ => Importance::Normal,
     };
     let flag_node = item.child_in(TYPES, "Flag");
-    let status = match flag_node.and_then(|f| f.child_in(TYPES, "FlagStatus")).map_or("", |n| n.text.trim()) {
-        "Flagged" => FlagStatus::Flagged,
-        "Complete" => FlagStatus::Complete,
-        _ => FlagStatus::None,
+    let ext_flag = extended_flag(item);
+    // The schema flag answers with the MAPI tag beside it: the tag is a fallback for servers
+    // whose schema has no flag family at all, never an override — a `NotFlagged` answered by
+    // the node outvotes any tag value (#1784). Dates parse from the node alone: the tag says
+    // nothing of them, and the servers that answer the tag without the node have no dates
+    // to say (Kerio measured 2026-11-24), so `flag_said` covers one flag whole either way.
+    let status = match flag_node {
+        Some(f) => match f.child_in(TYPES, "FlagStatus").map_or("", |n| n.text.trim()) {
+            "Flagged" => FlagStatus::Flagged,
+            "Complete" => FlagStatus::Complete,
+            _ => FlagStatus::None,
+        },
+        None => ext_flag.unwrap_or(FlagStatus::None),
     };
     let when = |name: &str| flag_node.and_then(|f| f.child_in(TYPES, name)).and_then(|n| mailcraft_time::iso_to_timestamp(n.text.trim(), 0));
-    let categories = item
-        .child_in(TYPES, "Categories")
+    let cats_node = item.child_in(TYPES, "Categories");
+    let categories = cats_node
         .map(|c| c.children.iter().take(MAX_CATEGORIES).map(|s| line(&s.text, MAX_CATEGORY)).filter(|s| !s.is_empty()).collect())
         .unwrap_or_default();
     let message_id = line(item.child_in(TYPES, "InternetMessageId").map_or("", |n| n.text.as_str()), MAX_SUBJECT);
+    let native_read = item.child_in(TYPES, "IsRead").map(|n| n.text.trim().eq_ignore_ascii_case("true"));
+    let ext_read = extended_read(item);
+    let verb = extended_verb(item);
     // Past what is kept of a list, or a recipient left out, what it said is left out; and so is the
     // end of a subject past what is kept of one (#566).
     let listed = |name: &str| item.child_in(TYPES, name).map_or(0, |list| list.children.len());
@@ -268,10 +417,17 @@ fn read_item(item: &Node) -> Option<GraphMessage> {
     Some(GraphMessage {
         server: ServerMessage {
             id: id.to_owned(),
-            read: flag(item, "IsRead"),
+            read: native_read.or(ext_read).unwrap_or(false),
+            read_said: native_read.is_some() || ext_read.is_some(),
+            answered: verb.is_some_and(|v| v.0),
+            forwarded: verb.is_some_and(|v| v.1),
+            marks_said: verb.is_some(),
             flag: status,
+            flag_said: flag_node.is_some() || ext_flag.is_some(),
             categories,
+            categories_said: cats_node.is_some(),
             importance,
+            importance_said: item.child_in(TYPES, "Importance").is_some(),
             size: item.child_in(TYPES, "Size").and_then(|n| n.text.trim().parse().ok()).unwrap_or(0),
             flag_start: when("StartDate").filter(|_| status != FlagStatus::None),
             flag_due: when("DueDate").filter(|_| status != FlagStatus::None),

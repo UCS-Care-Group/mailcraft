@@ -48,7 +48,7 @@ fn exchange(whole: Option<&[u8]>) -> (Session, Id, Id) {
     let folders = EwsFolderDeltas { changed: vec![inbox], afresh: true, ..Default::default() };
     ews_mail::apply_ews_mail(&mut s, EwsMailResult { folders: Some(folders), hierarchy: "H".into(), ..piece.clone() }).unwrap();
     let mail = GraphMessage {
-        server: ServerMessage { id: "A1".into(), size: 900, change_key: "CK1".into(), ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: "A1".into(), size: 900, change_key: "CK1".into(), ..Default::default() },
         message_id: "minutes-1@example.org".into(),
         subject: "Minutes".into(),
         from: Address::new("Zoe Park", "zoe@example.org"),
@@ -183,7 +183,7 @@ fn a_signed_message_saved_as_it_came_still_verifies() {
     // Read before they were kept, of a Microsoft account: its server's copy is saved.
     let mut m = mailcraft_mime_model::parse(DETACHED);
     m.folder = inbox;
-    m.server = Some(ServerMessage { id: "AAkA1".into(), folder: "F".into(), ..Default::default() });
+    m.server = Some(ServerMessage { read_said: true, flag_said: true, id: "AAkA1".into(), folder: "F".into(), ..Default::default() });
     let before = mb.add_message(m).unwrap();
     let mut s = Session::new(mb);
     s.clock.now = Some(NOW);

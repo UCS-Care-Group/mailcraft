@@ -491,7 +491,12 @@ pub(super) fn put_back(mb: &mut Mailbox, account: Id, id: &str, kept: Option<Box
         }
         (None, Some(server), Some(folder)) => {
             if let Some(there) = there {
-                let _ = mb.add_message(super::graph_down::new_message(folder, &server.folder, there));
+                let _ = mb.add_message(super::graph_down::new_message(
+                    folder,
+                    &server.folder,
+                    there,
+                    mb.folder(folder).is_some_and(|f| matches!(f.kind, mailcraft_model::FolderKind::Sent | mailcraft_model::FolderKind::Outbox)),
+                ));
             }
         }
         (Some(kept), None, _) if mb.folder(kept.folder).is_some() => {

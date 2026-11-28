@@ -394,7 +394,7 @@ fn folders_and_views() {
     m.body = mailcraft_model::Body { text: "Only the start".into(), html: None };
     m.attachments.clear();
     m.unfetched = true;
-    m.server = Some(mailcraft_model::sync::ServerMessage { size: 50 << 20, ..Default::default() });
+    m.server = Some(mailcraft_model::sync::ServerMessage { read_said: true, flag_said: true, size: 50 << 20, ..Default::default() });
     // Another order and back, for the list to be made again.
     run(&mut s, "view.sort", json!({"by": "date"}));
     s.rows();

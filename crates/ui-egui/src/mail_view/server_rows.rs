@@ -162,7 +162,8 @@ fn link_line(app: &mut MailApp, ui: &mut Ui, rect: Rect, link: Link) {
 fn result_row(app: &mut MailApp, ui: &mut Ui, index: usize, rect: Rect, shade: bool) {
     let t = Tokens::get(ui.ctx());
     let Some(r) = app.session.server_search.results.get(index).cloned() else { return };
-    let m = mailcraft_engine::cmd::search_server::as_message(r.account, r.folder, &r.found);
+    // A row only, shown before it is taken in; whether it lands read is decided when it is.
+    let m = mailcraft_engine::cmd::search_server::as_message(r.account, r.folder, &r.found, false);
     let resp = ui.interact(rect, ui.scope_id().with(("server_result", index)), Sense::click()).on_hover_cursor(egui::CursorIcon::PointingHand);
     app.hit.add("serverResult", index as u64, rect);
     let p = ui.painter();

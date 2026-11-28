@@ -23,7 +23,15 @@ fn mailbox() -> (Mailbox, Id) {
 
 /// A page of folder `folder`'s delta with one message, `isDraft` as the server says it.
 fn page(folder: &str, id: &str, draft: Option<bool>) -> MessagePage {
-    let server = ServerMessage { id: id.into(), folder: folder.into(), change_key: "CK1".into(), read: true, ..Default::default() };
+    let server = ServerMessage {
+        read_said: true,
+        flag_said: true,
+        id: id.into(),
+        folder: folder.into(),
+        change_key: "CK1".into(),
+        read: true,
+        ..Default::default()
+    };
     let message =
         GraphMessage { server, subject: "Quarterly figures".into(), to: vec![Address::new("Kit", "kit@example.org")], draft, ..Default::default() };
     MessagePage { folder: folder.into(), messages: vec![message], ..Default::default() }

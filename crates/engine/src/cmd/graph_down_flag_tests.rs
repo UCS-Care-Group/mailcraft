@@ -20,7 +20,8 @@ fn mailbox(kind: AccountKind, here: (FlagStatus, Option<Timestamp>), last: (Flag
     let folder = mb.alloc_id();
     let server = Some(ServerFolder { id: "F".into(), ..Default::default() });
     mb.folders.push(Folder { id: folder, account, name: "Inbox".into(), kind: FolderKind::Inbox, server, ..Default::default() });
-    let server = ServerMessage { id: "E1".into(), folder: "F".into(), flag: last.0, flag_due: last.1, ..Default::default() };
+    let server =
+        ServerMessage { read_said: true, flag_said: true, id: "E1".into(), folder: "F".into(), flag: last.0, flag_due: last.1, ..Default::default() };
     let m = Message { folder, flag: here.0, flag_due: here.1, server: Some(server), subject: "Follow up".into(), ..Default::default() };
     let id = mb.add_message(m).unwrap();
     (mb, account, id)
@@ -34,7 +35,7 @@ fn after(
     now: (FlagStatus, Option<Timestamp>),
 ) -> (FlagStatus, Option<Timestamp>) {
     let (mut mb, account, id) = mailbox(kind, here, last);
-    let server = ServerMessage { id: "E1".into(), folder: "F".into(), flag: now.0, flag_due: now.1, ..Default::default() };
+    let server = ServerMessage { id: "E1".into(), folder: "F".into(), flag: now.0, flag_due: now.1, flag_said: true, ..Default::default() };
     let page = MessagePage { folder: "F".into(), messages: vec![GraphMessage { server, ..Default::default() }], ..Default::default() };
     take_page(&mut mb, &mut ServerIndex::default(), account, &page, &mut Down::default());
     let m = mb.message(id).unwrap();

@@ -214,7 +214,7 @@ impl<E: HttpExchange> Run<'_, E> {
                 }
                 Ok(Some(ChangeOutcome::Refused { why: why(&code) }))
             }
-            Err(Asked::Bad | Asked::Unreadable) => {
+            Err(Asked::Bad | Asked::Unreadable | Asked::TooLarge) => {
                 self.reread_folders |= matches!(change, FolderChange::Delete { .. });
                 Ok(Some(ChangeOutcome::Refused { why: "the server's answer couldn't be used".to_owned() }))
             }
@@ -296,17 +296,24 @@ impl<E: HttpExchange> Run<'_, E> {
                 Err(error) => return settle(error),
             }
         }
-        // (A server answering in a version older than Exchange 2013's has no follow-up flag, #1349.)
-        if flag.is_some() && !self.flag_lacking && !self.client.version().has_preview() {
-            self.flag_lacking = true;
-            log::info!("ews up: the server is older than Exchange 2013 and has no follow-up flag; flags stay here");
+        // (A server answering in a version older than Exchange 2013's has no flag family in its
+        // schema, #1349 — but the flag goes up over MAPI's own tag all the same, which is how
+        // Kerio takes it: measured 2026-11-24, this exact shape answered `NoError` and the flag
+        // showed in the server's IMAP and web mail at once, so it is one flag behind three
+        // names there too. The flag's dates are schema fields only: they ride `item:Flag`
+        // alone, and a tag carries the status without them.)
+        let by_tag = flag.is_some() && !self.flag_lacking && !self.client.version().has_preview();
+        if by_tag && !self.flag_by_tag {
+            self.flag_by_tag = true;
+            log::info!("ews up: the server has no flag family; the flag goes over the MAPI tag");
         }
         // (Once without the key, once with it: a server that still wants one has its refusal.)
         let mut keyed = !key.is_empty();
         loop {
             let update = ItemUpdate {
                 read,
-                flag: flag.filter(|_| !self.flag_lacking).cloned(),
+                flag: flag.filter(|_| !self.flag_lacking && !by_tag).cloned(),
+                flag_tag: by_tag.then(|| flag.map(|f| f.status)).flatten().filter(|_| !self.flag_lacking),
                 categories: merged.clone(),
                 importance,
                 ..ItemUpdate::default()
@@ -693,7 +700,7 @@ fn settle(error: Asked) -> Result<Option<MessageOutcome>, Asked> {
     match error {
         Asked::Code(ResponseCode::ItemNotFound) => Ok(Some(MessageOutcome::Gone)),
         Asked::Code(code) => Ok(Some(MessageOutcome::Refused { status: refused_status(&code) })),
-        Asked::Bad | Asked::Unreadable => Ok(Some(MessageOutcome::Refused { status: 400 })),
+        Asked::Bad | Asked::Unreadable | Asked::TooLarge => Ok(Some(MessageOutcome::Refused { status: 400 })),
         Asked::Lost => Ok(None),
         stop @ Asked::Stop(_) => Err(stop),
     }

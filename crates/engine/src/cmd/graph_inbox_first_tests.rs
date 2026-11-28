@@ -26,7 +26,7 @@ fn take(s: &mut Session, account: Id, mut result: GraphMailResult) -> Value {
 
 fn there(id: &str, read: bool) -> GraphMessage {
     GraphMessage {
-        server: ServerMessage { id: id.into(), folder: "F-in".into(), read, ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: id.into(), folder: "F-in".into(), read, ..Default::default() },
         subject: id.into(),
         ..Default::default()
     }
@@ -68,7 +68,7 @@ fn what_was_changed_here_and_not_sent_yet_wins_over_the_inbox_delta_that_comes_f
     let inbox = folder(&mut s, FolderKind::Inbox, "F-in");
     let archive = folder(&mut s, FolderKind::Archive, "F-ar");
     let add = |s: &mut Session, id: &str| {
-        let server = ServerMessage { id: id.into(), folder: "F-in".into(), ..Default::default() };
+        let server = ServerMessage { read_said: true, flag_said: true, id: id.into(), folder: "F-in".into(), ..Default::default() };
         s.mailbox.add_message(Message { folder: inbox, subject: id.into(), server: Some(server), ..Default::default() }).unwrap()
     };
     let (read_here, moved_here, deleted_there) = (add(&mut s, "M-1"), add(&mut s, "M-2"), add(&mut s, "M-3"));

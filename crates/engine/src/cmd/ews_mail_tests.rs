@@ -34,7 +34,7 @@ fn folders() -> Vec<GraphFolder> {
 
 fn mail(id: &str, subject: &str, received: i64) -> GraphMessage {
     GraphMessage {
-        server: ServerMessage { id: id.into(), size: 1_200, change_key: "CK1".into(), ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: id.into(), size: 1_200, change_key: "CK1".into(), ..Default::default() },
         message_id: format!("{id}@example.org"),
         subject: subject.into(),
         from: Address::new("Zoe Park", "zoe@example.org"),

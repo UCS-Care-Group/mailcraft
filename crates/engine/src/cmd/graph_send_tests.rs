@@ -39,7 +39,7 @@ fn subjects(s: &Session, account: Id) -> Vec<String> {
 
 /// What 0.8.0 downloaded from the server's Outbox into the queue it sends from.
 fn delivered() -> Option<ServerMessage> {
-    Some(ServerMessage { id: "M-9".into(), folder: "F-ou".into(), ..Default::default() })
+    Some(ServerMessage { read_said: true, flag_said: true, id: "M-9".into(), folder: "F-ou".into(), ..Default::default() })
 }
 
 #[test]

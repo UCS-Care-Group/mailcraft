@@ -70,7 +70,10 @@ impl DistinguishedFolder {
 /// no control character. An id is opaque: nothing else is assumed of it (the model holds the same
 /// rule, `id_ok`), and it only ever travels as an escaped attribute.
 pub(crate) fn valid_id(text: &str) -> bool {
-    !text.is_empty() && text.len() <= MAX_ID && !text.chars().any(char::is_control)
+    // Angle brackets and spaces too: Kerio's folder listing was measured naming a folder with
+    // the id `<id>` — its own template placeholder leaked — and a client that syncs that back
+    // spends every run failing on it (#1784). No real service writes markup in an id.
+    !text.is_empty() && text.len() <= MAX_ID && !text.chars().any(|c| c.is_control() || c == '<' || c == '>' || c.is_whitespace())
 }
 
 /// A server's id for a folder: opaque, short, and with no control character. It stays inside the

@@ -192,7 +192,7 @@ fn graph_mail_from_a_blocked_sender_goes_to_junk_and_the_move_goes_up() {
     }
     s.run("junk.add", &json!({"list": "blocked", "entry": "offers@shop.example"})).unwrap();
     let there = |id: &str, from: &str| GraphMessage {
-        server: ServerMessage { id: id.into(), folder: "F-in".into(), ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: id.into(), folder: "F-in".into(), ..Default::default() },
         from: Address::new("", from),
         subject: id.into(),
         ..Default::default()
@@ -296,7 +296,7 @@ fn graph_s_first_round_of_a_folder_is_left_as_its_server_has_it() {
     s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), ..Default::default() });
     s.run("junk.add", &json!({"list": "blocked", "entry": "offers@shop.example"})).unwrap();
     let there = GraphMessage {
-        server: ServerMessage { id: "M-1".into(), folder: "F-in".into(), ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: "M-1".into(), folder: "F-in".into(), ..Default::default() },
         from: Address::new("", "offers@shop.example"),
         subject: "Old deals".into(),
         ..Default::default()
@@ -510,7 +510,7 @@ fn a_rule_moves_new_mail_that_comes_through_graph() {
     )
     .unwrap();
     let there = GraphMessage {
-        server: ServerMessage { id: "M-1".into(), folder: "F-in".into(), ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: "M-1".into(), folder: "F-in".into(), ..Default::default() },
         from: Address::new("", "news@paper.example"),
         subject: "Morning news".into(),
         ..Default::default()

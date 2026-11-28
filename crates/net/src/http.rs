@@ -300,7 +300,7 @@ pub(crate) fn is_too_slow(error: &NetError) -> bool {
 }
 
 /// Whether an error of [`read_reply`] says that the answer is longer than was asked for.
-pub(crate) fn is_too_long(error: &NetError) -> bool {
+pub fn is_too_long(error: &NetError) -> bool {
     matches!(error, NetError::Proto(ProtoError::Protocol(why)) if why.to_string().starts_with(TOO_LONG))
 }
 

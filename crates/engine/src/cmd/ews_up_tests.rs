@@ -43,7 +43,7 @@ pub(crate) fn setup() -> (Session, Id, Id, Id) {
     apply_ews_mail(&mut s, mailcraft_model::sync::EwsMailResult { folders: Some(deltas), hierarchy: "H".into(), partial: true, ..piece(account) })
         .unwrap();
     let message = |id: &str, from: &str, subject: &str| GraphMessage {
-        server: ServerMessage { id: id.into(), folder: "F1".into(), change_key: "CK".into(), ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: id.into(), folder: "F1".into(), change_key: "CK".into(), ..Default::default() },
         message_id: format!("{id}@example.org"),
         subject: subject.into(),
         from: Address::new("Zoe", from),
@@ -315,7 +315,7 @@ fn a_blocked_sender_on_new_mail_goes_to_junk_and_that_move_goes_up() {
     s.run("junk.blockSender", &json!({"id": a})).unwrap();
     let junk = s.mailbox.folder_of_kind(account, FolderKind::Junk).unwrap();
     let late = GraphMessage {
-        server: ServerMessage { id: "A9".into(), folder: "F1".into(), ..Default::default() },
+        server: ServerMessage { read_said: true, flag_said: true, id: "A9".into(), folder: "F1".into(), ..Default::default() },
         message_id: "a9@example.org".into(),
         subject: "Buy now".into(),
         from: Address::new("Zoe", "zoe@example.org"),

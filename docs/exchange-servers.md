@@ -91,6 +91,23 @@ stand-in that refuses what the tester saw refused.
 Without the preview, a message from such a server shows no preview line in the message list, and its
 flag isn't read from the server.
 
+## Kerio Connect
+
+**Seen:** Kerio Connect 10.0.8, an organisation's own server, EWS over HTTPS with Basic sign-in,
+release 0.14.0. Unlike the entries above, this one was measured read-only by the account's owner
+against their own server, with the numbers published on #964; the stand-in's tests reproduce what
+was measured.
+
+| What | Result | Notes |
+|---|---|---|
+| Version step-down | Works | The server refuses `RequestServerVersion Exchange2013` and takes every version down to `Exchange2010_SP2`, which MailCraft steps down to |
+| Sign-in: Basic | Works | |
+| Folder list, `GetFolder`, sync states | Work | Hierarchy and item deltas page and continue correctly, with no item twice; a folder with nothing new answers 0 changes |
+| `MaxChangesReturned` | Honoured | Asking for 5 answers 5 (answering fewer than asked is normal, Exchange too) |
+| `ItemShape` | Doesn't | Every `SyncFolderItems` answer whose base shape isn't `IdOnly` carries each item's full `MimeContent` — 32 items came as 47 MB, without the body being asked for. `IdOnly` answers correctly |
+| First download | Worked | Its pages were light enough to read |
+| Every run after the first | Stalled (fixed in #1783) | The next page outweighed the 16 MiB any answer is read at, was dropped, and the folder's state could never move past it: one problem every send/receive and no new mail, ever. Such pages are now asked for fewer changes at a time until the server's answers fit — and where an item itself outweighs the limit, the folder costs one problem and no loop (#1783) |
+
 ## Not yet tried
 
 Exchange Server Subscription Edition, SmarterMail, changes sent up and sending against Exchange Server itself, NTLM against a real server, Kerberos

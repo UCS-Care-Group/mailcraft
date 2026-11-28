@@ -47,7 +47,7 @@ fn plan() -> Vec<u8> {
 /// The message as the server has it, whole: its text and a file, both more than a mailbox file
 /// keeps inside itself.
 fn invoice(folder: Id) -> Message {
-    let server = ServerMessage { id: "AAkA1".into(), folder: "in".into(), size: 12_000, ..Default::default() };
+    let server = ServerMessage { read_said: true, flag_said: true, id: "AAkA1".into(), folder: "in".into(), size: 12_000, ..Default::default() };
     let mut m = Message {
         folder,
         subject: "Invoice 42".into(),
@@ -90,7 +90,7 @@ fn there() -> GraphMessage {
         has_attachments: true,
         ..Default::default()
     };
-    there.server = ServerMessage { id: "AAkA1".into(), folder: "in".into(), ..Default::default() };
+    there.server = ServerMessage { read_said: true, flag_said: true, id: "AAkA1".into(), folder: "in".into(), ..Default::default() };
     there
 }
 

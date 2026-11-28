@@ -115,7 +115,7 @@ fn a_message_moved_from_a_microsoft_account_into_the_outbox_is_not_sent() {
         }
     };
     s.mailbox.folder_mut(inbox).unwrap().server = Some(ServerFolder { id: "F-in".into(), name: "Inbox".into(), ..Default::default() });
-    let server = ServerMessage { id: "M-1".into(), folder: "F-in".into(), ..Default::default() };
+    let server = ServerMessage { read_said: true, flag_said: true, id: "M-1".into(), folder: "F-in".into(), ..Default::default() };
     let received = Message {
         folder: inbox,
         subject: "Invoice 42".into(),
@@ -295,7 +295,7 @@ fn mail_moved_into_a_microsoft_account_doesnt_go_on_into_its_outbox_before_its_s
 fn a_copy_doesnt_go_into_a_microsoft_accounts_outbox() {
     let (mut s, _, _) = imap();
     let (ms, inbox, outbox) = microsoft(&mut s);
-    let server = ServerMessage { id: "M-1".into(), folder: "F-in".into(), ..Default::default() };
+    let server = ServerMessage { read_said: true, flag_said: true, id: "M-1".into(), folder: "F-in".into(), ..Default::default() };
     let received = Message {
         folder: inbox,
         subject: "Invoice".into(),

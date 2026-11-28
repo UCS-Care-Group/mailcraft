@@ -78,7 +78,7 @@ fn a_message_waiting_to_be_removed_makes_the_next_run_a_full_sweep() {
     take(&mut s, account, ended(0));
     assert!(!full(&s, account));
     let projects = s.mailbox.folder_by_server(account, "pr").unwrap();
-    let server = ServerMessage { id: "m1".into(), folder: "pr".into(), ..Default::default() };
+    let server = ServerMessage { read_said: true, flag_said: true, id: "m1".into(), folder: "pr".into(), ..Default::default() };
     let m = s.mailbox.add_message(Message { folder: projects, account, server: Some(server), ..Default::default() }).unwrap();
     take(
         &mut s,

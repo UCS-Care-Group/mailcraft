@@ -1874,7 +1874,14 @@ fn the_gate_names_what_the_jobs_then_delete_in_outlook() {
 fn server_message(s: &mut Session, account: Id, categories: &[&str]) -> Id {
     let folder = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
     let categories: Vec<String> = categories.iter().map(|c| c.to_string()).collect();
-    let server = ServerMessage { id: "m-1".into(), folder: "inbox".into(), categories: categories.clone(), ..Default::default() };
+    let server = ServerMessage {
+        read_said: true,
+        flag_said: true,
+        id: "m-1".into(),
+        folder: "inbox".into(),
+        categories: categories.clone(),
+        ..Default::default()
+    };
     s.mailbox.add_message(Message { folder, categories, server: Some(server), ..Default::default() }).unwrap()
 }
 
@@ -2411,7 +2418,14 @@ fn a_rename_or_a_removal_leaves_a_shared_mailboxs_items_and_other_peoples_calend
         let own = server_message(&mut s, a, &["Old"]);
         // A message of the shared mailbox that its server has, and an event of its calendar.
         let folder = s.mailbox.folder_of_kind(shared, FolderKind::Inbox).unwrap();
-        let there = ServerMessage { id: "m-2".into(), folder: "inbox".into(), categories: vec!["Old".into()], ..Default::default() };
+        let there = ServerMessage {
+            read_said: true,
+            flag_said: true,
+            id: "m-2".into(),
+            folder: "inbox".into(),
+            categories: vec!["Old".into()],
+            ..Default::default()
+        };
         let theirs = s.mailbox.add_message(Message { folder, categories: vec!["Old".into()], server: Some(there), ..Default::default() }).unwrap();
         let shared_event = server_event(&mut s, shared, &["Old"]);
         // And an event of a colleague's calendar that the owner's account lists.

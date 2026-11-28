@@ -215,7 +215,7 @@ fn a_jmap_server_isnt_told_of_moves_yet_so_a_message_it_has_is_refused_and_stays
     let account =
         s.mailbox.add_account(Account { name: "Jay".into(), email: "jay@example.org".into(), kind: AccountKind::Jmap, ..Default::default() });
     let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    let server = ServerMessage { id: "J1".into(), folder: "mb-in".into(), ..Default::default() };
+    let server = ServerMessage { read_said: true, flag_said: true, id: "J1".into(), folder: "mb-in".into(), ..Default::default() };
     let m = s.mailbox.add_message(Message { account, folder: inbox, server: Some(server), ..Default::default() }).unwrap();
     at(&mut s, NOW);
     let refused = s.run("mail.snooze", &json!({"ids": [m], "until": NOW + 600}));

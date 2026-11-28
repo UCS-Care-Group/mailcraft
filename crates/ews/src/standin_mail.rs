@@ -23,6 +23,7 @@ const FIELD_URIS: &[&str] = &[
     "message:From",
     "message:InternetMessageId",
     "message:IsRead",
+    "item:IsDraft",
     "item:Categories",
     "item:Importance",
     "item:Subject",
@@ -386,7 +387,54 @@ impl State {
                 item.attachments
             ));
             xml.push_str(&people("From", std::slice::from_ref(&item.from)));
-            xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId><t:IsRead>{}</t:IsRead>", escape(&item.message_id), item.read));
+            xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId>", escape(&item.message_id)));
+            if !self.omits_read_state {
+                xml.push_str(&format!("<t:IsRead>{}</t:IsRead>", item.read));
+            }
+        }
+        if shape == "IdOnly" && wants("item:Subject") {
+            // (Over the `IdOnly` base nothing comes by itself: what is asked is what is given.)
+            xml.push_str(&format!("<t:Subject>{}</t:Subject>", escape(&item.subject)));
+        }
+        if shape == "IdOnly" && wants("item:HasAttachments") {
+            xml.push_str(&format!("<t:HasAttachments>{}</t:HasAttachments>", item.attachments));
+        }
+        // (The read and draft state over `IdOnly` too, as asked: Kerio answers them there like
+        // every named property — and an answer without the read state would be a lie of
+        // unread, which is the very fault #1784's ids asking must not carry.)
+        if shape == "IdOnly" && wants("message:IsRead") && !self.omits_read_state {
+            xml.push_str(&format!("<t:IsRead>{}</t:IsRead>", item.read));
+        }
+        if shape == "IdOnly" && wants("item:IsDraft") {
+            xml.push_str(&format!("<t:IsDraft>{}</t:IsDraft>", item.draft));
+        }
+        // (Over `IdOnly` the named properties are given as the real servers give them: the ones
+        // the `Default` branch sends by right come only when they are asked.)
+        if wants("ext:0E67") && self.answers_read_extended {
+            // (The read state in the MAPI tag, the way Kerio gives it and Outlook for Mac asks
+            // it: the answer is shaped identically over every base shape (#1784).)
+            xml.push_str(&format!(
+                "<t:ExtendedProperty><t:ExtendedFieldURI PropertyTag=\"0x0E67\" PropertyType=\"Boolean\"/><t:Value>{}</t:Value></t:ExtendedProperty>",
+                item.read
+            ));
+        }
+        if shape == "IdOnly" && wants("item:DateTimeReceived") {
+            xml.push_str(&format!("<t:DateTimeReceived>{}</t:DateTimeReceived>", item.received));
+        }
+        if shape == "IdOnly" && wants("item:DateTimeSent") {
+            xml.push_str(&format!("<t:DateTimeSent>{}</t:DateTimeSent>", item.sent));
+        }
+        if shape == "IdOnly" && wants("item:Size") {
+            xml.push_str(&format!("<t:Size>{}</t:Size>", item.mime.len()));
+        }
+        if shape == "IdOnly" && wants("item:Importance") {
+            xml.push_str(&format!("<t:Importance>{}</t:Importance>", item.importance));
+        }
+        if shape == "IdOnly" && wants("message:From") {
+            xml.push_str(&people("From", std::slice::from_ref(&item.from)));
+        }
+        if shape == "IdOnly" && wants("message:InternetMessageId") {
+            xml.push_str(&format!("<t:InternetMessageId>{}</t:InternetMessageId>", escape(&item.message_id)));
         }
         if wants("message:ToRecipients") {
             xml.push_str(&people("ToRecipients", &item.to));
@@ -426,6 +474,29 @@ impl State {
         xml
     }
 
+    /// Whether a `SyncFolderItems` ask is the sparse one: the `IdOnly` base with nothing of
+    /// the list's weight named — no preview, no recipients. What a Kerio-like server pads, and
+    /// what a shape-refusing server refuses, turns on this and not on the base shape: every
+    /// ask names its properties over `IdOnly` now, and the shapes differ only in how heavy a
+    /// list they ask (measured 2026-11-24).
+    fn sparse_ask(base: &str, extra: &[String]) -> bool {
+        base == "IdOnly" && !extra.iter().any(|e| e == "item:Preview" || e == "message:ToRecipients")
+    }
+
+    /// The item as `SyncFolderItems` gives it: as `message_xml`, but a server that sends whole
+    /// messages with the changes (Kerio Connect, #964) hangs their MIME on every item of the
+    /// list — save when the ask is the sparse one ([`Self::sparse_ask`]), which it answers
+    /// with the properties alone: the whole of the fallback's deal.
+    fn sync_item_xml(&self, item: &Item, base: &str, extra: &[String]) -> String {
+        let xml = self.message_xml(item, base, extra);
+        if self.sends_mime_with_changes == 0 || Self::sparse_ask(base, extra) {
+            return xml;
+        }
+        let mime = "x".repeat(self.sends_mime_with_changes);
+        let end = xml.rfind("</t:").unwrap_or(xml.len());
+        format!("{}<t:MimeContent Encoding=\"base64\">{mime}</t:MimeContent>{}", &xml[..end], &xml[end..])
+    }
+
     /// `ItemShape` of `SyncFolderItems`/`GetItem`: the base shape, whether the MIME content is
     /// asked for, and the extra `FieldURI`s.
     fn item_shape(shape: &Node, mime_allowed: bool) -> Result<(String, bool, Vec<String>), Refusal> {
@@ -455,6 +526,20 @@ impl State {
             Check::is(node, TYPES, "AdditionalProperties", &[])?;
             Check::no_text(node)?;
             for one in &node.children {
+                if one.is(TYPES, "ExtendedFieldURI") {
+                    // (Any shape of an extended ask is taken — Exchange servers know the idea —
+                    // and only answered by the ones told to know this tag, `PR_IS_READ`.)
+                    Check::is(one, TYPES, "ExtendedFieldURI", &["PropertyTag", "PropertyType"])?;
+                    Check::empty(one)?;
+                    let tag = Check::attribute(one, "PropertyTag")?;
+                    Check::attribute(one, "PropertyType")?;
+                    // (Normalised: `0E67` and `0x0E67` are the same tag, however the ask spells
+                    // it — the schema spells it with the `0x`, which is what the client asks.)
+                    let tag = tag.to_uppercase();
+                    let tag = tag.strip_prefix("0X").unwrap_or(&tag);
+                    extra.push(format!("ext:{tag}"));
+                    continue;
+                }
                 Check::is(one, TYPES, "FieldURI", &["FieldURI"])?;
                 Check::empty(one)?;
                 let uri = Check::attribute(one, "FieldURI")?;
@@ -568,6 +653,38 @@ impl State {
         let parts = Check::children(operation, MESSAGES, &["ItemShape", "SyncFolderId", "SyncState", "Ignore", "MaxChangesReturned", "SyncScope"])?;
         let shape = Check::required(operation, parts.first().copied().flatten(), "ItemShape")?;
         let (base, _, extra) = Self::item_shape(shape, false)?;
+        // (Kerio's no: a bare SOAP fault with no response code, refusing the light asking —
+        // and, with the other knob, every read that goes on from a state (#1784, measured).)
+        if self.refuses_extended && extra.iter().any(|e| e == "ext:0E67") {
+            return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
+        }
+        if self.kills_extended && extra.iter().any(|e| e == "ext:0E67") {
+            // …and one that doesn't answer at all: the connection dies mid-answer, which is
+            // what the live Kerio does with the naming on the page (16:15, measured).
+            return Ok((200, "not an envelope".into(), "an answer that isn't xml".into()));
+        }
+        if self.refuses_extended_as_schema && extra.iter().any(|e| e == "ext:0E67") {
+            // …and one that refuses it the way Kerio was measured to: a proper per-message
+            // schema refusal, `ErrorInvalidPropertyRequest`, detail and response code and all.
+            return Ok((
+                200,
+                "ErrorInvalidPropertyRequest".into(),
+                response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyRequest")),
+            ));
+        }
+        if self.refuses_ids_barely && Self::sparse_ask(&base, &extra) {
+            return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
+        }
+        if self.refuses_delta_barely && parts.get(2).copied().flatten().is_some_and(|state| !state.text.trim().is_empty()) {
+            return Ok((500, "Client".into(), crate::standin::bare_fault("Client", "The request could not be completed.")));
+        }
+        if Self::sparse_ask(&base, &extra) && self.refuses_ids {
+            return Ok((
+                200,
+                "ErrorInvalidPropertyForOperation".into(),
+                response("SyncFolderItems", &error_message("SyncFolderItems", "ErrorInvalidPropertyForOperation")),
+            ));
+        }
         let folder = self.sync_folder(Check::required(operation, parts.get(1).copied().flatten(), "SyncFolderId")?)?;
         let max = Check::required(operation, parts.get(4).copied().flatten(), "MaxChangesReturned")?;
         Check::is(max, MESSAGES, "MaxChangesReturned", &[])?;
@@ -633,7 +750,7 @@ impl State {
             From::Listing { done, rev } => {
                 let page: Vec<&&Item> = in_folder.iter().skip(done).take(max).collect();
                 for item in &page {
-                    changes.push_str(&format!("<t:Create>{}</t:Create>", self.message_xml(item, &base, &extra)));
+                    changes.push_str(&format!("<t:Create>{}</t:Create>", self.sync_item_xml(item, &base, &extra)));
                 }
                 let reached = done.saturating_add(page.len());
                 if reached >= in_folder.len() {
@@ -659,10 +776,10 @@ impl State {
                             item.read
                         )),
                         (ItemChange::Create, Some(item)) => {
-                            changes.push_str(&format!("<t:Create>{}</t:Create>", self.message_xml(item, &base, &extra)))
+                            changes.push_str(&format!("<t:Create>{}</t:Create>", self.sync_item_xml(item, &base, &extra)))
                         }
                         (ItemChange::Update, Some(item)) => {
-                            changes.push_str(&format!("<t:Update>{}</t:Update>", self.message_xml(item, &base, &extra)))
+                            changes.push_str(&format!("<t:Update>{}</t:Update>", self.sync_item_xml(item, &base, &extra)))
                         }
                         _ => {}
                     }
@@ -674,9 +791,14 @@ impl State {
                 (self.state_text(&["d", &folder.id, &reached.to_string()]), !more)
             }
         };
-        let inner = format!(
+        let mut inner = format!(
             "<m:SyncState>{state}</m:SyncState><m:IncludesLastItemInRange>{last}</m:IncludesLastItemInRange><m:Changes>{changes}</m:Changes>"
         );
+        if self.oversized_deltas && parts.get(2).is_some_and(|carried| carried.is_some()) {
+            // …and one whose delta answers simply outweigh the reader, however small they are
+            // asked: whitespace between the tags, an XML answer of megabytes saying nothing.
+            inner.push_str(&" ".repeat(17 * 1024 * 1024));
+        }
         Ok((200, "NoError".into(), response("SyncFolderItems", &ok_message("SyncFolderItems", &inner))))
     }
 

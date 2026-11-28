@@ -23,11 +23,19 @@ pub struct Client {
     authorization: Secret,
     /// The version asked for ([`Version::index`]): lowered once when the server doesn't know it.
     version: AtomicU8,
+    /// Answers read this far when the server has more to say than the floor holds (None: the
+    /// floor). For the servlets that hang whole messages on a list (#1784).
+    answer_limit: Option<usize>,
 }
 
 impl Clone for Client {
     fn clone(&self) -> Self {
-        Self { endpoint: self.endpoint.clone(), authorization: self.authorization.clone(), version: AtomicU8::new(self.version().index()) }
+        Self {
+            endpoint: self.endpoint.clone(),
+            authorization: self.authorization.clone(),
+            version: AtomicU8::new(self.version().index()),
+            answer_limit: self.answer_limit,
+        }
     }
 }
 
@@ -43,7 +51,14 @@ impl Client {
     /// `http` only to this machine), sending `authorization` as the `Authorization` field.
     pub fn new(endpoint: &str, authorization: Secret) -> Result<Self, Error> {
         check_endpoint(endpoint)?;
-        Ok(Self { endpoint: endpoint.to_owned(), authorization, version: AtomicU8::new(Version::default().index()) })
+        Ok(Self { endpoint: endpoint.to_owned(), authorization, version: AtomicU8::new(Version::default().index()), answer_limit: None })
+    }
+
+    /// Reads answers this far at most: for a server that answers a folder's reading heavier
+    /// than the floor whatever it was asked (#1784, Kerio's whole-messages-on-the-list).
+    #[must_use]
+    pub fn with_answer_limit(self, bytes: usize) -> Self {
+        Self { answer_limit: Some(bytes), ..self }
     }
 
     /// Asks for the schema of `version`.
@@ -65,7 +80,11 @@ impl Client {
     }
 
     fn request_in(&self, version: Version, operation: &Element) -> Result<HttpRequest, Error> {
-        Ok(HttpRequest::soap(&self.endpoint, &self.authorization, envelope(version, operation))?)
+        let ask = HttpRequest::soap(&self.endpoint, &self.authorization, envelope(version, operation))?;
+        Ok(match self.answer_limit {
+            Some(bytes) => ask.with_heavy_answers(bytes),
+            None => ask,
+        })
     }
 
     /// Sends `operation` and judges the answer to the point of its response messages.

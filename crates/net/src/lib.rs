@@ -47,7 +47,7 @@ pub mod gmail;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod graph;
 #[cfg(not(target_arch = "wasm32"))]
-mod http;
+pub mod http;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod https;
 #[cfg(not(target_arch = "wasm32"))]

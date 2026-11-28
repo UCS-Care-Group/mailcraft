@@ -341,7 +341,7 @@ fn answered_and_forwarded_set_here_survive_a_delta() {
     let (mut s, account) = session();
     take(&mut s, account, listed(server(), true));
     let page = |read: bool| {
-        let server = ServerMessage { id: "AAkM1".into(), folder: "in".into(), read, ..Default::default() };
+        let server = ServerMessage { read_said: true, flag_said: true, id: "AAkM1".into(), folder: "in".into(), read, ..Default::default() };
         let message = GraphMessage { server, subject: "Budget".into(), ..Default::default() };
         GraphMailResult {
             email: ACCOUNT_EMAIL.into(),

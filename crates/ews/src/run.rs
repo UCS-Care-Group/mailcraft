@@ -59,6 +59,9 @@ use crate::soap::Element;
 /// How many changes one page of a folder asks for: enough that a large folder is a few hundred
 /// requests, few enough that a page is quick to take in.
 pub const PAGE: u32 = 200;
+
+/// The smallest a folder's page shrinks to: the least `MaxChangesReturned` the schema takes.
+const MIN_PAGE: u32 = 1;
 /// How many times one request is made again for a busy server.
 const BUSY_TRIES: u32 = 3;
 /// The most folders one run reads, and the most pages of one folder.
@@ -68,6 +71,17 @@ const MAX_PAGES: usize = 5_000;
 const MAX_HIERARCHY_PAGES: usize = 20;
 /// The most messages one fetch asks for.
 const MAX_FETCH: usize = 100;
+/// The last ask of a folder that outweighed the reader, said in full: which shape, which list,
+/// how many at a time, afresh or from a state, afresh spent or not — the measurements of a death
+/// are worth more than the theory of one (#1784, the folder that dies at five to the hour).
+fn run_out_of_asking(shape: &Shape, ids: bool, page: u32, state: &str, lost: bool) {
+    log::warn!(
+        "ews mail: nothing lighter to ask: shape {shape:?}, ids {ids}, {page} at a time, {}, {}",
+        if state.is_empty() { "afresh" } else { "carrying a state" },
+        if lost { "afresh spent" } else { "afresh unused" }
+    );
+}
+
 /// After this many folders in a row that couldn't be read, the run ends.
 const MAX_IN_A_ROW: usize = 3;
 /// The most `GetItem`s for recipients one page asks: a page of the most changes the model takes in,
@@ -85,9 +99,13 @@ pub(crate) enum Asked {
     Lost,
     /// A page of a folder holds a change that can't be taken in: the folder stays where it was.
     Unreadable,
+    /// An answer heavier than any this program reads. Where a folder's pages are asked, they are
+    /// asked again with fewer changes at a time ([`MIN_PAGE`]) rather than failing the run.
+    TooLarge,
 }
 
 /// What ends a run.
+#[derive(Debug)]
 pub(crate) enum Stop {
     Cancelled,
     Auth,
@@ -144,6 +162,9 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     pub(crate) shape: Shape,
     /// The server has no follow-up flag: flags stay here (E7), said once.
     pub(crate) flag_lacking: bool,
+    /// A server with no flag family in its schema took the flag over the MAPI tag instead:
+    /// said once (#1784, the flag).
+    pub(crate) flag_by_tag: bool,
     /// A read-state change that said no state was passed over: said once a run, with no id.
     pub(crate) read_unsaid: bool,
     /// The ids of the server's other own folders ([`OWN`]) it has, as far as it said (#779): a
@@ -157,6 +178,38 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     pub(crate) needs_change_key: bool,
     /// The recipients of some messages couldn't be had with `GetItem`: said once a run.
     pub(crate) recipients_unsaid: bool,
+    /// How many changes one page of the folder being read asks for: [`PAGE`] when each folder
+    /// starts, halved each time a page is refused for its weight, back to [`PAGE`] when the
+    /// folder takes up the light shape — measured to be honoured by servers that pick their own
+    /// page size, Kerio Connect among them (#964).
+    pub(crate) page: u32,
+    /// The pages were shrunk this run: said once, with no folder named.
+    pub(crate) page_said: bool,
+    /// The light base shape was taken up somewhere this run: said once, with no folder named.
+    pub(crate) ids_said: bool,
+    /// The folder being read asks with the light base shape: its own lesson, forgotten when the
+    /// next folder starts, since the weight a page carries is this folder's (`shape` — what the
+    /// server's schema takes — is the run's, and learned for good).
+    pub(crate) ids: bool,
+    /// The light shape was refused as a shape: said once, with no folder named.
+    pub(crate) ids_refused_said: bool,
+    /// The server refuses the light asking outright: no folder tries it again this run, and the
+    /// oversized pages fall back to halving in the schema shape, which still fits eventually
+    /// once the items are big rather than the page (#1784, the re-review's 1 MB-item world).
+    pub(crate) ids_refused: bool,
+    /// The light asking still names the flag. It goes false for the run the first time an ids
+    /// page that asked the flag is refused: a server may take `IdOnly` and only balk at the
+    /// flag on top of it, and the flag is worth losing before the whole light asking is (#1784).
+    pub(crate) ids_flag: bool,
+    /// The read state is named as an extended property, `PR_IS_READ`, the way Outlook for Mac
+    /// names it — the way Kerio answers it. It goes false for the run the first time a page
+    /// answers nothing about the read state even so, or the asking itself is refused (#1784).
+    pub(crate) extended: bool,
+    /// The extended asking was given up for the run: said once.
+    pub(crate) extended_said: bool,
+    /// The run gave the naming up: refused, or the page carrying it died on the way back. It
+    /// travels home on the result, and the runner remembers it for the account (#1784).
+    naming_refused: bool,
 }
 
 impl<'a, E: HttpExchange> Run<'a, E> {
@@ -168,11 +221,22 @@ impl<'a, E: HttpExchange> Run<'a, E> {
             wait,
             shape: Shape::Full,
             flag_lacking: false,
+            flag_by_tag: false,
             read_unsaid: false,
             own: HashSet::new(),
             reread_folders: false,
             needs_change_key: false,
             recipients_unsaid: false,
+            page: PAGE,
+            page_said: false,
+            ids_said: false,
+            ids: false,
+            ids_refused_said: false,
+            ids_refused: false,
+            ids_flag: true,
+            extended: true,
+            naming_refused: false,
+            extended_said: false,
         }
     }
 }
@@ -223,11 +287,15 @@ impl<E: HttpExchange> Run<'_, E> {
                 Error::Transport(TransportError::Tls) => return Err(Asked::Stop(Stop::Tls)),
                 Error::Transport(TransportError::Unreachable) => return Err(Asked::Stop(Stop::Unreachable)),
                 Error::Transport(_) if once => return Err(Asked::Lost),
+                // (A transport that read no further because the answer outweighed the limit says
+                // what the answer itself would have said (#1783): the page is asked smaller.)
+                Error::Transport(TransportError::BodyTooLarge) => return Err(Asked::TooLarge),
                 Error::Transport(_) => return Err(Asked::Stop(Stop::Unreachable)),
                 Error::Server(code) => return Err(Asked::Code(code)),
                 // (An answer that is none the service gives, to a request that may have been done.)
                 Error::Status(_) | Error::Malformed | Error::TooLarge | Error::Unexpected if once => return Err(Asked::Lost),
                 Error::Unreadable => return Err(Asked::Unreadable),
+                Error::TooLarge => return Err(Asked::TooLarge),
                 _ => return Err(Asked::Bad),
             }
         }
@@ -475,11 +543,15 @@ pub async fn sync_mail<E: HttpExchange>(
     emit: &mut dyn FnMut(EwsMailResult),
 ) {
     let mut run = Run::new(client, exchange, cancel, wait);
+    // (The naming is a probe, and a probe is only worth its cost once per server per session:
+    // the runner carries the lesson from earlier runs in the request (#1784).)
+    run.extended = !request.naming_refused;
+    run.naming_refused = request.naming_refused;
     let mut out = Outcome::default();
     if let Err(stop) = run.all(request, &mut out, emit).await {
         match stop {
             Asked::Stop(why) => out.stop(why),
-            Asked::Code(_) | Asked::Bad | Asked::Lost | Asked::Unreadable => {
+            Asked::Code(_) | Asked::Bad | Asked::TooLarge | Asked::Lost | Asked::Unreadable => {
                 out.incomplete = true;
                 out.line("The server's answer couldn't be used");
             }
@@ -502,6 +574,7 @@ pub async fn sync_mail<E: HttpExchange>(
         busy_for: out.busy_for,
         // (Only a run of every folder is the end of a read that may take away what the server lacks.)
         whole: out.clean() && !request.inbox_pass && request.scope == EwsScope::All,
+        naming_refused: run.naming_refused,
         stopped: out.stopped,
         auth_refused: out.auth_refused,
         blocked: out.blocked,
@@ -516,7 +589,12 @@ impl<E: HttpExchange> Run<'_, E> {
     /// server is said in `outcome`; a request it refused is each of its items refused.
     async fn conversations(&mut self, ids: &[String], outcome: &mut Outcome) -> Vec<ThreadOf> {
         let mut out = Vec::new();
-        let ids = ids.get(..ids.len().min(MAX_THREAD_ASKS)).unwrap_or_default();
+        // (The model's cap is a thousand a run; this server reads a thousand conversations as a
+        // thousand fights and drops folder reads mid-answer while it's at it — the log's
+        // "couldn't be read" folders are always the ones asked after the storm started. Two
+        // hundred a run: the tail works down across runs instead of burning each one (#1784,
+        // measured 20:55 and 21:00).)
+        let ids = ids.get(..ids.len().min(MAX_THREAD_ASKS.min(200))).unwrap_or_default();
         for some in ids.chunks(MAX_CONVERSATIONS) {
             let op = GetItemConversations::new(some);
             let said = match self.ask(&op.element(), &|reply| op.answer(reply)).await {
@@ -588,7 +666,19 @@ impl<E: HttpExchange> Run<'_, E> {
         // Which folders are read, in which order.
         let mut read: Vec<String> = Vec::new();
         let put = |id: &str, read: &mut Vec<String>| {
-            if !id.is_empty() && left_out.as_deref() != Some(id) && !read.iter().any(|have| have == id) && read.len() < MAX_FOLDERS {
+            // (A remembered folder whose name is nothing but a placeholder — the `<id>` a
+            // Display once leaked into a state — is no folder: the server never served it,
+            // and asking for it is how a run dies at folder one of seven with six healthy
+            // folders behind it. It joins nothing; a finished run lets the folder list take
+            // its state away like any folder the server doesn't have (#1784, measured).)
+            let placeholder = id.starts_with('<') && id.ends_with('>');
+            if placeholder {
+                // (Measured 17:14: the ban shipped and folder one was still the ghost — so
+                // what the state actually remembers isn't what the Display prints. One log
+                // with the real bytes will say what it is (#1784).)
+                log::info!("ews mail: letting go of a remembered folder named {id:?}");
+            }
+            if !placeholder && !id.is_empty() && left_out.as_deref() != Some(id) && !read.iter().any(|have| have == id) && read.len() < MAX_FOLDERS {
                 read.push(id.to_owned());
             }
         };
@@ -613,7 +703,13 @@ impl<E: HttpExchange> Run<'_, E> {
                 Ok(true) => failed_in_a_row = 0,
                 // (A folder the server doesn't have: the folder list takes it away.)
                 Ok(false) => {}
-                Err(Asked::Stop(stop)) => return Err(Asked::Stop(stop)),
+                Err(Asked::Stop(stop)) => {
+                    // (Which folder did the server die on? The line the user sees doesn't say,
+                    // and a stop on folder seven of eight is a different story from a stop on
+                    // folder one. One INFO, every stop, #1784.)
+                    log::info!("ews mail: the server stopped answering on folder {number} of {folders} ({folder}): {stop:?}");
+                    return Err(Asked::Stop(stop));
+                }
                 // A folder that is blocked is not a server that is failing: the other folders go on,
                 // and it doesn't count towards the folders in a row (the engine says which it was).
                 Err(Asked::Unreadable) => {
@@ -622,8 +718,30 @@ impl<E: HttpExchange> Run<'_, E> {
                         out.blocked.push(folder.clone());
                     }
                 }
-                Err(_) => {
+                // A code no version of the service is known for: that folder's own problem, not
+                // a server failing — the same route as a blocked folder: the engine says which
+                // by name and the other folders go on (#1784: Kerio's template-leaked `<id>`).
+                Err(Asked::Code(ResponseCode::Other(code))) => {
                     out.incomplete = true;
+                    log::warn!("ews mail: folder {number} of {folders} refused: {code}");
+                    if out.blocked.len() < MAX_FOLDERS {
+                        out.blocked.push(folder.clone());
+                    }
+                }
+                Err(other) => {
+                    out.incomplete = true;
+                    log::warn!(
+                        "ews mail: the changes of folder {number} of {folders} couldn't be read: {} ({})",
+                        folder,
+                        match &other {
+                            Asked::Code(code) => code.to_string(),
+                            Asked::Bad => "an answer this program can't read".to_string(),
+                            Asked::Lost => "the connection died mid-answer".to_string(),
+                            Asked::TooLarge => "the answer outweighed the limit".to_string(),
+                            Asked::Unreadable => "the answer couldn't be taken in".to_string(),
+                            _ => "the run was asked to stop".to_string(),
+                        }
+                    );
                     out.line("Some folders couldn't be read from the server");
                     failed_in_a_row = failed_in_a_row.saturating_add(1);
                     if failed_in_a_row >= MAX_IN_A_ROW {
@@ -647,18 +765,44 @@ impl<E: HttpExchange> Run<'_, E> {
     ) -> Result<bool, Asked> {
         let (mut state, mut afresh, mut lost) = (state.to_owned(), state.is_empty(), false);
         let mut read = 0u32;
+        // (Each folder asks with the usual page again: what is heavy is this folder's, and a
+        // shrunk page or a light shape carried into the light folders only costs them what they
+        // never earned (#1784, the review and the re-review).)
+        self.page = PAGE;
+        self.ids = false;
+        // How many pages this folder has had refused for their weight, one after the other.
+        let mut heavy = 0u8;
+        // The page size this folder had when the light asking was taken up: if that asking is
+        // refused, halving resumes below it — the sizes above it are what taught the lesson.
+        let mut below_page = PAGE;
         // (A server older than Exchange 2013 is asked for what its schema has from the start, #1349.)
-        if self.shape != Shape::Bare && !self.client.version().has_preview() {
+        if matches!(self.shape, Shape::Full | Shape::Lean) && !self.client.version().has_preview() {
             self.shape = Shape::Bare;
             log::info!("ews mail: the server is older than Exchange 2013; the recipients are asked message by message");
         }
         for _ in 0..MAX_PAGES {
-            let op = SyncFolderItems::new(folder, &state, PAGE, self.shape);
+            let mut op = SyncFolderItems::new(
+                folder,
+                &state,
+                self.page,
+                if self.ids { Shape::Ids { flag: self.shape == Shape::Full && self.ids_flag } } else { self.shape },
+            );
+            op.extended = self.extended;
             let page = match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(page) => {
                     if page.read_unsaid > 0 && !self.read_unsaid {
                         self.read_unsaid = true;
                         log::info!("ews mail: the server gave a read-state change that says no state; it is passed over");
+                    }
+                    // (Asked the read state the Outlook way too, and the answer is silent on it
+                    // just the same: the asking is given up for the run, one page having proved
+                    // it — a server that answers answers every page (#1784).)
+                    if self.extended && !page.messages.is_empty() && !page.messages.iter().any(|m| m.server.read_said) {
+                        self.extended = false;
+                        if !self.extended_said {
+                            self.extended_said = true;
+                            log::info!("ews mail: the server says nothing of the read state even asked as an extended property; not asking again");
+                        }
                     }
                     page
                 }
@@ -668,24 +812,199 @@ impl<E: HttpExchange> Run<'_, E> {
                     log::info!("ews mail: the server no longer knows a folder's sync state; reading the folder afresh");
                     continue;
                 }
+                // (A schema fault on a page that was asked as ids is a refusal of the ids asking
+                // itself: it says nothing about what the schema shape would answer, and taking
+                // it as a schema lesson would punish every folder after this one (#1784, the
+                // re-reviews). The folder goes back to the schema shape and resumes halving
+                // below the page that taught the size lesson — which fits where the items are
+                // big but not huge (at ~1 MB an item, pages of a dozen read fine). The refusal
+                // is the run's: no later folder tries the refused asking again.)
+                Err(Asked::Code(
+                    ResponseCode::InvalidPropertyRequest
+                    | ResponseCode::InvalidPropertyForOperation
+                    | ResponseCode::SchemaValidation
+                    // (Measured on Kerio, twice: it refuses the light asking with a bare SOAP
+                    // `Client` fault where Exchange would name a schema code — and the refusal
+                    // of the light asking is a refusal of the light asking, whatever words the
+                    // server chose to refuse it in (#1784).)
+                    | ResponseCode::Other(_),
+                )) if self.ids => {
+                    // (It may be the flag the page asked on top of `IdOnly` that was refused,
+                    // not the light asking itself: ask it once more without the flag, and
+                    // learn for the run that this server wants the list without it (#1784).)
+                    if self.shape == Shape::Full && self.ids_flag {
+                        self.ids_flag = false;
+                        continue;
+                    }
+                    if !self.ids_refused_said {
+                        self.ids_refused_said = true;
+                        log::info!("ews mail: the server won't take the list with the properties alone; asking with fewer changes instead");
+                    }
+                    self.ids = false;
+                    self.ids_refused = true;
+                    // (Half of the size that taught the size lesson — the sizes above it were
+                    // already refused, and re-asking them only re-pays them.)
+                    self.page = (below_page / 2).max(MIN_PAGE);
+                    continue;
+                }
+                // (A refusal while the read state is also named as an extended property may be
+                // a refusal of that naming — servers older than the idea know no extended
+                // properties — and one page without it tells which it was before any lesson is
+                // drawn from the fault (#1784).)
+                // (Only a page asked from nothing can blame the naming alone: on a read that
+                // rides a state, the state itself is a suspect, and the fault belongs to the
+                // afresh answer below with the naming still on — the read afresh is exactly
+                // where the naming earns its keep (#1784, the review). Measured on Kerio the
+                // naming is refused as a schema code, with the detail block and proper
+                // response code: the naming is dropped before any lesson about the SHAPE is
+                // drawn from its refusal, and the shape learns its own lesson on the re-ask
+                // that doesn't carry it — one refused page per run at the outside, and it
+                // saves a Kerio from a preview lesson it was never meant to teach.)
+                Err(Asked::Code(ResponseCode::InvalidPropertyRequest | ResponseCode::InvalidPropertyForOperation | ResponseCode::SchemaValidation))
+                    if self.extended && !self.ids =>
+                {
+                    self.extended = false;
+                    self.naming_refused = true;
+                    if !self.extended_said {
+                        self.extended_said = true;
+                        log::info!("ews mail: the server won't take the read state asked as an extended property; not asking again");
+                    }
+                    continue;
+                }
+                // (Measured on Kerio at 16:15: the page carrying the naming doesn't come back
+                // refused — it comes back as NOTHING, the connection dropped mid-answer. A
+                // transport that dies on the naming's first ride is read as the naming's
+                // doing: it is dropped and the page asked again without it, once, before the
+                // network is believed. State and shape are no suspects of a dropped socket,
+                // so this doesn't wait for the page to be asked from nothing — and if the
+                // network really is dead, the re-ask without the naming says so the same way
+                // it always did (#1784, measured).)
+                Err(Asked::Stop(Stop::Unreachable) | Asked::Lost | Asked::Bad) if self.extended => {
+                    self.extended = false;
+                    self.naming_refused = true;
+                    if !self.extended_said {
+                        self.extended_said = true;
+                        log::info!("ews mail: a page asked with the read state named the MAPI way died on the way back; not naming it again");
+                    }
+                    // (Measured at 16:41: the re-asked page died too, 50ms later — a servlet
+                    // killed mid-answer needs a moment to come back, and a connection that
+                    // dies again right away was never about the naming. Three seconds, once
+                    // per run, before the network is believed.)
+                    if !(self.wait)(3000) {
+                        return Err(Asked::Stop(Stop::Cancelled));
+                    }
+                    continue;
+                }
+                // (A refusal in SOAP's own words, from a page asked from nothing, is the
+                // naming's too — the guard on the state is what separates it from the lost
+                // state the afresh answer below is for (#1784, the review).)
+                Err(Asked::Code(ResponseCode::Other(_))) if self.extended && !self.ids && state.is_empty() => {
+                    self.extended = false;
+                    self.naming_refused = true;
+                    if !self.extended_said {
+                        self.extended_said = true;
+                        log::info!("ews mail: the server won't take the read state asked as an extended property; not asking again");
+                    }
+                    continue;
+                }
+                // (A fault in SOAP's own blaming-the-client words, on a read that goes on from a
+                // state, may well be the server losing that state in words no version of Exchange
+                // would use: the folder is read afresh once before it costs anything, which is
+                // exactly what a named lost state does (the re-review: a bare `Server` fault is
+                // the server blaming itself and likely temporary — that one doesn't earn having
+                // its state thrown away; it falls through to the folder's problem below).
+                // Kerio answers refused asks as a bare SOAP `Client` fault (#1784, measured).)
+                Err(Asked::Code(ResponseCode::Other(ref words)))
+                    if !lost && !state.is_empty() && (words.as_str() == "Client" || words.as_str() == "Sender") =>
+                {
+                    (state, afresh, lost) = (String::new(), true, true);
+                    log::info!("ews mail: the server refused a folder's own asking; it is read afresh");
+                    continue;
+                }
                 // (A schema fault is read as a missing property only from a server older than Exchange
                 // 2013: a newer one's has another cause, and isn't hidden by asking for less.)
                 Err(Asked::Code(code @ (ResponseCode::InvalidPropertyRequest | ResponseCode::SchemaValidation)))
                     if self.shape == Shape::Full && (code != ResponseCode::SchemaValidation || !self.client.version().has_preview()) =>
                 {
                     self.shape = Shape::Lean;
+                    heavy = 0;
                     log::info!("ews mail: the server lacks the preview or the flag; asking for the rest");
                     continue;
                 }
                 Err(Asked::Code(code @ (ResponseCode::InvalidPropertyForOperation | ResponseCode::SchemaValidation)))
-                    if self.shape != Shape::Bare && (code != ResponseCode::SchemaValidation || !self.client.version().has_preview()) =>
+                    if matches!(self.shape, Shape::Full | Shape::Lean)
+                        && (code != ResponseCode::SchemaValidation || !self.client.version().has_preview()) =>
                 {
                     self.shape = Shape::Bare;
+                    heavy = 0;
                     log::info!("ews mail: the server won't list the recipients with the changes; they are asked message by message");
+                    continue;
+                }
+                // (A server that answers the page heavier than any answer this program reads —
+                // Kerio Connect's servlet among them, which hangs whole messages on the changes
+                // when only the list was asked for (#964)): the first time is asked with fewer
+                // changes at a time; a second refusal says the weight is in the items and not in
+                // their number, and this folder then asks its list over the light base shape,
+                // from the usual page again, headers being light (#1784). A folder still
+                // outweighed there costs its one problem, as any answer that can't be read.)
+                // (A delta that outweighs the reader even at the smallest page is a server that
+                // can't say what happened since the state in anything this program can read:
+                // measured on Kerio at 21:29, where the heavy folders' deltas — ten thousand
+                // read-flag changes deep — outweigh the reader however small the page is asked,
+                // while their afresh listings page fine. A state that can't be told is a state
+                // lost, whatever the words were; the folder is read afresh, once, before it
+                // costs its one problem (#1784).)
+                Err(Asked::TooLarge) if !lost && !state.is_empty() && self.page == MIN_PAGE => {
+                    (state, afresh, lost) = (String::new(), true, true);
+                    self.ids = false;
+                    self.page = PAGE;
+                    heavy = 0;
+                    log::info!("ews mail: the server can't tell what changed; the folder is read afresh");
+                    continue;
+                }
+                Err(Asked::TooLarge) => {
+                    if self.ids {
+                        // (Half as many again, from the fresh page: headers being few and light,
+                        // a folder still outweighed at the last is the folder's one problem.)
+                        if self.page > MIN_PAGE {
+                            self.page = (self.page / 2).max(MIN_PAGE);
+                        } else {
+                            run_out_of_asking(&self.shape, self.ids, self.page, &state, lost);
+                            return Err(Asked::TooLarge);
+                        }
+                    } else {
+                        heavy = heavy.saturating_add(1);
+                        if heavy == 1 && self.page > MIN_PAGE {
+                            self.page = (self.page / 2).max(MIN_PAGE);
+                            if !self.page_said {
+                                self.page_said = true;
+                                log::info!("ews mail: the server's answers are too big to read; asking for fewer changes at a time");
+                            }
+                        } else if !self.ids_refused && self.shape != Shape::Bare {
+                            // (Never from `Bare`: over the sparse base it already asks every
+                            // byte the ids asking would, and an identical request can teach
+                            // nothing.)
+                            self.ids = true;
+                            below_page = self.page;
+                            self.page = PAGE;
+                            if !self.ids_said {
+                                self.ids_said = true;
+                                log::info!("ews mail: whole messages come with the changes; the list is asked with the properties alone");
+                            }
+                        } else if self.page > MIN_PAGE {
+                            // (The light asking is refused by this server: halving goes on past
+                            // where the ids lesson would have taken over.)
+                            self.page = (self.page / 2).max(MIN_PAGE);
+                        } else {
+                            run_out_of_asking(&self.shape, self.ids, self.page, &state, lost);
+                            return Err(Asked::TooLarge);
+                        }
+                    }
                     continue;
                 }
                 Err(other) => return Err(other),
             };
+            heavy = 0;
             read = read.saturating_add(u32::try_from(page.messages.len()).unwrap_or(u32::MAX));
             let mut messages = page.messages;
             self.recipients(&mut messages).await?;
@@ -797,7 +1116,7 @@ pub async fn fetch_messages<E: HttpExchange>(
         match run.ask(&op.element(), &|reply| op.answer(reply)).await {
             Ok(mime) => out.fetched.push(GraphFetched { id: id.clone(), mime }),
             Err(Asked::Code(ResponseCode::ItemNotFound)) => out.missing.push(id.clone()),
-            Err(Asked::Code(_) | Asked::Bad | Asked::Lost | Asked::Unreadable) => out.failed.push(id.clone()),
+            Err(Asked::Code(_) | Asked::Bad | Asked::TooLarge | Asked::Lost | Asked::Unreadable) => out.failed.push(id.clone()),
             Err(Asked::Stop(stop)) => {
                 if let Stop::Busy(seconds) = stop {
                     out.busy_for = Some(seconds.max(1));

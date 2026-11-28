@@ -185,6 +185,47 @@ pub struct State {
     pub busy_get_item: bool,
     /// A server that ignores `MaxChangesReturned` and gives every change it has in one answer.
     pub ignores_max: bool,
+    /// A transport that carries no answer heavier than the request allows (#1783): over the
+    /// `HttpRequest::max_response_bytes` of its own ask the body simply never arrives.
+    pub transport_caps_bodies: bool,
+    /// How many answers the stand-in's transport refused as too heavy to arrive: said by the
+    /// door that refused, so a test can tell it from the reader's refusal.
+    pub refused_bodies: usize,
+    /// A servlet like Kerio Connect's (#964): every `SyncFolderItems` item carries its whole
+    /// `MimeContent` of this many bytes — unless the ask is the sparse one, the `IdOnly` base
+    /// with nothing of the list's weight named ([`Self::refuses_ids`] for what it is worth),
+    /// which it answers with the asked properties alone. Zero: as the schema has it. (The
+    /// padding was measured off the `Default` base, which no client asks any more — measured
+    /// 2026-11-24, a named ask answers lean base shape and all; the knob keeps the heavy-page
+    /// lesson tested for servers that pad by their own rules.)
+    pub sends_mime_with_changes: usize,
+    /// A server that won't take the sparse ask at all — the `IdOnly` base with nothing of the
+    /// list's weight named: it answers one with `ErrorInvalidPropertyForOperation`, as
+    /// servers do that outlive the asking.
+    pub refuses_ids: bool,
+    /// A server that knows the read state as an extended property — `PR_IS_READ`, how Outlook
+    /// for Mac and Kerio Connect talk (#964, #1784): it answers an `ExtendedFieldURI` ask with
+    /// the item's read state in an `ExtendedProperty`.
+    pub answers_read_extended: bool,
+    /// …and one that refuses the same asking with a bare SOAP fault and no response code at
+    /// all, Kerio's way of saying no (#1784, measured): the fault names only SOAP's own
+    /// `Client`. With [`Self::refuses_delta_barely`], so does every read that goes on from a
+    /// state it wasn't given back.
+    pub refuses_ids_barely: bool,
+    /// Every `SyncFolderItems` carrying a sync state is refused with the same bare fault.
+    pub refuses_delta_barely: bool,
+    /// Every `SyncFolderItems` naming the read state as an extended property is refused with
+    /// the same bare fault — a server that won't be asked MAPI's way.
+    pub refuses_extended: bool,
+    /// …or with a proper schema refusal, which is how Kerio was measured answering it: the
+    /// refusal must be read as a refusal of the naming, never of the shape it rode in on.
+    pub refuses_extended_as_schema: bool,
+    /// …and one that answers the naming with a dropped connection instead of an answer
+    /// (measured on Kerio, twice: refused at 15:41, dead at 16:15 — both worlds ship).
+    pub kills_extended: bool,
+    /// …and one whose delta answers (any read that carries a state) outweigh the reader no
+    /// matter how small the page: the state carries more than the socket can tell (#1784).
+    pub oversized_deltas: bool,
     /// With [`Hostile::BadItems`]: only the items of this folder (its id) are bad; empty for all.
     pub bad_items_in: String,
     /// How many ids have been given out.
@@ -229,6 +270,10 @@ pub struct State {
     /// The server's `SyncFolderItems` takes the recipients in the shape it is asked for and answers
     /// without them, as Exchange 2013 to 2019 do (#1151); `GetItem` gives them.
     pub omits_recipients: bool,
+    /// The server is asked for the read state and answers without it: what is asked is not
+    /// always what comes back (Kerio's light lists, #1784 — the real server's silence must read
+    /// as silence, not as unread).
+    pub omits_read_state: bool,
     /// The versions every request asked for, in order.
     pub versions: Vec<String>,
     /// The organisation's address list, for `ResolveNames` (#1262).
@@ -294,6 +339,17 @@ impl Default for State {
             lacks_conversation: false,
             busy_get_item: false,
             ignores_max: false,
+            transport_caps_bodies: false,
+            refused_bodies: 0,
+            sends_mime_with_changes: 0,
+            answers_read_extended: false,
+            refuses_ids: false,
+            refuses_ids_barely: false,
+            refuses_delta_barely: false,
+            refuses_extended: false,
+            refuses_extended_as_schema: false,
+            kills_extended: false,
+            oversized_deltas: false,
             bad_items_in: String::new(),
             issued: 0,
             lacks_flag: false,
@@ -308,6 +364,7 @@ impl Default for State {
             refuses_get_item: false,
             gone_from_get_item: Vec::new(),
             omits_recipients: false,
+            omits_read_state: false,
             versions: Vec::new(),
             directory: Vec::new(),
         }
@@ -334,7 +391,15 @@ impl StandIn {
 
 impl HttpExchange for StandIn {
     fn exchange(&self, request: &HttpRequest) -> impl Future<Output = Result<HttpResponse, TransportError>> {
-        ready(Ok(self.state().respond(request)))
+        let mut state = self.state();
+        let response = state.respond(request);
+        // (As the real transport does over a socket: an answer heavier than the ask allows
+        // never arrives, whatever the server made of it.)
+        let over = state.transport_caps_bodies && response.body().len() > request.max_response_bytes();
+        if over {
+            state.refused_bodies += 1;
+        }
+        ready(if over { Err(TransportError::BodyTooLarge) } else { Ok(response) })
     }
 }
 
@@ -610,6 +675,12 @@ impl State {
         self.requests.push(asked);
         response
     }
+}
+
+/// A SOAP fault that names no response code: just SOAP's own `faultcode`, which is how Kerio
+/// says no (#1784, measured — see [`State::refuses_ids_barely`]).
+pub(crate) fn bare_fault(code: &str, why: &str) -> String {
+    envelope(&format!("<s:Fault><faultcode>s:{code}</faultcode><faultstring xml:lang=\"en-US\">{}</faultstring></s:Fault>", escape(why)))
 }
 
 fn envelope(body: &str) -> String {

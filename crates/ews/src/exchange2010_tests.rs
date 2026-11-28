@@ -143,8 +143,17 @@ fn a_server_refusing_the_preview_and_then_the_recipients_steps_down_to_what_it_t
     assert_eq!(messages.len(), 2);
     assert!(messages.iter().all(|m| m.to.len() == 1 && m.preview.is_empty()));
     let codes = codes(&standin, "SyncFolderItems");
-    assert_eq!(codes.get(..2), Some(&["ErrorInvalidPropertyRequest".to_owned(), "ErrorInvalidPropertyForOperation".to_owned()][..]));
-    assert!(codes.len() > 3 && codes[2..].iter().all(|c| c == "NoError"), "every folder after is read in the shape it takes: {codes:?}");
+    // (The read state is first named the MAPI way too, and the very first refusal — which is
+    // the preview's — is re-asked without the naming: a naming the server is about to refuse
+    // must not leave the shape guessing what was refused. The two shape lessons follow, one
+    // page later, and hold for every folder after (#1784).)
+    assert_eq!(
+        codes.get(..3),
+        Some(
+            &["ErrorInvalidPropertyRequest".to_owned(), "ErrorInvalidPropertyRequest".to_owned(), "ErrorInvalidPropertyForOperation".to_owned()][..]
+        )
+    );
+    assert!(codes.len() > 4 && codes[3..].iter().all(|c| c == "NoError"), "every folder after is read in the shape it takes: {codes:?}");
 }
 
 #[test]
@@ -206,16 +215,25 @@ fn a_draft_on_exchange_2010_known_without_a_key_is_changed_with_it() {
 }
 
 #[test]
-fn a_flag_stays_here_and_the_read_mark_goes_up_on_exchange_2010() {
+fn a_flag_goes_over_the_mapi_tag_and_the_read_mark_goes_up_on_exchange_2010() {
     let flagged = || Some(FlagUp { status: FlagStatus::Flagged, ..Default::default() });
-    // Known to be Exchange 2010 by its version: the flag isn't sent at all.
+    // Known to be Exchange 2010 by its version: `item:Flag` is never named — the flag goes
+    // over the MAPI tag, which is how Kerio takes it and what a 2010 schema knows too (#1784).
     let standin = exchange2010();
     let id = standin.state().deliver("inbox", "Kickoff", false);
     let change = MessageChange::Update { message: 1, id: id.clone(), read: Some(true), flag: flagged(), categories: None, importance: None };
     let result = run(&standin, &EwsMailRequest { messages: vec![change], ..request() });
     assert!(matches!(result.messages[0].outcome, MessageOutcome::Done { .. }), "{:?}", result.messages[0].outcome);
     assert!(standin.state().item(&id).unwrap().read);
-    assert!(standin.state().requests.iter().filter(|r| r.operation == "UpdateItem").all(|r| !r.body.contains("item:Flag")));
+    let state = standin.state();
+    assert!(
+        state.requests.iter().filter(|r| r.operation == "UpdateItem").all(|r| !r.body.contains("item:Flag")),
+        "the flag family this schema lacks is never named"
+    );
+    assert!(
+        state.requests.iter().filter(|r| r.operation == "UpdateItem").any(|r| r.body.contains("PropertyTag=\"0x1090\"")),
+        "the flag goes over the tag instead"
+    );
     // A server answering in the newer version whose schema fault has another cause: the flag isn't
     // dropped for it (nor for the changes after), and the change is refused as it was.
     let standin = exchange2010();

@@ -289,7 +289,12 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
         if hidden.contains(&folder) {
             continue;
         }
-        let shown = as_message(account, folder, found);
+        let shown = as_message(
+            account,
+            folder,
+            found,
+            mb.folder(folder).is_some_and(|f| matches!(f.kind, mailcraft_model::FolderKind::Sent | mailcraft_model::FolderKind::Outbox)),
+        );
         if !local.is_empty() && !local.matches_in(&shown, |at| s.offset_at(at)) {
             continue;
         }
@@ -319,8 +324,8 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
 
 /// A server result as a message of the mailbox would be: what its row shows, and what the part
 /// of the search checked here looks at.
-pub fn as_message(account: Id, folder: Id, found: &GraphMessage) -> Message {
-    Message { account, ..graph_down::new_message(folder, &found.server.folder, found) }
+pub fn as_message(account: Id, folder: Id, found: &GraphMessage, arrives_sent: bool) -> Message {
+    Message { account, ..graph_down::new_message(folder, &found.server.folder, found, arrives_sent) }
 }
 
 /// Open the server result at `index`: into its folder, as a message not fetched yet, and
@@ -347,7 +352,17 @@ pub fn open(s: &mut Session, index: usize) -> Result<Id, CmdError> {
                     if s.file_is_current() {
                         s.note_saved();
                     }
-                    let id = s.mailbox.add_message(as_message(account, folder, &result.found)).map_err(|e| fail(e.to_string()))?;
+                    let id = s
+                        .mailbox
+                        .add_message(as_message(
+                            account,
+                            folder,
+                            &result.found,
+                            s.mailbox
+                                .folder(folder)
+                                .is_some_and(|f| matches!(f.kind, mailcraft_model::FolderKind::Sent | mailcraft_model::FolderKind::Outbox)),
+                        ))
+                        .map_err(|e| fail(e.to_string()))?;
                     s.mailbox_changed();
                     id
                 }

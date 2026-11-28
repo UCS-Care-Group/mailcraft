@@ -335,13 +335,38 @@ pub struct ServerMessage {
     /// The server id of the folder it is in.
     pub folder: String,
     pub read: bool,
-    /// The server's `$answered` and `$forwarded` marks as last said (JMAP keywords). A Graph
-    /// server says neither: they stay false for a Microsoft account, and nothing is written.
+    /// Whether the server actually said the read state in the answer this came from: a listing
+    /// that omits it says nothing, it does not say unread (#1784 — Kerio's light lists carry no
+    /// read state, and a whole folder of read mail read that silence as unread, which the
+    /// three-way merge then kept and would have pushed). Silence is held, never applied. Only
+    /// the fresh answer in hand carries it: never written to a file.
+    #[serde(skip)]
+    pub read_said: bool,
+    /// The server's `$answered` and `$forwarded` marks as last said (JMAP keywords, EWS's
+    /// last-verb tag). A Graph server says neither: they stay false for a Microsoft account,
+    /// and nothing is written.
     #[serde(skip_serializing_if = "is_false")]
     pub answered: bool,
     #[serde(skip_serializing_if = "is_false")]
     pub forwarded: bool,
+    /// Whether the server actually said these two marks in the answer this came from, by the
+    /// same rule as [`Self::read_said`]: JMAP says its keywords as a bundle, EWS answers the
+    /// last-verb tag or nothing. A server that says nothing keeps the marks here rather than
+    /// losing them to a send it never heard of (#1784, the marks).
+    #[serde(skip)]
+    pub marks_said: bool,
     pub flag: FlagStatus,
+    /// Whether the server actually said the flag in the answer this came from: same rule as
+    /// [`Self::read_said`] — an answer that never named the flag says nothing about it (#1784).
+    /// Never written to a file either.
+    #[serde(skip)]
+    pub flag_said: bool,
+    /// Whether the answer named the categories at all, by the same rule (#1784).
+    #[serde(skip)]
+    pub categories_said: bool,
+    /// Whether the answer named the importance at all, by the same rule (#1784).
+    #[serde(skip)]
+    pub importance_said: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<String>,
     pub importance: Importance,

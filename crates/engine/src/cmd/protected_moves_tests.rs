@@ -526,7 +526,10 @@ fn a_listing_afresh_that_has_not_ended_never_lets_the_copy_go() {
         assert!(sync_request(&s, to).unwrap().places.is_empty(), "{listed}");
         let changes = crate::cmd::graph_mail::graph_mail_request(&s, ms).unwrap().messages;
         assert!(!changes.iter().any(|c| matches!(c, mailcraft_model::sync::MessageChange::MovedOut { .. })), "{listed}");
-        let there = GraphMessage { server: ServerMessage { id: "AAkA2".into(), ..Default::default() }, ..Default::default() };
+        let there = GraphMessage {
+            server: ServerMessage { read_said: true, flag_said: true, id: "AAkA2".into(), ..Default::default() },
+            ..Default::default()
+        };
         let last = page(if listed { vec![there] } else { vec![] }, false, true);
         crate::cmd::graph_down::take_page(&mut s.mailbox, &mut index, ms, &last, &mut down);
         crate::cmd::mail::check_again::settle(&mut s.mailbox);

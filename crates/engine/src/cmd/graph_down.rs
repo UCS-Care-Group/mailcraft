@@ -231,7 +231,12 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
                 }
             }
             None => {
-                let mut message = new_message(folder, &page.folder, there);
+                let mut message = new_message(
+                    folder,
+                    &page.folder,
+                    there,
+                    mb.folder(folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Outbox)),
+                );
                 // New to this mailbox and in Sent Items, it was sent: Exchange files the copy of a
                 // message sent as MIME (`sendMail`, how a message never saved as a draft goes;
                 // #611) under an id this mailbox has never seen, with `isDraft` still true, and it
@@ -303,8 +308,16 @@ pub fn take_page(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, page: &
 }
 
 /// A message the server has and this mailbox hasn't: its headers and preview.
-pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage) -> Message {
-    let server = ServerMessage { folder: server_folder.to_string(), gone: false, ..there.server.clone() };
+///
+/// `arrives_sent` says the place it lands in is a sent box. A listing that says nothing of the
+/// read state (#1784) leaves a first landing to guess; in a sent box the guess is never a
+/// surprise, for mail arrives there already sent and read — the server's own unread counter for
+/// the folder says the same, as Kerio does. The server's word, when it has one, is followed.
+pub(crate) fn new_message(folder: Id, server_folder: &str, there: &GraphMessage, arrives_sent: bool) -> Message {
+    let mut server = ServerMessage { folder: server_folder.to_string(), gone: false, ..there.server.clone() };
+    if arrives_sent && !server.read_said {
+        server.read = true;
+    }
     Message {
         folder,
         message_id: there.message_id.trim().trim_start_matches('<').trim_end_matches('>').to_string(),
@@ -344,7 +357,8 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
         // Changed here too: both are kept (S26). The server's is a draft of its own, unless the
         // server says it is one no longer: sent meanwhile and filed in Sent Items (#611), it is
         // the sent message, and only what was changed here stays a draft.
-        let mut copy = new_message(folder, server_folder, there);
+        let mut copy =
+            new_message(folder, server_folder, there, mb.folder(folder).is_some_and(|f| matches!(f.kind, FolderKind::Sent | FolderKind::Outbox)));
         copy.draft = there.draft.unwrap_or(true);
         // The server's own version, a draft on its word: so kept through a save and the repair
         // of sent copies an earlier version took for drafts, wherever the server has it.
@@ -370,19 +384,21 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     let flag_bit_alone = mb.account(account).is_some_and(|a| a.kind == AccountKind::Jmap);
     let Ok(m) = mb.message_mut(id) else { return false };
     let now = &there.server;
-    if m.read == last.read {
+    if now.read_said && m.read == last.read {
         m.read = now.read;
     }
-    // The marks a JMAP server keeps as keywords, as the read state (a Graph server says neither:
-    // they stay false on both sides, and what is set here stays).
-    if m.answered == last.answered {
+    // The marks a JMAP server keeps as keywords and EWS answers as its last-verb tag, as the
+    // read state (a Graph server says neither: they stay false on both sides, and what is set
+    // here stays). Whether they were named is asked by their own word, not the read state's:
+    // a server that never heard of this computer's send must not unanswer a reply made here.
+    if now.marks_said && m.answered == last.answered {
         m.answered = now.answered;
     }
-    if m.forwarded == last.forwarded {
+    if now.marks_said && m.forwarded == last.forwarded {
         m.forwarded = now.forwarded;
     }
     // The flag is its status and its due date: changed here, both stay as they are.
-    if flag_bit_alone {
+    if flag_bit_alone && now.flag_said {
         // A JMAP server keeps `$flagged` and nothing else, so a due date or a "complete" here is
         // no change it was ever told of, and no reason to hold its word off: whether the flag was
         // changed here is told by that bit alone. Unchanged here and changed there, the server's
@@ -393,17 +409,20 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
             m.flag = now.flag;
             m.flag_due = now.flag_due;
         }
-    } else if m.flag == last.flag && m.flag_due == last.flag_due {
+    } else if now.flag_said && m.flag == last.flag && m.flag_due == last.flag_due {
         m.flag = now.flag;
         m.flag_due = now.flag_due;
     }
     // Changed on both sides: what was added and taken away here goes onto the server's list (S17).
-    if m.categories == last.categories {
-        m.categories = now.categories.clone();
-    } else if now.categories != last.categories {
-        m.categories = merge_categories(&last.categories, &m.categories, &now.categories);
+    // An answer that never named the categories says nothing of them (#1784), as for the rest.
+    if now.categories_said {
+        if m.categories == last.categories {
+            m.categories = now.categories.clone();
+        } else if now.categories != last.categories {
+            m.categories = merge_categories(&last.categories, &m.categories, &now.categories);
+        }
     }
-    if m.importance == last.importance {
+    if now.importance_said && m.importance == last.importance {
         m.importance = now.importance;
     }
     // (Its categories are the server's, and what a listing left out of them stays left out; its
@@ -462,7 +481,31 @@ fn update(mb: &mut Mailbox, account: Id, id: Id, folder: Id, server_folder: &str
     // is the last one known (#795).
     let (thread, thread_asked, thread_tries) =
         if now.thread.is_empty() { (last.thread.clone(), last.thread_asked, last.thread_tries) } else { (now.thread.clone(), false, 0) };
-    m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, thread, thread_asked, thread_tries, ..now.clone() });
+    // A silent answer must not rewrite the agreed state either (#1784): the snapshot keeps what
+    // it had of every mark the answer did not name. Kept otherwise, the held value and the
+    // snapshot would differ by an invention — which reads as a change made here, waiting to go
+    // up — and a later true answer from the server would be taken for a contradiction.
+    let mut agreed = now.clone();
+    if !agreed.read_said {
+        agreed.read = last.read;
+    }
+    if !agreed.marks_said {
+        agreed.answered = last.answered;
+        agreed.forwarded = last.forwarded;
+    }
+    if !agreed.flag_said {
+        agreed.flag = last.flag;
+        agreed.flag_start = last.flag_start;
+        agreed.flag_due = last.flag_due;
+        agreed.flag_completed = last.flag_completed;
+    }
+    if !agreed.categories_said {
+        agreed.categories = last.categories.clone();
+    }
+    if !agreed.importance_said {
+        agreed.importance = last.importance;
+    }
+    m.server = Some(ServerMessage { folder: server_folder.to_string(), gone: false, size, thread, thread_asked, thread_tries, ..agreed });
     *m != before
 }
 
@@ -911,6 +954,10 @@ mod size_tests;
 #[cfg(test)]
 #[path = "graph_down_flag_tests.rs"]
 mod flag_tests;
+
+#[cfg(test)]
+#[path = "graph_down_quiet_tests.rs"]
+mod quiet_tests;
 
 #[cfg(test)]
 #[path = "graph_sent_not_draft_tests.rs"]

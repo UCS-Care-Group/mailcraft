@@ -18,7 +18,8 @@ fn mailbox(draft: bool) -> (Mailbox, Id, Id) {
     let folder = mb.alloc_id();
     let server = Some(ServerFolder { id: "F".into(), ..Default::default() });
     mb.folders.push(Folder { id: folder, account, name: "Inbox".into(), kind: FolderKind::Inbox, server, ..Default::default() });
-    let server = ServerMessage { id: "AAkA1".into(), folder: "F".into(), change_key: "CK1".into(), ..Default::default() };
+    let server =
+        ServerMessage { read_said: true, flag_said: true, id: "AAkA1".into(), folder: "F".into(), change_key: "CK1".into(), ..Default::default() };
     let body = Body { text: "All of the text".into(), html: None };
     let m = Message { folder, unfetched: true, draft, server: Some(server), subject: "The whole of it".into(), body, ..Default::default() };
     let id = mb.add_message(m).unwrap();
@@ -27,7 +28,15 @@ fn mailbox(draft: bool) -> (Mailbox, Id, Id) {
 
 /// The delta saying `id` again, with no size, as a delta always does.
 fn delta(id: &str, change_key: &str) -> MessagePage {
-    let server = ServerMessage { id: id.into(), folder: "F".into(), change_key: change_key.into(), read: true, ..Default::default() };
+    let server = ServerMessage {
+        read_said: true,
+        flag_said: true,
+        id: id.into(),
+        folder: "F".into(),
+        change_key: change_key.into(),
+        read: true,
+        ..Default::default()
+    };
     MessagePage {
         folder: "F".into(),
         messages: vec![GraphMessage { server, subject: "The whole of it".into(), ..Default::default() }],

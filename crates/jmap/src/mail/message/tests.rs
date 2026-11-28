@@ -29,16 +29,15 @@ fn named(name: &str, email: &str) -> Address {
 #[test]
 fn the_marks_are_five_keywords_in_any_case_and_no_other() {
     let all = json!({"$seen": true, "$FLAGGED": true, "$Answered": true, "$forwarded": true, "$draft": true, "$junk": true, "work": true});
-    assert_eq!(Marks::of(Some(&all)), Marks { read: true, flagged: true, answered: true, forwarded: true, draft: true });
-    assert_eq!(Marks::of(Some(&json!({"$seen": true, "work": true}))), Marks { read: true, ..Default::default() });
-    for none in [
-        json!({"$seen": false, "$flagged": null, "$answered": "true", "$draft": 1}),
-        json!({}),
-        json!([]),
-        json!(["$seen"]),
-        json!("$seen"),
-        json!(null),
-    ] {
+    assert_eq!(Marks::of(Some(&all)), Marks { keywords: true, read: true, flagged: true, answered: true, forwarded: true, draft: true });
+    assert_eq!(Marks::of(Some(&json!({"$seen": true, "work": true}))), Marks { keywords: true, read: true, ..Default::default() });
+    // An object is the server's whole wordlist, whatever the values: an empty one says the
+    // email carries no keywords, which is a statement (#1784: silence is only silence when no
+    // wordlist came at all).
+    for named in [json!({"$seen": false, "$flagged": null, "$answered": "true", "$draft": 1}), json!({})] {
+        assert_eq!(Marks::of(Some(&named)), Marks { keywords: true, ..Default::default() }, "{named}");
+    }
+    for none in [json!([]), json!(["$seen"]), json!("$seen"), json!(null)] {
         assert_eq!(Marks::of(Some(&none)), Marks::default(), "{none}");
     }
     assert_eq!(Marks::of(None), Marks::default());
@@ -46,7 +45,7 @@ fn the_marks_are_five_keywords_in_any_case_and_no_other() {
     let mut many: serde_json::Map<String, Value> = (0..5_000).map(|n| (format!("!{n:05}"), json!(true))).collect();
     many.insert("$seen".into(), json!(true));
     many.insert("$Draft".into(), json!(true));
-    assert_eq!(Marks::of(Some(&Value::Object(many))), Marks { read: true, draft: true, ..Default::default() });
+    assert_eq!(Marks::of(Some(&Value::Object(many))), Marks { keywords: true, read: true, draft: true, ..Default::default() });
 }
 
 #[test]
@@ -329,7 +328,7 @@ fn the_header_of_a_server_that_names_by_place_is_read_whole() {
 
 #[test]
 fn the_rest_of_an_email_is_read_as_the_server_says_it() {
-    let marks = Marks { read: true, flagged: true, answered: true, forwarded: false, draft: true };
+    let marks = Marks { keywords: true, read: true, flagged: true, answered: true, forwarded: false, draft: true };
     let entry = json!({
         "preview": "  A preview\nof the\tmessage   with   gaps ", "size": 4321, "hasAttachment": true,
         "receivedAt": "2026-10-15T07:30:00Z", "headers": fields(&[("Subject", " Hi")]),
@@ -357,10 +356,13 @@ fn the_rest_of_an_email_is_read_as_the_server_says_it() {
     assert_eq!(whole("E1", "M1", &json!({"size": u64::MAX}), Marks::default()).server.size, u64::MAX);
     assert_eq!(whole("E1", "M1", &json!(null), Marks::default()).server.id, "E1");
     // An email the engine has comes as its marks and nothing else.
-    let had = known("E2", "M3", Marks { read: true, ..Default::default() });
+    let had = known("E2", "M3", Marks { keywords: true, read: true, ..Default::default() });
     assert_eq!(
         had,
-        GraphMessage { server: ServerMessage { id: "E2".into(), folder: "M3".into(), read: true, ..Default::default() }, ..Default::default() }
+        GraphMessage {
+            server: ServerMessage { id: "E2".into(), folder: "M3".into(), read: true, read_said: true, marks_said: true, flag_said: true, ..Default::default() },
+            ..Default::default()
+        }
     );
 }
 
