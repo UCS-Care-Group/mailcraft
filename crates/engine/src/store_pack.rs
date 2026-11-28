@@ -300,6 +300,9 @@ pub(super) struct Writer {
     lens: HashMap<u32, u64>,
     /// The pack blocks are brought in from, kept open from one to the next.
     reader: Option<(u32, (fs::File, u64))>,
+    /// The pack written to, opened again to read back what was written ([`Writer::append`]): the
+    /// handle written through only appends (#1871).
+    check: Option<(u32, (fs::File, u64))>,
     /// Blocks read from content files of their own, to remove once a pack holds them.
     loose: Vec<Ref>,
     /// The pack an opening wrote into unflushed was flushed by [`Writer::sync`].
@@ -320,6 +323,7 @@ impl Writer {
             placed: HashMap::new(),
             lens: HashMap::new(),
             reader: None,
+            check: None,
             loose: Vec::new(),
             synced_known: false,
             wrote: 0,
@@ -438,7 +442,10 @@ impl Writer {
                 Err(_) => false,
             };
             let mut open = fs::OpenOptions::new();
-            open.read(true).append(true).create(!there);
+            // Appending only, never reading as well: some file systems refuse one handle both for
+            // a file that is there (a Cryptomator vault, #1871). What is written is read back
+            // through a handle of its own ([`Writer::append`]).
+            open.append(true).create(!there);
             #[cfg(unix)]
             std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
             let f = open.open(&file)?;
@@ -458,7 +465,7 @@ impl Writer {
             }
             let file = self.dir.join(name(n).ok_or_else(|| std::io::Error::other("no such pack"))?);
             let mut open = fs::OpenOptions::new();
-            open.read(true).append(true).create_new(true);
+            open.append(true).create_new(true);
             // Mail is private: nobody else on the machine reads it.
             #[cfg(unix)]
             std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
@@ -475,11 +482,18 @@ impl Writer {
     }
 
     /// Write `bytes` at the end of the pack; where they went. Where the end is, is asked of the
-    /// file itself, and what is there afterwards read back: a program without the window's lock
-    /// (the command line, an agent) appending to the same pack at the same moment makes this save
-    /// fail, never a mailbox file name the wrong bytes.
+    /// file itself, and what is there afterwards read back through a handle that only reads (the
+    /// one written through only appends, #1871): a program without the window's lock (the command
+    /// line, an agent) appending to the same pack at the same moment makes this save fail, never a
+    /// mailbox file name the wrong bytes.
     fn append(&mut self, bytes: &[u8]) -> std::io::Result<Loc> {
         let pack = self.open()?;
+        // Opened before anything is written: a pack that can't be read back is written nothing.
+        if self.check.as_ref().is_none_or(|(n, _)| *n != pack) {
+            let file = self.dir.join(name(pack).ok_or_else(|| std::io::Error::other("no such pack"))?);
+            let back = open_pack(&file)?.ok_or_else(|| std::io::Error::other("the pack isn't a plain file"))?;
+            self.check = Some((pack, back));
+        }
         let len = bytes.len() as u64;
         let file = self.file.as_mut().ok_or_else(|| std::io::Error::other("the pack isn't open"))?;
         let at = file.seek(SeekFrom::End(0))?;
@@ -487,9 +501,10 @@ impl Writer {
         // (What was written of a block that failed is named by nothing; the next goes after it.)
         file.write_all(bytes)?;
         let on_disk = file.metadata()?.len();
-        let mut there = (file.try_clone()?, on_disk);
+        let there = &mut self.check.as_mut().ok_or_else(|| std::io::Error::other("the pack isn't open"))?.1;
+        there.1 = on_disk;
         let r = Ref { hash: Digest::of(bytes), len };
-        if read_from(&mut there, Loc { pack, at }, &r)?.is_none() {
+        if read_from(there, Loc { pack, at }, &r)?.is_none() {
             return Err(std::io::Error::other("the pack was written to by another program at the same time"));
         }
         self.wrote = self.wrote.saturating_add(len);
