@@ -7,6 +7,7 @@ use crate::sync::{Host, Limits, sync_as};
 use mailcraft_model::sync::{SyncRequest, SyncResult};
 use mailcraft_model::{Account, Address, Message, OAuth, Security, Server};
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Barrier};
 use std::time::{Duration, Instant};
 
 const PASSWORD: &str = "synthetic-password";
@@ -151,7 +152,8 @@ fn cancelling_the_delay_prevents_the_second_connection_even_when_a_sent_copy_is_
 fn cancelling_the_replacement_greeting_never_submits_the_password_even_when_a_sent_copy_is_owed() {
     for sent_copy in [false, true] {
         let imap = peer(&[REFUSAL], true);
-        imap.world().greeting_pause_after_first = Some(Duration::from_millis(250));
+        let greeting = Arc::new(Barrier::new(2));
+        imap.world().greeting_barrier_after_first = Some(greeting.clone());
         let smtp = Fake::smtp(SmtpWorld { user: "user@example.org".into(), password: PASSWORD.into(), auth: true, ..Default::default() });
         let mut request = request(imap.port);
         if sent_copy {
@@ -172,6 +174,7 @@ fn cancelling_the_replacement_greeting_never_submits_the_password_even_when_a_se
                 std::thread::sleep(Duration::from_millis(2));
             }
             stop.store(true, Ordering::Relaxed);
+            greeting.wait();
             let (result, _) = task.join().unwrap();
             assert!(result.stopped);
             assert_eq!(result.auth_refused, Some(false));
