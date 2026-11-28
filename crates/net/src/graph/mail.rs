@@ -1056,6 +1056,8 @@ pub use search::search_messages;
 #[cfg(test)]
 mod delete_check_tests;
 #[cfg(test)]
+mod delivery_receipt_tests;
+#[cfg(test)]
 mod down_tests;
 #[cfg(test)]
 mod draft_content_tests;

@@ -8,6 +8,9 @@
 //!   ([`super::drafts`]), and then sent with `POST /me/messages/{id}/send`. One that isn't whole
 //!   on the server yet (an attachment that didn't go) waits for the next run.
 //! - **A message never saved as a draft** goes with `POST /me/sendMail`, as MIME, with its Bcc.
+//!   One that asks for a delivery receipt is made from that same MIME as a draft first, the flag
+//!   set (`isDeliveryReceiptRequested` is not a header, so `sendMail` would drop it), and that
+//!   draft is sent.
 //!
 //! A shared mailbox's (#70) goes the same way at its own address (`/users/{address}/sendMail`,
 //! `/users/{address}/messages/{id}/send`): the copy is in **its** Sent Items, and Exchange says
@@ -23,10 +26,11 @@
 //! log line.
 
 use mailcraft_model::sync::{DraftDone, MAX_SENDS, SEND_AS_DENIED, SendDone, SendOutcome, SendUp};
-use serde_json::Value;
+use mailcraft_model::{Id, Message};
+use serde_json::{Value, json};
 
 use super::super::pace::Kind;
-use super::super::{Doing, Graph, MAX_PAGE, SEND_TIMEOUT, code_of, mime_body, text};
+use super::super::{Doing, Graph, MAX_PAGE, SEND_TIMEOUT, WRITE_TIMEOUT, code_of, mime_body, text};
 use super::id_of;
 use crate::NetError;
 use crate::http::{self, Reply};
@@ -73,6 +77,7 @@ fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetE
             let Some(id) = id_of(&id).map(|id| http::encode(&id)) else { return Ok(()) };
             graph.url(&graph.mail_path(&format!("/messages/{id}/send")))
         }
+        (None, Some(message)) if message.delivery_receipt => return send_with_receipt(graph, send.message, message, done),
         (None, Some(message)) => {
             let body = match mime_body(message) {
                 Ok(body) => body,
@@ -97,6 +102,124 @@ fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetE
     };
     let asked = graph.call(Kind::Once, &url, "POST", &[("Content-Type", "application/json")], Some("{}"), SEND_TIMEOUT, MAX_PAGE);
     settle(graph, asked, done)
+}
+
+/// Send `message`, which asks for a delivery receipt and was never saved as a draft. The MIME
+/// `sendMail` would have sent is made into a draft, so its headers stay, the flag is set on that
+/// draft, and the draft is sent. The marker is written with the flag, so a later run that finds
+/// the draft still in Drafts sends it instead of making another.
+fn send_with_receipt(graph: &Graph<'_>, local: Id, message: &Message, done: &mut SendDone) -> Result<(), NetError> {
+    let body = match mime_body(message) {
+        Ok(body) => body,
+        Err(e) => {
+            done.outcome = SendOutcome::Held { lost: false, why: e.to_string() };
+            return Ok(());
+        }
+    };
+    let marker = format!("mailcraft-send-{local:x}");
+    let id = match super::drafts::look(graph, &marker)? {
+        Some((id, _)) => id,
+        None => match make_mime_draft(graph, &body, done)? {
+            Some(id) => id,
+            None => return Ok(()),
+        },
+    };
+    if !stamp_receipt(graph, &id, &marker, done)? {
+        return Ok(());
+    }
+    let Some(id) = id_of(&id).map(|id| http::encode(&id)) else {
+        done.outcome = SendOutcome::Held { lost: false, why: "Microsoft wouldn't take the message".to_string() };
+        return Ok(());
+    };
+    let url = graph.url(&graph.mail_path(&format!("/messages/{id}/send")));
+    let asked = graph.call(Kind::Once, &url, "POST", &[("Content-Type", "application/json")], Some("{}"), SEND_TIMEOUT, MAX_PAGE);
+    settle(graph, asked, done)
+}
+
+/// Make a draft from the MIME `body`. `Some` is its id. `None` when `done` already says what
+/// became of it (refused, or the answer was lost).
+fn make_mime_draft(graph: &Graph<'_>, body: &str, done: &mut SendDone) -> Result<Option<String>, NetError> {
+    let asked = graph.call(
+        Kind::Once,
+        &graph.url(&graph.mail_path("/messages")),
+        "POST",
+        &[("Content-Type", "text/plain")],
+        Some(body),
+        WRITE_TIMEOUT,
+        MAX_PAGE,
+    );
+    let reply = match asked {
+        Ok(reply) => reply,
+        Err(e) if e.is_unreachable() => {
+            done.outcome = SendOutcome::Held { lost: true, why: String::new() };
+            return Ok(None);
+        }
+        Err(e) => return Err(e),
+    };
+    super::refusing(graph, &reply)?;
+    match reply.status {
+        200 | 201 => {
+            let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+            match id_of(text(&json, "id")) {
+                Some(id) => Ok(Some(id)),
+                None => {
+                    done.outcome = SendOutcome::Held { lost: true, why: String::new() };
+                    Ok(None)
+                }
+            }
+        }
+        401 | 429 | 503 => Err(graph.refusal(Doing::Sending, &reply, "")),
+        400 | 403 | 404 | 413 | 415 => {
+            let code = code_of(&reply.body, &[graph.token]);
+            log::info!("graph sending: a draft for a delivery receipt was refused (status {}{code})", reply.status);
+            let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+            done.outcome = held_refused(reply.status, text(json.get("error").unwrap_or(&Value::Null), "code"), graph.shared());
+            Ok(None)
+        }
+        _ => {
+            done.outcome = SendOutcome::Held { lost: true, why: String::new() };
+            Ok(None)
+        }
+    }
+}
+
+/// Set the delivery-receipt flag and the marker on the draft `id`. False when that was refused
+/// and `done` says so: the message is not sent without the flag.
+fn stamp_receipt(graph: &Graph<'_>, id: &str, marker: &str, done: &mut SendDone) -> Result<bool, NetError> {
+    let Some(id) = id_of(id).map(|id| http::encode(&id)) else {
+        done.outcome = SendOutcome::Held { lost: false, why: "Microsoft wouldn't take the message".to_string() };
+        return Ok(false);
+    };
+    let body = json!({
+        "isDeliveryReceiptRequested": true,
+        "singleValueExtendedProperties": [{"id": super::up::MARKER, "value": marker}],
+    })
+    .to_string();
+    let reply = graph.call(
+        Kind::Same,
+        &graph.url(&graph.mail_path(&format!("/messages/{id}"))),
+        "PATCH",
+        &[("Content-Type", "application/json")],
+        Some(&body),
+        WRITE_TIMEOUT,
+        MAX_PAGE,
+    )?;
+    super::refusing(graph, &reply)?;
+    match reply.status {
+        200..=299 => Ok(true),
+        401 | 429 | 503 => Err(graph.refusal(Doing::Sending, &reply, "")),
+        400 | 403 | 404 | 413 | 415 => {
+            let code = code_of(&reply.body, &[graph.token]);
+            log::info!("graph sending: a delivery receipt could not be set (status {}{code})", reply.status);
+            let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+            done.outcome = held_refused(reply.status, text(json.get("error").unwrap_or(&Value::Null), "code"), graph.shared());
+            Ok(false)
+        }
+        _ => {
+            done.outcome = SendOutcome::Held { lost: true, why: String::new() };
+            Ok(false)
+        }
+    }
 }
 
 /// What the answer to a send means: sent, held, or the error that stops the run (it wasn't taken).

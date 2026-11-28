@@ -331,7 +331,9 @@ pub struct DraftDone {
 pub const MAX_SENDS: usize = 100;
 
 /// A message of the Outbox to send (R3.4.2, S27): as the draft the server has (brought up to date
-/// first) when it was saved as one, else with `sendMail` as MIME.
+/// first) when it was saved as one, else with `sendMail` as MIME. A Microsoft message that asks
+/// for a delivery receipt and was never saved as a draft is still handed over as MIME; the send
+/// makes a draft from it so `isDeliveryReceiptRequested` can be set, then sends that draft.
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(default, rename_all = "camelCase")]
 pub struct SendUp {

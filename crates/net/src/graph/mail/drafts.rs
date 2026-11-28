@@ -214,7 +214,7 @@ fn refused(graph: &Graph<'_>, reply: &Reply, what: &str) {
 }
 
 /// The draft in Drafts that carries `marker`, when there is one: its id and folder.
-fn look(graph: &Graph<'_>, marker: &str) -> Result<Option<(String, String)>, NetError> {
+pub(super) fn look(graph: &Graph<'_>, marker: &str) -> Result<Option<(String, String)>, NetError> {
     let filter = format!("singleValueExtendedProperties/any(ep: ep/id eq '{MARKER}' and ep/value eq '{marker}')");
     let query = http::form(&[("$filter", &filter), ("$select", "id,parentFolderId"), ("$top", "1")]);
     let reply = graph.call(
