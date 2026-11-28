@@ -531,6 +531,8 @@ pub struct AccountSetup {
     /// and as the slider has it now (#143). Saved through `ui.keepOffline`, which asks first
     /// when it is shorter.
     keep_offline: Option<(KeepOffline, KeepOffline)>,
+    /// The desktop new-mail alert setting as it was and as the box has it now.
+    desktop_mail_alerts: Option<(bool, bool)>,
     /// For the settings of an account of its own: whether Delete on a whole conversation asks
     /// first, as it was and as the box has it now (#503).
     ask_conversation: Option<(bool, bool)>,
@@ -658,6 +660,7 @@ impl AccountSetup {
             directory: Directory::Unknown,
             edit: None,
             keep_offline: None,
+            desktop_mail_alerts: None,
             ask_conversation: None,
             senders: None,
             color: None,
@@ -741,6 +744,9 @@ impl AccountSetup {
         // (A shared mailbox asks as its owner does.)
         if !a.is_shared() {
             w.ask_conversation = Some((!a.skip_conversation_question, !a.skip_conversation_question));
+        }
+        if a.kind.has_server() && !a.is_shared() {
+            w.desktop_mail_alerts = Some((!a.mute_desktop_mail, !a.mute_desktop_mail));
         }
         w.senders = senders::Senders::of(a);
         if a.is_gmail() {
@@ -1643,6 +1649,7 @@ impl AccountSetup {
         self.edit.as_ref().is_some_and(|edit| self.fields() == edit.baseline)
             && self.password.0.is_empty()
             && self.color.is_none_or(|(was, color)| was == color)
+            && self.desktop_mail_alerts.is_none_or(|(was, on)| was == on)
             && !self.senders.as_ref().is_some_and(senders::Senders::changed)
     }
 
@@ -1665,6 +1672,13 @@ impl AccountSetup {
         {
             self.error = e;
             return false;
+        }
+        if let Some((_, on)) = self.desktop_mail_alerts.filter(|(was, on)| was != on) {
+            if let Err(e) = app.execute("account.edit", json!({"id": id, "desktopMailAlerts": on})) {
+                self.error = e;
+                return false;
+            }
+            self.desktop_mail_alerts = Some((on, on));
         }
         if let Some((_, ask)) = self.ask_conversation.filter(|(was, ask)| was != ask) {
             if let Err(e) = app.execute("account.edit", json!({"id": id, "askBeforeDeletingConversation": ask})) {
@@ -2491,6 +2505,9 @@ impl AccountSetup {
                     ui.label(crate::keep_offline::label(*keep));
                 });
             }
+            if let Some((_, on)) = self.desktop_mail_alerts.as_mut() {
+                ui.checkbox(on, tl!("Show a desktop alert when new mail arrives"));
+            }
             if let Some((_, ask)) = self.ask_conversation.as_mut() {
                 caption(ui, tl!("Deleting"), &t);
                 ui.checkbox(ask, tl!("Ask before deleting a conversation"))
@@ -2510,8 +2527,9 @@ impl AccountSetup {
                 caption(ui, tl!("Gmail categories"), &t);
                 ui.checkbox(&mut gmail.show.1, tl!("Show Gmail's categories under the Inbox"))
                     .on_hover_text(tl!("Primary, Social, Promotions, Updates and Forums, as Gmail sorts your Inbox. Your mail stays in the Inbox."));
-                ui.checkbox(&mut gmail.primary_only.1, tl!("Desktop alerts only for mail in Primary"))
-                    .on_hover_text(tl!("New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert."));
+                ui.checkbox(&mut gmail.primary_only.1, tl!("Desktop alerts only for mail in Primary")).on_hover_text(tl!(
+                    "New mail Gmail puts in Social, Promotions, Updates or Forums arrives without an alert, unless a rule of yours shows one for it."
+                ));
             }
         });
         problem(ui, &self.error);

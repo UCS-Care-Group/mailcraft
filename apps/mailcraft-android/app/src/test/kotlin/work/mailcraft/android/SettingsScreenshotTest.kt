@@ -42,6 +42,18 @@ class SettingsScreenshotTest {
     }
 
     @Test
+    fun appearance() = four("settings_appearance") { SettingsShots.Page(SettingsPage.Appearance) }
+
+    // The app set to Light on a phone that is dark, and Dark on a phone that is light: the choice wins.
+    @Test
+    fun lightChosenOnDarkPhone() =
+        shoot("settings_appearance_forced_light_on_dark_100", true, 1f) { SettingsShots.Page(SettingsPage.Appearance, theme = ThemeChoice.Light) }
+
+    @Test
+    fun darkChosenOnLightPhone() =
+        shoot("settings_appearance_forced_dark_on_light_100", false, 1f) { SettingsShots.Page(SettingsPage.Appearance, theme = ThemeChoice.Dark) }
+
+    @Test
     fun rowsLight100() = shoot("settings_rows_light_100", false, 1f) { SettingsShots.Page(null) }
 
     @Test
@@ -61,6 +73,9 @@ class SettingsScreenshotTest {
 
     @Test
     fun notifications() = four("settings_notifications", tallAtTwice = true) { SettingsShots.Page(SettingsPage.Notifications) }
+
+    @Test
+    fun notificationButtons() = four("settings_notification_buttons") { SettingsShots.Page(SettingsPage.NotificationButtons) }
 
     @Test
     fun pictures() = four("settings_pictures", tallAtTwice = true) { SettingsShots.Page(SettingsPage.Pictures) }

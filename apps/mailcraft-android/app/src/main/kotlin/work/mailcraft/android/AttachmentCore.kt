@@ -13,9 +13,15 @@ import uniffi.mailcraft_mobile.AttachmentRecord
 import uniffi.mailcraft_mobile.Core
 import uniffi.mailcraft_mobile.CoreException
 
-/** The attachments the reading pane lists: the files, else (when there is no other) the pictures too. */
+/**
+ * The records the reading pane lists: the files. A picture the body shows (`inline`, as the core
+ * decides it) is the body's, never listed, even when the message has no other file.
+ */
+internal fun listedRecords(all: List<AttachmentRecord>): List<AttachmentRecord> = all.filter { !it.inline }
+
+/** The attachments the reading pane lists ([listedRecords]). */
 internal fun listedAttachments(all: List<AttachmentRecord>): List<AttachmentItem> =
-    all.filter { !it.inline }.ifEmpty { all }.map { record ->
+    listedRecords(all).map { record ->
         val check = uniffi.mailcraft_mobile.attachmentCheck(record.name)
         AttachmentItem(
             index = record.index,

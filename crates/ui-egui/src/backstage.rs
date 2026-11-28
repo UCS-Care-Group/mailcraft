@@ -98,11 +98,19 @@ fn section(ui: &mut Ui, text: &str, t: &Tokens) {
 
 /// A wide button with an icon, a title and a line of explanation; `true` when clicked.
 fn tile(ui: &mut Ui, icon: &str, title: &str, detail: &str, t: &Tokens) -> bool {
-    let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width().min(560.0), 52.0), Sense::click());
+    let width = ui.available_width().min(560.0);
+    // The detail wraps (two lines at most) rather than eliding.
+    let mut job = egui::text::LayoutJob::single_section(
+        detail.to_string(),
+        egui::text::TextFormat { font_id: regular(11.5), color: t.text_dim, ..Default::default() },
+    );
+    job.wrap = egui::text::TextWrapping { max_width: (width - 64.0).max(8.0), max_rows: 2, break_anywhere: true, overflow_character: Some('…') };
+    let galley = ui.painter().layout_job(job);
+    let (r, resp) = ui.allocate_exact_size(vec2(width, 52.0f32.max(30.0 + galley.size().y)), Sense::click());
     ui.painter().rect(r, 6.0, if resp.hovered() { t.hover } else { t.panel }, Stroke::new(1.0, t.border), egui::StrokeKind::Inside);
     icons::paint(ui.painter(), Rect::from_center_size(pos2(r.min.x + 26.0, r.center().y), vec2(24.0, 24.0)), icon, t.icon, t.accent);
     ui.painter().text(pos2(r.min.x + 52.0, r.min.y + 18.0), Align2::LEFT_CENTER, title, semibold(13.0), t.text);
-    crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 52.0, r.min.y + 36.0), r.width() - 64.0, detail, regular(11.5), t.text_dim);
+    ui.painter().galley(pos2(r.min.x + 52.0, r.min.y + 29.0), galley, t.text_dim);
     resp.clicked()
 }
 
@@ -173,6 +181,20 @@ pub(crate) fn ews_line(app: &MailApp, a: &mailcraft_model::Account) -> String {
     }
 }
 
+/// A button on an account's card: 74 wide at least, wider when its label (in any language) needs
+/// it, and at most `cap`, past which the label is cut with an ellipsis (whole on hover). The cap
+/// wins over the 74 when a card is too narrow for both buttons at 74.
+pub(crate) fn card_button_w(ui: &Ui, label: &str, cap: f32) -> f32 {
+    let font = egui::TextStyle::Button.resolve(ui.style());
+    let text = ui.painter().layout_no_wrap(label.to_string(), font, egui::Color32::WHITE).size().x;
+    let cap = cap.max(0.0);
+    (text + 2.0 * ui.spacing().button_padding.x + 4.0).clamp(74.0_f32.min(cap), cap)
+}
+
+/// Each card button's cap: a fifth of the card, so the two keep at most two fifths, as the search
+/// box's scope button does.
+const CARD_BUTTON_SHARE: f32 = 0.2;
+
 fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     heading(ui, tl!("Info"), t);
     section(ui, tl!("Accounts"), t);
@@ -188,8 +210,15 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         // be removed too, leaving an empty mailbox (#313); the empty mailbox's own placeholder
         // can't. (A shared mailbox has both: its settings are its name and colour, #1385.)
         let removable = a.is_shared() || app.session.mailbox.placeholder() != Some(a.id);
-        let buttons = usize::from(!a.email.is_empty()) + usize::from(removable);
-        let text_w = r.width() - 70.0 - 82.0 * buttons as f32;
+        let cap = r.width() * CARD_BUTTON_SHARE;
+        let settings_w = card_button_w(ui, tl!("Settings"), cap);
+        let remove_w = card_button_w(ui, tl!("Remove"), cap);
+        // A label cut at the cap is named whole in the button's tooltip.
+        let settings_cut = card_button_w(ui, tl!("Settings"), f32::INFINITY) > settings_w;
+        let remove_cut = card_button_w(ui, tl!("Remove"), f32::INFINITY) > remove_w;
+        let tip = |label: &str, cut: bool, tip: &str| if cut { format!("{label}: {tip}") } else { tip.to_owned() };
+        let button_room = if a.email.is_empty() { 0.0 } else { settings_w + 8.0 } + if removable { remove_w + 8.0 } else { 0.0 };
+        let text_w = (r.width() - 70.0 - button_room).max(0.0);
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 20.0), text_w, &title, semibold(13.0), t.text);
         let detail = account_detail(app, a);
         crate::theme::paint_clipped(ui.painter(), pos2(r.min.x + 58.0, r.min.y + 39.0), text_w, &detail, regular(11.5), t.text_dim);
@@ -211,11 +240,13 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         }
         // The buttons sit on the card: placed without moving the page's layout on (`ui.put` would
         // take it back up into the card, and what follows was drawn over it).
-        let on_card = |ui: &mut Ui, right: f32, button: egui::Button<'_>| {
-            let br = Rect::from_min_size(pos2(r.max.x - right, r.center().y - 13.0), vec2(74.0, 26.0));
+        let on_card = |ui: &mut Ui, right: f32, w: f32, button: egui::Button<'_>| {
+            let br = Rect::from_min_size(pos2(r.max.x - right, r.center().y - 13.0), vec2(w, 26.0));
             ui.new_child(egui::UiBuilder::new().max_rect(br)).add_sized(br.size(), button)
         };
-        let settings_at = if removable { 168.0 } else { 86.0 };
+        // Right-aligned, 12 from the card's edge, 8 between them.
+        let remove_at = remove_w + 12.0;
+        let settings_at = settings_w + 12.0 + if removable { remove_w + 8.0 } else { 0.0 };
         // (An account kept in step through Graph has no servers to change, #312.)
         let settings_tip = if a.is_shared() {
             // (Its sign-in is its owner's, #70: only its name and colour are its own, #1385.)
@@ -225,18 +256,27 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         } else {
             tl!("Change this account's name, servers and sign-in")
         };
-        if !a.email.is_empty() && on_card(ui, settings_at, egui::Button::new(tl!("Settings"))).on_hover_text(settings_tip).clicked() {
+        let settings_tip = tip(tl!("Settings"), settings_cut, settings_tip);
+        if !a.email.is_empty()
+            && on_card(ui, settings_at, settings_w, egui::Button::new(tl!("Settings")).truncate()).on_hover_text(settings_tip).clicked()
+        {
             let _ = app.run("ui.dialog", json!({"name": "account", "id": a.id}));
         }
         if a.is_shared() {
-            if on_card(ui, 86.0, egui::Button::new(tl!("Remove")))
-                .on_hover_text(tl!("Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."))
+            if on_card(ui, remove_at, remove_w, egui::Button::new(tl!("Remove")).truncate())
+                .on_hover_text(tip(
+                    tl!("Remove"),
+                    remove_cut,
+                    tl!("Close this shared mailbox and remove the mail kept for it here. Nothing on the server changes."),
+                ))
                 .clicked()
             {
                 let _ = app.run("account.removeSharedMailbox", json!({"id": a.id}));
             }
         } else if removable
-            && on_card(ui, 86.0, egui::Button::new(tl!("Remove"))).on_hover_text(tl!("Remove this account and the mail kept for it here")).clicked()
+            && on_card(ui, remove_at, remove_w, egui::Button::new(tl!("Remove")).truncate())
+                .on_hover_text(tip(tl!("Remove"), remove_cut, tl!("Remove this account and the mail kept for it here")))
+                .clicked()
         {
             let _ = app.run("account.remove", json!({"id": a.id}));
         }
@@ -736,6 +776,22 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         ui.label(tl!("On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."));
     }
+    row(ui, tl!("Clock"), |ui| {
+        let (chosen, twelve) = (app.session.prefs.clock_chosen, app.session.prefs.twelve_hour);
+        let now = (chosen == Some(true)).then_some(twelve);
+        let name = |c: Option<bool>| match c {
+            None => tl!("Automatic (the language's)"),
+            Some(true) => tl!("12-hour (3:05 PM)"),
+            Some(false) => tl!("24-hour (15:05)"),
+        };
+        egui::ComboBox::from_id_salt("opt_clock").selected_text(name(now)).show_ui(ui, |ui| {
+            for (c, code) in [(None, "auto"), (Some(true), "12"), (Some(false), "24")] {
+                if ui.selectable_label(c == now, name(c)).clicked() {
+                    let _ = app.run("file.options", json!({"clock": code}));
+                }
+            }
+        });
+    });
     row(ui, tl!("Interface theme"), |ui| {
         let cur = app.ui.theme;
         egui::ComboBox::from_id_salt("opt_theme").selected_text(tl!(cur.label())).show_ui(ui, |ui| {
@@ -909,7 +965,12 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     });
     // Undo Send (#950): how long a message waits in the Outbox after Send, so that it can still be taken back.
     row(ui, tl!("Wait before sending"), |ui| {
-        let wait = |n: u8| if n == 0 { tl!("Off").to_string() } else { tln!(u64::from(n), "{n} second", "{n} seconds") };
+        let wait = |n: u8| match n {
+            0 => tl!("Off").to_string(),
+            // (A whole number of minutes from a minute on, #1799.)
+            n if n >= 60 && n % 60 == 0 => tln!(u64::from(n / 60), "{n} minute", "{n} minutes"),
+            n => tln!(u64::from(n), "{n} second", "{n} seconds"),
+        };
         egui::ComboBox::from_id_salt("opt_wait_before_sending")
             .selected_text(wait(prefs.undo_send()))
             .show_ui(ui, |ui| {
@@ -955,7 +1016,7 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let built_in = !app.services.microsoft_client_id.is_empty();
         let mut id = app.ui.microsoft_client_id.clone();
         let hint = if built_in { tl!("The one this build came with") } else { tl!("Needed for Outlook.com and Microsoft 365 accounts") };
-        let edit = egui::TextEdit::singleline(&mut id).hint_text(hint).desired_width(300.0);
+        let edit = egui::TextEdit::singleline(&mut id).hint_text(hint).desired_width(340.0);
         if crate::text_menu::field(ui.add(edit)).changed() {
             let _ = app.execute("ui.microsoftClientId", json!({"value": id.trim()}));
         }
@@ -988,10 +1049,6 @@ fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     section(ui, tl!("Security"), t);
     crate::security::options(app, ui, t);
     section(ui, tl!("Calendar"), t);
-    let mut twelve = prefs.twelve_hour;
-    if ui.checkbox(&mut twelve, tl!("Use a 12-hour clock (3:05 PM)")).changed() {
-        set(app, json!({"twelveHour": twelve}));
-    }
     row(ui, tl!("Week starts on"), |ui| {
         egui::ComboBox::from_id_salt("opt_week").selected_text(tl!(prefs.week_start.name())).show_ui(ui, |ui| {
             for d in [Weekday::Sun, Weekday::Mon, Weekday::Sat] {
@@ -1104,7 +1161,7 @@ fn time_zones(app: &mut MailApp, ui: &mut Ui, prefs: &mailcraft_engine::Prefs) {
 }
 
 /// Everyone who has worked on MailCraft, on GitHub.
-pub(crate) const CONTRIBUTORS_LINK: &str = "https://github.com/UCS-Care-Group/mailcraft/graphs/contributors";
+pub(crate) const CONTRIBUTORS_LINK: &str = "https://github.com/UCSLabs/mailcraft/graphs/contributors";
 
 /// The line of About that credits the people who made the program: a link to the project's
 /// contributors, shown as where it leads, in one piece.

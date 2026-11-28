@@ -1,10 +1,10 @@
 # MailCraft Contributor Licence Agreement
 
-> **Version:** 1.0 · **Written:** 2026-10-19
+> **Version:** 1.1 · **Written:** 2026-10-19 · **Revised:** 2026-11-22
 
 This agreement is between you and **UCS Care Group Limited** ("UCS", "we"), a company registered
 in England and Wales (number 15067831, registered office 2 Deansgate, Bolton, BL1 1BR), which looks after MailCraft
-(<https://github.com/UCS-Care-Group/mailcraft>). It makes clear what you allow us to do with what
+(<https://github.com/UCSLabs/mailcraft>). It makes clear what you allow us to do with what
 you contribute. **You keep the copyright in your contributions.** You give us a licence to use them.
 
 MailCraft itself is and stays available under MIT OR Apache-2.0. This agreement lets UCS also
@@ -86,4 +86,5 @@ This agreement is governed by the laws of England and Wales.
 
 | Version | Date | Change |
 |---|---|---|
+| 1.1 | 2026-11-22 | Repository link only: the GitHub organisation was renamed from `UCS-Care-Group` to `UCSLabs`. Nothing else changed, and a signature under 1.0 remains valid. |
 | 1.0 | 2026-10-19 | First version |

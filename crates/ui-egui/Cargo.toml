@@ -20,6 +20,8 @@ mailcraft-host = { workspace = true }
 egui = { workspace = true, features = ["monochrome_emoji_fonts"] }
 serde = { workspace = true }
 serde_json = { workspace = true }
+# Bind an attachment warning to the exact draft copy, including in the browser.
+sha2 = { workspace = true }
 log = { workspace = true }
 # The host a link really goes to, for its tip.
 mailcraft-link = { workspace = true }

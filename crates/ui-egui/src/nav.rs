@@ -54,6 +54,8 @@ const STRIP_W: f32 = 30.0;
 /// folders' ids and the accounts' (an account's heading folds under the account's own id).
 /// Accounts and folders are numbered from 1 in one sequence, so none of the three collide.
 const FAVORITES: Id = 0;
+/// The id the All Accounts heading (#625) is folded under, past any account's or folder's.
+pub(crate) const ALL_ACCOUNTS: Id = Id::MAX;
 /// The dot of an account's colour after its name in its heading (#893), and the room it takes there.
 const ACCOUNT_DOT_RADIUS: f32 = 4.5;
 const ACCOUNT_DOT_ROOM: f32 = 16.0;
@@ -307,6 +309,26 @@ fn trees(mailbox: &Mailbox, wanted: impl Fn(Id) -> bool) -> HashMap<Id, Tree<'_>
 
 type Tree<'a> = HashMap<Option<Id>, Vec<&'a Folder>>;
 
+/// The unread mail of each account that `wanted` names, as its folded heading shows it (#1950):
+/// the unread counts its folders' rows would show, added up. Junk Email's total, sent and deleted
+/// mail, which those rows don't count as unread, aren't in it.
+fn unread_by_account(mailbox: &Mailbox, counts: &mailcraft_engine::counts::FolderCounts, wanted: impl Fn(Id) -> bool) -> HashMap<Id, usize> {
+    let mut out: HashMap<Id, usize> = HashMap::new();
+    for f in mailbox.folders.iter().filter(|f| wanted(f.account)) {
+        let held = counts.folder(f.id);
+        if let Count::Unread(n) = Count::of(f.kind, held.total, held.unread) {
+            let sum = out.entry(f.account).or_default();
+            *sum = sum.saturating_add(n);
+        }
+    }
+    out
+}
+
+/// What a folded heading shows for `unread` messages: nothing at none.
+fn folded_count(unread: usize) -> Count {
+    if unread > 0 { Count::Unread(unread) } else { Count::Nothing }
+}
+
 fn visible_in(tree: Tree<'_>, folded: &[Id]) -> Vec<(Folder, usize, bool)> {
     let mut out = Vec::new();
     list_under(&tree, folded, None, 0, &mut out);
@@ -388,8 +410,10 @@ fn highlight(r: Rect) -> Rect {
 /// A heading of the pane (Favorites, an account): a chevron and the name, `height` tall with the
 /// name's line centred `text_y` under the top, and a rule above it when `ruled`. A click folds or
 /// unfolds what is under it; `true` when that shows. A `movable` one (an account of the owner's
-/// own, beside another, #702) is dragged up or down the pane by it.
-fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text_y: f32, ruled: bool, movable: bool) -> bool {
+/// own, beside another, #702) is dragged up or down the pane by it. While it is folded it shows
+/// `folded`, the unread mail of the rows it hides (#1950), flush right as a folder's count is.
+#[allow(clippy::too_many_arguments)]
+fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text_y: f32, ruled: bool, movable: bool, folded: Count) -> bool {
     let t = Tokens::get(ui.ctx());
     let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), height), Sense::hover());
     let resp = ui.interact(r, ui.scope_id().with(("heading", id)), if movable { Sense::click_and_drag() } else { Sense::click() });
@@ -405,10 +429,23 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
     let y = r.min.y + text_y;
     chevron(ui.painter(), pos2(r.min.x + CHEVRON_X, y), HEADING_CHEVRON, open, if resp.hovered() { t.accent_text } else { t.text });
     // An account's colour (#893): a dot after its name, which leaves room for it.
-    let color = app.session.mailbox.account(id).and_then(|a| a.color).filter(|_| id != FAVORITES);
+    let color = app.session.mailbox.account(id).and_then(|a| a.color).filter(|_| id != FAVORITES && id != ALL_ACCOUNTS);
     let room = if color.is_some() { ACCOUNT_DOT_ROOM } else { 0.0 };
-    let w =
-        paint_clipped(ui.painter(), pos2(r.min.x + NAME_LEFT, y), (r.width() - NAME_LEFT - 8.0 - room).max(0.0), name, regular(HEADING_SIZE), t.text);
+    // Folded, the unread mail under it, on the line of the name; open, its rows show it (#1950).
+    let count = if open { Count::Nothing } else { folded };
+    let line = Rect::from_center_size(pos2(r.center().x, y), vec2(r.width(), ROW_H));
+    let name_end = if count == Count::Nothing { r.max.x - 8.0 } else { count_pill(ui, &t, line, count, false) };
+    if count != Count::Nothing {
+        app.hit.add("headingCount", id, Rect::from_min_max(pos2(name_end, line.min.y), pos2(r.max.x, line.max.y)));
+    }
+    let w = paint_clipped(
+        ui.painter(),
+        pos2(r.min.x + NAME_LEFT, y),
+        (name_end - r.min.x - NAME_LEFT - room).max(0.0),
+        name,
+        regular(HEADING_SIZE),
+        t.text,
+    );
     if let Some(color) = color {
         let center = pos2(r.min.x + NAME_LEFT + w + ACCOUNT_DOT_ROOM / 2.0 + 1.0, y + 1.0);
         ui.painter().circle_filled(center, ACCOUNT_DOT_RADIUS, crate::theme::c32(color));
@@ -418,11 +455,18 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
         }
         app.hit.add("accountColor", id, Rect::from_center_size(center, vec2(2.0 * ACCOUNT_DOT_RADIUS, 2.0 * ACCOUNT_DOT_RADIUS)));
     }
+    // For a screen reader: its name, folded or not, and the unread mail it hides.
+    let said = match count {
+        Count::Unread(n) => format!("{name}, {}", tln!(n, "{n} unread", "{n} unread")),
+        _ => name.to_string(),
+    };
+    resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, true, &said));
+    ui.ctx().accesskit_node_builder(resp.id, |node| node.set_expanded(open));
     if resp.clicked() {
         let _ = app.execute("ui.toggleFolder", json!({"id": id}));
     }
-    // An account's heading (not the Favorites').
-    if id != FAVORITES {
+    // An account's heading (not the Favorites' nor All Accounts').
+    if id != FAVORITES && id != ALL_ACCOUNTS {
         resp.context_menu(|ui| {
             ui.set_min_width(190.0);
             // The keyboard's and the menu's way of a drag (#702), for the accounts that drag.
@@ -581,6 +625,25 @@ fn account_drop(app: &mut MailApp, ui: &mut Ui, blocks: &[Block], end: f32) {
     }
 }
 
+/// While messages or a folder are dragged over the folder pane: near the top or the bottom of what
+/// is in view the pane scrolls, to reach a folder out of view, as it does for an account (#702).
+fn drag_edge_scroll(ui: &mut Ui) {
+    let ctx = ui.ctx().clone();
+    if !egui::DragAndDrop::has_payload_of_type::<crate::mail_view::MessageDrag>(&ctx) && !egui::DragAndDrop::has_payload_of_type::<FolderDrag>(&ctx) {
+        return;
+    }
+    let Some(pos) = ctx.pointer_interact_pos() else { return };
+    let pane = ui.clip_rect();
+    if !ui.rect_contains_pointer(pane) {
+        return;
+    }
+    let step = edge_scroll(pane, pos.y);
+    if step != 0.0 {
+        ui.scroll_with_delta(vec2(0.0, step));
+        ctx.request_repaint();
+    }
+}
+
 /// While an account or a folder (#1514) is being dragged: a small label by the pointer with its name.
 fn drag_ghost(app: &MailApp, ui: &Ui) {
     let name = if let Some(drag) = egui::DragAndDrop::payload::<AccountDrag>(ui.ctx()) {
@@ -653,19 +716,7 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         }
     }
     let y = r.center().y;
-    // The count, flush right, in a pill: an unread count in the accent's soft colour, a total
-    // (Drafts, Junk) in a quiet grey one.
-    let mut name_end = r.max.x - COUNT_RIGHT;
-    if count != Count::Nothing {
-        let (fill, ink) = if matches!(count, Count::Unread(_)) { (t.accent_soft, t.accent_soft_text) } else { (t.pill_quiet, t.text_dim) };
-        let fill = if selected && matches!(count, Count::Unread(_)) { t.surface } else { fill };
-        let galley = ui.painter().layout_no_wrap(count.digits(), bold(NAME_SIZE - 1.0), ink);
-        let w = (galley.size().x + 12.0).max(20.0);
-        let pill = Rect::from_center_size(pos2(r.max.x - COUNT_RIGHT + 4.0 - w / 2.0, r.center().y), vec2(w, 18.0));
-        ui.painter().rect_filled(pill, 9.0, fill);
-        ui.painter().galley(pill.center() - galley.size() / 2.0, galley, ink);
-        name_end = pill.min.x - 6.0;
-    }
+    let name_end = count_pill(ui, &t, r, count, selected);
     let font = if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
     paint_clipped(
         ui.painter(),
@@ -760,7 +811,9 @@ fn folder_row(app: &mut MailApp, ui: &mut Ui, f: &Folder, depth: usize, has_chil
         item(ui, app, tl_later!("Delete Folder"), "folder.delete", json!({"id": id}), deletable);
         ui.separator();
         item(ui, app, tl_later!("Mark All as Read"), "mail.markAllRead", json!({"folder": id}), true);
-        item(ui, app, tl_later!("Run Rules Now"), "rules.run", json!({"folder": id}), true);
+        // (Not over a shared mailbox's folder: the rules leave its mail alone.)
+        let ruled = app.session.mailbox.rules_reach(app.session.mailbox.folder(id).map_or(0, |f| f.account));
+        item(ui, app, tl_later!("Run Rules Now"), "rules.run", json!({"folder": id}), ruled);
         if matches!(kind, FolderKind::Deleted | FolderKind::Junk) {
             let emptiable = !app.session.mailbox.emptying_stays_on_server(id);
             item(ui, app, tl_later!("Empty Folder"), "folder.empty", json!({"id": id}), emptiable);
@@ -816,16 +869,7 @@ fn gmail_row(app: &mut MailApp, ui: &mut Ui, inbox: Id, depth: usize, category: 
     let resp = ui.interact(r, ui.scope_id().with(("gmail", inbox, category.code())), Sense::click());
     app.hit.add(gmail_hit(category), inbox, r);
     let row = highlight(r).shrink2(vec2(0.0, ROW_HIGHLIGHT_INSET));
-    if selected {
-        ui.painter().rect_filled(row, 6.0, t.accent_soft);
-        ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
-    } else if resp.hovered() {
-        ui.painter().rect_filled(row, 6.0, t.hover_nav);
-    }
-    // Reached with Tab or the arrow keys (Enter or Space shows it): where the keyboard is.
-    if resp.has_focus() {
-        ui.painter().rect_stroke(row, 6.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
-    }
+    row_backdrop(ui, &t, row, selected, &resp);
     let x = r.min.x + depth.min(MAX_INDENT_DEPTH) as f32 * INDENT;
     let y = r.center().y;
     let mut name_end = r.max.x - COUNT_RIGHT;
@@ -855,6 +899,43 @@ fn gmail_row(app: &mut MailApp, ui: &mut Ui, inbox: Id, depth: usize, category: 
         let _ = app.run("folder.select", json!({"id": inbox, "gmail": category.code()}));
     }
     crate::gmail_move::drop_target(app, ui, &resp, row, category);
+}
+
+/// What the window calls every account's folder of `kind` together (#625).
+pub(crate) fn unified_name(kind: FolderKind) -> &'static str {
+    match kind {
+        FolderKind::Drafts => tl!("All Drafts"),
+        FolderKind::Sent => tl!("All Sent Items"),
+        FolderKind::Deleted => tl!("All Deleted Items"),
+        FolderKind::Archive => tl!("All Archives"),
+        _ => tl!("All Inboxes"),
+    }
+}
+
+/// A row under All Accounts (#625): every account's folder of `kind` in one list, counted as
+/// one of them would be with all of theirs, `selected` while the list shows it. A view over the
+/// accounts' folders, no folder of its own: nothing to rename, delete or drop mail on.
+fn unified_row(app: &mut MailApp, ui: &mut Ui, kind: FolderKind, count: Count, selected: bool) {
+    let t = Tokens::get(ui.ctx());
+    let (r, _) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::hover());
+    let resp = ui.interact(r, ui.scope_id().with(("unified", kind.code())), Sense::click());
+    app.hit.add("unifiedFolder", mailcraft_engine::unified::KINDS.iter().position(|k| *k == kind).unwrap_or(0) as Id, r);
+    let row = highlight(r).shrink2(vec2(0.0, ROW_HIGHLIGHT_INSET));
+    row_backdrop(ui, &t, row, selected, &resp);
+    let x = r.min.x;
+    let name_end = count_pill(ui, &t, r, count, selected);
+    let name = unified_name(kind);
+    let font = if selected { bold(NAME_SIZE) } else { regular(NAME_SIZE) };
+    let ink = if selected { t.accent_soft_text } else { t.text };
+    paint_clipped(ui.painter(), pos2(x + NAME_LEFT, r.center().y), (name_end - x - NAME_LEFT).max(0.0), name, font, ink);
+    let said = match count {
+        Count::Unread(n) => format!("{name}, {}", tln!(n, "{n} unread", "{n} unread")),
+        _ => name.to_string(),
+    };
+    resp.widget_info(|| egui::WidgetInfo::selected(egui::Role::TreeItem, true, selected, &said));
+    if resp.clicked() {
+        let _ = app.run("view.allAccounts", json!({"kind": kind.code()}));
+    }
 }
 
 /// A sentence under the Favorites heading that is longer than a row: wrapped to the pane, three
@@ -1057,6 +1138,8 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             // (A shared mailbox right after the account it is opened through, #70.)
             // (The folders are grouped by account once, not once for each account.)
             let mut trees = trees(&app.session.mailbox, |a| !folded.contains(&a));
+            // And for each folded account, the unread mail its rows would show (#1950).
+            let folded_unread = unread_by_account(&app.session.mailbox, &counts, |a| folded.contains(&a));
             let lists: Vec<(Id, String, Vec<(Folder, usize, bool)>)> = app
                 .session
                 .mailbox
@@ -1073,7 +1156,9 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             // they are tabs above the list instead (`view.gmailCategories`), the Inbox's is.
             let gmail_tabs = app.session.view.gmail_tabs;
             let gmail_now = mailcraft_engine::gmail::in_view(&app.session);
-            let current = if gmail_now.is_some() && !gmail_tabs { 0 } else { app.session.view.folder };
+            // (Every account's folder of a kind, #625: its row under All Accounts, no folder's.)
+            let unified = mailcraft_engine::unified::of(&app.session);
+            let current = if (gmail_now.is_some() && !gmail_tabs) || unified.is_some() { 0 } else { app.session.view.folder };
             let gmail_current = app.session.view.folder;
             let among_favorites = !folded.contains(&FAVORITES) && favorites.iter().any(|f| f.id == current);
             let in_a_list = lists.iter().any(|(_, _, rows)| rows.iter().any(|(f, _, _)| f.id == current));
@@ -1086,14 +1171,39 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             // new block, with a rule above it.
             let pane_top = ui.cursor().min.y;
             let mut first = true;
-            let mut head = |app: &mut MailApp, ui: &mut Ui, id: Id, name: &str| {
+            let mut head = |app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, folded: Count| {
                 if std::mem::take(&mut first) {
-                    heading(app, ui, id, name, ROW_H, 7.5, false, movable.contains(&id))
+                    heading(app, ui, id, name, ROW_H, 7.5, false, movable.contains(&id), folded)
                 } else {
-                    heading(app, ui, id, name, 2.0 * ROW_H, 34.5, true, movable.contains(&id))
+                    heading(app, ui, id, name, 2.0 * ROW_H, 34.5, true, movable.contains(&id), folded)
                 }
             };
-            if (!favorites.is_empty() || note.is_some()) && head(app, ui, FAVORITES, tl!("Favorites")) {
+            // Every account's Inbox (Drafts, Sent Items…) together, at the top, for an owner with two
+            // accounts at least, a shared mailbox counting as one (#625): each kind that one of them has.
+            if mailcraft_engine::unified::offered(&app.session.mailbox) {
+                let rows: Vec<(FolderKind, Count)> = mailcraft_engine::unified::KINDS
+                    .into_iter()
+                    .filter_map(|kind| {
+                        let folders = mailcraft_engine::unified::folders(&app.session.mailbox, kind);
+                        if folders.is_empty() {
+                            return None;
+                        }
+                        let (total, unread) = folders.iter().fold((0usize, 0usize), |(t, u), f| {
+                            let held = counts.folder(*f);
+                            (t.saturating_add(held.total), u.saturating_add(held.unread))
+                        });
+                        Some((kind, Count::of(kind, total, unread)))
+                    })
+                    .collect();
+                // Folded, what its rows show unread, together (#1950).
+                let unread = rows.iter().fold(0usize, |sum, (_, c)| if let Count::Unread(n) = c { sum.saturating_add(*n) } else { sum });
+                if head(app, ui, ALL_ACCOUNTS, tl!("All Accounts"), folded_count(unread)) {
+                    for (kind, count) in rows {
+                        unified_row(app, ui, kind, count, unified == Some(kind));
+                    }
+                }
+            }
+            if (!favorites.is_empty() || note.is_some()) && head(app, ui, FAVORITES, tl!("Favorites"), Count::Nothing) {
                 if let Some((account, note)) = &note {
                     favorites_note(app, ui, *account, note);
                 }
@@ -1110,7 +1220,8 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                     let line = if top <= pane_top { top + 1.0 } else { top + 9.5 };
                     blocks.push(Block { account: *account, top, line });
                 }
-                if !head(app, ui, *account, if name.is_empty() { tl!("Mailbox") } else { name }) {
+                let unread = folded_unread.get(account).copied().unwrap_or(0);
+                if !head(app, ui, *account, if name.is_empty() { tl!("Mailbox") } else { name }, folded_count(unread)) {
                     continue;
                 }
                 for (f, depth, has_children) in rows {
@@ -1138,6 +1249,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             }
             let end = ui.cursor().min.y;
             account_drop(app, ui, &blocks, end);
+            drag_edge_scroll(ui);
             ui.add_space(8.0);
         });
         drag_ghost(app, ui);
@@ -1248,3 +1360,37 @@ pub(crate) mod tests;
 #[cfg(test)]
 #[path = "nav_drop_tests.rs"]
 mod drop_tests;
+
+#[cfg(test)]
+#[path = "nav_unified_tests.rs"]
+mod unified_tests;
+
+/// A folder-pane row's background: the selection (soft fill and an edge mark), the hover, and the
+/// keyboard's focus ring (reached with Tab or the arrow keys; Enter or Space shows it).
+fn row_backdrop(ui: &Ui, t: &Tokens, row: Rect, selected: bool, resp: &egui::Response) {
+    if selected {
+        ui.painter().rect_filled(row, 6.0, t.accent_soft);
+        ui.painter().rect_filled(Rect::from_center_size(pos2(row.min.x + 1.5, row.center().y), vec2(3.0, 14.0)), 1.5, t.selection_edge);
+    } else if resp.hovered() {
+        ui.painter().rect_filled(row, 6.0, t.hover_nav);
+    }
+    if resp.has_focus() {
+        ui.painter().rect_stroke(row, 6.0, Stroke::new(1.5, t.accent), egui::StrokeKind::Inside);
+    }
+}
+
+/// The count, flush right, in a pill: an unread count in the accent's soft colour, a total
+/// (Drafts, Junk) in a quiet grey one. Answers where the name must end.
+fn count_pill(ui: &Ui, t: &Tokens, r: Rect, count: Count, selected: bool) -> f32 {
+    if count == Count::Nothing {
+        return r.max.x - COUNT_RIGHT;
+    }
+    let (fill, ink) = if matches!(count, Count::Unread(_)) { (t.accent_soft, t.accent_soft_text) } else { (t.pill_quiet, t.text_dim) };
+    let fill = if selected && matches!(count, Count::Unread(_)) { t.surface } else { fill };
+    let galley = ui.painter().layout_no_wrap(count.digits(), bold(NAME_SIZE - 1.0), ink);
+    let w = (galley.size().x + 12.0).max(20.0);
+    let pill = Rect::from_center_size(pos2(r.max.x - COUNT_RIGHT + 4.0 - w / 2.0, r.center().y), vec2(w, 18.0));
+    ui.painter().rect_filled(pill, 9.0, fill);
+    ui.painter().galley(pill.center() - galley.size() / 2.0, galley, ink);
+    pill.min.x - 6.0
+}

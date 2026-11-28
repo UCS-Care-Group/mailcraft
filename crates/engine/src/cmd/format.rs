@@ -8,12 +8,13 @@
 //! signature is open in File › Signatures they work on it instead ([`Session::doc`]).
 //! Positions count characters of the body's text, a paragraph break being one.
 
-use mailcraft_model::rich::{Font, Format, ListKind, MAX_SIZE, MIN_SIZE, safe_color};
+use mailcraft_model::rich::{Align, Font, Format, ListKind, MAX_SIZE, MIN_SIZE, Paragraph, Run, Style, safe_color};
 use mailcraft_model::{ModelError, RichBody, RichText};
 use serde_json::{Value, json};
 
 use super::{bad, fail, needs_compose};
 use crate::Doc;
+use crate::session::{enum_code, parse_enum};
 use crate::{BodyFormat, CmdError, CmdResult, CommandSpec, Compose, Session, p};
 
 const RANGE: &str = r#"{"from"?: number, "to"?: number} (default: the selection)"#;
@@ -64,10 +65,14 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("format.font", "Font", "Message › Basic Text", font)
             .pure()
-            .params(r#"{"value": "Arial"|"Calibri"|"Courier New"|"Georgia"|"Verdana"|"System" | null (the message's own font), "from"?: number, "to"?: number}"#)
+            .params(r#"{"value": string (a font family, as it is named on this computer — the window offers what is installed; "ui.fonts" over the control port lists them; a family that isn't installed is drawn in the window's own font), or null (the message's own font), "from"?: number, "to"?: number}"#)
             .when_writing(needs_html),
         CommandSpec::new("format.bullets", "Bullets", "Message › Basic Text", bullets).pure().params(RANGE).when_writing(needs_html),
         CommandSpec::new("format.numbering", "Numbering", "Message › Basic Text", numbering).pure().params(RANGE).when_writing(needs_html),
+        CommandSpec::new("format.align", "Align Text", "Message › Basic Text", align)
+            .pure()
+            .params(r#"{"value": "left"|"center"|"right", "from"?: number, "to"?: number} — every ordinary paragraph the range (default: the selection) touches; a list item stays left. Kept when sent (text-align) and on a paste, but not for a blank line; a plain-text message has none. Answers {"value"}: the alignment where the range starts. The Commands list doesn't offer it, having no way to say which"#)
+            .when_writing(needs_html),
         CommandSpec::new("format.clear", "Clear All Formatting", "Message › Basic Text", clear).pure().params(RANGE).when_writing(needs_html),
         CommandSpec::new("compose.link", "Link", "Message › Include", link)
             .pure()
@@ -91,7 +96,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("edit.paste", "Paste", "Message › Clipboard", paste)
             .pure()
-            .params(r#"{"html"?: string, "text"?: string} — over the selection; supported HTML formatting includes bold, italic, underline, font, size, colours, links and lists. The HTML composer keeps bounded tables as selectable objects. Tables flatten to text in plain-text messages and signatures. HTML that comes to no text gives way to `text`, and nothing to paste changes nothing"#)
+            .params(r#"{"html"?: string, "text"?: string} — over the selection; supported HTML formatting includes bold, italic, underline, font, size, colours, links, lists and a paragraph's indent and alignment. The HTML composer keeps bounded tables as selectable objects. Tables flatten to text in plain-text messages and signatures. A plain-text message takes `text` when it comes to something, and the HTML's text otherwise. HTML that comes to no text gives way to `text`, and nothing to paste changes nothing. Web and email addresses in pasted text, or in unlinked pasted HTML, become links in HTML messages and signatures"#)
             .when_writing(needs_doc),
         CommandSpec::new("compose.formatHtml", "HTML", "Format Text › Format", format_html).pure().when_writing(needs_compose),
         CommandSpec::new("compose.formatPlain", "Plain Text", "Format Text › Format", format_plain).pure().when_writing(needs_compose),
@@ -222,21 +227,35 @@ fn delete(s: &mut Session, v: &Value) -> CmdResult {
 }
 
 fn undo(s: &mut Session, _: &Value) -> CmdResult {
-    let d = doc_mut(s)?;
-    if !d.body.undo() {
+    if !step(s, false)? {
         return Err(fail("nothing to undo in the message"));
     }
-    *d.dirty = true;
     Ok(state(s))
 }
 
 fn redo(s: &mut Session, _: &Value) -> CmdResult {
-    let d = doc_mut(s)?;
-    if !d.body.redo() {
+    if !step(s, true)? {
         return Err(fail("nothing to redo in the message"));
     }
-    *d.dirty = true;
     Ok(state(s))
+}
+
+/// One step back (or forward, `redo`) in the open text; a step of the message's can put a
+/// picture's width back (`compose.picture.set`). Whether there was one.
+fn step(s: &mut Session, redo: bool) -> Result<bool, CmdError> {
+    if s.signature_edit.is_none()
+        && let Some(c) = s.compose.as_mut()
+    {
+        let pictures = &mut c.pictures;
+        let swap = |mark| super::picture::swap_width(pictures, mark);
+        let done = if redo { c.body.redo_with(swap) } else { c.body.undo_with(swap) };
+        c.dirty |= done;
+        return Ok(done);
+    }
+    let d = doc_mut(s)?;
+    let done = if redo { d.body.redo() } else { d.body.undo() };
+    *d.dirty |= done;
+    Ok(done)
 }
 
 fn bold(s: &mut Session, v: &Value) -> CmdResult {
@@ -337,15 +356,15 @@ fn symbol(s: &mut Session, v: &Value) -> CmdResult {
 fn font(s: &mut Session, v: &Value) -> CmdResult {
     let value = match v.get("value") {
         Some(Value::Null) => None,
-        Some(_) => Some(
-            p::str(v, "value")
-                .and_then(Font::parse)
-                .ok_or_else(|| bad("`value` is Arial, Calibri, Courier New, Georgia, Verdana or System, or null"))?,
-        ),
+        // Any family the owner has installed, named by its own name: the window lists what this
+        // computer has (`FontIndex`), and this only checks the shape of the name — the engine
+        // never looks at the fonts folders, and a font that isn't installed here is drawn in the
+        // window's own and named to the recipient all the same.
+        Some(_) => Some(p::str(v, "value").and_then(Font::parse).ok_or_else(|| bad("`value` is a font family, or null"))?),
         None => return Err(bad("`value` (a font, or null) is required")),
     };
-    edit(s, v, |b| b.format(Format::Font(value)))?;
-    Ok(json!({"value": value.map(Font::label)}))
+    edit(s, v, |b| b.format(Format::Font(value.clone())))?;
+    Ok(json!({"value": value.as_ref().map(|f| f.label().to_string())}))
 }
 
 fn size(s: &mut Session, v: &Value) -> CmdResult {
@@ -375,6 +394,12 @@ fn bullets(s: &mut Session, v: &Value) -> CmdResult {
 
 fn numbering(s: &mut Session, v: &Value) -> CmdResult {
     list(s, v, ListKind::Numbered)
+}
+
+fn align(s: &mut Session, v: &Value) -> CmdResult {
+    let align = p::str(v, "value").and_then(parse_enum::<Align>).ok_or_else(|| bad("`value` is left, center or right"))?;
+    edit(s, v, |b| b.set_align(align))?;
+    Ok(json!({"value": s.doc().map(|(b, _)| enum_code(&b.text().align_at(b.selection().start())))}))
 }
 
 fn clear(s: &mut Session, v: &Value) -> CmdResult {
@@ -437,6 +462,66 @@ fn cut(s: &mut Session, v: &Value) -> CmdResult {
 /// Most HTML or text one paste takes, in bytes.
 pub(crate) const MAX_PASTE: usize = 4 << 20;
 
+/// Web and mail addresses in pasted rich text become links, keeping each run's formatting.
+///
+/// A run that is already a link, a picture, or a table is left as it is, and an address never
+/// reaches across one. The unlinked text between them is read as one with
+/// [`mailcraft_html::autolink`], so an address whose formatting changes part way is one link, and
+/// each run it covers keeps its own formatting. [`RichText::from_paragraphs`] then cleans styles
+/// and keeps the document within its caps.
+fn autolink_rich(text: RichText) -> RichText {
+    let linkable = |run: &Run| run.picture.is_none() && run.table.is_none() && run.style.link.is_none();
+    let mut paragraphs = Vec::new();
+    for p in text.paragraphs() {
+        let mut runs = Vec::new();
+        for stretch in p.runs.chunk_by(|a, b| linkable(a) == linkable(b)) {
+            if stretch.first().is_some_and(linkable) {
+                autolink_runs(stretch, &mut runs);
+            } else {
+                runs.extend_from_slice(stretch);
+            }
+        }
+        paragraphs.push(Paragraph { runs, list: p.list, level: p.level, align: p.align, signature: p.signature });
+    }
+    RichText::from_paragraphs(paragraphs)
+}
+
+/// `runs`, unlinked text side by side, onto `out` with the addresses their joined text spells
+/// made into links: a run an address starts, ends or falls in is cut where the address does.
+fn autolink_runs(runs: &[Run], out: &mut Vec<Run>) {
+    let text: String = runs.iter().map(|run| run.text.as_str()).collect();
+    let mut links = Vec::new();
+    let mut at = 0;
+    for span in mailcraft_html::autolink(&text) {
+        let end = at + span.text.len();
+        if let Some(url) = span.link {
+            links.push((at, end, url.to_string()));
+        }
+        at = end;
+    }
+    let mut piece = |run: &Run, from: usize, to: usize, link: Option<&String>| {
+        if let Some(words) = text.get(from..to).filter(|words| !words.is_empty()) {
+            out.push(Run::new(words, Style { link: link.cloned(), ..run.style.clone() }));
+        }
+    };
+    let (mut start, mut next) = (0, 0);
+    for run in runs {
+        let end = start + run.text.len();
+        let mut cut = start;
+        for (from, to, url) in links.get(next..).unwrap_or(&[]).iter().take_while(|(from, ..)| *from < end) {
+            let (from, to) = ((*from).max(cut), (*to).min(end));
+            piece(run, cut, from, None);
+            piece(run, from, to, Some(url));
+            cut = to;
+        }
+        piece(run, cut, end, None);
+        while links.get(next).is_some_and(|(_, to, _)| *to <= end) {
+            next += 1;
+        }
+        start = end;
+    }
+}
+
 fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let plain = s.doc().is_some_and(|(_, plain)| plain);
     let (html, text) = (p::str(v, "html"), p::str(v, "text"));
@@ -444,11 +529,20 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
         return Err(bad("`html` or `text` (string) is required"));
     }
     let too_much = || fail("that is too much to paste into one message");
-    // The HTML when there is some, reduced to the set; when it comes to nothing at all (a picture
-    // alone, which a text can't hold), the text beside it, weighed only then; and nothing at all
-    // changes nothing, the selection included. Lines left blank on purpose are something. (What
-    // is looked at is what would be pasted, once cleaned of what a text never keeps.)
+    // Into a plain-text message, the text when it comes to something: the HTML's text can differ
+    // from it (a link's words, where the text is its address).
+    let own = match text {
+        Some(text) if plain && text.len() > MAX_PASTE => return Err(too_much()),
+        Some(text) if plain => Some(RichText::from_plain(text)).filter(|rich| !rich.is_empty()),
+        _ => None,
+    };
+    // Otherwise the HTML when there is some, reduced to the set; when it comes to nothing at all
+    // (a picture alone, which a text can't hold), the text beside it, weighed only then; and
+    // nothing at all changes nothing, the selection included. Lines left blank on purpose are
+    // something. (What is looked at is what would be pasted, once cleaned of what a text never
+    // keeps.)
     let from_html = match html {
+        _ if own.is_some() => None,
         Some(html) if html.len() > MAX_PASTE => return Err(too_much()),
         Some(html) => {
             let rich = if !plain && s.signature_edit.is_none() {
@@ -460,7 +554,7 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
         }
         None => None,
     };
-    let fragment = match (from_html, text) {
+    let fragment = match (own.or(from_html), text) {
         (Some(rich), _) => rich,
         (None, Some(text)) if text.len() > MAX_PASTE => return Err(too_much()),
         (None, Some(text)) => RichText::from_plain(text),
@@ -469,15 +563,13 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     if fragment.is_empty() {
         return Ok(state(s));
     }
+    let fragment = if plain { fragment } else { autolink_rich(fragment) };
     edit(s, &json!({}), |b| b.paste(&fragment))?;
     let mut out = state(s);
     // A signature's pictures come from files only (nothing is fetched); say so when the paste
     // had some.
-    let pictures = p::str(v, "html").is_some_and(|h| h.to_ascii_lowercase().contains("<img"));
-    if pictures
-        && s.signature_edit.is_some()
-        && let Some(o) = out.as_object_mut()
-    {
+    let pictures = s.signature_edit.is_some() && p::str(v, "html").is_some_and(|h| h.to_ascii_lowercase().contains("<img"));
+    if pictures && let Some(o) = out.as_object_mut() {
         o.insert("note".into(), json!("pictures in what was pasted were left out: save each one and add it with Insert Picture"));
     }
     Ok(out)
@@ -503,3 +595,6 @@ fn format_plain(s: &mut Session, _: &Value) -> CmdResult {
 #[cfg(test)]
 #[path = "highlight_tests.rs"]
 mod highlight_tests;
+#[cfg(test)]
+#[path = "paste_link_tests.rs"]
+mod paste_link_tests;

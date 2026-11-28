@@ -5,7 +5,9 @@ use crate::queue::{MOST_QUEUED, Queue};
 use crate::{Event, NotificationRecord, NotificationTopic, Permission};
 
 fn notice(key: u64) -> Event {
-    Event::Notification { notification: NotificationRecord { key, topic: NotificationTopic::Mail, title: "t".into(), body: "b".into() } }
+    Event::Notification {
+        notification: NotificationRecord { key, topic: NotificationTopic::Mail, title: "t".into(), body: "b".into(), message: None },
+    }
 }
 
 fn drain(queue: &std::sync::Arc<Queue<Event>>) -> Vec<Event> {

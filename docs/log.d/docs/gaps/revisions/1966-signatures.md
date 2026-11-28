@@ -1,0 +1,1 @@
+| 2026-11-27 | minor | #1966: row 19, the "not yet" clause no longer lists the `inline-block` and floated boxes of a layout (the Android reading view lays them out as the desktop does); it now names what is left of them: layout tables and text boxes without a width, and stacking by the widths of the words |

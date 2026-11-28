@@ -6,6 +6,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -55,6 +56,9 @@ class FirstSyncTest {
     private val told = mutableListOf<Pair<ULong, Boolean>>()
     /** How many of the next hold calls the core refuses (its queue full). */
     private var refusals = 0
+
+    /** The mail of the owner's pull is in when this completes (the pull's spinner waits for it). */
+    private val pullMail = CompletableDeferred<Unit>()
     private val holds = FirstSyncHolds(kept) { account, held ->
         if (refusals > 0) {
             refusals--
@@ -74,6 +78,7 @@ class FirstSyncTest {
             rounds.add("owner")
             SyncAnswer(started = true, message = "")
         },
+        mailIn = { pullMail.await() },
         firstRound = {
             syncs++
             rounds.add("first")
@@ -191,8 +196,8 @@ class FirstSyncTest {
         assertEquals(1, syncs)
         addAccount()
         assertEquals(1, syncs)
-        // When it ends, the round with the new account starts.
-        hub.handle(Event.SyncFinished(0u, true))
+        // When its mail is in, the round with the new account starts.
+        pullMail.complete(Unit)
         assertEquals(2, syncs)
         assertTrue(hub.syncing.value)
     }
@@ -231,6 +236,27 @@ class FirstSyncTest {
     }
 
     @Test
+    fun aPullInOneAccountsFolderLetsGoOfThatAccountsHoldAlone() {
+        kept.save(setOf(7uL, 8uL))
+        hub.syncNow(7u)
+        assertEquals(setOf(8uL), kept.load())
+        assertEquals(listOf("owner"), rounds)
+    }
+
+    @Test
+    fun anAnswerToTheRoomQuestionIsKeptWhileAPullWaitsForItsMail() {
+        hub.syncNow(7u)
+        assertTrue(hub.syncing.value)
+        // The holds aren't locked while the mail comes: the "Not now" is kept and said to the core at once.
+        app.launch { holds.answered(8u, yes = false) }
+        assertEquals(listOf(8uL to true), told)
+        assertEquals(setOf(8uL), kept.load())
+        pullMail.complete(Unit)
+        assertFalse(hub.syncing.value)
+        assertEquals(setOf(8uL), kept.load())
+    }
+
+    @Test
     fun aPullToRefreshThatDidNotStartKeepsTheHold() {
         kept.save(setOf(7uL))
         val hub = AccountsHub(
@@ -253,7 +279,7 @@ class FirstSyncTest {
         addAccount()
         // ...and then "Not now" to account 8's, before that round ends.
         runBlocking { holds.answered(8u, yes = false) }
-        hub.handle(Event.SyncFinished(0u, true))
+        pullMail.complete(Unit)
         // Account 7's round is the app's, not the owner's: 8 stays held, in the core and here.
         assertEquals(listOf("owner", "first"), rounds)
         assertEquals(setOf(8uL), kept.load())

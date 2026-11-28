@@ -3,6 +3,7 @@
 //! Writing mail: new messages, replies, forwards, drafts, sending.
 
 use std::collections::{HashMap, HashSet};
+use std::sync::Arc;
 
 use mailcraft_mime_model::rich::{Img, to_html_with};
 use mailcraft_model::rich::RichText;
@@ -31,10 +32,10 @@ pub fn specs() -> Vec<CommandSpec> {
             .params(
                 r#"{"to"?: string, "cc"?: string, "bcc"?: string, "subject"?: string, "body"?: string, "account"?: number, "from"?: string (one of the account's sender addresses, account.senderAddresses; default: its own), "mailto"?: string (a mailto: link: its recipients, subject and body start the message, and nothing else in it is used)}"#,
             ),
-        CommandSpec::new("mail.reply", "Reply", "Home › Respond", reply).pure().key("Mod+R").params(SOURCE).selection(needs_message),
-        CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(SOURCE).selection(needs_message),
+        CommandSpec::new("mail.reply", "Reply", "Home › Respond", reply).pure().key("Mod+R").params(REPLY).selection(needs_message),
+        CommandSpec::new("mail.replyAll", "Reply All", "Home › Respond", reply_all).pure().key("Mod+Shift+R").params(REPLY).selection(needs_message),
         CommandSpec::new("mail.replyAndDelete", "Reply and Delete", "Home › Respond", reply_and_delete)
-            .params(r#"{"id"?: number} (default: the selected message) — Reply, and the original goes to its account's Deleted Items; one there already stays (never deleted for good). A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
+            .params(r#"{"id"?: number, "window"?: number} (default: the selected message; `window`: as for Reply) — Reply, and the original goes to its account's Deleted Items; one there already stays (never deleted for good). A message being written stays open beside it, as it is, and its id is answered as `compose` (#286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#)
             .selection(super::needs_message),
         CommandSpec::new("mail.forward", "Forward", "Home › Respond", forward).pure().key("Mod+F").params(FORWARD).selection(needs_forwardable),
         CommandSpec::new("mail.forwardAsAttachment", "Forward as Attachment", "Home › Respond", forward_as_attachment)
@@ -111,7 +112,9 @@ pub fn specs() -> Vec<CommandSpec> {
 
 const SOURCE: &str = r#"{"id"?: number} (default: the selected message; a message being written stays open beside it, and its id is answered as `compose`, #286). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#;
 
-const FORWARD: &str = r#"{"id"?: number, "discard"?: bool} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written stays open beside it, and its id is answered as `compose`, #286; `discard` changes nothing). An id of another kind or null, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
+const REPLY: &str = r#"{"id"?: number, "window"?: number} (default: the selected message; a message being written stays open beside it, and its id is answered as `compose`, #286; `window`: the number of the window of its own it is answered from, else the reading pane: the original is quoted as it was read there, and with only what every pane would show of it when it wasn't read there). An `id` that is null or isn't an id, or `ids` naming other than one message, is refused"#;
+
+const FORWARD: &str = r#"{"id"?: number, "discard"?: bool, "window"?: number} | {"ids"?: [number], "discard"?: bool} (default: the selected messages; a message being written stays open beside it, and its id is answered as `compose`, #286; `discard` changes nothing; `window`, in either form: as for Reply, and only a number). An id of another kind or null, both, or any other parameter is refused. One message: Forward quotes it, Forward as Attachment attaches it whole as an .eml. Several, at most 200 and 64 MB together, are each attached whole as an .eml, in the message list's order, in a message from the account of the last one named (the one in focus), with no subject for the owner to write"#;
 
 /// The commands that close the message being written (#442). Those that start another (New
 /// Email, Reply, Forward, Open Draft, People's Email…: [`STARTING`]) open it beside this one,
@@ -242,6 +245,24 @@ fn start_with(c: &mut Compose, sig: &Signature, at: usize) -> Result<(), CmdErro
 /// addresses (#797), whatever its letter case.
 fn is_owners(s: &Session, email: &str) -> bool {
     s.mailbox.accounts.iter().any(|a| a.sends_as(email))
+}
+
+/// Whether `email` is an address of the sign-in that mail in `account` is answered from: the
+/// account's own and its sender addresses, and for a shared mailbox and the account it is opened
+/// through, each other's. Reply All leaves these out and keeps the owner's other accounts as any
+/// other recipient, as Outlook does (#1874). Mail of an account that is gone: any of the owner's.
+fn answers_as(s: &Session, account: Id, email: &str) -> bool {
+    let Some(a) = s.mailbox.account(account) else { return is_owners(s, email) };
+    let sign_in = a.shared_of.unwrap_or(a.id);
+    s.mailbox.accounts.iter().any(|a| (a.id == sign_in || a.shared_of == Some(sign_in)) && a.sends_as(email))
+}
+
+/// Whether `email` is an address the account `account` sends from: its own, its sender
+/// addresses, and those of the shared mailboxes opened through it (mail sent as one is kept in
+/// the sender's own Sent Items). Mail in it from another of the owner's accounts is mail it
+/// received (#1727).
+fn sent_from(s: &Session, account: Id, email: &str) -> bool {
+    s.mailbox.accounts.iter().any(|a| (a.id == account || a.shared_of == Some(account)) && a.sends_as(email))
 }
 
 /// An address for an error message: short, and without control characters.
@@ -392,7 +413,7 @@ fn quoted(s: &Session, m: &Message) -> String {
 /// its HTML reads as, under the opening line. Never the text alternative its sender wrote beside
 /// it (the owner never saw that one, and it can say something else).
 fn quote_text(marker: &str, quoted_html: &str) -> String {
-    let text = mailcraft_html::to_text(quoted_html);
+    let text = mailcraft_html::quote_to_text(quoted_html);
     // (The rule above the header lines is for the eye.)
     let text = text.trim_start_matches('-').trim();
     format!("\n\n{marker}\n{text}\n")
@@ -407,7 +428,7 @@ pub(crate) const QUOTE_MARK: &str = "<div id=\"mailcraft-quote\">";
 /// (`mailcraft_html::quotable`): it goes to other people, whose programs might run what ours never
 /// would. With it, the pictures written into the original (`data:`) that it shows, each to go
 /// as a part of its own ([`Written`]).
-fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>) {
+fn quoted_html(s: &Session, m: &Message, html: &str, envs: &[mailcraft_html::Env]) -> (String, Vec<Attachment>) {
     let e = mailcraft_html::escape;
     let [from, sent, to, cc, subject] = header_names(s).map(e);
     let mut out = String::from(QUOTE_MARK);
@@ -422,7 +443,7 @@ fn quoted_html(s: &Session, m: &Message, html: &str) -> (String, Vec<Attachment>
     }
     out.push_str(&format!("<b>{subject}</b> {}</div><br>\r\n", e(&m.subject)));
     let mut written = Written::of(m);
-    out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture)));
+    out.push_str(&mailcraft_html::quotable_with_pictures(html, &mut |mime, picture| written.add(mime, picture), envs));
     out.push_str("\r\n</div>");
     // (One the quote left out after all, before a `<body>` that came later, doesn't go: only
     // those a picture of the quote refers to. The Content-ID is no secret, so the sender may
@@ -503,9 +524,59 @@ fn sniffed(bytes: &[u8]) -> Option<&'static str> {
 
 /// The original's pictures that its HTML shows in place ([`mailcraft_model::shown`]): what an
 /// `<img>` asks for by `cid:` and is a picture by its bytes.
+/// The original's HTML for a message no pane has said how it showed ([`Session::read_at`]): its
+/// text part only when the HTML reads to no text and no picture at all, in every pane its `@media`
+/// tells apart (when they can all be told: else the HTML, which is then quoted as nothing), beside
+/// a text part that says something. (Never the text part when the HTML shows
+/// something a pane might show: that at worst quotes less than was shown, never words that
+/// weren't.)
+/// How message `m` was shown to the owner asking in `place`: its HTML (`None`: its text part),
+/// and the panes it was read in, as [`mailcraft_html::quotable_with_pictures`] takes them. As it
+/// was read there; else as every other place it was read in read it (the owner saw those); else
+/// as every pane would.
+pub(super) fn as_shown<'m>(s: &Session, m: &'m Message, place: crate::ReadIn) -> (Option<&'m str>, Vec<mailcraft_html::Env>) {
+    let read = match s.read_as(m.id, place) {
+        Some(read) => vec![read],
+        None => s.read_elsewhere(m.id),
+    };
+    let envs = read.iter().map(|r| r.0).collect();
+    let shown = if read.is_empty() {
+        shown_html(m)
+    } else if read.iter().all(|r| r.1) {
+        None
+    } else {
+        m.body.html.as_deref()
+    };
+    (shown, envs)
+}
+
+fn shown_html(m: &Message) -> Option<&str> {
+    let html = m.body.html.as_deref()?;
+    if m.body.text.trim().is_empty() {
+        return Some(html);
+    }
+    let (envs, every) = mailcraft_html::media_envs(&mailcraft_html::media_lists(html));
+    if !every {
+        return Some(html);
+    }
+    let shows = |env: &mailcraft_html::Env| {
+        let blocks = mailcraft_html::parse_in(html, env).blocks;
+        mailcraft_html::has_text(&blocks) || !mailcraft_html::images(&blocks).is_empty()
+    };
+    envs.iter().any(shows).then_some(html)
+}
+
 fn shown_pictures(m: &Message, html: &str) -> Vec<Attachment> {
     let ids = mailcraft_model::shown::shown_ids(html);
     m.attachments.iter().filter(|a| mailcraft_model::shown::shown_in_place(&ids, a)).cloned().collect()
+}
+
+/// What a forward of `m` carries: all its files, those the quoted original (`quoted`, its HTML)
+/// draws as pictures of the text, however the sender labelled them (a signature picture sent as
+/// an attachment, in a message read in before that was told).
+fn forwarded_files(m: &Message, quoted: Option<&str>) -> Vec<Attachment> {
+    let drawn = quoted.map(|html| mailcraft_mime_model::drawn_parts(html, &m.attachments)).unwrap_or_default();
+    m.attachments.iter().enumerate().map(|(i, a)| Attachment { inline: a.inline || drawn.contains(&i), ..a.clone() }).collect()
 }
 
 /// The `References` of an answer to `m`: its own, then its Message-ID. A long thread's stay
@@ -523,13 +594,34 @@ pub(super) fn references_of(m: &Message) -> Vec<String> {
     references
 }
 
+/// Where a reply or forward was asked for (`window`, else the reading pane): the original is
+/// quoted as it was read there.
+fn read_in(v: &Value) -> Result<crate::ReadIn, CmdError> {
+    match v.get("window") {
+        None => Ok(crate::ReadIn::Pane),
+        Some(w) => w.as_u64().map(crate::ReadIn::Window).ok_or_else(|| CmdError::Params("`window` is a window's number".into())),
+    }
+}
+
+/// `{"id": id}`, with the `window` of `v` when it has one.
+fn with_window(id: Id, v: &Value) -> Value {
+    match v.get("window") {
+        Some(w) => json!({"id": id, "window": w}),
+        None => json!({"id": id}),
+    }
+}
+
 fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
+    let place = read_in(v)?;
     // A forward carries every file; a reply only quotes the text and the pictures it shows.
     let m = match mode {
         ComposeMode::Forward => source_message(s, v)?,
         _ => reply_source(s, v)?,
     };
     let is_mine = |a: &Address| is_owners(s, &a.email);
+    // From the address the original was sent to (#797).
+    let from = reply_from(s, &m);
+    let is_from = |a: &Address| s.mailbox.account(m.account).is_some_and(|acc| acc.from_address(&from).same_mailbox(a));
     let (to, cc) = match mode {
         ComposeMode::Forward => (Vec::new(), Vec::new()),
         _ => {
@@ -547,19 +639,29 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
                 add(&mut to, &[], a);
             }
             if to.is_empty() {
-                // A reply to a message I sent goes to the people I sent it to; else to the
-                // sender, also when Reply-To names nobody but the owner.
-                let fallback: &[Address] = if is_mine(&m.from) && !m.to.is_empty() { &m.to } else { std::slice::from_ref(&m.from) };
-                for a in fallback {
-                    add(&mut to, &[], a);
+                // A reply to a message sent from this account goes to the people it was sent to,
+                // less the address the reply is from; else to the sender, also when Reply-To
+                // names nobody but the owner, and when it came from another of his accounts
+                // (#1727).
+                let others: Vec<&Address> = m.to.iter().filter(|a| !is_from(a)).collect();
+                if sent_from(s, m.account, &m.from.email) && !others.is_empty() {
+                    for a in others {
+                        add(&mut to, &[], a);
+                    }
+                } else {
+                    add(&mut to, &[], &m.from);
                 }
             }
             let mut cc = Vec::new();
             if mode == ComposeMode::ReplyAll {
-                for a in m.to.iter().filter(|a| !is_mine(a)) {
+                // Less the addresses the reply is from, not those of the owner's other accounts;
+                // mail the owner sent skips every owner address, as before.
+                let own_sent = is_mine(&m.from);
+                let skip = |a: &Address| if own_sent { is_mine(a) } else { answers_as(s, m.account, &a.email) };
+                for a in m.to.iter().filter(|a| !skip(a)) {
                     add(&mut to, &[], a);
                 }
-                for a in m.cc.iter().filter(|a| !is_mine(a)) {
+                for a in m.cc.iter().filter(|a| !skip(a)) {
                     add(&mut cc, &to, a);
                 }
             }
@@ -568,10 +670,12 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     };
     let references = references_of(&m);
     let quoting = s.prefs.quote_on_reply || mode == ComposeMode::Forward;
-    // An original in HTML is carried below with its look; one in plain text is quoted in the body.
-    let quote = match &m.body.html {
+    // An original in HTML is carried below with its look; one in plain text is quoted in the body,
+    // and so is one whose HTML the reading pane shows its text for.
+    let (shown, envs) = as_shown(s, &m, place);
+    let quote = match shown {
         Some(html) if quoting => {
-            let (html, written) = quoted_html(s, &m, html);
+            let (html, written) = quoted_html(s, &m, html, &envs);
             let text = quote_text(s.interface_language.t(ORIGINAL), &html);
             // The pictures the quote still shows: not those of what was left out of it. (A
             // forward carries the original's own as its attachments.) And those written into
@@ -583,11 +687,10 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         _ => None,
     };
     let body = if quoting && quote.is_none() { quoted(s, &m) } else { String::new() };
-    // From the address the original was sent to (#797).
-    let from = reply_from(s, &m);
     let sig = chosen_signature(s, m.account, &from, None, true);
     // A line to write on, a blank one, then the signature above the original.
     let body = if sig.is_some() { format!("\n{}", body.strip_prefix('\n').unwrap_or(&body)) } else { body };
+    let attachments = if mode == ComposeMode::Forward { forwarded_files(&m, quote.as_ref().map(|q| q.html.as_str())) } else { Vec::new() };
     let mut c = Compose {
         mode,
         source: Some(m.id),
@@ -597,10 +700,10 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
         cc: format_list(&cc),
         subject: prefixed(if mode == ComposeMode::Forward { "FW" } else { "RE" }, &m.subject),
         body: RichBody::from_plain(&body),
-        // A reply is written the way the original was: HTML to HTML, plain text to plain text.
-        format: if m.body.html.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
+        // A reply is written the way the original was read: HTML to HTML, plain text to plain text.
+        format: if shown.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
         quote,
-        attachments: if mode == ComposeMode::Forward { m.attachments.clone() } else { Vec::new() },
+        attachments,
         in_reply_to: if mode == ComposeMode::Forward { String::new() } else { m.message_id.clone() },
         references: if mode == ComposeMode::Forward { Vec::new() } else { references },
         ..Default::default()
@@ -631,7 +734,7 @@ fn reply_and_delete(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail(mailcraft_model::ONLY_SERVER_FOLDERS));
     }
     let before = s.rows();
-    let mut out = respond(s, &json!({"id": id}), ComposeMode::Reply)?;
+    let mut out = respond(s, &with_window(id, v), ComposeMode::Reply)?;
     let m = s.mailbox.message(id).ok_or_else(|| failed!("no message with id {id}", id))?;
     let bin = s.mailbox.folder_of_kind(m.account, FolderKind::Deleted).filter(|bin| !s.mailbox.subtree(*bin).contains(&m.folder));
     let deleted = match bin {
@@ -655,7 +758,7 @@ fn reply_all(s: &mut Session, v: &Value) -> CmdResult {
 fn forward(s: &mut Session, v: &Value) -> CmdResult {
     match forwarded(s, v)? {
         (ids, focus) if ids.len() > 1 => forward_attached(s, &ids, focus),
-        (_, focus) => respond(s, &json!({"id": focus}), ComposeMode::Forward),
+        (_, focus) => respond(s, &with_window(focus, v), ComposeMode::Forward),
     }
 }
 
@@ -672,7 +775,8 @@ fn forward_as_attachment(s: &mut Session, v: &Value) -> CmdResult {
 /// named), and the one in focus, the last named, as for a selection. How many it may be is
 /// [`forward_check`]'s to say.
 pub fn forwarded(s: &mut Session, v: &Value) -> Result<(Vec<Id>, Id), CmdError> {
-    p::only(v, &["id", "ids", "discard"])?;
+    p::only(v, &["id", "ids", "discard", "window"])?;
+    read_in(v)?;
     let mut ids = super::targets(s, v)?;
     // Each once, where it was named last.
     let mut seen = std::collections::HashSet::new();
@@ -1686,7 +1790,8 @@ pub(super) fn send_now(s: &mut Session) -> CmdResult {
             let Some(inbox) = s.mailbox.folder_of_kind(local, FolderKind::Inbox) else { continue };
             let copy = Message { id: 0, folder: inbox, read: false, bcc: Vec::new(), answers: None, follow_up: None, ..m.clone() };
             let cid = s.mailbox.add_message(copy)?;
-            s.mailbox.apply_rules(cid);
+            let clock = s.rule_clock();
+            s.mailbox.apply_rules(cid, &clock);
             delivered += 1;
         }
     }
@@ -1846,7 +1951,7 @@ impl Typed {
 /// in mail that arrived, then by the latest message, then by name. The owner's own addresses are
 /// included, on that same footing ([`suggest_excluding_own`] leaves them out before the list is
 /// cut). Junk E-mail and Drafts are not a source, a date after now counts as now, and an incoming
-/// `From` is never counted as a send. One pass over the messages, so it can run on every key press.
+/// `From` is never counted as a send. One pass over the messages, and the send counts are kept per mailbox revision, so it can run on every key press.
 pub fn suggest(s: &Session, query: &str, limit: usize) -> Vec<Suggestion> {
     rank_suggestions(s, query, limit, true)
 }
@@ -1858,7 +1963,7 @@ pub(crate) fn suggest_excluding_own(s: &Session, query: &str, limit: usize) -> V
     rank_suggestions(s, query, limit, false)
 }
 
-/// Addresses kept while suggesting. The candidate list and the send tally each stop here. A
+/// Addresses kept while suggesting. The candidate list and the send counts each stop here. A
 /// mailbox file can name a fresh address on every message; past this, a new one is dropped and
 /// one already kept is still updated.
 pub(crate) const MAX_SUGGEST_TRACKED: usize = 32_768;
@@ -1893,8 +1998,6 @@ struct Candidate {
     sends: u32,
     last_sent: Option<i64>,
     last_seen: Option<i64>,
-    /// Sent-message generation that last counted a send, so To and Cc of one message count once.
-    stamp: u64,
 }
 
 impl Candidate {
@@ -1910,7 +2013,6 @@ impl Candidate {
             sends: 0,
             last_sent: None,
             last_seen: None,
-            stamp: 0,
         }
     }
 }
@@ -2110,15 +2212,6 @@ fn seed_account(people: &mut HashMap<String, Candidate>, facts: &HashMap<String,
     offer_name(person, name, NameFrom::Account, false, 0);
 }
 
-/// Sends to an address the query did not fit, merged into candidates afterwards. A bare
-/// `To:` in Sent Items still counts for a contact matched by name.
-struct Tally {
-    sends: u32,
-    last_sent: i64,
-    /// The message generation that last counted this address, so To and Cc of one message count once.
-    stamp: u64,
-}
-
 /// Whether this name and address fit and, when they do not, the latest message they were on. That
 /// date is given to the address once every message is read, so it reaches a candidate that another
 /// name matched, before or after.
@@ -2137,31 +2230,49 @@ fn read_messages(
     let (junk, drafts, outgoing) = folder_sets(s);
     let now = s.now();
     let mut matched: HashMap<(&str, &str), Pair> = HashMap::new();
-    let mut tally: HashMap<String, Tally> = HashMap::new();
-    // `From` on Sent Items or the Outbox is not a send: incoming mail chooses it, and a message
-    // the owner sent already has its copy there.
-    let mut generation = 0u64;
     for m in s.mailbox.messages.values() {
         if m.draft || junk.contains(&m.folder) || drafts.contains(&m.folder) {
             continue;
         }
         let date = m.date.min(now);
+        // `From` on Sent Items or the Outbox is not a send: incoming mail chooses it, and a
+        // message the owner sent already has its copy there.
         if outgoing.contains(&m.folder) {
-            generation = generation.saturating_add(1);
             for a in m.to.iter().chain(&m.cc).chain(&m.bcc) {
-                see_address(people, facts, account_names, typed, &mut matched, &mut tally, a.name.trim(), a.email.trim(), true, generation, date);
+                see_address(people, facts, account_names, typed, &mut matched, a.name.trim(), a.email.trim(), true, date);
             }
         } else {
             for a in std::iter::once(&m.from).chain(&m.to).chain(&m.cc) {
-                see_address(people, facts, account_names, typed, &mut matched, &mut tally, a.name.trim(), a.email.trim(), false, generation, date);
+                see_address(people, facts, account_names, typed, &mut matched, a.name.trim(), a.email.trim(), false, date);
             }
         }
     }
+    // How often the owner wrote to each address does not depend on what is typed: counted once
+    // per mailbox change (#1803).
+    let counts = send_counts(s, &junk, &drafts, &outgoing);
+    // A table that is full has left out addresses first sent to late: those that fit the query
+    // are counted here, from the messages, so a cap on the table never costs a match its sends.
+    let mut left_out: HashMap<String, (u32, i64)> = HashMap::new();
+    if counts.by_address.len() >= MAX_SUGGEST_TRACKED {
+        for m in s.mailbox.messages.values() {
+            if m.draft || junk.contains(&m.folder) || drafts.contains(&m.folder) || !outgoing.contains(&m.folder) {
+                continue;
+            }
+            for_each_sent_address(m, |lower| {
+                if people.contains_key(lower) && !counts.by_address.contains_key(lower) {
+                    let row = left_out.entry(lower.to_string()).or_insert((0, m.date));
+                    row.0 = row.0.saturating_add(1);
+                    row.1 = row.1.max(m.date);
+                }
+            });
+        }
+    }
     for (key, person) in people.iter_mut() {
-        let Some(sent) = tally.get(key) else { continue };
-        person.sends = person.sends.saturating_add(sent.sends);
-        person.last_sent = Some(person.last_sent.map_or(sent.last_sent, |was| was.max(sent.last_sent)));
-        person.last_seen = Some(person.last_seen.map_or(sent.last_sent, |was| was.max(sent.last_sent)));
+        let Some(&(sends, last)) = counts.by_address.get(key).or_else(|| left_out.get(key)) else { continue };
+        let last = last.min(now);
+        person.sends = sends;
+        person.last_sent = Some(last);
+        person.last_seen = Some(person.last_seen.map_or(last, |was| was.max(last)));
     }
     for (&(_, email), pair) in &matched {
         let Some(date) = pair.last else { continue };
@@ -2229,32 +2340,69 @@ fn with_lower(email: &str, mut f: impl FnMut(&str)) {
     f(&owned);
 }
 
-fn tally_send(tally: &mut HashMap<String, Tally>, key: &str, generation: u64, date: i64) {
-    if let Some(sent) = tally.get_mut(key) {
-        if sent.stamp == generation {
-            return;
-        }
-        sent.stamp = generation;
-        sent.sends = sent.sends.saturating_add(1);
-        if date > sent.last_sent {
-            sent.last_sent = date;
-        }
-        return;
-    }
-    if tally.len() >= MAX_SUGGEST_TRACKED {
-        return;
-    }
-    tally.insert(key.to_string(), Tally { sends: 1, last_sent: date, stamp: generation });
+/// How often the owner wrote to each address: sends and the latest send (as its date, before it
+/// is held to now), by lower-cased address. Kept per mailbox revision ([`send_counts`]).
+#[derive(Default)]
+pub(crate) struct SendCounts {
+    by_address: HashMap<String, (u32, i64)>,
 }
 
-/// One send on a candidate. `generation` starts at 1, so a stamp of 0 has not counted one.
-fn count_send(person: &mut Candidate, generation: u64, date: i64) {
-    if person.stamp == generation {
-        return;
+impl SendCounts {
+    /// How many addresses are counted.
+    #[cfg(test)]
+    pub(crate) fn len(&self) -> usize {
+        self.by_address.len()
     }
-    person.stamp = generation;
-    person.sends = person.sends.saturating_add(1);
-    person.last_sent = Some(person.last_sent.map_or(date, |was| was.max(date)));
+}
+
+/// Each valid address a message was sent to, lower-cased, once however often it is named (To and
+/// Cc, another spelling).
+fn for_each_sent_address(m: &Message, mut f: impl FnMut(&str)) {
+    let mut seen: HashSet<String> = HashSet::new();
+    for a in m.to.iter().chain(&m.cc).chain(&m.bcc) {
+        let email = a.email.trim();
+        if !is_valid_email(email) {
+            continue;
+        }
+        let lower = email.to_lowercase();
+        if !seen.contains(&lower) {
+            f(&lower);
+            seen.insert(lower);
+        }
+    }
+}
+
+/// The send counts of the mailbox as it is: those kept for its revision, opening and message
+/// count, or counted now and kept. Rules as [`suggest`] says: To, Cc and Bcc of a message in
+/// Sent Items or the Outbox, once per message, not Junk or Drafts, an incoming `From` never.
+fn send_counts(s: &Session, junk: &HashSet<Id>, drafts: &HashSet<Id>, outgoing: &HashSet<Id>) -> Arc<SendCounts> {
+    let key = (s.rev(), s.openings(), s.mailbox.messages.len());
+    let mut kept = s.send_counts.lock().ok();
+    if let Some(guard) = &kept
+        && let Some((at, counts)) = guard.as_ref()
+        && *at == key
+    {
+        return counts.clone();
+    }
+    let mut counts = SendCounts::default();
+    for m in s.mailbox.messages.values() {
+        if m.draft || junk.contains(&m.folder) || drafts.contains(&m.folder) || !outgoing.contains(&m.folder) {
+            continue;
+        }
+        for_each_sent_address(m, |lower| {
+            if let Some(row) = counts.by_address.get_mut(lower) {
+                row.0 = row.0.saturating_add(1);
+                row.1 = row.1.max(m.date);
+            } else if counts.by_address.len() < MAX_SUGGEST_TRACKED {
+                counts.by_address.insert(lower.to_string(), (1, m.date));
+            }
+        });
+    }
+    let counts = Arc::new(counts);
+    if let Some(guard) = kept.as_mut() {
+        **guard = Some((key, counts.clone()));
+    }
+    counts
 }
 
 fn see_last(person: &mut Candidate, date: i64) {
@@ -2267,11 +2415,9 @@ fn see_address<'a>(
     account_names: &HashMap<String, String>,
     typed: &Typed,
     matched: &mut HashMap<(&'a str, &'a str), Pair>,
-    tally: &mut HashMap<String, Tally>,
     name: &'a str,
     email: &'a str,
     sent: bool,
-    generation: u64,
     date: i64,
 ) {
     let name = name.trim();
@@ -2286,23 +2432,8 @@ fn see_address<'a>(
     with_lower(email, |key| {
         if fits {
             note_fit(people, facts, account_names, key, name, email, sent, date);
-            if sent {
-                let tallied = tally.get(key).is_some_and(|row| row.stamp == generation);
-                if let Some(person) = people.get_mut(key) {
-                    if tallied {
-                        person.stamp = generation;
-                    } else {
-                        count_send(person, generation, date);
-                    }
-                }
-            }
-        } else {
-            if sent && !people.get(key).is_some_and(|person| person.stamp == generation) {
-                tally_send(tally, key, generation, date);
-            }
-            if !kept && let Some(person) = people.get_mut(key) {
-                see_last(person, date);
-            }
+        } else if !kept && let Some(person) = people.get_mut(key) {
+            see_last(person, date);
         }
     });
 }

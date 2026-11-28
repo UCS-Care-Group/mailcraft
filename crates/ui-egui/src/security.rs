@@ -403,7 +403,7 @@ fn remove_private_key(app: &mut MailApp, p: &Value) -> Result<Value, String> {
         app.set_dialog(Some(Dialog::Confirm {
             command: "ui.removePrivateKey".to_string(),
             params: json!({"fingerprint": key.fingerprint}),
-            ask: Question::new(tl!("Remove Your Key"), text, tl!("Remove"), json!({"confirmed": true})),
+            ask: Box::new(Question::new(tl!("Remove Your Key"), text, tl!("Remove"), json!({"confirmed": true}))),
         }));
         return Ok(json!({"pending": "confirm"}));
     }

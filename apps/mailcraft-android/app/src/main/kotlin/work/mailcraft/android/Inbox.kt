@@ -24,6 +24,15 @@ internal data class AccountItem(val id: ULong, val name: String, val email: Stri
 /** The accounts of the mailbox, and the folder the Mail tab opens on. */
 internal data class MailboxOutline(val accounts: List<AccountItem>, val inboxId: ULong?)
 
+/**
+ * The account a pull to refresh brings: the one whose [folder] the list shows, or null (every
+ * account) for a list across accounts (a search of every account) or a folder no account has.
+ */
+internal fun pullAccount(accounts: List<AccountItem>, folder: ULong?, query: MailQuery): ULong? {
+    if (query.everywhere && query.search.isNotBlank()) return null
+    return accounts.firstOrNull { account -> account.folders.any { it.id == folder } }?.id
+}
+
 /** How far down the folder tree the drawer goes; deeper folders sit at this depth. */
 internal const val MAX_FOLDER_DEPTH = 4
 

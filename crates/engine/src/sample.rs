@@ -328,7 +328,7 @@ pub fn mailbox(now: Timestamp, offset: i32) -> Mailbox {
         id: rule,
         name: "Bookshop newsletters".into(),
         enabled: true,
-        conditions: vec![Condition::FromContains("harborbooks".into())],
+        conditions: vec![Condition::FromContains(vec!["harborbooks".into()])],
         actions: vec![Action::Categorize("Purple category".into())],
         stop: false,
         account,

@@ -20,5 +20,5 @@ fn a_thinned_message_has_no_hidden_text() {
     assert_eq!(m.body.text, "All of");
     // Nothing of it is found any more, by search or by a rule.
     assert!(!mailcraft_model::search::Query::parse("hidden").matches(&m, 0));
-    assert!(!mailcraft_model::Condition::BodyContains("hidden".into()).matches(&m));
+    assert!(!mailcraft_model::Condition::BodyContains(vec!["hidden".into()]).matches(&m));
 }

@@ -144,9 +144,10 @@ impl Doc {
 
 /// Whether one of the pictures is written into the message or attached to it.
 fn shows_a_picture(blocks: &[Block], message: &Message) -> bool {
+    let parts = mailcraft_model::shown::PartIndex::new(&message.attachments);
     mailcraft_html::images(blocks).iter().any(|b| match &b.kind {
         BlockKind::Image { data: Some(_), .. } => true,
-        BlockKind::Image { src, .. } => super::images::attachment(message, src).is_some(),
+        BlockKind::Image { src, .. } => parts.find(src).is_some(),
         _ => false,
     })
 }
@@ -180,6 +181,7 @@ fn in_pieces(blocks: Vec<Block>) -> (Vec<Block>, Vec<Option<Glue>>) {
                 rtl: block.rtl,
                 space: if n == 0 { block.space } else { 0 },
                 beside: n == 0 && block.beside,
+                in_item: block.in_item,
                 gap: if n == 0 { block.gap } else { 0 },
                 line_height: block.line_height,
                 inset: block.inset,
@@ -240,7 +242,7 @@ struct Key {
     /// How many of the message's pictures from the web had come when it was made; `None` while
     /// they are not shown at all.
     remote: Option<usize>,
-    /// The message fonts egui had ([`super::fonts::generation`]): a font the message asked for
+    /// The message fonts egui had ([`crate::fonts::generation`]): a font the message asked for
     /// came, or turned out not to be had.
     fonts: u64,
 }
@@ -482,6 +484,17 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     #[cfg(not(test))]
     let _ = made;
     let Some(entry) = store.entry(message, place, images::frame(&ctx), can_download, env) else { return };
+    // A reply or forward asked for here quotes it as it is read here: at this width and in this
+    // theme, its HTML or its text part, as shown. (Its text part is a choice only beside HTML: one
+    // drawn before its body came is not quoted as text once the HTML is there.)
+    let here = match place {
+        Place::Pane => Some(mailcraft_engine::ReadIn::Pane),
+        Place::Window(n) => Some(mailcraft_engine::ReadIn::Window(n)),
+        Place::Quote | Place::Preview => None,
+    };
+    if let Some(here) = here {
+        app.session.read_at(message.id, here, env, entry.doc.from_text && message.body.html.is_some());
+    }
     if entry.doc.blocks.is_empty() {
         ui.label(egui::RichText::new(tl!("This message has no text.")).color(t.text_dim));
         if let Some(state) = app.text_selection.state(place) {
@@ -505,8 +518,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
         remote: showing.then(|| entry.doc.remote.iter().filter(|url| matches!(pictures.remote_peek(url), Some(Remote::Ready(_)))).count()),
         fonts: {
             // What the fonts' threads brought is taken in first (#600).
-            super::fonts::tick(&ctx);
-            super::fonts::generation(&ctx)
+            crate::fonts::tick(&ctx);
+            crate::fonts::generation(&ctx)
         },
     };
     if entry.key == Some(key) {

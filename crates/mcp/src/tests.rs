@@ -45,7 +45,8 @@ fn agent_triages_mail_and_books_a_meeting() {
     let mut s = Server::new(Box::new(Headless::new(mailcraft_engine::Session::empty(), allow)));
     tool(&mut s, "open_mailbox", json!({"sample": true}));
     let folders = tool(&mut s, "list_folders", json!({}));
-    assert_eq!(folders["accounts"][0]["folders"][0]["name"], "Inbox");
+    // A folder's name is the server's: framed like message text.
+    assert_eq!(plain(&folders["accounts"][0]["folders"][0]["name"]), "Inbox");
     let unread = tool(&mut s, "list_messages", json!({"folder": "Inbox", "query": "is:unread"}));
     let messages = unread["messages"].as_array().unwrap();
     assert_eq!(messages.len(), 4);
@@ -126,7 +127,7 @@ fn list_contacts_shows_every_account_whatever_the_window_shows() {
     let contact = json!({"id": "w1", "displayName": "In work"});
     let download = json!({"download": {"account": work, "email": "work@example.org", "complete": true, "contacts": [contact]}});
     session.run("sync.applyContacts", &download).unwrap();
-    session.run("people.new", &json!({"displayName": "On this computer"})).unwrap();
+    session.run("people.new", &json!({"displayName": "On this computer", "folder": 0})).unwrap();
     session.run("view.peopleAccount", &json!({"value": work})).unwrap();
     session.run("people.search", &json!({"query": "In work"})).unwrap();
     let mut s = Server::new(Box::new(Headless::new(session, Vec::new())));

@@ -82,8 +82,10 @@ fn window(links: (bool, bool)) -> (MailApp, Id, Id, Shared) {
     let host: Shared = Default::default();
     let note = host.clone();
     app.services.graph = Some(Box::new(move |req: GraphRequest| {
-        // The owner's pass and the shared mailbox's: checked against the owner's sign-in.
-        assert_eq!(req.signer.as_ref().map(|a| a.email.as_str()), Some(OWNER));
+        // The owner's pass and the shared mailbox's: checked against the owner's sign-in (an
+        // account a test adds beside them, against its own).
+        let own = if req.account.is_shared() { OWNER } else { req.account.email.as_str() };
+        assert_eq!(req.signer.as_ref().map(|a| a.email.as_str()), Some(own));
         let mut host = note.lock().unwrap();
         let mail = req.mail.clone().unwrap_or_default();
         let (account, email) = (req.account.id, req.account.email.clone());
@@ -320,6 +322,31 @@ fn the_inbox_is_checked_by_itself_every_minute_quietly() {
 }
 
 #[test]
+fn a_sign_in_left_open_on_one_account_holds_only_its_own_check() {
+    let (mut app, owner, shared, _) = checked_window();
+    const OTHER: &str = "lior@example.org";
+    let other = app.execute("account.add", json!({"email": OTHER, "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+    app.tokens.insert(other, tokens());
+    seed_inbox(&mut app, other, OTHER, true);
+    let sign_in = |app: &mut MailApp, account: Id, email: &str| {
+        let oauth = app.session.mailbox.account(account).and_then(|a| a.oauth.clone()).unwrap();
+        app.begin_sign_in(account, oauth, email, String::new(), false, true).unwrap();
+        assert!(app.signing_in());
+    };
+    // The other account's page is open in the browser, and stays open: the owner's Inbox and the
+    // shared mailbox's are checked as ever (#1557).
+    sign_in(&mut app, other, OTHER);
+    assert_eq!(tick(&mut app, T0 + 60), [owner, shared]);
+    // The owner's page instead: the owner and the shared mailbox read with its sign-in wait.
+    app.execute("ui.cancelSignIn", json!({})).unwrap();
+    sign_in(&mut app, owner, OWNER);
+    assert_eq!(tick(&mut app, T0 + 125), [other]);
+    // Over: every Inbox is checked again.
+    app.execute("ui.cancelSignIn", json!({})).unwrap();
+    assert_eq!(tick(&mut app, T0 + 190), [owner, shared, other]);
+}
+
+#[test]
 fn a_check_is_quiet_while_it_runs_and_ticks_never_stack() {
     let (mut app, owner, _, host) = checked_window();
     host.lock().unwrap().hold = true;
@@ -548,4 +575,122 @@ fn a_check_that_keeps_failing_says_so_once_until_one_gets_through() {
     assert_eq!(tick(&mut app, T0 + 240).first(), Some(&owner));
     fail(&mut app, &host, T0 + 300);
     assert_eq!(said(), 2);
+}
+
+/// A check that gives way to a run of another account (a shared mailbox's, an account just added)
+/// never brings its last piece, and no run of its own account reads on from it: the check ends
+/// there, and a mailing list's second copy at the next check a minute later is mail the account
+/// had (#566).
+#[test]
+fn a_check_that_gave_way_to_another_accounts_run_leaves_the_next_check_its_own() {
+    let (mut app, owner, shared, host) = checked_window();
+    let copies = app.session.mailbox.add_folder(owner, None, "Copies").unwrap();
+    let rule = json!({"name": "Copy news", "account": owner, "server": false, "alert": true,
+        "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "copyTo", "value": copies}]});
+    app.session.run("rules.add", &rule).unwrap();
+    let twin = |id: &str| GraphMessage { message_id: "weekly@list.example".into(), subject: "Weekly news".into(), ..message(id) };
+    let piece = |messages: Vec<GraphMessage>, end: bool| GraphMailResult {
+        account: owner,
+        email: OWNER.into(),
+        pages: if messages.is_empty() {
+            Vec::new()
+        } else {
+            vec![MessagePage { folder: "in".into(), messages, link: NEXT_LINK.into(), caught_up: true, ..Default::default() }]
+        },
+        partial: true,
+        inbox_pass: true,
+        inbox_pass_end: end,
+        ..Default::default()
+    };
+    let alerted =
+        |app: &MailApp, id: &str| app.session.mailbox.messages.values().find(|m| m.server.as_ref().is_some_and(|s| s.id == id)).map(|m| m.rule_alert);
+    let copied = |app: &MailApp| app.session.mailbox.messages_in(copies).count();
+    // A check: its first piece brings the list's first copy, which is new mail.
+    host.lock().unwrap().hold = true;
+    at(&mut app, T0 + 60);
+    assert_eq!(app.inbox_check_tick(), Some(owner));
+    let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+    pieces.send(piece(vec![twin("N1")], false)).unwrap();
+    app.poll_graph();
+    assert_eq!((alerted(&app, "N1"), copied(&app)), (Some(true), 1), "the first copy is new mail");
+    // Before its last piece is in, a run of the shared mailbox is asked for: the check gives way.
+    host.lock().unwrap().hold = false;
+    app.execute("ui.sync", json!({"account": shared})).unwrap();
+    assert!(!app.inbox_check.under_way());
+    drop(pieces);
+    drop(answer);
+    for _ in 0..50 {
+        if app.graph_rx.is_none() {
+            break;
+        }
+        app.poll_graph();
+    }
+    assert!(jobs(&host).iter().any(|j| j.account == shared && !j.pass), "{:?}", jobs(&host));
+    // The owner's next check, a minute later, brings the list's second copy, and ends.
+    host.lock().unwrap().hold = true;
+    at(&mut app, T0 + 200);
+    assert_eq!(app.inbox_check_tick(), Some(owner));
+    let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+    pieces.send(piece(vec![twin("N2")], false)).unwrap();
+    pieces.send(piece(Vec::new(), true)).unwrap();
+    drop(pieces);
+    answer.send(GraphResult { account: owner, ..Default::default() }).unwrap();
+    settle(&mut app);
+    host.lock().unwrap().hold = false;
+    assert_eq!((alerted(&app, "N2"), copied(&app)), (Some(false), 1), "a later check's copy is mail the account had");
+}
+
+/// A check whose job ends without its last piece (its thread ended early) ends there, as one that
+/// gave way does: a mailing list's second copy at the next check is mail the account had (#566).
+#[test]
+fn a_check_whose_job_ends_without_its_last_piece_leaves_the_next_check_its_own() {
+    let (mut app, owner, _shared, host) = checked_window();
+    let copies = app.session.mailbox.add_folder(owner, None, "Copies").unwrap();
+    let rule = json!({"name": "Copy news", "account": owner, "server": false, "alert": true,
+        "conditions": [{"type": "subjectContains", "value": "news"}], "actions": [{"type": "copyTo", "value": copies}]});
+    app.session.run("rules.add", &rule).unwrap();
+    let twin = |id: &str| GraphMessage { message_id: "weekly@list.example".into(), subject: "Weekly news".into(), ..message(id) };
+    let piece = |messages: Vec<GraphMessage>, end: bool| GraphMailResult {
+        account: owner,
+        email: OWNER.into(),
+        pages: if messages.is_empty() {
+            Vec::new()
+        } else {
+            vec![MessagePage { folder: "in".into(), messages, link: NEXT_LINK.into(), caught_up: true, ..Default::default() }]
+        },
+        partial: true,
+        inbox_pass: true,
+        inbox_pass_end: end,
+        ..Default::default()
+    };
+    let alerted =
+        |app: &MailApp, id: &str| app.session.mailbox.messages.values().find(|m| m.server.as_ref().is_some_and(|s| s.id == id)).map(|m| m.rule_alert);
+    let copied = |app: &MailApp| app.session.mailbox.messages_in(copies).count();
+    host.lock().unwrap().hold = true;
+    at(&mut app, T0 + 60);
+    assert_eq!(app.inbox_check_tick(), Some(owner));
+    let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+    pieces.send(piece(vec![twin("N1")], false)).unwrap();
+    app.poll_graph();
+    assert_eq!((alerted(&app, "N1"), copied(&app)), (Some(true), 1));
+    // The job's thread ends: no last piece, no answer.
+    drop(pieces);
+    drop(answer);
+    settle(&mut app);
+    assert!(app.graph_rx.is_none() && !app.inbox_check.under_way());
+    // (The tick's other account, the shared mailbox, has its check next.)
+    host.lock().unwrap().hold = false;
+    at(&mut app, T0 + 61);
+    assert_eq!(app.inbox_check_tick(), Some(_shared));
+    settle(&mut app);
+    host.lock().unwrap().hold = true;
+    at(&mut app, T0 + 200);
+    assert_eq!(app.inbox_check_tick(), Some(owner));
+    let (pieces, answer) = host.lock().unwrap().held.take().unwrap();
+    pieces.send(piece(vec![twin("N2")], false)).unwrap();
+    pieces.send(piece(Vec::new(), true)).unwrap();
+    drop(pieces);
+    answer.send(GraphResult { account: owner, ..Default::default() }).unwrap();
+    settle(&mut app);
+    assert_eq!((alerted(&app, "N2"), copied(&app)), (Some(false), 1), "a later check's copy is mail the account had");
 }
