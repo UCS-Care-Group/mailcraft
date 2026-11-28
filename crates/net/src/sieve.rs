@@ -341,7 +341,9 @@ pub(crate) fn read_with(
 }
 
 /// Write a script, if what is on the server is still what MailCraft last wrote there, and make
-/// it active when asked and no other script is.
+/// it active when asked and no other script is. What is there is checked just before it is
+/// written; RFC 5804 has no conditional write, so a change another program makes in between can
+/// still be written over.
 pub fn write(account: &Account, server: &Server, secret: &str, change: &ScriptChange<'_>) -> Result<Written, SieveError> {
     write_with(account, server, secret, change, &Patience::default(), None)
 }
@@ -425,8 +427,12 @@ impl std::fmt::Debug for OwnWritten {
 /// Write the owner's own active script back as `change` gives it (PUTSCRIPT under its own name),
 /// only while the server's is still the one read (its digest is `change.read`) and still the
 /// active one, and while the server has room for it (HAVESPACE). Nothing else is done: no other
-/// script is made active, and none is renamed, switched off or deleted. (ManageSieve has no
-/// compare-and-swap of its own: the script is read again just before it is written.)
+/// script is made active, and none is renamed, switched off or deleted.
+///
+/// ManageSieve has no conditional write (RFC 5804): the script is checked just before it is
+/// written, the quota asked first so that nothing comes between the check and PUTSCRIPT. That
+/// narrows the time in which a change made in another program could be written over; it can't
+/// close it.
 pub fn write_own(account: &Account, server: &Server, secret: &str, change: &OwnChange<'_>) -> Result<OwnWritten, SieveError> {
     write_own_with(account, server, secret, change, &Patience::default(), None)
 }
@@ -445,28 +451,30 @@ pub(crate) fn write_own_with(
     }
     let run = || {
         let mut sieve = open(account, server, secret, patience, cancel)?;
+        // (A server that doesn't know HAVESPACE says so: PUTSCRIPT then says whether there is
+        // room.)
+        let room = match sieve.have_space(change.name, change.text.len()) {
+            Ok(room) => Some(room),
+            Err(ProtoError::Rejected(_)) => None,
+            Err(e) => return Err(e.into()),
+        };
         let scripts = sieve.list_scripts()?;
         let active = scripts.iter().any(|s| s.active && s.name == change.name);
         let now = if scripts.iter().any(|s| s.name == change.name) { sieve.get_script(change.name)? } else { None };
+        // Already as it is to be, and still the active one: a save the server took whose answer
+        // was lost, tried again (#2058).
+        if active && now.as_deref() == Some(change.text) {
+            let _ = sieve.logout();
+            return Ok(OwnWritten::Done { warnings: None });
+        }
         let same = now.as_deref().is_some_and(|text| digest(text).eq_ignore_ascii_case(change.read));
         if !active || !same {
             let _ = sieve.logout();
             return Ok(OwnWritten::Changed { now });
         }
-        if now.as_deref() == Some(change.text) {
+        if room == Some(false) {
             let _ = sieve.logout();
-            return Ok(OwnWritten::Done { warnings: None });
-        }
-        match sieve.have_space(change.name, change.text.len()) {
-            Ok(true) => {}
-            Ok(false) => {
-                let _ = sieve.logout();
-                return Ok(OwnWritten::NoSpace);
-            }
-            // (A server that doesn't know HAVESPACE says so: PUTSCRIPT then says whether there is
-            // room.)
-            Err(ProtoError::Rejected(_)) => {}
-            Err(e) => return Err(e.into()),
+            return Ok(OwnWritten::NoSpace);
         }
         // (A script written in the place of the active one stays the active one, RFC 5804 §2.6.)
         let warnings = sieve.put_script(change.name, change.text)?;
@@ -544,7 +552,12 @@ pub(crate) fn check_with(
 }
 
 /// Leave the server with no active script, if `name` is the active one: MailCraft's own script
-/// stops running, and nobody else's is touched. Whether it was active.
+/// stops running. Whether it was active.
+///
+/// `SETACTIVE ""` switches off whichever script is active when the server gets it, and RFC 5804
+/// has no way to say "only if it is still this one": the listing is read just before, on the same
+/// connection, so another client would have to make its own script active in that one round trip
+/// for it to be the one switched off. That window is narrowed, not closed.
 pub fn deactivate(account: &Account, server: &Server, secret: &str, name: &str) -> Result<bool, SieveError> {
     let run = || {
         let mut sieve = open(account, server, secret, &Patience::default(), None)?;
@@ -598,6 +611,12 @@ fn open<'a>(
     if account.oauth.is_none() && secret.is_empty() {
         return Err(NetError::Config(said!("enter a password to sign in")).into());
     }
+    // ManageSieve speaks first in the clear and is made secure with STARTTLS (RFC 5804 §2.2): a
+    // connection encrypted from the first byte would never be greeted. Refused before any
+    // connection is made.
+    if server.security == Security::Tls {
+        return Err(NetError::Config(said!("ManageSieve is made secure with STARTTLS, not encrypted from the first byte")).into());
+    }
     let port = transport::port(server, Service::ManageSieve);
     let (mut stream, host) = transport::open(server, Service::ManageSieve, patience).map_err(|e| match e {
         NetError::Connect { host, reason } => Reach::NoAnswer { at: at(&host, port), why: reason }.into(),
@@ -605,7 +624,7 @@ fn open<'a>(
     })?;
     let at = at(&host, port);
     stream.watch(cancel);
-    let first = greeting(&mut stream, server, &at, patience)?;
+    let first = greeting(&mut stream, server, &at, patience, cancel)?;
     let mut sieve = ManageSieve::connect(stream).map_err(|e| match e {
         // What came isn't a ManageSieve greeting, and didn't begin like one.
         ProtoError::Protocol(_) | ProtoError::Io(_) if !greets_like_managesieve(&first) => {
@@ -638,7 +657,7 @@ fn open<'a>(
 /// connection, or begins a TLS record is no ManageSieve server MailCraft can use: which of those,
 /// said precisely; a silent one is sent a TLS hello on a connection of its own to tell whether
 /// it waits for encryption from the first byte.
-fn greeting(stream: &mut Stream<'_>, server: &Server, at: &str, patience: &Patience) -> Result<Vec<u8>, SieveError> {
+fn greeting(stream: &mut Stream<'_>, server: &Server, at: &str, patience: &Patience, cancel: Option<&AtomicBool>) -> Result<Vec<u8>, SieveError> {
     let wait = patience.io.min(GREETING_WAIT);
     let mut first = [0u8; 16];
     match stream.peek_first(&mut first, wait) {
@@ -651,6 +670,10 @@ fn greeting(stream: &mut Stream<'_>, server: &Server, at: &str, patience: &Patie
             Ok(first.to_vec())
         }
         Err(e) if matches!(e.kind(), std::io::ErrorKind::TimedOut | std::io::ErrorKind::WouldBlock) => {
+            // Stopped while waiting: no second connection is made to tell why it was silent.
+            if cancel.is_some_and(|c| c.load(std::sync::atomic::Ordering::Relaxed)) {
+                return Err(ProtoError::Io(Text::verbatim(transport::STOPPED.to_string())).into());
+            }
             let answer = transport::answer_to_hello(server, Service::ManageSieve, patience.connect, wait);
             Err(match LooksLike::of(&answer) {
                 Some(LooksLike::Tls) => Reach::Silent { at: at.to_string(), tls: true },

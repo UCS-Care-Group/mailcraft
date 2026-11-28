@@ -571,3 +571,71 @@ fn the_servers_refusal_of_the_owners_script_leaves_it_as_it_was() {
     assert!(e.to_string().contains("unknown command"), "{e}");
     assert_eq!(fake.world().script("roundcube"), Some(THEIRS));
 }
+
+/// More scripts on the server than a listing keeps, the owner's active one past the cap: nothing
+/// is written, made active or switched off, as the listing can't say which is active or whether
+/// MailCraft's script is there (#2058).
+#[test]
+fn nothing_is_changed_after_a_listing_that_cant_be_kept_whole() {
+    let mut scripts: Vec<(String, String)> = (0..256).map(|n| (format!("old {n}"), "keep;".to_string())).collect();
+    scripts.push(("roundcube".into(), THEIRS.into()));
+    let fake = Fake::sieve(SieveWorld { scripts, active: Some("roundcube".into()), ..world() });
+    let (account, server) = account(&fake);
+    assert!(write(&account, &server, PASSWORD, &change(OURS, None)).is_err());
+    let read_digest = digest(THEIRS);
+    assert!(write_own(&account, &server, PASSWORD, &OwnChange { name: "roundcube", text: "keep;\r\n", read: &read_digest }).is_err());
+    assert!(deactivate(&account, &server, PASSWORD, "roundcube").is_err());
+    let world = fake.world();
+    assert!(!world.heard("PUTSCRIPT") && !world.heard("SETACTIVE") && !world.heard("DELETESCRIPT"));
+    assert_eq!(world.active.as_deref(), Some("roundcube"));
+    assert_eq!(world.script("roundcube"), Some(THEIRS));
+}
+
+/// The owner's script already as the save would make it, and still active: a save the server took
+/// whose answer was lost, tried again, is done, not a change made elsewhere (#2058).
+#[test]
+fn a_save_of_the_owners_script_that_reached_the_server_is_known_again() {
+    let edited = THEIRS.replace("\"Lists\"", "\"Lists/Old\"");
+    let mut world = theirs_world();
+    if let Some((_, text)) = world.scripts.iter_mut().find(|(n, _)| n == "roundcube") {
+        *text = edited.clone();
+    }
+    let fake = Fake::sieve(world);
+    let (account, server) = account(&fake);
+    let read_digest = digest(THEIRS);
+    let change = OwnChange { name: "roundcube", text: &edited, read: &read_digest };
+    assert_eq!(write_own(&account, &server, PASSWORD, &change).unwrap(), OwnWritten::Done { warnings: None });
+    assert!(!fake.world().heard("PUTSCRIPT"));
+    // Not when it is no longer the active one.
+    fake.world().active = Some("spare".into());
+    assert!(matches!(write_own(&account, &server, PASSWORD, &change).unwrap(), OwnWritten::Changed { .. }));
+}
+
+/// ManageSieve is made secure with STARTTLS: a server set to be encrypted from the first byte is
+/// refused before any connection is made (#2058).
+#[test]
+fn implicit_tls_is_refused_before_connecting() {
+    let fake = Fake::sieve(world());
+    let (account, mut server) = account(&fake);
+    server.security = Security::Tls;
+    let err = read(&account, &server, PASSWORD, "mailcraft").unwrap_err();
+    assert!(err.to_string().contains("STARTTLS"), "{err}");
+    assert_eq!(fake.world().connections, 0);
+}
+
+/// Stopped while a silent server is waited for: no second connection is made to tell why (#2058).
+#[test]
+fn a_stop_while_waiting_for_a_greeting_makes_no_second_connection() {
+    let fake = Fake::sieve(SieveWorld { opening: Opening::Silent, ..world() });
+    let (account, server) = account(&fake);
+    let stop = std::sync::atomic::AtomicBool::new(false);
+    let patience = Patience { io: Duration::from_millis(600), ..Patience::default() };
+    std::thread::scope(|scope| {
+        scope.spawn(|| {
+            std::thread::sleep(Duration::from_millis(100));
+            stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        });
+        assert!(read_with(&account, &server, PASSWORD, "mailcraft", &patience, Some(&stop)).is_err());
+    });
+    assert_eq!(fake.world().connections, 1);
+}
