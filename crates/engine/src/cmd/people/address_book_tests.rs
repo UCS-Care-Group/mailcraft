@@ -3,6 +3,7 @@
 //! People's Address Book (#1262): the organisation's address list of an Exchange server account,
 //! chosen in place of the contacts.
 
+use mailcraft_model::{Address, FolderKind, Message};
 use serde_json::json;
 
 use crate::cmd::people::{address_lists, shown_book};
@@ -37,13 +38,73 @@ fn people_shows_an_exchange_server_accounts_address_list_until_the_contacts_are_
     s.run("view.peopleAccount", &json!({"value": "all"})).unwrap();
     assert_eq!(shown_book(&s), None);
 
-    // A contact made while the address list is shown (Add to Contacts) is shown among the contacts.
-    s.run("people.addressBook", &json!({"account": second})).unwrap();
-    s.run("people.new", &json!({"first": "Grace", "last": "Hopper", "email": "grace@example.org"})).unwrap();
-    assert_eq!(shown_book(&s), None);
-
     // An account that goes takes its address list along.
     s.run("people.addressBook", &json!({"account": second})).unwrap();
     s.run("account.remove", &json!({"id": second})).unwrap();
     assert_eq!(shown_book(&s), None);
+}
+
+/// A contact chosen (Open Contact on the address list's card) is shown among the contacts; a new
+/// one made from the address list's card (`keepAddressList`) leaves the list in view, and one
+/// made anywhere else (the contact form) is shown among the contacts (#1393).
+#[test]
+fn a_contact_chosen_leaves_the_address_list() {
+    let mut s = Session::empty();
+    let account = exchange(&mut s, "me@example.org");
+    s.run("people.addressBook", &json!({})).unwrap();
+    let form = s.run("people.new", &json!({"displayName": "Noor Haddad", "email": "noor@example.org"})).unwrap()["id"].as_u64();
+    assert_eq!((shown_book(&s), s.sel.contact), (None, form));
+    s.run("people.addressBook", &json!({})).unwrap();
+    let made = json!({"displayName": "Ada Lovelace", "email": "ada@example.org", "keepAddressList": true});
+    let id = s.run("people.new", &made).unwrap()["id"].as_u64().unwrap();
+    assert_eq!((shown_book(&s), s.sel.contact), (Some(account), Some(id)));
+    s.run("people.select", &json!({"id": id})).unwrap();
+    assert_eq!((shown_book(&s), s.sel.contact), (None, Some(id)));
+    // Choosing nothing leaves it where it is.
+    s.run("people.addressBook", &json!({})).unwrap();
+    s.run("people.select", &json!({"id": null})).unwrap();
+    assert_eq!(shown_book(&s), Some(account));
+}
+
+/// Add to Contacts on a message shows the sender's contact among the contacts, made just now or
+/// there before: People leaves the address list for it (#1393).
+#[test]
+fn a_sender_added_to_the_contacts_leaves_the_address_list() {
+    let mut s = Session::empty();
+    let account = exchange(&mut s, "me@example.org");
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let from = Address::new("Ada Lovelace", "ada@example.org");
+    let m = s.mailbox.add_message(Message { folder: inbox, from, ..Default::default() }).unwrap();
+    for existing in [false, true] {
+        s.run("people.addressBook", &json!({})).unwrap();
+        let made = s.run("people.fromMessage", &json!({"id": m})).unwrap();
+        assert_eq!(made["existing"], existing);
+        assert_eq!((shown_book(&s), s.sel.contact), (None, made["id"].as_u64()));
+    }
+}
+
+/// Contacts imported from a vCard file are shown among the contacts, the first one selected:
+/// People leaves the address list for them.
+#[test]
+fn contacts_imported_leave_the_address_list() {
+    let mut s = Session::empty();
+    exchange(&mut s, "me@example.org");
+    s.run("people.addressBook", &json!({})).unwrap();
+    let file = b"BEGIN:VCARD\r\nVERSION:3.0\r\nFN:Ada Lovelace\r\nEMAIL:ada@example.org\r\nEND:VCARD\r\n";
+    assert_eq!(crate::io::import(&mut s, "ada.vcf", file, None).unwrap()["contacts"], 1);
+    assert_eq!(shown_book(&s), None);
+    assert!(s.sel.contact.is_some());
+}
+
+/// A contact Undo brings back selected is shown among the contacts, even with the address list
+/// open meanwhile.
+#[test]
+fn a_contact_undo_brings_back_leaves_the_address_list() {
+    let mut s = Session::empty();
+    exchange(&mut s, "me@example.org");
+    let id = s.run("people.new", &json!({"displayName": "Ada Lovelace", "email": "ada@example.org"})).unwrap()["id"].as_u64().unwrap();
+    s.run("people.delete", &json!({"id": id})).unwrap();
+    s.run("people.addressBook", &json!({})).unwrap();
+    s.run("edit.undo", &json!({})).unwrap();
+    assert_eq!((s.sel.contact, shown_book(&s)), (Some(id), None));
 }

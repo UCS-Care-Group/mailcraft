@@ -63,7 +63,7 @@ pub fn specs() -> Vec<CommandSpec> {
 }
 
 const ONE: &str = r#"{"id"?: number} (default: the selected contact). An `id` that names nothing (null, text, 0, a fraction) is refused"#;
-const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes), "folder"?: number (people.new only: the contacts folder it goes in, 0 for On this computer; default: the folder the list shows alone (view.peopleFolder); else with one account that keeps contacts, its main folder; with more, the account the list shows, else the folder last used)} — in a folder an account's server keeps, it goes to the server too (people.get says "notSent" until it has, and "localOnly": {"emails", "phones", "addresses", "websites": [index]} for the entries its server has no place for, which stay on this computer; nothing is ever refused for that); the list moves to show it"#;
+const CONTACT: &str = r#"{"first"?: string, "last"?: string, "displayName"?: string, "company"?: string, "title"?: string, "department"?: string, "nickname"?: string, "email"?: string (primary) | "emails"?: [{"label", "value"}], "phone"?: string | "phones"?: [{"label", "value"}], "address"?: {"label", "street", "city", "region", "postalCode", "country"}, "website"?: string, "birthday"?: "YYYY-MM-DD" | null, "notes"?: string, "categories"?: [string], "favorite"?: bool, "keys"?: [{"keep": number (the card's key at that place, as people.get lists them)} | {"data": base64 (a Public key from a file: an X.509 certificate for mail or an OpenPGP Public key; a private key is refused)}] (the card's keys afterwards, in order; what isn't kept goes), "keepAddressList"?: bool (people.new only: true keeps an address list People shows in view, as Add to Contacts on its card does; by default People shows the contacts), "folder"?: number (people.new only: the contacts folder it goes in, 0 for On this computer; default: the folder the list shows alone (view.peopleFolder); else with one account that keeps contacts, its main folder; with more, the account the list shows, else the folder last used)} — in a folder an account's server keeps, it goes to the server too (people.get says "notSent" until it has, and "localOnly": {"emails", "phones", "addresses", "websites": [index]} for the entries its server has no place for, which stay on this computer; nothing is ever refused for that); the list moves to show it"#;
 
 fn needs_contact(s: &Session) -> Option<&'static str> {
     if s.sel.contact.is_none() { Some("select a contact first") } else { None }
@@ -145,13 +145,19 @@ pub fn shows(s: &Session, c: &Contact) -> bool {
     shown_account(s).shows(&c.origin) && shown_folder(s).is_none_or(|f| c.folder == f)
 }
 
-/// A contact just made or picked is in view: People shows the contacts (not an address list),
-/// where the list doesn't show it, the list moves to it, and a search that would leave it out is
-/// cleared, so its row is there beside its card.
+/// A contact just made or picked is in view: People shows the contacts (it leaves the address
+/// list), and where the list doesn't show it, the list moves to it, and a search that would leave
+/// it out is cleared, so its row is there beside its card.
 pub(crate) fn reveal(s: &mut Session, id: Id) {
+    s.view.people_book = None;
+    reveal_beside_list(s, id);
+}
+
+/// As [`reveal`], but an address list in view stays: a contact made from it (`people.new` with
+/// `keepAddressList`), whose card there then says they are in the contacts, with Open Contact.
+fn reveal_beside_list(s: &mut Session, id: Id) {
     let Some(c) = s.mailbox.contact(id) else { return };
     let (choice, hidden, unmatched) = (AccountChoice::of(&c.origin), !shows(s, c), !c.matches(&s.view.people_search));
-    s.view.people_book = None;
     if hidden {
         (s.view.people_account, s.view.people_folder) = (choice, None);
     }
@@ -303,7 +309,13 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     contacts_remote::note_contact(&mut s.mailbox, id, None)?;
     s.mailbox.contact_place = Some(folder);
     s.sel.contact = Some(id);
-    reveal(s, id);
+    // Made from an address list's card, the list stays, and the card says they are in the
+    // contacts now; made anywhere else (the contact form), People shows it among the contacts.
+    if p::bool(v, "keepAddressList").unwrap_or(false) {
+        reveal_beside_list(s, id);
+    } else {
+        reveal(s, id);
+    }
     Ok(json!({"id": id, "folder": folder}))
 }
 
@@ -375,6 +387,7 @@ fn select(s: &mut Session, v: &Value) -> CmdResult {
         None => None,
     };
     if let Some(id) = s.sel.contact {
+        // A contact chosen is shown among the contacts, so People leaves the address list.
         reveal(s, id);
     }
     done()

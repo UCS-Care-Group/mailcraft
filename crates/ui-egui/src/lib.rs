@@ -1214,7 +1214,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.language",
         "Interface Language",
         "File › Options",
-        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"cs"|"zh_CN"|"ka"|"pseudo"}"#,
+        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"sl"|"cs"|"zh_CN"|"ka"|"pseudo"}"#,
     ),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (
@@ -2023,6 +2023,9 @@ pub struct MailApp {
     pub(crate) resolving: Option<check_names::Resolving>,
     /// People's Address Book while it is shown: who the search found, kept nowhere else (#1262).
     pub(crate) address_book: Option<address_book::AddressBook>,
+    /// The whole address lists of Exchange server accounts, downloaded from their Offline Address
+    /// Books for People's Address Book: in memory while the program runs, never written (#1393).
+    pub(crate) address_lists: Vec<address_book::HeldList>,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
     /// The desktop alerts shown, and the mailbox as the last Send/Receive found it ([`alerts`]).
@@ -2215,6 +2218,7 @@ impl MailApp {
             free_busy: Default::default(),
             resolving: None,
             address_book: None,
+            address_lists: Vec::new(),
             updates: Default::default(),
             alerts: Default::default(),
             opening: None,

@@ -1543,7 +1543,7 @@ msgid "Allowed"
 msgstr "Povoleno"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Already in your contacts"
 msgstr "Už je ve vašich kontaktech"
@@ -3207,7 +3207,7 @@ msgid "Celebrate"
 msgstr "Oslava"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Certificates"
 msgstr "Certifikáty"
@@ -5259,6 +5259,12 @@ msgid "Downloading pictures…"
 msgstr "Stahuji obrázky…"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the address book stopped unexpectedly"
+msgstr "Stahování adresáře se nečekaně zastavilo"
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "Downloading the message first…"
@@ -5269,6 +5275,12 @@ msgstr "Nejprve stahuji zprávu…"
 #, fuzzy
 msgid "Downloading the messages first…"
 msgstr "Nejprve stahuji zprávy…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the organisation's address book…"
+msgstr "Stahuje se adresář organizace…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6633,6 +6645,12 @@ msgstr "Zvenčí vaší organizace."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
+msgstr "Z adresáře organizace účtu {account}, drženo v paměti, dokud MailCraft běží, a nikdy neukládáno: „Přidat do kontaktů“ uloží kopii v tomto počítači."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
 msgstr ""
 
@@ -7755,6 +7773,12 @@ msgstr "Ve výběru"
 #, fuzzy
 msgid "In this calendar:"
 msgstr "V tomto kalendáři:"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "In your contacts"
+msgstr "Ve vašich kontaktech"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -11265,6 +11289,12 @@ msgstr "Nikdo nenavrhl jiný čas."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Nobody in the address book matches"
+msgstr "V adresáři nikdo neodpovídá"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
 msgid "Nobody in the address list matches"
 msgstr ""
 
@@ -11440,6 +11470,12 @@ msgstr "Nebyly nalezeny všechny servery: zbytek je jen odhad podle domény. Př
 #, fuzzy
 msgid "Not everything could be removed. Some of it is still here. Try again."
 msgstr "Nepodařilo se odstranit vše. Něco tu stále je. Zkuste to znovu."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
+msgstr "Není určen pro poštu nebo patří certifikační autoritě: „Přidat do kontaktů“ ho vynechá."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12138,6 +12174,12 @@ msgstr "Otevřít přílohu"
 #, fuzzy
 msgid "Open Calendar"
 msgstr "Otevřít kalendář"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Open Contact"
+msgstr "Otevřít kontakt"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -18485,6 +18527,12 @@ msgid "The one this build came with"
 msgstr "Ten, se kterým toto sestavení přišlo"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The organisation's address book is empty"
+msgstr "Adresář organizace je prázdný"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18864,6 +18912,12 @@ msgstr[2] "Server účtu {account} informuje {n} pozvaných osob, aby věděly, 
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr "Server nebo organizace odmítly poskytnout nastavení. Požádejte správce o adresu serveru a zadejte ji v Nastavení serveru."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The server sent no address book"
+msgstr "Server neposlal žádný adresář"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
