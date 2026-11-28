@@ -259,6 +259,12 @@ struct Script {
     item_wait: Option<&'static str>,
     /// Set once the first item was changed by a request of its own: the owner stops the run there.
     stop: Option<Arc<AtomicBool>>,
+    /// Set as a `$batch` of reads is answered: the owner stops the run while it is under way.
+    stop_at_reads: Option<Arc<AtomicBool>>,
+    /// The status a change of one item by itself is answered with (0: done).
+    single_write_status: u16,
+    /// How many `$batch`es of changes were asked.
+    write_batches: usize,
     /// Each request made for one item by itself: the method and the id.
     singly: Vec<(String, String)>,
     /// The ids that were changed.
@@ -306,9 +312,15 @@ fn scripted(script: &Arc<std::sync::Mutex<Script>>) -> crate::fake::FakeHttp {
             ("GET", "/v1.0/me/calendars/other/events") => answer(script.other_status, json!({"value": [item("o1")]})),
             ("POST", "/v1.0/$batch") if script.batch_status != 0 => status_line(script.batch_status),
             ("POST", "/v1.0/$batch") if script.batch_empty => crate::fake::json_answer("200 OK", "{}"),
-            ("POST", "/v1.0/$batch") if script.writes_status != 0 && body.contains("\"PATCH\"") => status_line(script.writes_status),
+            ("POST", "/v1.0/$batch") if script.writes_status != 0 && body.contains("\"PATCH\"") => {
+                script.write_batches += 1;
+                status_line(script.writes_status)
+            }
             ("POST", "/v1.0/$batch") => {
                 let asked = serde_json::from_str::<Value>(body).unwrap_or(Value::Null);
+                if let Some(stop) = script.stop_at_reads.as_ref().filter(|_| !body.contains("\"PATCH\"")) {
+                    stop.store(true, std::sync::atomic::Ordering::Relaxed);
+                }
                 let mut responses = Vec::new();
                 for one in asked["requests"].as_array().cloned().unwrap_or_default() {
                     let url = one["url"].as_str().unwrap_or("");
@@ -357,6 +369,9 @@ fn scripted(script: &Arc<std::sync::Mutex<Script>>) -> crate::fake::FakeHttp {
             (method @ ("GET" | "PATCH"), path) if path.starts_with("/v1.0/me/events/") => {
                 let id = path.rsplit('/').next().unwrap_or("").to_string();
                 script.singly.push((method.to_string(), id.clone()));
+                if method == "PATCH" && script.single_write_status != 0 {
+                    return status_line(script.single_write_status);
+                }
                 if method == "PATCH" {
                     script.changed.push(id.clone());
                     if let Some(stop) = &script.stop {
@@ -757,4 +772,48 @@ fn a_run_stopped_while_items_are_changed_one_at_a_time_asks_nothing_more() {
     let (came, script) = scripted_outcome(Script { batch_status: 400, ..Default::default() }, None);
     assert!(!came.stopped && came.renamed.done && came.renamed.changed == 2, "{:?}", came.renamed);
     assert_eq!(script.singly.len(), 4);
+}
+
+#[test]
+fn a_run_stopped_while_a_batch_of_items_is_read_writes_none_of_them() {
+    // The owner stops the run while the reads of the two events are under way.
+    let stop = Arc::new(AtomicBool::new(false));
+    let (came, script) = scripted_outcome(Script { stop_at_reads: Some(stop.clone()), ..Default::default() }, Some(&stop));
+    assert!(script.written.is_empty(), "changes went after the run was stopped: {:?}", script.written);
+    assert!(came.stopped, "a rename cut short by the owner wasn't said to be stopped");
+    assert_eq!((came.renamed.done, came.renamed.changed, came.renamed.stuck), (false, 0, 0), "{:?}", came.renamed);
+    // What the reads said of an item that needs no change stands: it is not counted as waiting.
+    let stop = Arc::new(AtomicBool::new(false));
+    let read_body = vec![("m1", serde_json::json!({"categories": ["Blue"]})), ("o1", serde_json::json!({"categories": ["Blue"]}))];
+    let (came, script) = scripted_outcome(Script { stop_at_reads: Some(stop.clone()), read_body, ..Default::default() }, Some(&stop));
+    assert!(script.written.is_empty() && !came.stopped && came.renamed.done, "{:?}", came.renamed);
+    // One to write and one that needs no change: the first waits, and the run is said to be stopped.
+    let stop = Arc::new(AtomicBool::new(false));
+    let read_body = vec![("o1", serde_json::json!({"categories": ["Blue"]}))];
+    let (came, script) = scripted_outcome(Script { stop_at_reads: Some(stop.clone()), read_body, ..Default::default() }, Some(&stop));
+    assert!(script.written.is_empty() && came.stopped, "{:?}", script.written);
+    assert_eq!((came.renamed.done, came.renamed.changed, came.renamed.stuck, came.renamed.failed), (false, 0, 0, false), "{:?}", came.renamed);
+}
+
+#[test]
+fn a_change_that_is_put_off_is_not_sent_again_with_the_list_it_was_built_from() {
+    // A Graph that asks again by itself, as a Send/Receive's does: a batch of changes the server
+    // puts off is asked once, and the items wait for a later run, which reads them anew.
+    let run = |script: Script| {
+        let script = Arc::new(std::sync::Mutex::new(script));
+        let server = scripted(&script);
+        let graph = super::Graph::for_mail(&server.url(""), TOKEN, Arc::new(Gate::new()), super::pace::Priority::Owner, QUICK).unwrap();
+        let lists = vec!["/v1.0/me/calendar/events".to_string(), "/v1.0/me/calendars/other/events".to_string()];
+        let items = super::recategorize::Items { lists, item: "/me/events/".into() };
+        let came = super::recategorize::rename(&graph, &items, &rename("Holiday", "Holiday 2026"), None, &mut |_, _| {});
+        (came, std::mem::take(&mut *script.lock().unwrap()))
+    };
+    let (came, script) = run(Script { writes_status: 503, ..Default::default() });
+    assert_eq!(script.write_batches, 1, "the changes were sent again without their items being read again");
+    assert!(came.busy_for.is_some() && !came.renamed.done && came.renamed.changed == 0, "{:?}", came.renamed);
+    // The same one request at a time.
+    let (came, script) = run(Script { batch_status: 400, single_write_status: 503, ..Default::default() });
+    let writes = script.singly.iter().filter(|(method, _)| method == "PATCH").count();
+    assert_eq!(writes, 1, "a change was sent again without its item being read again");
+    assert!(came.busy_for.is_some() && !came.renamed.done, "{:?}", came.renamed);
 }

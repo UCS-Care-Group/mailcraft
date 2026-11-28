@@ -1,0 +1,1 @@
+- In the Android reading view, a signature looks as it does on the desktop: its logo, a thin bar of colour and the name and numbers stay side by side where they fit, a row of small icons stays a row, a link the message draws without a line has none, and a picture that gives only its height keeps its shape ([#1966](https://github.com/UCSLabs/mailcraft/issues/1966)).

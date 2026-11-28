@@ -4,7 +4,6 @@
 package work.mailcraft.android
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -89,7 +88,7 @@ internal fun ReadingPane(
     draft: Boolean = false,
     tools: ReadingTools = ReadingTools.None,
 ) {
-    val dark = isSystemInDarkTheme()
+    val dark = appIsDark()
     // In a dark window the body may sit on a light page; the choice for this message alone wins.
     var pageChoice by remember(id) { mutableStateOf<Boolean?>(null) }
     val light = dark && (pageChoice ?: tools.prefs.lightMessages)
@@ -211,7 +210,7 @@ internal fun MessageBody(
     ) {
         item(key = "header") {
             Box(side) {
-                MessageHeader(texts, view, tools.prefs.headerOpen) { tools.onPrefs(tools.prefs.copy(headerOpen = it)) }
+                MessageHeader(texts, view, tools.prefs.headerOpen) { tools.onPrefs { p -> p.copy(headerOpen = it) } }
             }
         }
         item(key = "banner") { Box(side) { PicturesBanner(texts, ui, actions) } }

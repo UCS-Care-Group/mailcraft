@@ -633,6 +633,8 @@ const SETTINGS: &[&str] = &[
 ];
 
 const NEVER: &[&str] = &[
+    "ui.signatureFile",
+    "ui.chooseSignatureFile",
     // The owner's Dismiss and Snooze of a follow-up reminder (#948): an agent never does either
     // for the owner.
     "mail.dismissReminder",
@@ -708,6 +710,7 @@ const NEVER: &[&str] = &[
     "ui.calendarPaste",
     // A file from a message opened with another program: only ever the owner's own doing.
     "mail.openAttachment",
+    "ui.openDraftAttachment",
     "ui.previewAttachment",
     // Installing a new version, or going back to the one before: only the owner's click.
     "ui.restartToUpdate",
