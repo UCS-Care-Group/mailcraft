@@ -48,6 +48,8 @@ macro_rules! tl_later {
 
 #[cfg(test)]
 mod accent_custom_tests;
+#[cfg(test)]
+mod account_card_tests;
 mod account_setup;
 pub mod address_book;
 mod advanced_search;
@@ -135,6 +137,7 @@ mod follow_up_tick;
 mod font_index;
 #[cfg(test)]
 mod foreign_sign_in_tests;
+pub mod signature_files;
 
 /// The fonts of this computer that text is drawn in: what a message asks for and what the
 /// composer offers, the index of what is installed and the faces read for it.
@@ -174,6 +177,8 @@ mod keep_offline;
 #[cfg(test)]
 mod key_chain_tests;
 pub mod keys;
+#[cfg(test)]
+mod label_columns_tests;
 #[cfg(test)]
 #[path = "late_work_tests.rs"]
 mod late_work_tests;
@@ -241,6 +246,8 @@ pub mod scheduling;
 mod search_pills;
 #[cfg(test)]
 mod search_pills_tests;
+#[cfg(test)]
+mod search_scope_tests;
 mod search_suggest;
 mod secret_field;
 #[cfg(test)]
@@ -382,7 +389,7 @@ pub struct Services {
     /// Files delivered asynchronously otherwise (dropped in the browser): each goes where its
     /// kind says, to the message with the keyboard, whatever a picker was last opened for.
     pub inbox: Option<Inbox>,
-    /// Desktop: open an attachment the owner asked to open (`mail.openAttachment`) with the
+    /// Desktop: open an attachment the owner asked to open with the
     /// system's own program for its kind: the host writes it, under the name given (already
     /// made safe, and made safe again there), into a folder of MailCraft's own that only this
     /// user can read and that is emptied when MailCraft quits, and asks the system to open it.
@@ -701,6 +708,10 @@ impl Services {
 pub trait RichClipboard {
     /// Put `html` on the clipboard with `text` beside it for programs that take text.
     fn put(&self, html: &str, text: &str) -> Result<(), String>;
+    /// Put plain text on the clipboard when the source document has no HTML.
+    fn put_text(&self, _text: &str) -> Result<(), String> {
+        Err("the clipboard cannot write plain text".into())
+    }
     /// The HTML on the clipboard, when what is on it has HTML.
     fn html(&self) -> Option<String>;
     /// The picture on the clipboard as PNG, when what is on it is a picture.
@@ -971,6 +982,8 @@ pub struct UiState {
     /// The address of the account whose contacts People showed (`view.people_account`), for the
     /// same reason (#631).
     pub people_account_address: String,
+    /// Trusted local paths, scoped to the mailbox and named signature, never imported with mail.
+    pub signature_files: std::collections::HashMap<String, signature_files::Setting>,
     pub folder_pane_width: f32,
     pub list_width: f32,
     /// The message list's height with the reading pane at the bottom, as the owner dragged it
@@ -1089,6 +1102,7 @@ impl Default for UiState {
             view: mailcraft_engine::ViewState::default(),
             task_account_address: String::new(),
             people_account_address: String::new(),
+            signature_files: Default::default(),
             folder_pane_width: 230.0,
             list_width: 380.0,
             list_height: 0.0,
@@ -1153,6 +1167,18 @@ const SYNC_BATCH_MESSAGES: usize = 500;
 /// UI-level commands (`ui.*`): id, label, location, params. They change the window, not the
 /// mailbox, and are listed with the engine's commands in command search and `engine.commands`.
 pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
+    (
+        "ui.signatureFile",
+        "Signature from File",
+        "File › Signatures",
+        r#"{"name": string (signature; or "account": number for its default), "enabled"?: bool, "path"?: string} — desktop owner only; keeps the saved signature as fallback"#,
+    ),
+    (
+        "ui.chooseSignatureFile",
+        "Choose Signature File",
+        "File › Signatures",
+        r#"{"name": string (signature; or "account": number for its default)} — desktop owner only; opens the system file picker"#,
+    ),
     ("ui.tab", "Show Ribbon Tab", "Ribbon", r#"{"tab": "Home"|"Send / Receive"|"Folder"|"View"|"Help"}"#),
     ("ui.backstage", "File", "Ribbon", r#"{"value"?: bool, "page"?: "info"|"open"|"options"|"about"}"#),
     ("ui.collapseRibbon", "Collapse the Ribbon", "Ribbon", r#"{"value"?: bool}"#),
@@ -1202,7 +1228,7 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
         "ui.language",
         "Interface Language",
         "File › Options",
-        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"cs"|"zh_CN"|"ka"|"pseudo"}"#,
+        r#"{"language": "auto"|"en"|"fr"|"de"|"es"|"it"|"nl"|"ro"|"hu"|"pl"|"sl"|"cs"|"zh_CN"|"ka"|"pseudo"}"#,
     ),
     ("ui.interfaceSize", "Interface Size", "File › Options", r#"{"value": 80-200}"#),
     (
@@ -1438,6 +1464,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.open", "Open Mailbox", "File › Open & Export", "{}"),
     ("ui.import", "Import", "File › Open & Export", "{}"),
     ("ui.attach", "Attach File", "Message › Include", "{}"),
+    (
+        "ui.openDraftAttachment",
+        "Open Draft Attachment",
+        "Message › Include",
+        r#"{"compose": id, "index": zero-based, "confirmed"?: bool} — open a copy of the attachment in that draft, or download it in the browser"#,
+    ),
     ("ui.toggleFolder", "Expand or Collapse Folder", "Folder", r#"{"id": number}"#),
     (
         "ui.openWindow",
@@ -1676,6 +1708,8 @@ pub struct MailApp {
     signatures_shown: bool,
     /// What File › Signatures last said of a picture (a refusal, or that it was made smaller).
     signature_note: Option<signatures::Note>,
+    pub(crate) signature_file_preview: Option<(String, String, Result<mailcraft_model::Signature, String>)>,
+    pub(crate) signature_file_history: signature_files::History,
     /// File › Signatures › Rename: the name being typed for a signature, until it is kept.
     signature_rename: Option<signatures::Rename>,
     /// The last input the window was given, by kind only (never what was typed), for
@@ -2005,6 +2039,9 @@ pub struct MailApp {
     pub(crate) resolving: Option<check_names::Resolving>,
     /// People's Address Book while it is shown: who the search found, kept nowhere else (#1262).
     pub(crate) address_book: Option<address_book::AddressBook>,
+    /// The whole address lists of Exchange server accounts, downloaded from their Offline Address
+    /// Books for People's Address Book: in memory while the program runs, never written (#1393).
+    pub(crate) address_lists: Vec<address_book::HeldList>,
     /// What this run knows of new versions ([`updates`]).
     pub(crate) updates: updates::Updates,
     /// The desktop alerts shown, and the mailbox as the last Send/Receive found it ([`alerts`]).
@@ -2063,6 +2100,8 @@ impl MailApp {
             signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
+            signature_file_preview: None,
+            signature_file_history: Default::default(),
             signature_rename: None,
             input_trail: std::collections::VecDeque::new(),
             reveal_selection: false,
@@ -2197,6 +2236,7 @@ impl MailApp {
             free_busy: Default::default(),
             resolving: None,
             address_book: None,
+            address_lists: Vec::new(),
             updates: Default::default(),
             alerts: Default::default(),
             opening: None,
@@ -2271,6 +2311,18 @@ impl MailApp {
         self.ui.collapsed_folders.truncate(10_000);
         self.ui.recent.truncate(20);
         self.ui.confirmed_mailboxes.truncate(200);
+        self.ui.signature_files.retain(|key, value| {
+            key.len() <= 8192
+                && value.path.len() <= 4096
+                && !value.path.contains('\0')
+                && (value.path.is_empty() || std::path::Path::new(&value.path).is_absolute())
+        });
+        if self.ui.signature_files.len() > 200 {
+            let mut keys: Vec<String> = self.ui.signature_files.keys().cloned().collect();
+            keys.sort();
+            keys.truncate(200);
+            self.ui.signature_files.retain(|key, _| keys.binary_search(key).is_ok());
+        }
         self.ui.collapsed_calendar_groups.truncate(200);
         updates::sanitize(&mut self.ui);
         self.session.prefs = self.ui.options.clone();
@@ -2349,6 +2401,10 @@ impl MailApp {
             // still the ones it took, and a time picked to put them at. A hint only, as above.
             None if id == "ui.calendarPaste" => calendar_view::paste_ready(self),
             None if id == "ui.openDataFolder" => self.services.data_folder.is_some() && !self.data_removed,
+            None if id == attachment_open::OPEN_DRAFT => {
+                self.session.compose.as_ref().is_some_and(|c| !c.attachments.is_empty())
+                    && (self.services.open_file.is_some() || self.services.download.is_some())
+            }
             None => UI_COMMANDS.iter().any(|c| c.0 == id),
         }
     }
@@ -2563,9 +2619,13 @@ impl MailApp {
         {
             self.recipient_focus_wanted = answer.get("compose").and_then(Value::as_u64);
         }
+        // Formatting keeps the keyboard where the owner is typing. If a header field has it,
+        // the ribbon still formats the body without moving the keyboard out of that field.
+        let format_body = id.starts_with("format.")
+            && self.ctx.as_ref().zip(self.session.compose_id()).is_none_or(|(ctx, compose)| compose::focused_header(ctx, compose).is_none());
         // What was done to the text being written leaves the keyboard in it.
         if r.is_ok()
-            && (id.starts_with("format.")
+            && (format_body
                 || matches!(id, "compose.link" | "compose.undo" | "compose.redo" | "edit.paste" | "compose.formatHtml" | "compose.formatPlain"))
         {
             self.want_body_focus();
@@ -2667,7 +2727,12 @@ impl MailApp {
             return Err(e);
         }
         let before: Vec<u64> = self.session.all_composing().map(|c| c.id).collect();
+        let signature_change = signature_files::before_command(self, id, &params);
+        signature_files::prepare(self);
         let r = self.session.run(id, &params);
+        if r.is_ok() {
+            signature_files::after_command(self, id, &params, signature_change);
+        }
         self.drop_secrets_if_replaced();
         self.last_error = r.as_ref().err().cloned();
         let r = r.map_err(|e| e.to_string());
@@ -2807,6 +2872,9 @@ impl MailApp {
     }
 
     fn ui_command(&mut self, id: &str, p: &Value) -> Option<Result<Value, String>> {
+        if let Some(result) = signature_files::command(self, id, p) {
+            return Some(result);
+        }
         let s = |k: &str| p.get(k).and_then(Value::as_str);
         let b = |k: &str| p.get(k).and_then(Value::as_bool);
         if let Some(r) = security::command(self, id, p) {
@@ -6127,7 +6195,7 @@ const MAX_PROBLEM: usize = 600;
 pub(crate) fn refusal_worth_a_box(id: &str, error: &str) -> bool {
     let quiet = ["not available:", "unknown command", "bad parameters:", "nothing "];
     let lower = error.trim_start().to_lowercase();
-    !id.starts_with("ui.") && !error.trim().is_empty() && !quiet.iter().any(|q| lower.starts_with(q))
+    (!id.starts_with("ui.") || id == attachment_open::OPEN_DRAFT) && !error.trim().is_empty() && !quiet.iter().any(|q| lower.starts_with(q))
 }
 
 fn feedback(id: &str, v: &Value) -> Option<String> {

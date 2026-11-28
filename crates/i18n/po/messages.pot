@@ -689,6 +689,11 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "A text signature file is at most 10,000 characters."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr ""
@@ -1294,7 +1299,7 @@ msgid "Allowed"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 msgid "Already in your contacts"
 msgstr ""
 
@@ -1346,6 +1351,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "An Exchange server or IMAP?"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "An HTML signature file is at most 64 KB."
 msgstr ""
 
 #. interface
@@ -1946,8 +1956,8 @@ msgstr ""
 msgid "Attach File"
 msgstr ""
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 msgid "Attach Item"
 msgstr ""
 
@@ -1991,6 +2001,11 @@ msgstr ""
 #. android, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/engine/src/cmd/mail.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/lib.rs
 msgid "Attachments"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+msgid "Attachments can't be opened here."
 msgstr ""
 
 #. interface
@@ -2661,7 +2676,7 @@ msgid "Celebrate"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 msgid "Certificates"
 msgstr ""
 
@@ -2929,6 +2944,11 @@ msgstr ""
 msgid "Choose Google sign-in, or select Use an app password instead."
 msgstr ""
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Choose Signature File"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Choose a category"
@@ -2947,6 +2967,21 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "Choose a folder"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Choose a signature file"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "Choose an absolute local path for the signature file."
 msgstr ""
 
 #. interface
@@ -2972,6 +3007,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt
 msgid "Choose who this is sent from"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Choose…"
 msgstr ""
 
 #. interface
@@ -4254,8 +4294,18 @@ msgstr ""
 msgid "Done: {n} new"
 msgstr ""
 
-#. android, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to download {name}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to open {name}"
+msgstr ""
+
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
 msgid "Download"
 msgstr ""
 
@@ -4352,6 +4402,11 @@ msgid "Downloading pictures…"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the address book stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 msgid "Downloading the message first…"
 msgstr ""
@@ -4359,6 +4414,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
 msgid "Downloading the messages first…"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the organisation's address book…"
 msgstr ""
 
 #. interface
@@ -4977,14 +5037,19 @@ msgstr ""
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr ""
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/signatures.rs
 msgid "File"
 msgstr ""
 
 #. interface
 #: crates/ui-egui/src/files.rs crates/ui-egui/src/report_problem.rs
 msgid "File dialogs aren't available here"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "File signature"
 msgstr ""
 
 #. interface
@@ -5478,6 +5543,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
 msgstr ""
 
@@ -5877,6 +5947,11 @@ msgstr ""
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
 msgid "Have replies sent to other addresses"
+msgstr ""
+
+#. name
+#: crates/ui-egui/src/forms.rs
+msgid "Header contains"
 msgstr ""
 
 #. interface
@@ -6392,6 +6467,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/import_pst.rs
 msgid "In this calendar:"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "In your contacts"
 msgstr ""
 
 #. interface
@@ -7469,6 +7549,11 @@ msgstr ""
 #. name
 #: crates/engine/src/cmd/rules.rs
 msgid "MailCraft can't keep this account's rules on its server"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "MailCraft can't open {name} because of its file type."
 msgstr ""
 
 #. interface
@@ -9297,6 +9382,11 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+msgid "Nobody in the address book matches"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
 msgid "Nobody in the address list matches"
 msgstr ""
 
@@ -9443,6 +9533,11 @@ msgstr ""
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
 msgid "Not everything could be removed. Some of it is still here. Try again."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
 msgstr ""
 
 #. interface
@@ -9636,7 +9731,7 @@ msgid "Nothing was done: what the agent asked about changed after you were asked
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/dialogs.rs
 msgid "Nothing was done: what you were asked about has changed since. Ask again."
 msgstr ""
 
@@ -10001,7 +10096,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr ""
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 msgid "Open"
 msgstr ""
 
@@ -10027,6 +10122,11 @@ msgstr ""
 msgid "Open Calendar"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Open Contact"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Open Data Folder"
@@ -10040,6 +10140,11 @@ msgstr ""
 #. command label, interface
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs
 msgid "Open Draft"
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Open Draft Attachment"
 msgstr ""
 
 #. interface
@@ -10653,6 +10758,11 @@ msgid "Pictures are always downloaded from ({n}):"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/backstage.rs
 msgid "Pictures in mail"
 msgstr ""
@@ -11027,6 +11137,11 @@ msgid "Read Invitation"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Read again for each new message. If unavailable, the usual signature is used."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 msgid "Read status"
 msgstr ""
@@ -11210,6 +11325,11 @@ msgstr ""
 msgid "Refresh"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+msgid "Refresh Preview"
+msgstr ""
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Refresh Your Certificates and Keys"
@@ -11295,7 +11415,7 @@ msgid "Remove Account"
 msgstr ""
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/reading.rs
 msgid "Remove Attachment"
 msgstr ""
 
@@ -13093,7 +13213,7 @@ msgid "Show a desktop alert for reminders"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 msgid "Show a desktop alert when new mail arrives"
 msgstr ""
 
@@ -13441,8 +13561,8 @@ msgstr ""
 msgid "Sign-in cancelled"
 msgstr ""
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signature_files.rs
 msgid "Signature"
 msgstr ""
 
@@ -13451,8 +13571,18 @@ msgstr ""
 msgid "Signature file:"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "Signature files can only be configured by the owner in the desktop app."
+msgstr ""
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Signature from File"
+msgstr ""
+
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
 msgid "Signatures"
 msgstr ""
 
@@ -13994,6 +14124,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 msgid "Switch to Google sign-in"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Switch to HTML"
 msgstr ""
 
 #. command label, interface
@@ -14897,6 +15032,11 @@ msgid "The download was called off."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "The draft isn't open any more"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "The e-mail address of the person whose calendar you want to open"
 msgstr ""
@@ -15269,6 +15409,11 @@ msgid "The one this build came with"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The organisation's address book is empty"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "The organizer can't be written to from this account."
 msgstr ""
@@ -15585,6 +15730,11 @@ msgid "The server or the organisation wouldn't give its settings. Ask your admin
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The server sent no address book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 msgid "The server sent the setup somewhere that isn't encrypted, which MailCraft never follows. Type the server's address in Server settings."
 msgstr ""
@@ -15771,8 +15921,38 @@ msgid "The sign-in was declined."
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/files.rs
+msgid "The signature changed while the signature file picker was open."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file could not be read."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file is too large."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file must be a regular file of at most 256 KB."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature file must contain UTF-8 text."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "The signature image could not be decoded."
 msgstr ""
 
 #. interface
@@ -19053,6 +19233,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "has too many files: the rest was not removed"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+msgid "header contains {words}"
 msgstr ""
 
 #. interface
@@ -23024,6 +23209,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/opening.rs
 msgid "{read} of {total} MB"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+msgid "{reason} Using the account's usual signature instead."
 msgstr ""
 
 #. interface

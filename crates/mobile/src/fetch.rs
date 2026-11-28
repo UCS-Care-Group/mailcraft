@@ -393,7 +393,7 @@ impl SyncHost {
         let ticket = inner.fetch.ticket;
         inner.fetch.searches.insert(account, Searched { query: query.clone(), next: next.clone(), ticket });
         let reply: SearchReply = Queue::new();
-        let request = GraphSearchRequest { account, email, shared: false, ticket, folder: String::new(), query, next };
+        let request = GraphSearchRequest { account, email, shared: false, ticket, folder: String::new(), query, next, received: None };
         self.want(&mut inner, Want::Search { account, request, reply: reply.clone() });
         self.start_wanted(&mut inner, session);
         drop(inner);

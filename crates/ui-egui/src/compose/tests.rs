@@ -611,15 +611,40 @@ fn a_long_message_lays_out_only_what_changes() {
 
 /// A clipboard that takes HTML, as the desktop's does: what was put on it, and what it holds.
 #[derive(Clone, Default)]
-struct Board(std::rc::Rc<std::cell::RefCell<(Vec<(String, String)>, Option<String>)>>);
+struct Board(std::rc::Rc<std::cell::RefCell<(Vec<(String, String)>, Option<String>)>>, std::rc::Rc<std::cell::RefCell<Vec<String>>>);
 
 impl crate::RichClipboard for Board {
     fn put(&self, html: &str, text: &str) -> Result<(), String> {
         self.0.borrow_mut().0.push((html.to_string(), text.to_string()));
         Ok(())
     }
+    fn put_text(&self, text: &str) -> Result<(), String> {
+        self.1.borrow_mut().push(text.to_string());
+        Ok(())
+    }
     fn html(&self) -> Option<String> {
         self.0.borrow().1.clone()
+    }
+}
+
+#[test]
+fn copying_or_cutting_plain_text_message_uses_the_system_clipboard() {
+    for event in [Event::Copy, Event::Cut] {
+        let board = Board::default();
+        let mut a = app();
+        a.services.clipboard = Some(Box::new(board.clone()));
+        a.execute("mail.new", json!({"to": "maya@lumen.example"})).unwrap();
+        a.execute("compose.set", json!({"body": "alpha beta"})).unwrap();
+        a.execute("compose.formatPlain", json!({})).unwrap();
+        a.execute("compose.select", json!({"from": 6, "to": 10})).unwrap();
+        a.want_body_focus();
+        let mut h = window(a);
+        h.run_steps(2);
+        h.event(event);
+        h.run_steps(2);
+        assert_eq!(board.1.borrow().last().map(String::as_str), Some("beta"));
+        assert!(board.0.borrow().0.is_empty(), "a plain-text message has no rich clipboard payload");
+        assert!(!h.output().platform_output.commands.iter().any(|c| matches!(c, egui::OutputCommand::CopyText(_))));
     }
 }
 
@@ -962,4 +987,22 @@ fn an_html_signature_is_shown_as_it_goes_out_until_edited_as_text() {
     assert!(!unedited(&h));
     // Edited, it is the copy that goes out: there is no way back to the HTML.
     assert!(h.state().hit.rect("composeSignatureAsHtml", 0).is_none());
+}
+
+/// An HTML signature that comes from a linked file has no "Edit signature as text" link: the
+/// file is read again for each message, so what was edited here would be lost (#1878).
+#[test]
+fn a_signature_from_a_linked_file_has_no_edit_as_text_link() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("signature.html");
+    std::fs::write(&path, HTML_SIGNATURE).unwrap();
+    let mut a = app();
+    a.execute("signature.html", json!({"name": "Standard", "html": HTML_SIGNATURE})).unwrap();
+    a.execute("ui.signatureFile", json!({"name": "Standard", "path": path, "enabled": true})).unwrap();
+    a.execute("mail.new", json!({"to": "maya@lumen.example", "body": "Hello"})).unwrap();
+    a.execute("compose.formatHtml", json!({})).unwrap();
+    let mut h = window(a);
+    h.run_steps(2);
+    assert!(h.state().hit.rect("composeSignature", 0).is_some(), "the file signature is not shown");
+    assert!(h.state().hit.rect("composeSignatureAsText", 0).is_none());
 }

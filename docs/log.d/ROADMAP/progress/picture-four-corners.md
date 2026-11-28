@@ -1,0 +1,1 @@
+| 2026-11-21 | A selected picture in the message being written, and one in File › Signatures, has a handle at each of its four corners: any of them sizes it from the corner opposite, in proportion, and Escape while one is held puts the picture back as it was and does nothing else (File stays open, the message stays open, the body keeps the keyboard) |

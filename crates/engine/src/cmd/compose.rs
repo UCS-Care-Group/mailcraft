@@ -210,10 +210,30 @@ fn compose_mut(s: &mut Session) -> Result<&mut Compose, CmdError> {
 /// own (#797; a signature that is gone is passed over), else the account's for new messages, or
 /// for replies and forwards when `reply`; `None` when that is none, or one with nothing in it.
 fn chosen_signature(s: &Session, account: Id, from: &str, name: Option<&str>, reply: bool) -> Option<Signature> {
+    if let Ok(mut warning) = s.signature_file_warning.lock() {
+        *warning = None;
+    }
     let a = s.mailbox.account(account);
     let own = a.and_then(|a| a.sender_address(from)).map(|x| x.signature.clone()).filter(|n| s.mailbox.signature(n).is_some());
     let name = name.map(str::to_string).or(own).or_else(|| a.map(|a| if reply { a.reply_signature().to_string() } else { a.signature.clone() }))?;
+    if let Some(load) = &s.signature_file {
+        match load(&name) {
+            Ok(Some(signature)) => {
+                return (!signature.plain().trim().is_empty() || !signature.pictures().is_empty() || signature.html().is_some()).then_some(signature);
+            }
+            Ok(None) => {}
+            Err(why) => {
+                if let Ok(mut warning) = s.signature_file_warning.lock() {
+                    *warning = Some(why);
+                }
+            }
+        }
+    }
     s.mailbox.signature(&name).filter(|sig| !sig.plain().trim().is_empty() || !sig.pictures().is_empty() || sig.html().is_some()).cloned()
+}
+
+fn signature_file_warning(s: &Session) -> String {
+    s.signature_file_warning.lock().ok().and_then(|mut w| w.take()).unwrap_or_default()
 }
 
 /// Put `sig` in the message as its signature (in place of the one there, else at `at`), or take
@@ -245,6 +265,16 @@ fn start_with(c: &mut Compose, sig: &Signature, at: usize) -> Result<(), CmdErro
 /// addresses (#797), whatever its letter case.
 fn is_owners(s: &Session, email: &str) -> bool {
     s.mailbox.accounts.iter().any(|a| a.sends_as(email))
+}
+
+/// Whether `email` is an address of the sign-in that mail in `account` is answered from: the
+/// account's own and its sender addresses, and for a shared mailbox and the account it is opened
+/// through, each other's. Reply All leaves these out and keeps the owner's other accounts as any
+/// other recipient, as Outlook does (#1874). Mail of an account that is gone: any of the owner's.
+fn answers_as(s: &Session, account: Id, email: &str) -> bool {
+    let Some(a) = s.mailbox.account(account) else { return is_owners(s, email) };
+    let sign_in = a.shared_of.unwrap_or(a.id);
+    s.mailbox.accounts.iter().any(|a| (a.id == sign_in || a.shared_of == Some(sign_in)) && a.sends_as(email))
 }
 
 /// Whether `email` is an address the account `account` sends from: its own, its sender
@@ -292,6 +322,7 @@ fn new(s: &mut Session, v: &Value) -> CmdResult {
     let sig = chosen_signature(s, account, &from, None, false);
     let mut c = Compose {
         mode: ComposeMode::New,
+        signature_file_warning: signature_file_warning(s),
         account,
         from,
         to: text("to", link.to.join("; ")),
@@ -644,10 +675,14 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
             }
             let mut cc = Vec::new();
             if mode == ComposeMode::ReplyAll {
-                for a in m.to.iter().filter(|a| !is_mine(a)) {
+                // Less the addresses the reply is from, not those of the owner's other accounts;
+                // mail the owner sent skips every owner address, as before.
+                let own_sent = is_mine(&m.from);
+                let skip = |a: &Address| if own_sent { is_mine(a) } else { answers_as(s, m.account, &a.email) };
+                for a in m.to.iter().filter(|a| !skip(a)) {
                     add(&mut to, &[], a);
                 }
-                for a in m.cc.iter().filter(|a| !is_mine(a)) {
+                for a in m.cc.iter().filter(|a| !skip(a)) {
                     add(&mut cc, &to, a);
                 }
             }
@@ -679,6 +714,7 @@ fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     let attachments = if mode == ComposeMode::Forward { forwarded_files(&m, quote.as_ref().map(|q| q.html.as_str())) } else { Vec::new() };
     let mut c = Compose {
         mode,
+        signature_file_warning: signature_file_warning(s),
         source: Some(m.id),
         account: m.account,
         from,
@@ -820,6 +856,7 @@ fn forward_attached(s: &mut Session, ids: &[Id], focus: Id) -> CmdResult {
     let sig = chosen_signature(s, account, &from, None, true);
     let mut c = Compose {
         mode: ComposeMode::Forward,
+        signature_file_warning: signature_file_warning(s),
         source: Some(focus),
         also: ids.iter().copied().filter(|id| *id != focus).collect(),
         as_attachment: true,
@@ -1144,23 +1181,33 @@ fn reopened(s: &Session, m: &Message) -> Compose {
     // The pictures the owner put in the text come back where they were (#547), once each, checked
     // as a new one is; they are the text's, no longer attachments.
     let mut pictures: Vec<Picture> = Vec::new();
+    let mut taken: Vec<String> = Vec::new();
     let rich = own_html.as_deref().map(|html| {
         mailcraft_mime_model::rich::from_html_with_pictures(html, &mut |img| {
-            let id: u32 = img.cid.strip_prefix(PICTURE_CID)?.split('.').next()?.parse().ok()?;
-            if pictures.iter().any(|p| p.id == id) {
-                return Some(id);
+            if let Some(at) = taken.iter().position(|cid| *cid == img.cid) {
+                return pictures.get(at).map(|p| p.id);
             }
             let a = m.attachments.iter().find(|a| a.inline && a.content_id == img.cid)?;
+            // Signature pictures become ordinary body pictures on reopen. Allocate above every
+            // existing pic- id so a signature id cannot collide with one later in the document.
+            let id = if let Some(id) = img.cid.strip_prefix(PICTURE_CID) {
+                id.split('.').next()?.parse().ok()?
+            } else {
+                img.cid.strip_prefix("sig-")?.split('.').next()?.parse::<u32>().ok()?;
+                let highest = m
+                    .attachments
+                    .iter()
+                    .filter_map(|a| a.content_id.strip_prefix(PICTURE_CID)?.split('.').next()?.parse::<u32>().ok())
+                    .chain(pictures.iter().map(|p| p.id))
+                    .max();
+                highest.map_or(Some(mailcraft_model::pictures::FIRST_ID), |id| id.checked_add(1))?
+            };
             let picture = mailcraft_model::pictures::take(&pictures, id, &a.name, a.data.to_vec(), &img.alt, img.width)?;
             pictures.push(picture);
+            taken.push(img.cid.clone());
             Some(id)
         })
     });
-    let taken: Vec<String> = pictures
-        .iter()
-        .filter_map(|p| m.attachments.iter().find(|a| a.inline && a.content_id.starts_with(&format!("{PICTURE_CID}{}.", p.id))))
-        .map(|a| a.content_id.clone())
-        .collect();
     let picture_seq = pictures.iter().map(|p| p.id.saturating_sub(mailcraft_model::pictures::FIRST_ID).saturating_add(1)).max().unwrap_or(0);
     let attachments: Vec<Attachment> = match &quote {
         Some(q) => m.attachments.iter().filter(|a| !q.pictures.contains(a)).cloned().collect(),
@@ -1183,7 +1230,7 @@ fn reopened(s: &Session, m: &Message) -> Compose {
         },
         pictures,
         picture_seq,
-        format: if m.body.html.is_some() { BodyFormat::Html } else { BodyFormat::Plain },
+        format: if m.body.html.is_some() && !(m.draft && m.draft_plain) { BodyFormat::Html } else { BodyFormat::Plain },
         quote,
         attachments,
         importance: m.importance,
@@ -1226,10 +1273,12 @@ fn set(s: &mut Session, v: &Value) -> CmdResult {
         }
         _ => None,
     };
+    let warning = swap.as_ref().map(|_| signature_file_warning(s));
     let c = compose_mut(s)?;
     let before = c.clone();
     if let Some(sig) = swap {
         put_signature(c, sig.as_ref(), 0)?;
+        c.signature_file_warning = warning.unwrap_or_default();
     }
     for (key, field) in [("to", &mut c.to), ("cc", &mut c.cc), ("bcc", &mut c.bcc), ("replyTo", &mut c.reply_to), ("subject", &mut c.subject)] {
         if let Some(text) = p::str(v, key) {
@@ -1296,12 +1345,15 @@ fn signature(s: &mut Session, v: &Value) -> CmdResult {
         return Err(failed!("no signature named \"{name}\"", name));
     }
     let reply = s.compose.as_ref().is_some_and(|c| is_response(c.mode));
-    let sig = chosen_signature(s, account, &from, p::str(v, "name"), reply)
-        .ok_or_else(|| fail("this account has no signature; add one in File › Options"))?;
+    let sig = chosen_signature(s, account, &from, p::str(v, "name"), reply);
+    let warning = signature_file_warning(s);
+    let sig =
+        sig.ok_or_else(|| if warning.is_empty() { fail("this account has no signature; add one in File › Options") } else { fail(warning.clone()) })?;
     let c = compose_mut(s)?;
     // In place of the one there, else where the caret is.
     let at = c.body.selection().head;
     put_signature(c, Some(&sig), at)?;
+    c.signature_file_warning = warning;
     c.dirty = true;
     done()
 }
@@ -1802,6 +1854,15 @@ fn save_draft(s: &mut Session, _: &Value) -> CmdResult {
     let old = c.draft.and_then(|d| s.loaded_message(d).ok().map(|m| Message::clone(&m)).or_else(|| s.mailbox.message(d).cloned()));
     let mut m = build_as(s, &c, false, old.as_ref().map(|o| o.message_id.as_str()).filter(|id| !id.is_empty()))?;
     m.draft = true;
+    // A draft is editable state, not the outgoing plain-text representation. Keep its pictures
+    // and positions without changing the format chosen by the owner. Send always uses build_as
+    // with the original Compose, so draft-only pictures never leak into a plain-text send.
+    if c.format == BodyFormat::Plain && c.has_pictures() {
+        let html = Compose { format: BodyFormat::Html, ..c.clone() };
+        m.body = body_of(&html, &m.message_id);
+        m.attachments = attachments_of(&html, &m.message_id);
+        m.draft_plain = true;
+    }
     // A reply or forward kept as a draft still knows its original, to be marked once it is sent.
     m.answers = answers_of(s, &c).or_else(|| old.as_ref().and_then(|o| o.answers.clone()));
     m.folder = s.mailbox.folder_of_kind(m.account, FolderKind::Drafts).ok_or_else(|| fail("this account has no Drafts folder"))?;
