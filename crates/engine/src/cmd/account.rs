@@ -2314,7 +2314,8 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
 /// that person's mailbox). Each gives its job up and is an ordinary folder from now on: it keeps
 /// its mail and follows the same mailbox, and [`adopt_listed`] moves it into that mailbox's place
 /// in the tree, under its name there. Its job goes to the folder of the account's own mailbox
-/// the listing gives that job, when that is an ordinary folder at the top; else to a new, empty
+/// the listing gives that job, when that is an ordinary folder (moved to the top when it is
+/// under another, as a standard folder is at the top); else to a new, empty
 /// folder, which the account's own mailbox of that kind, when it has none yet, then fills. A
 /// job that can't be handed on (no name is free for the new folder) stays where it is. Returns
 /// the folders that gave theirs up, and the new folders with the jobs and the names they are to
@@ -2344,11 +2345,17 @@ fn jobs_given_up(mb: &mut Mailbox, account: Id, listed: &[mailcraft_model::sync:
         if kinds.get(remote.as_str()) != Some(&FolderKind::Custom) {
             continue;
         }
+        // The account's own mailbox's folder, wherever it is: one under the Inbox (`INBOX.Sent`
+        // on a server whose own folders are under `INBOX.`) moves to the top first, where a
+        // standard folder is ([`Mailbox::folder_of_kind`]) and where a first run would have put
+        // the job's folder for that mailbox. A name taken there leaves it where it is, and the
+        // job goes to a new folder.
         let heir = doing
             .get(&kind)
             .and_then(|own| mb.folders.iter().find(|f| f.account == account && f.remote == *own))
-            .filter(|f| f.kind == FolderKind::Custom && f.parent.is_none())
-            .map(|f| f.id);
+            .filter(|f| f.kind == FolderKind::Custom)
+            .map(|f| (f.id, f.parent.is_none()))
+            .and_then(|(id, at_top)| (at_top || mb.move_folder(id, None).is_ok()).then_some(id));
         let heir = heir.or_else(|| {
             let base = kind.default_name();
             let id = (1..=50).find_map(|n| mb.add_folder(account, None, &if n == 1 { base.to_string() } else { format!("{base} ({n})") }).ok())?;

@@ -214,3 +214,79 @@ fn without_an_own_mailbox_the_job_goes_to_a_new_folder() {
     assert_eq!(s.mailbox.folder(new_sent).map(|f| f.remote.as_str()), Some("Sent"));
     assert_eq!(s.mailbox.folder_of_kind(a, FolderKind::Sent), Some(new_sent));
 }
+
+/// On a server whose own folders are under `INBOX.` (dot delimiter), the account's own Sent and
+/// Trash are `INBOX.Sent` and `INBOX.Trash`, and their folders here are under the Inbox. A Sent
+/// Items and Deleted Items an earlier version tied to Carol's `\Sent` and `\Trash` give their
+/// jobs to those folders, which move to the top: never to a new empty folder that nothing would
+/// ever tie, so that a message deleted would make a new mailbox on the server.
+#[test]
+fn own_folders_under_the_inbox_take_the_jobs_given_up() {
+    let mut s = Session::at(sample::mailbox(now(), 0), now(), 0);
+    let added = s.run("account.add", &json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}})).unwrap();
+    let a = added["id"].as_u64().unwrap();
+    let carol = "shared.carol";
+    let (c_sent, c_trash) = (format!("{carol}.Sent"), format!("{carol}.Trash"));
+    let old = SyncResult {
+        account: a,
+        listed: vec![
+            listed("INBOX", FolderKind::Inbox, "", "INBOX"),
+            listed("INBOX.Sent", FolderKind::Custom, "INBOX", "Sent"),
+            listed("INBOX.Trash", FolderKind::Custom, "INBOX", "Trash"),
+            listed(&c_sent, FolderKind::Sent, "", &c_sent),
+            listed(&c_trash, FolderKind::Deleted, "", &c_trash),
+        ],
+        folders: vec![
+            delta("INBOX", FolderKind::Inbox),
+            FolderDelta { new: vec![sent_copy(3)], uid_seen: 3, ..delta("INBOX.Sent", FolderKind::Custom) },
+            delta("INBOX.Trash", FolderKind::Custom),
+            FolderDelta { new: vec![sent_copy(1)], uid_seen: 1, ..delta(&c_sent, FolderKind::Sent) },
+            FolderDelta { new: vec![sent_copy(2)], uid_seen: 2, ..delta(&c_trash, FolderKind::Deleted) },
+        ],
+        ..Default::default()
+    };
+    cmd::account::apply_sync(&mut s, old).unwrap();
+    let by_remote = |s: &Session, remote: &str| s.mailbox.folders.iter().find(|f| f.account == a && f.remote == remote).map(|f| f.id).unwrap();
+    let (old_sent, old_deleted) = (by_remote(&s, &c_sent), by_remote(&s, &c_trash));
+    assert_eq!(s.mailbox.folder_of_kind(a, FolderKind::Sent), Some(old_sent));
+    assert_eq!(s.mailbox.folder_of_kind(a, FolderKind::Deleted), Some(old_deleted));
+    let (own_sent, own_trash) = (by_remote(&s, "INBOX.Sent"), by_remote(&s, "INBOX.Trash"));
+    let inbox = by_remote(&s, "INBOX");
+    assert_eq!(s.mailbox.folder(own_sent).and_then(|f| f.parent), Some(inbox));
+    let mail_before: Vec<(Id, Id)> = s.mailbox.messages.values().filter(|m| m.account == a).map(|m| (m.id, m.folder)).collect();
+
+    let now = vec![
+        listed("INBOX", FolderKind::Inbox, "", "INBOX"),
+        listed("INBOX.Sent", FolderKind::Sent, "INBOX", "Sent"),
+        listed("INBOX.Trash", FolderKind::Deleted, "INBOX", "Trash"),
+        listed("shared", FolderKind::Custom, "", "shared"),
+        listed(carol, FolderKind::Custom, "shared", "carol"),
+        listed(&c_sent, FolderKind::Custom, carol, "Sent"),
+        listed(&c_trash, FolderKind::Custom, carol, "Trash"),
+    ];
+    cmd::account::apply_sync(&mut s, SyncResult { account: a, listed: now.clone(), partial: true, ..Default::default() }).unwrap();
+    // The jobs are the account's own mailboxes' folders', at the top.
+    assert_eq!(s.mailbox.folder_of_kind(a, FolderKind::Sent), Some(own_sent));
+    assert_eq!(s.mailbox.folder_of_kind(a, FolderKind::Deleted), Some(own_trash));
+    for id in [own_sent, own_trash] {
+        assert_eq!(s.mailbox.folder(id).map(|f| f.parent), Some(None), "{id}");
+    }
+    // Carol's are ordinary folders in her tree.
+    for (id, remote) in [(old_sent, &c_sent), (old_deleted, &c_trash)] {
+        let f = s.mailbox.folder(id).unwrap();
+        assert_eq!((f.kind, f.remote.as_str()), (FolderKind::Custom, remote.as_str()));
+        assert_eq!(f.parent.and_then(|p| s.mailbox.folder(p)).map(|p| p.remote.as_str()), Some(carol));
+    }
+    // No new folder made for a job, no message moved, one folder of each kind.
+    assert!(!s.mailbox.folders.iter().any(|f| f.account == a && f.remote.is_empty() && matches!(f.kind, FolderKind::Sent | FolderKind::Deleted)));
+    let mail_after: Vec<(Id, Id)> = s.mailbox.messages.values().filter(|m| m.account == a).map(|m| (m.id, m.folder)).collect();
+    assert_eq!(mail_after, mail_before);
+    for kind in FolderKind::STANDARD {
+        assert_eq!(s.mailbox.folders.iter().filter(|f| f.account == a && f.kind == kind).count(), 1, "{kind:?}");
+    }
+
+    // Said again, as every run says it: nothing changes.
+    let folders = s.mailbox.folders.clone();
+    cmd::account::apply_sync(&mut s, SyncResult { account: a, listed: now, partial: true, ..Default::default() }).unwrap();
+    assert_eq!(s.mailbox.folders, folders);
+}
