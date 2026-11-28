@@ -94,3 +94,26 @@ fn the_folders_a_run_could_not_read_go_with_the_mailbox_that_is_replaced() {
     a.drop_secrets_if_replaced();
     assert!(a.ews_unreadable.is_empty());
 }
+
+/// A certificate that needs a say, met by an online archive's run, is noted on its owner's card:
+/// File › Info lists the mailbox, not the archive, and the archive signs in with the owner's trust
+/// (#1834 review).
+#[test]
+fn a_certificate_the_archives_run_meets_is_noted_on_its_owners_card() {
+    let (mut a, _, owner) = app();
+    let archive = a.session.mailbox.add_archive(owner).unwrap();
+    let (tx, rx) = std::sync::mpsc::channel();
+    a.sync_rx = Some(crate::MailRun::Ews { account: archive, opening: a.session.openings(), pieces: rx });
+    let piece = mailcraft_model::sync::EwsMailResult {
+        account: archive,
+        email: "ada@exchange.example".into(),
+        url: "https://mail.example.org:444/EWS/Exchange.asmx".into(),
+        untrusted: "an invented certificate".into(),
+        partial: false,
+        ..Default::default()
+    };
+    tx.send(piece).unwrap();
+    a.poll_ews();
+    assert!(a.ews_certificate.contains_key(&owner), "on the owner's card");
+    assert!(!a.ews_certificate.contains_key(&archive));
+}

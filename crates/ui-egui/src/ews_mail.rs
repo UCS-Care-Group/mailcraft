@@ -295,7 +295,9 @@ impl MailApp {
                 self.ews_signed_in.insert(account, piece.signed_in_with.clone());
             }
             if untrusted {
-                self.ews_certificate.insert(account, piece.untrusted.clone());
+                // (Under the mailbox an online archive is of: File › Info shows the owner's card,
+                // and the archive signs in with the owner's trust, #1834 review.)
+                self.ews_certificate.insert(self.ews_credential_account(account), piece.untrusted.clone());
             }
             match apply_ews_mail(&mut self.session, piece) {
                 Ok(said) => {
