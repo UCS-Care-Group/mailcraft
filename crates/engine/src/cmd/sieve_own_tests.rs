@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The owner's own Sieve script edited whole (`sieve.ownScript`, `sieve.putOwnScript`, #9999): the
+//! The owner's own Sieve script edited whole (`sieve.ownScript`, `sieve.putOwnScript`, #2057): the
 //! text handed out exactly as read, written back exactly as given under the digest of the read,
 //! never MailCraft's own script, checked first, and asked about as a send when it adds one.
 

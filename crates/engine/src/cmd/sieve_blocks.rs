@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Every rule of a Sieve account, changed one at a time (#9999): a rule of the owner's own script
+//! Every rule of a Sieve account, changed one at a time (#2057): a rule of the owner's own script
 //! (made in webmail or another program) in the rule builder when that loses nothing, else as its
 //! Sieve text; and one of MailCraft's own rules that the builder can't show whole, as the Sieve
 //! MailCraft writes for it, from then on a Sieve rule ([`crate::cmd::rules_sieve`]).

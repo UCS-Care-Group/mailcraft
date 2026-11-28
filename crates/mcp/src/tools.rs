@@ -293,7 +293,7 @@ pub(crate) const NAMING_PARAMS: &[&str] = &[
     "url",
     "mailto",
     "fingerprint",
-    // The digest of a script as `sieve.ownScript` read it (#9999).
+    // The digest of a script as `sieve.ownScript` read it (#2057).
     "digest",
 ];
 

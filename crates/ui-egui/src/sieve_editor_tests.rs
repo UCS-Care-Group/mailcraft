@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The Sieve rule editor in Rules and Alerts (#9999), driven as the owner would: Advanced… › New
+//! The Sieve rule editor in Rules and Alerts (#2057), driven as the owner would: Advanced… › New
 //! Sieve rule…, the check here as the text changes, a click on a problem putting the cursor there,
 //! Check asking the (stand-in) server and its line said as the rule's own, Save, and the pencil
 //! opening a Sieve rule again. The host's answers are written by hand, as `mailcraft-net`'s

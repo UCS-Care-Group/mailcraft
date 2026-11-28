@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The Sieve rule editor (#9999), under Advanced… in Rules and Alerts, for an account whose server
+//! The Sieve rule editor (#2057), under Advanced… in Rules and Alerts, for an account whose server
 //! keeps MailCraft's Sieve script: a Sieve rule's name and its text (one block of Sieve, RFC 5228,
 //! in MailCraft's script), with line numbers, the lines with a mistake marked, and the problems
 //! listed below (a click on one puts the cursor there). Outlook has no such editor: this one is
@@ -92,7 +92,7 @@ pub(crate) enum EditorAsks {
     Cancel,
 }
 
-/// The owner's own script being edited whole (#9999): what it is on the server, and what became
+/// The owner's own script being edited whole (#2057): what it is on the server, and what became
 /// of a save.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct OwnScript {
@@ -116,7 +116,7 @@ pub(crate) struct OwnScript {
     pub(crate) rule: Option<OwnRule>,
 }
 
-/// One rule of the owner's own script, edited as its Sieve alone (#9999).
+/// One rule of the owner's own script, edited as its Sieve alone (#2057).
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub(crate) struct OwnRule {
     /// The rule, as the script was read.
@@ -154,7 +154,7 @@ pub struct SieveEditor {
     pub(crate) own: Option<OwnScript>,
     /// It was saved: the dialog closes the editor.
     pub(crate) closed: bool,
-    /// One of MailCraft's own rules (`id`), edited as Sieve: Save makes it a Sieve rule (#9999).
+    /// One of MailCraft's own rules (`id`), edited as Sieve: Save makes it a Sieve rule (#2057).
     pub(crate) convert: bool,
     /// The problems of the owner's script with a rule's text in place, elsewhere in the script.
     outside: Vec<Problem>,
@@ -197,7 +197,7 @@ impl SieveEditor {
         Some(SieveEditor { account, text: shown, focus: true, own: Some(own), ..Default::default() })
     }
 
-    /// A rule as Sieve (#9999): one of the owner's own script, on its bytes alone; or one of
+    /// A rule as Sieve (#2057): one of the owner's own script, on its bytes alone; or one of
     /// MailCraft's own rules kept in its Sieve script, on the Sieve MailCraft writes for it. `None`
     /// when it is neither, or has no Sieve.
     pub(crate) fn as_sieve(app: &MailApp, id: Id) -> Option<SieveEditor> {
@@ -457,7 +457,7 @@ impl SieveEditor {
                         "The whole script your server runs, made in another program, as it was read. Save writes back exactly this text, only while the script on the server is still the one you opened."
                     ),
                 );
-                // A webmail's marks: it may write over this (#9999); the note stays up.
+                // A webmail's marks: it may write over this (#2057); the note stays up.
                 if let Some(webmail) = own.webmail {
                     let which = match webmail {
                         Webmail::RainLoop => "RainLoop or SnappyMail",
@@ -821,7 +821,7 @@ impl SieveEditor {
     }
 }
 
-/// Whether one of MailCraft's own rules can be edited as Sieve (#9999): kept in the Sieve script on
+/// Whether one of MailCraft's own rules can be edited as Sieve (#2057): kept in the Sieve script on
 /// its IMAP account's server, changeable, and said in Sieve.
 pub(crate) fn convertible(mb: &Mailbox, r: &mailcraft_model::Rule) -> bool {
     !r.is_sieve()

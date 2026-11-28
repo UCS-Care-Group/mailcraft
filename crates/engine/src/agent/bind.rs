@@ -146,12 +146,12 @@ pub fn object(id: &str) -> Option<Object> {
         | "junk.add"
         | "junk.remove"
         | "junk.list"
-        // The owner's own Sieve script on the account's server (#9999).
+        // The owner's own Sieve script on the account's server (#2057).
         | "sieve.ownScript"
         | "sieve.putOwnScript" => Account,
         "rules.add" | "rules.edit" | "rules.addSieve" | "rules.editSieve" | "rules.remove" | "rules.enable" | "rules.list" | "rules.move"
         | "rules.keepOnServer"
-        // One rule as Sieve (#9999).
+        // One rule as Sieve (#2057).
         | "rules.toSieve"
         | "sieve.ownBlock"
         | "sieve.putOwnBlock" => Rule,

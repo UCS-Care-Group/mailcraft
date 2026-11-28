@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! File › Info › Automatic Replies: what a mailbox answers by itself while its owner is away
 //! ("out of office"), kept on the server. For an account that signs in with Microsoft, and for an
-//! IMAP account whose server keeps Sieve scripts (`super::sieve_replies`, #9999); a shared
+//! IMAP account whose server keeps Sieve scripts (`super::sieve_replies`, #2057); a shared
 //! mailbox's are its managers'.
 //!
 //! The engine never asks a server: `account.automaticReplies` says what is known and that the
@@ -105,7 +105,7 @@ fn account_of(s: &Session, v: &Value) -> Result<Id, CmdError> {
         None | Some(Value::Null) => reply_accounts(&s.mailbox).first().copied().ok_or_else(|| fail(NOT_MICROSOFT)),
         Some(_) => {
             let account = p::req_id(v, "account")?;
-            // An IMAP account's are in a Sieve script, when its server keeps them (#9999).
+            // An IMAP account's are in a Sieve script, when its server keeps them (#2057).
             if !s.mailbox.account(account).is_some_and(super::sieve_replies::is_sieve_account) {
                 can_reply(&s.mailbox, account)?;
             }

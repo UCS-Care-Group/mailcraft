@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! #9999: Account Settings names the ManageSieve server an IMAP account's Automatic Replies are
+//! #2057: Account Settings names the ManageSieve server an IMAP account's Automatic Replies are
 //! kept on, when it isn't the incoming server on port 4190.
 
 use super::*;

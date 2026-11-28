@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The filters of the owner's own Sieve script, as a webmail of the RainLoop kind (RainLoop,
-//! SnappyMail) writes them, changed with the rule commands (#9999): `rules.edit`, `rules.enable`,
+//! SnappyMail) writes them, changed with the rule commands (#2057): `rules.edit`, `rules.enable`,
 //! `rules.move` and `rules.remove` on the rule a filter is shown as, and `rules.add` with
 //! `"webmail": true` for a new one.
 //!

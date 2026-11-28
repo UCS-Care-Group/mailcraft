@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The whole way of an IMAP account's Automatic Replies kept in a Sieve script (#9999): the
+//! The whole way of an IMAP account's Automatic Replies kept in a Sieve script (#2057): the
 //! window asks, this host's job speaks ManageSieve through `mailcraft-net` to the fake server of
 //! its tests (`crates/net/src/fake_sieve.rs`, on loopback), and the engine takes in what came
 //! back. Nothing here leaves this machine, and every address and word is invented.

@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Sieve rules (#9999): a rule that is one block of Sieve the owner wrote, kept in MailCraft's
+//! Sieve rules (#2057): a rule that is one block of Sieve the owner wrote, kept in MailCraft's
 //! own script on an IMAP account's ManageSieve server ([`crate::cmd::sieve_rules`]), in its place
 //! among the account's rules there. It never runs here: nothing of it is known on this computer.
 //!
@@ -94,7 +94,7 @@ pub fn rule_effects(text: &str) -> Option<Vec<Use>> {
 }
 
 /// Whether Sieve `text` can send mail or answer a sender, or hand mail to a program on the server
-/// (#9999): it uses a command whose [`crate::sieve_check::Effect`] reaches out (`redirect`, `vacation`, `reject`,
+/// (#2057): it uses a command whose [`crate::sieve_check::Effect`] reaches out (`redirect`, `vacation`, `reject`,
 /// `ereject`, `notify`, `report`, `include`, `pipe`, `filter`, `execute`) or one the table doesn't
 /// know. Text that can't be read counts as one that can.
 pub fn sends(text: &str) -> bool {

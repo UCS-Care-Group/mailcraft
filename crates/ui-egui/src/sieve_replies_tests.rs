@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! An IMAP account's Automatic Replies in the window (#9999): the job, File › Info's line, and the
+//! An IMAP account's Automatic Replies in the window (#2057): the job, File › Info's line, and the
 //! dialog in its Sieve shape. The host's answers are written out by hand, as `mailcraft-net`'s
 //! `sieve` brings them.
 

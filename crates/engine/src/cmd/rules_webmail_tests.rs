@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The filters of a webmail's Sieve script of the RainLoop kind, changed with the rule commands
-//! (#9999): a round trip writes the script back byte for byte, a change touches the bytes of its
+//! (#2057): a round trip writes the script back byte for byte, a change touches the bytes of its
 //! filter alone, settings and Sieve together in the webmail's shape; add, delete, move and switch
 //! on and off; a filter changed by hand, or with settings not known, is read-only; hostile
 //! settings never panic. The script is synthetic, in the shape such a webmail was seen to write.
@@ -418,7 +418,7 @@ fn a_rule_of_a_script_not_the_webmails_stays_read_only() {
     let (mut s, account, junk, _) = session(roundcube);
     let r = rules(&s, account);
     assert!(r[0].read_only() && find(&s, r[0].id).is_none());
-    // Not as a filter: as a rule of the owner's own script, its command alone written again (#9999).
+    // Not as a filter: as a rule of the owner's own script, its command alone written again (#2057).
     let changed = run(&mut s, "rules.edit", params(r[0].id, "x", json!({"type": "toContains", "value": "x"}), junk));
     assert_eq!(changed.get("webmail"), None);
     let text = changed["sieve"]["text"].as_str().unwrap();

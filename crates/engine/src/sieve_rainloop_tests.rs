@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The filter blocks of a webmail of the RainLoop kind (#9999): their names, whether they are on,
+//! The filter blocks of a webmail of the RainLoop kind (#2057): their names, whether they are on,
 //! and where they are, read within caps; hostile ones never panic and show nothing they shouldn't.
 
 use proptest::prelude::*;

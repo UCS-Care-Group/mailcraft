@@ -111,7 +111,7 @@ pub enum Condition {
     /// A header line named one of `names` contains one of the words, or with `exact` is one of
     /// them (letters A to Z in either case, the line's value trimmed): Outlook's "with specific
     /// words in the message header", narrowed to the lines named, as a Sieve `header :contains`
-    /// or `header :is` test of a script made elsewhere says it (#9999). Only read from such a
+    /// or `header :is` test of a script made elsewhere says it (#2057). Only read from such a
     /// script: no command makes one, and a server it can't be said to refuses it. Here, it can't be
     /// told of a message whose header lines are kept outside memory.
     Header {
@@ -705,7 +705,7 @@ pub struct Rule {
     /// it is taken as this one) or don't (and it is sent again).
     #[serde(skip_serializing_if = "is_false")]
     pub unanswered: bool,
-    /// A Sieve rule (#9999): one block of Sieve the owner (or an agent, with the owner's yes)
+    /// A Sieve rule (#2057): one block of Sieve the owner (or an agent, with the owner's yes)
     /// wrote, kept in MailCraft's script on its IMAP account's server, where it runs. It has no
     /// conditions or actions of its own, and never matches here. At most [`MAX_SIEVE_RULE`]
     /// bytes. Empty for any other rule. (A version from before Sieve rules reads such a rule as

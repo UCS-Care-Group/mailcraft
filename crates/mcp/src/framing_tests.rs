@@ -898,12 +898,12 @@ fn only_a_frame_the_program_writes_is_taken_off() {
 /// Params written by the agent, or words of the program's, never a name copied from an answer:
 /// a whole frame in them is taken as written. Every other param taking text names something.
 const WRITTEN_PARAMS: &[&str] = &[
-    // A Sieve script's text, and the extensions its server names (`sync.applySieve`, host only, #9999).
+    // A Sieve script's text, and the extensions its server names (`sync.applySieve`, host only, #2057).
     "script",
     "extensions",
-    // A Sieve rule's text, the agent's own (`rules.addSieve`, `rules.editSieve`, #9999).
+    // A Sieve rule's text, the agent's own (`rules.addSieve`, `rules.editSieve`, #2057).
     "sieve",
-    // The words a header condition of a webmail's filter looks for (#9999).
+    // The words a header condition of a webmail's filter looks for (#2057).
     "words",
     "query",
     "text",

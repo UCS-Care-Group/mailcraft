@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Change Rule in the Rules dialog (#9999): the pencil opens the builder on the rule, Save
+//! Change Rule in the Rules dialog (#2057): the pencil opens the builder on the rule, Save
 //! changes it in place, and an IMAP account's Sieve script is written again with it. The host's
 //! answers are written out by hand, as `mailcraft-net`'s `sieve` brings them.
 

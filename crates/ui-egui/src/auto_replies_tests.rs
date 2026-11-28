@@ -406,7 +406,7 @@ fn an_account_without_them_is_refused() {
     let (mut app, _, _, jobs, _) = window();
     let imap =
         app.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
-    // An IMAP account's are asked for through ManageSieve (#9999): never through Graph.
+    // An IMAP account's are asked for through ManageSieve (#2057): never through Graph.
     let asked = app.execute("account.automaticReplies", json!({"account": imap})).unwrap();
     assert_eq!(asked["ask"]["sieve"], "mailcraft");
     app.auto_replies_tick_at(crate::now_ms());

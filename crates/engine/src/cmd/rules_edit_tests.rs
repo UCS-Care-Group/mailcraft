@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Change Rule (`rules.edit`, #9999): a rule changed in place, keeping its id, its place and
+//! Change Rule (`rules.edit`, #2057): a rule changed in place, keeping its id, its place and
 //! whether it is on; MailCraft's Sieve script written again; what can't be changed refused.
 
 use mailcraft_model::{Action, Condition, FolderKind, Id, Keep, Rule, ServerFolder, ServerRule};
@@ -233,7 +233,7 @@ fn the_owners_own_sieve_scripts_rules_change_only_into_what_sieve_says() {
         .run("rules.edit", &json!({"id": id, "name": "N", "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "markRead"}]}))
         .unwrap_err()
         .to_string();
-    // (The builder may change it, #9999; an attachment isn't something its Sieve can look for.)
+    // (The builder may change it, #2057; an attachment isn't something its Sieve can look for.)
     assert!(said.contains("can't be written in your Sieve script"), "{said}");
     let elsewhere = s.sieve.get(&account).and_then(|k| k.elsewhere.as_ref()).map(|e| e.rules[0].clone()).unwrap();
     assert_eq!(cannot_edit(&s.mailbox, &elsewhere), Some(NotEditable::Elsewhere));

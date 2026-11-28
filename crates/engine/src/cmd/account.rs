@@ -303,7 +303,7 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
         Some(Value::Bool(without)) => a.outgoing_without_sign_in = *without,
         Some(_) => return Err(bad("`outgoingWithoutSignIn` is true or false")),
     }
-    // Where an IMAP account's Sieve scripts are (#9999): the owner's own choice of host.
+    // Where an IMAP account's Sieve scripts are (#2057): the owner's own choice of host.
     match v.get("sieve") {
         None => {}
         Some(Value::Null) => (a.sieve_host, a.sieve_port) = (String::new(), 0),
@@ -549,7 +549,7 @@ pub fn servers_text(a: &Account) -> String {
             None => "exchange, no server address that can be used".to_string(),
         };
     }
-    // The ManageSieve server the owner named, which the sign-in goes to as well (#9999).
+    // The ManageSieve server the owner named, which the sign-in goes to as well (#2057).
     let sieve = (!a.sieve_host.is_empty() || a.sieve_port != 0).then(|| match (a.sieve_host.as_str(), a.sieve_port) {
         ("", port) => format!("sieve port {port}"),
         (host, 0) => format!("sieve {host}"),

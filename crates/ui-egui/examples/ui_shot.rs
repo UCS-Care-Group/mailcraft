@@ -51,7 +51,7 @@
 //! `{"host": {"autoReplies": "on"}}` gives every Microsoft account automatic replies that go out
 //! now, as a server has them; `"readOnly"`, the same read with a sign-in that may not change them.
 //! `{"host": {"sieve": "on"}}` gives every IMAP account a ManageSieve server whose MailCraft
-//! script sends automatic replies for a week (#9999); `"off"`, `"changed"` (changed elsewhere),
+//! script sends automatic replies for a week (#2057); `"off"`, `"changed"` (changed elsewhere),
 //! `"other"` (the owner's own script runs), `"noVacation"` or `"none"` (no ManageSieve). The
 //! account's rules its server can keep go into that script with `"on"`, and the Rules window
 //! (`ui.dialog` `rules`) shows them as the server's, or says what keeps them off it; `"other"` and
@@ -879,7 +879,7 @@ fn main() {
                     let _ = app.stand_in_auto_replies(account, &setting, how != "readOnly");
                 }
             }
-            // Every IMAP account's Sieve server, as `ManageSieve` would bring it (#9999).
+            // Every IMAP account's Sieve server, as `ManageSieve` would bring it (#2057).
             if let Some(how) = said.get("sieve").and_then(|v| v.as_str()) {
                 let app = harness.state_mut();
                 let imap: Vec<u64> =

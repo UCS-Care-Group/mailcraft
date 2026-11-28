@@ -119,7 +119,7 @@ fn the_reader_knows_comments_text_blocks_numbers_and_escapes() {
 
 #[test]
 fn values_that_look_like_sieve_stay_values() {
-    // (#9999) A reply, an address or a domain with quotes, backslashes, line breaks, lone dots,
+    // (#2057) A reply, an address or a domain with quotes, backslashes, line breaks, lone dots,
     // comments, semicolons or braces in it is one string: the script has the shape it has with
     // plain words, and reads back as what was written.
     let nasty = "Away\" ; discard ; # \r\n.\r\n\\\";\nredirect \"x@example.net\";\r\n/* } */ text:\r\nhi\r\n.\r\n}";

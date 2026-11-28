@@ -289,7 +289,7 @@ impl MailApp {
     /// Why a rule of `account` that is to go to the server is still only on this computer, as the
     /// Rules window says it.
     pub(crate) fn rules_wait_reason(&self, account: Id) -> String {
-        // An IMAP account's rules go into MailCraft's Sieve script (#9999).
+        // An IMAP account's rules go into MailCraft's Sieve script (#2057).
         if self.sieve_account(account) {
             return self.sieve_wait_reason(account);
         }

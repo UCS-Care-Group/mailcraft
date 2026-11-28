@@ -220,7 +220,7 @@ fn an_always_move_name_follows_the_folder_when_rules_for_is_switched() {
 }
 
 /// Change Rule: the builder opens filled in with every kind of part as the rule has it, and Save
-/// sends `rules.edit` with the same rule, which the command keeps as it was (#9999).
+/// sends `rules.edit` with the same rule, which the command keeps as it was (#2057).
 #[test]
 fn a_rule_opens_in_the_builder_as_it_is_and_saves_unchanged() {
     let mut s = session();
@@ -301,7 +301,7 @@ fn a_rule_the_builder_cant_show_or_the_command_refuses_isnt_opened() {
 }
 
 /// A Sieve `header` test of the owner's own script is said as Outlook says words in the message
-/// header, `:is` as exactly (#9999); the builder shows it, for a filter of a webmail's script, with
+/// header, `:is` as exactly (#2057); the builder shows it, for a filter of a webmail's script, with
 /// its lines' names, and gives it back as it was.
 #[test]
 fn a_header_condition_is_said_and_shown_in_the_builder() {

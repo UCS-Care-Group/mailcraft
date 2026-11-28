@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Rules and Alerts laid out (#9999): the buttons over the list, a long list that scrolls within
+//! Rules and Alerts laid out (#2057): the buttons over the list, a long list that scrolls within
 //! a dialog that stays on the screen, and the builder in a dialog of its own over the list,
 //! opened from New Rule…, a rule's pencil, a double click on a rule and `ui.dialog`, and left
 //! with Cancel or Escape with the list as it was.

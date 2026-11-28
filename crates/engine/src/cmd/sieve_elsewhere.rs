@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The rules of a Sieve script MailCraft didn't write (#9999): the owner's own active script, made
+//! The rules of a Sieve script MailCraft didn't write (#2057): the owner's own active script, made
 //! in webmail or another program, or MailCraft's own once it was changed elsewhere. As Outlook
 //! lists the server's rules made elsewhere, they are shown in Rules and Alerts; they are the
 //! owner's, so they are **read-only**: never run here (the server runs them), switched, moved,
@@ -70,11 +70,11 @@ pub struct Elsewhere {
     /// that can't, with why.
     pub blocks: Vec<Block>,
     /// Where the Sieve of each rule is in the text, and whether the rule builder can change it
-    /// without loss (#9999): what `sieve.ownBlock`, `sieve.putOwnBlock` and `rules.edit` change.
+    /// without loss (#2057): what `sieve.ownBlock`, `sieve.putOwnBlock` and `rules.edit` change.
     pub spans: Vec<Span>,
 }
 
-/// Where a rule of the owner's own script is in its text (#9999).
+/// Where a rule of the owner's own script is in its text (#2057).
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Span {
     pub rule: Id,
@@ -93,7 +93,7 @@ pub struct Span {
     pub form: Result<(), NoForm>,
 }
 
-/// Why the rule builder can't change a rule of the owner's own script without loss (#9999): it
+/// Why the rule builder can't change a rule of the owner's own script without loss (#2057): it
 /// is changed as Sieve text then.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NoForm {
@@ -188,7 +188,7 @@ struct Parser {
     at: usize,
     commands: usize,
     /// Nothing is cut: a string or a list past the caps fails the parse (for comparing what two
-    /// texts mean, #9999).
+    /// texts mean, #2057).
     exact: bool,
 }
 
@@ -931,7 +931,7 @@ fn norm_command(c: &Command) -> NormNode {
 }
 
 /// Whether two texts of Sieve are the same commands with the same tests, match types, comparators
-/// and actions, in the same order (#9999): what the rule builder may write in place of the other.
+/// and actions, in the same order (#2057): what the rule builder may write in place of the other.
 /// Text that can't be read, or is past the caps, is never the same.
 pub fn same_meaning(a: &str, b: &str) -> bool {
     match (parse_exact(a), parse_exact(b)) {

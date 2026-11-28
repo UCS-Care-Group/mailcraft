@@ -588,7 +588,7 @@ pub struct Account {
     /// or another language makes no second one. `None` until the first message is snoozed.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub snoozed_folder: Option<Id>,
-    /// For an IMAP account whose server keeps Sieve scripts (#9999): the SHA-256 digest, in
+    /// For an IMAP account whose server keeps Sieve scripts (#2057): the SHA-256 digest, in
     /// lower-case hexadecimal, of the script MailCraft last wrote there (`mailcraft_net::sieve`).
     /// Only the digest, never the script: it tells MailCraft's own script from one changed
     /// elsewhere, which is never written over. Empty when MailCraft never wrote one; a value that
@@ -596,7 +596,7 @@ pub struct Account {
     #[serde(skip_serializing_if = "String::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
     pub sieve_written: String,
     /// For an IMAP account: the ManageSieve server the owner named in Account Settings, when it
-    /// isn't the IMAP server's host (#9999); empty: the IMAP host. A host named here is the
+    /// isn't the IMAP server's host (#2057); empty: the IMAP host. A host named here is the
     /// owner's own choice of where the sign-in goes, as the IMAP host is.
     #[serde(skip_serializing_if = "String::is_empty", deserialize_with = "crate::sync::lenient_or_default")]
     pub sieve_host: String,
@@ -604,7 +604,7 @@ pub struct Account {
     #[serde(skip_serializing_if = "crate::is_zero_u16", deserialize_with = "crate::sync::lenient_or_default")]
     pub sieve_port: u16,
     /// What the account's ManageSieve server last said its scripts may use (`vacation`,
-    /// `fileinto`, …), lower-cased; empty while it never said, or has no ManageSieve (#9999).
+    /// `fileinto`, …), lower-cased; empty while it never said, or has no ManageSieve (#2057).
     /// Kept so that which of the owner's rules its server can keep is known before it is asked
     /// again ([`Mailbox::keeps_sieve_rules`]).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
@@ -613,7 +613,7 @@ pub struct Account {
 
 impl Account {
     /// Whether the account's Automatic Replies and rules may be kept in a Sieve script on its
-    /// server (#9999): an IMAP account of its own (not a shared mailbox) that doesn't sign in with
+    /// server (#2057): an IMAP account of its own (not a shared mailbox) that doesn't sign in with
     /// Microsoft or Google, whose servers keep none.
     pub fn keeps_sieve(&self) -> bool {
         let big = self.oauth.as_ref().is_some_and(|o| matches!(o.provider, OAuthProvider::Microsoft | OAuthProvider::Google));
@@ -3370,7 +3370,7 @@ impl Mailbox {
         self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
     }
 
-    /// Whether `account`'s rules may be kept in MailCraft's Sieve script on its server (#9999):
+    /// Whether `account`'s rules may be kept in MailCraft's Sieve script on its server (#2057):
     /// an IMAP account whose ManageSieve server said its scripts may file mail into folders.
     pub fn keeps_sieve_rules(&self, account: Id) -> bool {
         self.account(account).is_some_and(|a| a.keeps_sieve() && a.sieve_offers("fileinto"))
@@ -3380,7 +3380,7 @@ impl Mailbox {
     /// kept on its account's server does, there and here, as the server does
     /// ([`crate::Matching::addresses_only`]). One kept on this computer reads names too.
     pub fn rule_reads_addresses(&self, rule: &Rule) -> bool {
-        // (An IMAP account's server keeps them in a Sieve script that reads addresses alone too, #9999.)
+        // (An IMAP account's server keeps them in a Sieve script that reads addresses alone too, #2057.)
         rule.account != 0 && rule.keep == crate::Keep::Server && (self.keeps_rules(rule.account) || self.keeps_sieve_rules(rule.account))
     }
 

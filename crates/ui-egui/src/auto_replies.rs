@@ -240,7 +240,7 @@ impl MailApp {
         let Ok(v) = &r else { return r };
         match id {
             "account.automaticReplies" => {
-                // An IMAP account's are read through ManageSieve (`/ask/sieve`, #9999): never
+                // An IMAP account's are read through ManageSieve (`/ask/sieve`, #2057): never
                 // through Graph.
                 if v.pointer("/ask/sieve").is_some() {
                     if let Some(account) = v.pointer("/ask/account").and_then(Value::as_u64) {
@@ -253,7 +253,7 @@ impl MailApp {
                 }
             }
             "account.setAutomaticReplies" => {
-                // A Sieve script to write: not Graph's to change (#9999).
+                // A Sieve script to write: not Graph's to change (#2057).
                 if let Some(sieve) = v.get("sieve") {
                     let account = v.get("account").and_then(Value::as_u64).unwrap_or(0);
                     self.sieve_write(account, sieve)?;
@@ -629,7 +629,7 @@ pub struct Draft {
     /// read): they are filled once, when it comes.
     pub filled: bool,
     pub error: String,
-    /// The replies are a Sieve script on an IMAP account's server (#9999), not Microsoft's.
+    /// The replies are a Sieve script on an IMAP account's server (#2057), not Microsoft's.
     pub sieve: bool,
     /// The owner chose to replace MailCraft's script, changed elsewhere, with what is set here.
     pub replace: bool,
@@ -801,7 +801,7 @@ impl Draft {
                 self.on = true;
             }
             ui.add_enabled_ui(self.on, |ui| {
-                // A Sieve server without date tests can't keep a time range (#9999).
+                // A Sieve server without date tests can't keep a time range (#2057).
                 let can_range = !self.sieve || sieve.as_ref().is_some_and(|s| s.takes_schedule());
                 if !can_range {
                     self.ranged = false;
@@ -908,7 +908,7 @@ impl Draft {
         self.filled && !matches!(trouble, Some(Trouble::SignInToRead | Trouble::SignInOver(_))) && !asking && !app.offline()
     }
 
-    /// What stands in the way of an IMAP account's replies kept in a Sieve script (#9999), and the
+    /// What stands in the way of an IMAP account's replies kept in a Sieve script (#2057), and the
     /// way past a script changed elsewhere: replacing it, which the owner asks for himself.
     fn sieve_notice(&mut self, app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
         let sieve = app.session.sieve.get(&self.account).cloned();
@@ -1005,7 +1005,7 @@ fn notice(ui: &mut Ui, t: &Tokens, text: &str, add: impl FnOnce(&mut Ui)) {
 /// replies go out, as Outlook's is; a click opens the dialog. Nothing for a mailbox without one.
 pub(crate) fn info_tiles(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     let mut accounts = if app.services.graph_auto_replies.is_some() { reply_accounts(&app.session.mailbox) } else { Vec::new() };
-    // An IMAP account's are a Sieve script on its server (#9999): read when File › Info is shown.
+    // An IMAP account's are a Sieve script on its server (#2057): read when File › Info is shown.
     for account in app.sieve_accounts() {
         app.sieve_read_now(account);
         accounts.push(account);

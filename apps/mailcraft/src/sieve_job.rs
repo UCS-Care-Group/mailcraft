@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The host's side of an IMAP account's Automatic Replies and rules kept in a Sieve script, and of
-//! the Sieve rule editor's Check (#9999): what
+//! the Sieve rule editor's Check (#2057): what
 //! the window asks ([`SieveJob`]) done with `mailcraft-net`'s ManageSieve client on a background
 //! thread, and what the server has handed back as `sync.applySieve` takes it. Nothing of a
 //! script, a name or a secret is logged.
@@ -36,7 +36,7 @@ pub(crate) fn sieve_job(job: SieveJob) -> SieveResult {
         }
         return out;
     }
-    // The owner's own script, written back as typed (#9999): never MailCraft's own this way.
+    // The owner's own script, written back as typed (#2057): never MailCraft's own this way.
     if let Some(write) = job.write.as_ref().filter(|w| w.own) {
         if write.name == SCRIPT_NAME {
             out.error = "MailCraft's own script isn't written this way".into();

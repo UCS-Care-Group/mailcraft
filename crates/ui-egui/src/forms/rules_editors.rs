@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The dialogs Rules and Alerts opens over its list: the rule builder (New Rule…, Change Rule,
-//! and a filter of a webmail's Sieve script, #9999) and the Sieve editor (a Sieve rule, or the
-//! owner's own script whole, #9999). Each is modal over the list, as Appointment Recurrence is
+//! and a filter of a webmail's Sieve script, #2057) and the Sieve editor (a Sieve rule, or the
+//! owner's own script whole, #2057). Each is modal over the list, as Appointment Recurrence is
 //! over an appointment: the list stays as it was under it, Escape is Cancel (when it is on top: a
 //! list open in it closes first, #406), and Enter in one of the builder's one-line fields, or with
 //! none, is OK when the rule has all it needs.

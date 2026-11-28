@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Sieve rules (`rules.addSieve`, `rules.editSieve`, #9999): a block of Sieve kept in MailCraft's
+//! Sieve rules (`rules.addSieve`, `rules.editSieve`, #2057): a block of Sieve kept in MailCraft's
 //! script in its place, its `require` hoisted, its name in a comment; checked first, with line and
 //! column; never run here; asked about as a send when it can send mail.
 

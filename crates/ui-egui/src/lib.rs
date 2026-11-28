@@ -438,7 +438,7 @@ pub struct Services {
     /// browser: File › Info then has no Automatic Replies.
     pub graph_auto_replies: Option<Box<dyn Fn(auto_replies::AutoRepliesJob) -> Receiver<auto_replies::AutoRepliesResult>>>,
     /// Read and write an IMAP account's Sieve script on its ManageSieve server
-    /// ([`sieve_replies`], #9999): Automatic Replies for servers that aren't Microsoft's. Absent
+    /// ([`sieve_replies`], #2057): Automatic Replies for servers that aren't Microsoft's. Absent
     /// in the browser.
     pub sieve: Option<Box<dyn Fn(sieve_replies::SieveJob) -> Receiver<sieve_replies::SieveResult>>>,
     /// A host that reaches JMAP servers (over `fetch` in the browser): read an account kept in step
@@ -2696,7 +2696,7 @@ impl MailApp {
         }
         // Automatic replies (File › Info): read on the server, or changed there, by the host.
         let r = self.auto_replies_after(id, r);
-        // Rules kept in an IMAP account's Sieve script (#9999): written again when they change.
+        // Rules kept in an IMAP account's Sieve script (#2057): written again when they change.
         let r = self.sieve_after(id, r);
         // A calendar opened by address (#70), from the dialog or a script: read at once.
         if let (Ok(opened), "calendar.openShared") = (&r, id)

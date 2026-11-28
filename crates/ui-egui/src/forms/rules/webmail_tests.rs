@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The filters of the owner's own Sieve script, as a webmail of the RainLoop kind writes them, in
-//! the Rules dialog (#9999): shown as rules that can be changed, the pencil opening the builder on
+//! the Rules dialog (#2057): shown as rules that can be changed, the pencil opening the builder on
 //! one, Save writing its settings and Sieve again in the webmail's shape, New Filter… adding one,
 //! a filter changed by hand staying read-only. The stand-in host writes the script only while it
 //! is the one read, as `mailcraft-net`'s `sieve::write_own` does; the script is synthetic.
@@ -180,7 +180,7 @@ fn a_new_filter_is_added_and_one_changed_by_hand_stays_read_only() {
     assert_eq!(shown.rules.iter().map(|r| r.name.as_str()).collect::<Vec<_>>(), ["Spam", "ML-list", "Invoices"]);
 
     // Changed by hand in the server's copy: that filter is shown, and isn't changed in the builder;
-    // its pencil opens its Sieve (#9999).
+    // its pencil opens its Sieve (#2057).
     own.lock().unwrap().0 = script().replace("fileinto \"Junk\";", "fileinto \"Junk\";\n    addflag \"\\\\Seen\";");
     h.state_mut().sieve_try_again(account);
     h.state_mut().poll_sieve();

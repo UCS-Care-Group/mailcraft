@@ -77,7 +77,7 @@ pub fn fingerprint(mailbox: &Mailbox) -> String {
             })
             .unwrap_or_default()
     };
-    // (The ManageSieve server the owner named, for an account that has one, #9999.)
+    // (The ManageSieve server the owner named, for an account that has one, #2057.)
     let sieve = |a: &Account| match (a.sieve_host.trim(), a.sieve_port) {
         ("", 0) => String::new(),
         (host, port) => format!("\u{1}sieve={}:{port}", host.to_ascii_lowercase()),

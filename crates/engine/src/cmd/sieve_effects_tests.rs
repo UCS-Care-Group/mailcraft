@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! What a Sieve text can do, as an agent's approval asks it (#9999): one table classes each
+//! What a Sieve text can do, as an agent's approval asks it (#2057): one table classes each
 //! command, read from the parsed text; what sends, hands mail to a program, isn't known or can't
 //! be read asks as a send; what changes messages asks as settings and says so.
 

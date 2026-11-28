@@ -1282,7 +1282,7 @@ pub struct Session {
     /// said (`sync.applyAutomaticReplies`). The server's, read again each session: never saved.
     pub auto_replies: std::collections::HashMap<Id, crate::cmd::auto_replies::Known>,
     /// What each IMAP account's ManageSieve server last said of its Sieve scripts
-    /// (`sync.applySieve`, #9999). The server's: never saved.
+    /// (`sync.applySieve`, #2057). The server's: never saved.
     pub sieve: std::collections::HashMap<Id, crate::cmd::sieve_replies::SieveKnown>,
     pub(crate) history: Vec<Undo>,
     pub(crate) redo: Vec<Undo>,

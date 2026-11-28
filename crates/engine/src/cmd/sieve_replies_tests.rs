@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Automatic Replies of an IMAP account kept in a Sieve script (#9999): what is to be written, and
+//! Automatic Replies of an IMAP account kept in a Sieve script (#2057): what is to be written, and
 //! what a ManageSieve server's answer comes to. The server's side is written out by hand, as
 //! `mailcraft-net`'s `sieve` brings it.
 

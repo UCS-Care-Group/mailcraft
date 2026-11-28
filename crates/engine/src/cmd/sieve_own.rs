@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The owner's own Sieve script, edited whole (#9999): the active script of an IMAP account's
+//! The owner's own Sieve script, edited whole (#2057): the active script of an IMAP account's
 //! ManageSieve server that MailCraft didn't write (made in webmail or another program), whose
 //! rules Rules and Alerts shows read-only ([`super::sieve_elsewhere`]). Its text is kept as the
 //! server gave it, byte for byte, line breaks and all, and written back only as the owner typed

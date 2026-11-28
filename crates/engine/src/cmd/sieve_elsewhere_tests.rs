@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! The rules of a Sieve script MailCraft didn't write (#9999): read where they map, the rest
+//! The rules of a Sieve script MailCraft didn't write (#2057): read where they map, the rest
 //! named and never interpreted, read-only, and a hostile script never panics.
 
 use mailcraft_model::{Action, Condition, FolderKind, Id, Keep, Rule};

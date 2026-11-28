@@ -93,7 +93,7 @@ pub enum NotOnServer {
     /// Two exceptions of one kind that look for other things (two importances, say): the server
     /// takes one of each kind.
     TwoExceptionsOfAKind,
-    // What an IMAP account's Sieve script can't say as the rule means it (#9999).
+    // What an IMAP account's Sieve script can't say as the rule means it (#2057).
     /// It looks at attachments.
     Attachments,
     /// It looks at importance.
@@ -126,7 +126,7 @@ pub enum NotOnServer {
     Extension,
     /// It has a part this version doesn't know.
     Unknown,
-    /// A Sieve rule whose text has a mistake (#9999).
+    /// A Sieve rule whose text has a mistake (#2057).
     SieveText,
 }
 
@@ -177,11 +177,11 @@ impl NotOnServer {
 
 /// Why `rule` can't be kept on the server of `account`, or `None` when it can.
 pub fn server_cannot(mb: &Mailbox, rule: &Rule, account: Id) -> Option<NotOnServer> {
-    // A Sieve rule is kept in an IMAP account's Sieve script alone (#9999).
+    // A Sieve rule is kept in an IMAP account's Sieve script alone (#2057).
     if rule.is_sieve() && !mb.account(account).is_some_and(mailcraft_model::Account::keeps_sieve) {
         return Some(NotOnServer::NoServer);
     }
-    // An IMAP account's rules are blocks of MailCraft's Sieve script on its server (#9999).
+    // An IMAP account's rules are blocks of MailCraft's Sieve script on its server (#2057).
     if mb.account(account).is_some_and(mailcraft_model::Account::keeps_sieve) {
         if !mb.keeps_sieve_rules(account) {
             return Some(NotOnServer::NoServer);
@@ -402,7 +402,7 @@ pub(crate) fn condition(v: &Value) -> Result<Condition, CmdError> {
                 _ => Condition::ReceivedBetween { from, to },
             }
         }
-        // Only for a filter of a webmail's Sieve script (#9999): `rules_webmail`.
+        // Only for a filter of a webmail's Sieve script (#2057): `rules_webmail`.
         "header" => {
             let value = v
                 .get("value")
@@ -422,7 +422,7 @@ pub(crate) fn condition(v: &Value) -> Result<Condition, CmdError> {
 }
 
 /// A rule of MailCraft's own is refused a message header condition: only a filter of a webmail's
-/// Sieve script has one (#9999).
+/// Sieve script has one (#2057).
 fn no_header(rule: &Rule) -> Result<(), CmdError> {
     if rule.conditions.iter().chain(&rule.exceptions).any(|c| matches!(c, Condition::Header { .. })) {
         return Err(fail("A message header condition is only for a filter of your webmail's Sieve script."));
@@ -604,7 +604,7 @@ pub fn server_cannot_draft(s: &Session, v: &Value) -> Option<NotOnServer> {
 }
 
 fn add(s: &mut Session, v: &Value) -> CmdResult {
-    // A filter of the webmail's script the server runs (#9999).
+    // A filter of the webmail's script the server runs (#2057).
     if v.get("webmail").is_some() {
         return super::rules_webmail::add(s, v);
     }
@@ -622,7 +622,7 @@ fn add(s: &mut Session, v: &Value) -> CmdResult {
 /// Why a rule can't be changed (Change Rule, `rules.edit`), when it can't.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum NotEditable {
-    /// It is in a Sieve script MailCraft didn't write (#9999): the owner's, never written.
+    /// It is in a Sieve script MailCraft didn't write (#2057): the owner's, never written.
     Elsewhere,
     /// The server doesn't let it be changed.
     ReadOnly,
@@ -631,7 +631,7 @@ pub enum NotEditable {
     /// A Microsoft account's server keeps it, or is to: this version sends the server only
     /// whether it is on and where it stands.
     Microsoft,
-    /// A Sieve rule (#9999): its text is changed as Sieve (`rules.editSieve`), not in the form.
+    /// A Sieve rule (#2057): its text is changed as Sieve (`rules.editSieve`), not in the form.
     Sieve,
 }
 
@@ -653,7 +653,7 @@ impl NotEditable {
 /// Why `r` can't be changed with `rules.edit`, or `None` when it can: one of MailCraft's own
 /// Sieve script, one of this computer, or one for every account can.
 pub fn cannot_edit(mb: &Mailbox, r: &Rule) -> Option<NotEditable> {
-    // (A filter of a webmail's script that can be changed here isn't read-only, #9999.)
+    // (A filter of a webmail's script that can be changed here isn't read-only, #2057.)
     if super::sieve_elsewhere::is_elsewhere(r.id) && r.read_only() {
         return Some(NotEditable::Elsewhere);
     }
@@ -666,7 +666,7 @@ pub fn cannot_edit(mb: &Mailbox, r: &Rule) -> Option<NotEditable> {
     if !r.known() {
         return Some(NotEditable::Unknown);
     }
-    // (A rule of an IMAP account's Sieve script is written whole every time, #9999.)
+    // (A rule of an IMAP account's Sieve script is written whole every time, #2057.)
     let sieve = mb.account(r.account).is_some_and(mailcraft_model::Account::keeps_sieve);
     if r.account != 0 && !sieve && (r.keep == Keep::Server || r.server.is_some() || r.unanswered) {
         return Some(NotEditable::Microsoft);
@@ -728,7 +728,7 @@ pub(crate) fn rule_edited(s: &Session, v: &Value) -> Result<(usize, Rule, Option
 
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if p::id(v, "id").is_some_and(super::sieve_elsewhere::is_elsewhere) {
-        // A rule of the owner's own script that the rule builder can change without loss (#9999).
+        // A rule of the owner's own script that the rule builder can change without loss (#2057).
         if p::id(v, "id").is_some_and(|id| super::sieve_blocks::find(s, id).is_some_and(|f| !f.span.filter)) {
             return super::sieve_blocks::edit(s, v);
         }
@@ -745,7 +745,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     Ok(out)
 }
 
-/// A rule of a Sieve script MailCraft didn't write is the owner's (#9999): refused by every
+/// A rule of a Sieve script MailCraft didn't write is the owner's (#2057): refused by every
 /// command that would change or run one.
 pub(crate) fn elsewhere(s: &Session, id: Id) -> Result<(), CmdError> {
     if !super::sieve_elsewhere::is_elsewhere(id) {
@@ -780,7 +780,7 @@ fn remove(s: &mut Session, v: &Value) -> CmdResult {
     // The server is told at the next look; until then, a download that still has it doesn't bring
     // it back. One the server was making, with no answer, is looked for by what it is.
     if s.mailbox.rule_gone.len() < mailcraft_model::MAX_RULE_GONE {
-        // (A rule of MailCraft's Sieve script leaves it when the script is next written, #9999.)
+        // (A rule of MailCraft's Sieve script leaves it when the script is next written, #2057.)
         match rule.server.as_ref().filter(|s| !s.id.is_empty() && !s.id.starts_with(super::sieve_replies::SIEVE_ID)) {
             Some(server) => s.mailbox.rule_gone.push(RuleGone { account: rule.account, id: server.id.clone(), made: None }),
             None if rule.unanswered => s.mailbox.rule_gone.push(RuleGone { account: rule.account, id: String::new(), made: Some(Box::new(rule)) }),
@@ -834,7 +834,7 @@ fn list(s: &mut Session, v: &Value) -> CmdResult {
             entry
         })
         .collect();
-    // The rules of the Sieve scripts MailCraft didn't write (#9999): shown, never changed.
+    // The rules of the Sieve scripts MailCraft didn't write (#2057): shown, never changed.
     let elsewhere: Vec<Value> = s
         .sieve
         .iter()

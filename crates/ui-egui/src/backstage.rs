@@ -305,7 +305,7 @@ fn info(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
                             let _ = app.run("ui.automaticRepliesSignIn", json!({"account": a.id}));
                         }
                     }
-                    // An IMAP account's Sieve server, asked again (#9999).
+                    // An IMAP account's Sieve server, asked again (#2057).
                     Some(crate::auto_replies::Again::TryAgain(advice)) => {
                         let tip = if advice.is_empty() { tl!("Ask the server for your automatic replies again.").to_string() } else { advice };
                         let link = ui.add_enabled(app.sieve.busy_for(a.id).is_none() && !app.offline(), egui::Link::new(tl!("Try again")));

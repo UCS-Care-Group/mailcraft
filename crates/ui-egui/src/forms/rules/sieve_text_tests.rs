@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Every rule of a Sieve account can be changed (#9999): the pencil of a rule of the owner's own
+//! Every rule of a Sieve account can be changed (#2057): the pencil of a rule of the owner's own
 //! script opens the rule builder when that loses nothing, else the Sieve editor on that rule's text
 //! alone, whose Save writes the script with those bytes alone changed; Edit as Sieve… is in a row's
 //! menu; one of MailCraft's own rules that the builder can't show opens as Sieve. The stand-in host

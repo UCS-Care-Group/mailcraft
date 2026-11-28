@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Automatic Replies of an IMAP account in the window (#9999): kept in a Sieve script on its
+//! Automatic Replies of an IMAP account in the window (#2057): kept in a Sieve script on its
 //! server, read and written by the host through ManageSieve ([`crate::Services::sieve`]). The
 //! dialog and File › Info are the Microsoft accounts' ([`crate::auto_replies`]); what differs is
 //! here: the job, what is said when the server can't keep them, and the explicit replacement of
@@ -70,12 +70,12 @@ pub struct SieveWrite {
     /// The digest of what may be written over; `None`: only where there is none.
     pub last_written: Option<String>,
     pub activate: bool,
-    /// The owner's own active script, written back as typed (#9999): only while the server's is
+    /// The owner's own active script, written back as typed (#2057): only while the server's is
     /// still the one whose digest is `last_written`, and still active; nothing else is done.
     pub own: bool,
 }
 
-/// What became of a write of the owner's own script (#9999), for its editor.
+/// What became of a write of the owner's own script (#2057), for its editor.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) enum OwnSaved {
     Done,
@@ -368,7 +368,7 @@ impl MailApp {
             self.sieve.unreached.remove(&account);
         }
         if write.is_none() {
-            // What the server has is read: a change of the rules kept there goes now (#9999).
+            // What the server has is read: a change of the rules kept there goes now (#2057).
             if result.state.is_some() {
                 self.sieve_rules_write(account, false);
             }
@@ -473,10 +473,10 @@ impl MailApp {
     }
 
     /// After the engine ran `id`: a rule changed, so the script of each IMAP account whose server
-    /// keeps rules is written again, once what the server has is known (#9999).
+    /// keeps rules is written again, once what the server has is known (#2057).
     pub(crate) fn sieve_after(&mut self, id: &str, r: Result<Value, String>) -> Result<Value, String> {
         // The owner's own script, as the owner (or an agent the owner let) typed it, whole or one
-        // rule of it (#9999).
+        // rule of it (#2057).
         if id == "sieve.putOwnScript" || id == "sieve.putOwnBlock" {
             let answer = r?;
             let account = answer.get("account").and_then(Value::as_u64).unwrap_or_default();
@@ -490,7 +490,7 @@ impl MailApp {
         if r.is_err() || !id.starts_with("rules.") || matches!(id, "rules.list" | "rules.run") {
             return r;
         }
-        // A filter of the owner's own script, as the webmail writes it (#9999): that script is
+        // A filter of the owner's own script, as the webmail writes it (#2057): that script is
         // written, as `sieve.putOwnScript` writes it; MailCraft's own is left as it is.
         if let Ok(answer) = &r
             && let Some(sieve) = answer.get("sieve").filter(|s| s.get("own").and_then(Value::as_bool) == Some(true))
@@ -515,7 +515,7 @@ impl MailApp {
         r
     }
 
-    /// Whether a write of `account`'s own script waits or is under way (#9999): its filters aren't
+    /// Whether a write of `account`'s own script waits or is under way (#2057): its filters aren't
     /// changed again until the server is read after it.
     pub(crate) fn sieve_own_busy(&self, account: Id) -> bool {
         self.sieve.own_waiting.contains_key(&account)
@@ -523,7 +523,7 @@ impl MailApp {
     }
 
     /// What the rules window says of an IMAP account's server, when it keeps the rules there from
-    /// running (#9999), and whether Replace with MailCraft's is offered.
+    /// running (#2057), and whether Replace with MailCraft's is offered.
     pub(crate) fn sieve_rules_note(&self, account: Id) -> Option<(String, bool)> {
         if !self.sieve_account(account) {
             return None;
@@ -567,7 +567,7 @@ impl MailApp {
         }
     }
 
-    /// Why a rule an IMAP account's server is to keep doesn't run there yet (#9999).
+    /// Why a rule an IMAP account's server is to keep doesn't run there yet (#2057).
     pub(crate) fn sieve_wait_reason(&self, account: Id) -> String {
         match self.sieve_rules_note(account) {
             Some(_) if self.session.sieve.get(&account).is_some_and(|s| s.changed_elsewhere) => {
@@ -759,7 +759,7 @@ impl MailApp {
         }
         let line = self.auto_replies_known(account).map(|known| crate::auto_replies::summary(self, known)).unwrap_or_default();
         match sieve.active.as_deref() {
-            // The owner's own script sends replies of its own (#9999): those are what go out.
+            // The owner's own script sends replies of its own (#2057): those are what go out.
             Some(other) if other != mailcraft_engine::sieve::SCRIPT_NAME && sieve.elsewhere.as_ref().is_some_and(|e| e.replies && !e.ours) => {
                 crate::i18n::fmt(tl!("Automatic replies: set by your Sieve script \"{name}\", which runs on the server"), &[("name", &shown(other))])
             }

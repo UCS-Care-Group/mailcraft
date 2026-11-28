@@ -142,7 +142,7 @@ fn what_cant_be_is_refused_with_a_reason() {
     let said = run(&mut s, "account.setAutomaticReplies", json!({"account": account, "status": "alwaysEnabled", "internal": "a\u{0}b\r\nc\u{1b}"}));
     assert_eq!(said["change"]["internalReplyMessage"], "<p>ab<br>\nc</p>\n");
 
-    // An IMAP account's are in a Sieve script on its server (#9999): asked for there, and not
+    // An IMAP account's are in a Sieve script on its server (#2057): asked for there, and not
     // changed before they are read.
     let imap = run(&mut s, "account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}}));
     let imap = imap["id"].as_u64().unwrap();

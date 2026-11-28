@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! Rules of an IMAP account kept in MailCraft's Sieve script (#9999): what each part is in Sieve,
+//! Rules of an IMAP account kept in MailCraft's Sieve script (#2057): what each part is in Sieve,
 //! what keeps a rule on this computer, that no value becomes Sieve, and what a server's answer
 //! comes to.
 
@@ -187,7 +187,7 @@ fn every_value(account: Id, lists: Id, v: &str) -> Rule {
 proptest! {
     #[test]
     fn no_rule_value_becomes_sieve(v in ".{0,59}[a-z]", folder in ".{0,39}[a-z]", me in ".{1,40}") {
-        // (#9999) Words, addresses, folder names and the owner's address with quotes, backslashes,
+        // (#2057) Words, addresses, folder names and the owner's address with quotes, backslashes,
         // line breaks, `;`, `}`, `#`, `text:` in them are one string each: the block has the shape
         // it has with plain words, and no command of its own.
         let (mut s, account, lists) = session(&ALL);

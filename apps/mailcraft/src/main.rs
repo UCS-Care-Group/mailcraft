@@ -67,7 +67,7 @@ mod recent_attachments;
 mod sieve_job;
 #[cfg(test)]
 mod sieve_replies_flow;
-// The fake servers of `mailcraft-net`'s tests, for the flow tests here (#9999).
+// The fake servers of `mailcraft-net`'s tests, for the flow tests here (#2057).
 #[cfg(test)]
 #[allow(dead_code)]
 #[path = "../../../crates/net/src/fake.rs"]

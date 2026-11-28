@@ -3085,7 +3085,7 @@ fn hostile_params_never_panic() {
     junk.push(json!({"compose": [1], "id": 1}));
     junk.push(json!({"compose": 1, "subject": "\r\nBcc: x@example.org", "discard": true}));
     junk.push(json!({"compose": 2, "text": "x".repeat(10_000), "from": 18446744073709551615u64}));
-    // Change Rule (#9999): the sample's rule, changed with parts that make no sense, to another
+    // Change Rule (#2057): the sample's rule, changed with parts that make no sense, to another
     // account, or onto a server it can't be on.
     let rule = s.mailbox.rules.first().map_or(0, |r| r.id);
     junk.push(json!({"id": rule, "name": "\u{0}", "conditions": [{"type": "sizeBetween", "value": {"min": 1e300, "max": -1}}], "exceptions": [[[]]],
@@ -3093,7 +3093,7 @@ fn hostile_params_never_panic() {
     junk.push(json!({"id": rule, "name": "x".repeat(100_000), "conditions": [{"type": "fromContains", "value": ["\r\n", ""]}], "actions": [{"type": "delete"}],
         "server": true, "account": 18446744073709551615u64}));
     junk.push(json!({"id": rule, "name": "R", "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "flag"}], "server": true}));
-    // Sieve rules (#9999): an IMAP account's, with text that isn't Sieve, reaches out of its
+    // Sieve rules (#2057): an IMAP account's, with text that isn't Sieve, reaches out of its
     // block, is too large, or names what isn't there.
     let imap = s
         .run("account.add", &json!({"email": "sieve@example.org", "incoming": {"host": "imap.example.org"}}))
@@ -3108,7 +3108,7 @@ fn hostile_params_never_panic() {
     junk.push(json!({"id": sieve, "name": "x".repeat(100_000), "sieve": "\u{0}"}));
     junk.push(json!({"id": sieve, "sieve": ["keep;"], "name": null}));
     junk.push(json!({"id": sieve, "sieve": "/* open"}));
-    // The owner's own Sieve script (#9999): active on the server, edited with text that isn't Sieve,
+    // The owner's own Sieve script (#2057): active on the server, edited with text that isn't Sieve,
     // is too large, carries a NUL, or under a digest that isn't the read's.
     let own = "require \"fileinto\";\r\nif true { fileinto \"x\"; }\r\n";
     let _ = s.run(
@@ -3122,7 +3122,7 @@ fn hostile_params_never_panic() {
     junk.push(json!({"account": imap, "text": "keep;\u{0}", "digest": own_digest}));
     junk.push(json!({"account": imap, "text": "keep;", "digest": "\u{0}".repeat(100_000)}));
     junk.push(json!({"account": imap, "text": ["keep;"], "digest": null}));
-    // One rule of it as Sieve (#9999): text that reaches out of its place, opens a comment, is too
+    // One rule of it as Sieve (#2057): text that reaches out of its place, opens a comment, is too
     // large, carries a NUL, names no rule, or another digest; and one of MailCraft's own rules
     // made a Sieve rule with text that isn't Sieve.
     let own_rule = s.sieve.get(&imap).and_then(|k| k.elsewhere.as_ref()).and_then(|e| e.rules.first()).map_or(0, |r| r.id);
@@ -3133,7 +3133,7 @@ fn hostile_params_never_panic() {
     junk.push(json!({"id": u64::MAX, "text": "stop; # x", "digest": own_digest}));
     junk.push(json!({"id": own_rule, "text": 5, "digest": [own_digest]}));
     junk.push(json!({"id": sieve, "sieve": "if {", "name": "\u{0}*/"}));
-    // A filter of a webmail's script of the RainLoop kind (#9999), changed with the rule commands:
+    // A filter of a webmail's script of the RainLoop kind (#2057), changed with the rule commands:
     // hostile conditions, folders, directions and digests, and a new one with a header no header
     // has.
     let webmail = s

@@ -352,7 +352,7 @@ pub struct RuleScript {
 /// The longest name said in a rule's comment, in characters.
 const MAX_COMMENT_NAME: usize = 200;
 
-/// `name` as a `#` comment's text can hold it (#9999): one line, with no control or format
+/// `name` as a `#` comment's text can hold it (#2057): one line, with no control or format
 /// character, no line or paragraph separator, and no `*/` (should the comment ever be read as a
 /// bracketed one), at most [`MAX_COMMENT_NAME`] characters.
 pub fn comment_name(name: &str) -> String {
@@ -494,7 +494,7 @@ pub fn read_vacation(script: &str) -> Option<Vacation> {
         return None;
     }
     // The replies' section alone: it ends where the first rule begins (`# rule <id>`), and a
-    // Sieve rule after it may have a `vacation` of its own (#9999).
+    // Sieve rule after it may have a `vacation` of its own (#2057).
     let lexed = lex(script)?;
     let rules_from =
         lexed.comments.iter().find(|c| !c.bracketed && c.text(script).trim_start().starts_with("rule ")).map_or(usize::MAX, |c| c.at.start);

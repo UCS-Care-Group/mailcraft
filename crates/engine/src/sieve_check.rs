@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! A Sieve script checked here, before any server sees it (#9999): its syntax (RFC 5228 §8),
+//! A Sieve script checked here, before any server sees it (#2057): its syntax (RFC 5228 §8),
 //! the commands, tests and tags it uses and the shape of their arguments, and whether each
 //! extension it uses is named by its `require`. The server checks again (ManageSieve's
 //! CHECKSCRIPT); this is the first look, with a line and column for each problem.
@@ -316,7 +316,7 @@ impl Kind {
 }
 
 /// What a command or test can do beyond this message's place and flags, from the least to the
-/// most (#9999).
+/// most (#2057).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Effect {
     /// Files, flags, keeps, discards, tests, sets variables: nothing leaves the server.

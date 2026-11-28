@@ -513,7 +513,7 @@ fn sent_only_to_me_doesnt_hold_of_recipients_cut_short() {
     assert!(!rule.matches_in(&msg, &how) && (copied, placed) == (0, 0), "acted on a guess: copies {copied}, placed on the IMAP server {placed}");
 }
 
-/// A Sieve script's `header` test, read from a script made elsewhere (#9999): the lines named
+/// A Sieve script's `header` test, read from a script made elsewhere (#2057): the lines named
 /// alone, `:is` the whole value (A to Z in either case), `:contains` a part of it; and it can't be
 /// told of a message whose header block is kept outside memory.
 #[test]

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! The filter blocks of a Sieve script a webmail of the RainLoop kind (RainLoop, SnappyMail) wrote
-//! (#9999), as they are seen in such scripts: the script has the line `# RAINLOOP:SIEVE`, and
+//! (#2057), as they are seen in such scripts: the script has the line `# RAINLOOP:SIEVE`, and
 //! before each filter's Sieve a comment
 //!
 //! ```text
