@@ -549,10 +549,19 @@ impl MailApp {
         })
     }
 
+    /// Whether MailCraft's Sieve script for `account` is the one its server runs, as MailCraft
+    /// wrote it: only then are the replies set there sent (#2058). True for any other account.
+    pub(crate) fn sieve_replies_run(&self, account: Id) -> bool {
+        if !self.sieve_account(account) {
+            return true;
+        }
+        self.session.sieve.get(&account).is_some_and(|s| !s.changed_elsewhere && s.active.as_deref() == Some(mailcraft_engine::sieve::SCRIPT_NAME))
+    }
+
     /// The accounts whose automatic replies go out now, for the status bar.
     pub(crate) fn auto_replies_on(&self) -> Vec<Id> {
         let now = self.session.now();
-        let sieve = self.sieve_accounts().into_iter().filter(|a| self.session.sieve.get(a).is_some_and(|s| !s.changed_elsewhere));
+        let sieve = self.sieve_accounts().into_iter().filter(|a| self.sieve_replies_run(*a));
         reply_accounts(&self.session.mailbox)
             .into_iter()
             .filter(|_| self.services.graph_auto_replies.is_some())
@@ -1018,7 +1027,7 @@ pub(crate) fn info_tiles(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     ui.label(RichText::new(tl!("Automatic Replies")).font(crate::theme::semibold(14.0)).color(t.accent_text));
     let now = app.session.now();
     for account in accounts {
-        let on = app.auto_replies_known(account).is_some_and(|k| k.on_at(now));
+        let on = app.auto_replies_known(account).is_some_and(|k| k.on_at(now)) && app.sieve_replies_run(account);
         let address = app.session.mailbox.account(account).map(|a| a.email.trim().to_string()).unwrap_or_default();
         let (line, _) = app.auto_replies_line(account).unwrap_or_default();
         let said = app.session.driver.auto_replies.trouble.contains_key(&account)

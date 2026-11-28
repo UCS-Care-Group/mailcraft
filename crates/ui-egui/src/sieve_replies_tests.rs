@@ -112,6 +112,11 @@ fn a_change_writes_the_engines_script_and_says_how_it_went() {
     assert_eq!(said(&app), "Automatic replies are on");
     assert_eq!(app.auto_replies_on(), vec![account]);
     assert_eq!(app.sieve_line(account), "Automatic replies: on, until you turn them off");
+    // The owner's own script made active elsewhere: MailCraft's replies, still on there, aren't
+    // being sent (#2058).
+    read(&mut app, account, &answers, SieveResult { state: Some(state(&ALL, Some("roundcube"), Some(&text))), ..Default::default() });
+    assert!(app.auto_replies_on().is_empty());
+    assert!(!app.sieve_replies_run(account));
 }
 
 #[test]

@@ -586,12 +586,17 @@ impl MailApp {
 
     /// Why a rule an IMAP account's server is to keep doesn't run there yet (#2057).
     pub(crate) fn sieve_wait_reason(&self, account: Id) -> String {
+        let known = self.session.sieve.get(&account);
         match self.sieve_rules_note(account) {
-            Some(_) if self.session.sieve.get(&account).is_some_and(|s| s.changed_elsewhere) => {
-                tl!("MailCraft's Sieve script on the server was changed elsewhere").to_string()
+            // Each why as the note says it (#2058).
+            Some(_) if self.sieve_unreached(account).is_some() || self.sieve.trouble.get(&account) == Some(&SieveTrouble::Unavailable) => {
+                tl!("the server's Sieve scripts can't be reached").to_string()
             }
+            Some(_) if known.is_some_and(|s| !s.takes_rules()) => tl!("the server's Sieve scripts can't file mail into folders").to_string(),
+            Some(_) if known.is_some_and(|s| s.changed_elsewhere) => tl!("MailCraft's Sieve script on the server was changed elsewhere").to_string(),
             Some(_) => tl!("another Sieve script of yours runs on the server").to_string(),
-            None if self.sieve.busy_for(account).is_some() => tl!("it is being written to the server").to_string(),
+            // (A job that only reads isn't a write, #2058.)
+            None if self.sieve.busy_for(account) == Some(true) => tl!("it is being written to the server").to_string(),
             None => tl!("it goes to the server at the next connection").to_string(),
         }
     }
