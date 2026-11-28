@@ -30,7 +30,7 @@ use std::collections::HashSet;
 use mailcraft_model::search::Query;
 use mailcraft_model::sync::{GraphMessage, GraphSearchRequest, GraphSearchResult};
 use mailcraft_model::{AccountKind, FolderKind, Id, Message};
-use mailcraft_time::{Date, Weekday};
+use mailcraft_time::{Date, Timestamp, Weekday};
 use serde_json::{Value, json};
 
 use super::{bad, fail, graph_down};
@@ -90,6 +90,8 @@ pub struct ServerSearch {
     pub ticket: u64,
     /// The search these are for: the query, the scope, and the folder in view.
     key: Option<(String, Scope, Id, Option<(Date, Weekday)>, Option<String>)>,
+    /// The received-date bounds captured with this ticket.
+    received: Option<(Option<Timestamp>, Option<Timestamp>)>,
     pub mailboxes: Vec<Searched>,
     /// Newest first.
     pub results: Vec<ServerResult>,
@@ -114,7 +116,7 @@ impl ServerSearch {
 
     /// Whether there may be more to ask for.
     pub fn more(&self) -> bool {
-        self.mailboxes.iter().any(|m| !m.done)
+        self.results.len() < MAX_RESULTS && self.mailboxes.iter().any(|m| !m.done)
     }
 
     /// Everything of the search forgotten (a new search, or none).
@@ -166,13 +168,22 @@ pub fn mailboxes_for(s: &Session) -> Vec<(Id, String)> {
     }
 }
 
+/// Use the same zone as local search. A host-supplied offset has no inverse conversion.
+fn received_period(s: &Session, query: &Query) -> Option<(Option<Timestamp>, Option<Timestamp>)> {
+    let zone = s.zone();
+    if s.clock.offset.is_some_and(|o| !(-18 * 60..=18 * 60).contains(&o)) {
+        return None;
+    }
+    query.received_period(zone)
+}
+
 /// Why More results on the server isn't offered for the search in view, when it isn't.
 pub fn offered_reason(s: &Session) -> Option<&'static str> {
     let query = Query::parse(&s.view.search);
     if query.is_empty() {
         return Some("there is no search");
     }
-    if query.for_server().terms.is_empty() {
+    if query.for_server().terms.is_empty() && received_period(s, &query.clone().on(s.today(), s.prefs.week_start)).is_none() {
         return Some("nothing of this search can be asked of the server");
     }
     if mailboxes_for(s).is_empty() {
@@ -192,9 +203,13 @@ pub fn current(s: &mut Session) -> &mut ServerSearch {
     let key = key_of(s);
     if s.server_search.key.as_ref() != Some(&key) {
         s.server_search.forget();
-        let checked_here = !Query::parse(&key.0).for_server().local.is_empty();
+        let query = Query::parse(&key.0);
+        let query = if let Some((day, first)) = key.3 { query.on(day, first) } else { query };
+        let received = received_period(s, &query);
+        let checked_here = received.is_none() && !query.for_server().local.is_empty();
         let mailboxes = mailboxes_for(s).into_iter().map(|(account, folder)| Searched { account, folder, ..Default::default() }).collect();
         s.server_search.key = Some(key);
+        s.server_search.received = received;
         s.server_search.mailboxes = mailboxes;
         s.server_search.checked_here = checked_here;
     }
@@ -209,6 +224,10 @@ pub fn requests(s: &mut Session) -> Result<Vec<GraphSearchRequest>, CmdError> {
     }
     current(s);
     let query = s.view.search.clone();
+    if !s.server_search.more() {
+        return Ok(Vec::new());
+    }
+    let received = s.server_search.received;
     let mut out = Vec::new();
     let ticket = s.server_search.ticket;
     let mut errors_cleared = false;
@@ -225,6 +244,7 @@ pub fn requests(s: &mut Session) -> Result<Vec<GraphSearchRequest>, CmdError> {
             ticket,
             folder: searched.folder.clone(),
             query: query.clone(),
+            received,
             next: searched.next.clone(),
         };
         out.push(request);
@@ -290,7 +310,12 @@ pub fn apply(s: &mut Session, result: GraphSearchResult) -> CmdResult {
             continue;
         }
         let shown = as_message(account, folder, found);
-        if !local.is_empty() && !local.matches_in(&shown, |at| s.offset_at(at)) {
+        let matches = if let Some((from, until)) = s.server_search.received {
+            from.is_none_or(|start| found.received >= start) && until.is_none_or(|end| found.received < end)
+        } else {
+            local.is_empty() || local.matches_in(&shown, |at| s.offset_at(at))
+        };
+        if !matches {
             continue;
         }
         taken.push(ServerResult { account, folder, found: found.clone(), opened: None });

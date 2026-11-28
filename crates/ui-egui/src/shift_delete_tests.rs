@@ -108,18 +108,22 @@ fn a_text_field_keeps_the_shift_delete_cut_for_itself() {
 
 #[test]
 fn a_delete_pressed_with_shift_held_is_the_permanent_one() {
-    let (mut w, id) = selected();
-    w.input_mut().events.push(Event::ModifiersChanged(Modifiers::SHIFT));
-    w.step();
-    click(&mut w, "ribbon", crate::ribbon::hit_id("mail.delete"));
-    w.input_mut().events.push(Event::ModifiersChanged(Modifiers::NONE));
-    w.step();
-    let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else {
-        panic!("no question, only {:#?}", testing::dialog(&w));
-    };
-    let asked = &ask.text;
-    assert!(asked.contains("permanently deleted"), "the question was not the permanent delete's: {asked}");
-    assert!(w.state().session.mailbox.message(id).is_some(), "the yes has not been given yet");
+    for mode in ["classic", "simplified"] {
+        let (mut w, id) = selected();
+        w.state_mut().execute("ui.ribbonMode", json!({"value": mode})).unwrap();
+        w.run_steps(3);
+        w.input_mut().events.push(Event::ModifiersChanged(Modifiers::SHIFT));
+        w.step();
+        click(&mut w, "ribbon", crate::ribbon::hit_id("mail.delete"));
+        w.input_mut().events.push(Event::ModifiersChanged(Modifiers::NONE));
+        w.step();
+        let Some(crate::dialogs::Dialog::Confirm { ask, .. }) = &w.state().dialog else {
+            panic!("no question, only {:#?}", testing::dialog(&w));
+        };
+        let asked = &ask.text;
+        assert!(asked.contains("permanently deleted"), "the question was not the permanent delete's: {asked}");
+        assert!(w.state().session.mailbox.message(id).is_some(), "the yes has not been given yet");
+    }
 }
 
 #[test]

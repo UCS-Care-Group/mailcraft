@@ -335,10 +335,63 @@ pub(crate) mod kit {
         });
     }
 
+    /// The label column's width: that of the widest label the form's last pass drew, at least
+    /// [`LABEL_W`] and at most 2/5 of the row, so a translated label isn't cut and the controls
+    /// still start on one line. (The widest is learnt a pass late; it is the same pass after pass.)
+    fn label_width(ui: &Ui, label: &str) -> f32 {
+        let font = regular(12.5);
+        let need = ui.painter().layout_no_wrap(label.to_owned(), font, Color32::PLACEHOLDER).size().x + 6.0;
+        let (key, pass) = (egui::Id::NULL.with_salt(egui::IdSalt::new(("form label column", host().id))), ui.ctx().cumulative_pass_nr());
+        // (pass of `now`, widest so far in that pass, widest in the pass before)
+        let (at, now, before) = ui.data_mut(|d| d.get_temp::<(u64, f32, f32)>(key)).unwrap_or_default();
+        let (now, before) = if at == pass { (now, before) } else { (0.0, now) };
+        let now = now.max(need);
+        ui.data_mut(|d| d.insert_temp(key, (pass, now, before)));
+        // The pass's widest is known only once it ends: then ask for one more pass if it differs from the
+        // pass before's, so the column settles after growing and after shrinking (another language).
+        // One callback per Context serves every form; it drains the hosts measured in the pass.
+        let (list, hooked) = (
+            egui::Id::NULL.with_salt(egui::IdSalt::new("form label columns measured")),
+            egui::Id::NULL.with_salt(egui::IdSalt::new("form label columns hooked")),
+        );
+        ui.data_mut(|d| {
+            let (at, mut keys) = d.get_temp::<(u64, Vec<egui::Id>)>(list).unwrap_or_default();
+            if at != pass {
+                keys.clear();
+            }
+            if !keys.contains(&key) {
+                keys.push(key);
+            }
+            d.insert_temp(list, (pass, keys));
+        });
+        if !ui.data(|d| d.get_temp::<bool>(hooked).unwrap_or(false)) {
+            ui.data_mut(|d| d.insert_temp(hooked, true));
+            ui.ctx().on_end_pass(
+                "form label column",
+                std::sync::Arc::new(move |ui: &mut Ui| {
+                    let ctx = ui.ctx().clone();
+                    let (at, keys) = ctx.data_mut(|d| d.remove_temp::<(u64, Vec<egui::Id>)>(list)).unwrap_or_default();
+                    if at != ctx.cumulative_pass_nr() {
+                        return;
+                    }
+                    let pass_nr = ctx.cumulative_pass_nr();
+                    for key in keys {
+                        let (at, now, before) = ctx.data(|d| d.get_temp::<(u64, f32, f32)>(key)).unwrap_or_default();
+                        if at == pass_nr && now != before {
+                            ctx.request_repaint();
+                        }
+                    }
+                }),
+            );
+        }
+        now.max(before).max(LABEL_W).min((ui.available_width() * 0.4).max(LABEL_W))
+    }
+
     fn label_cell(ui: &mut Ui, label: &str) {
         let t = Tokens::get(ui.ctx());
-        let (r, _) = ui.allocate_exact_size(vec2(LABEL_W, ROW_H), Sense::hover());
-        paint_clipped(ui.painter(), pos2(r.min.x, r.center().y), LABEL_W - 6.0, label, regular(12.5), t.text);
+        let w = label_width(ui, label);
+        let (r, _) = ui.allocate_exact_size(vec2(w, ROW_H), Sense::hover());
+        paint_clipped(ui.painter(), pos2(r.min.x, r.center().y), w - 6.0, label, regular(12.5), t.text);
     }
 
     /// What the buttons at the bottom take of a form's height, with the gap over them.
@@ -4555,6 +4608,7 @@ pub(crate) mod rules {
         Subject,
         Body,
         SubjectOrBody,
+        HeaderWords,
         Attachment,
         Importance,
         Sensitivity,
@@ -4575,7 +4629,7 @@ pub(crate) mod rules {
         /// What a filter of a webmail's Sieve script can look at (#2057).
         const WEBMAIL: [When; 3] = [When::To, When::Header, When::HeaderIs];
 
-        const ALL: [When; 21] = [
+        const ALL: [When; 22] = [
             When::Person,
             When::From,
             When::SentTo,
@@ -4588,6 +4642,7 @@ pub(crate) mod rules {
             When::Subject,
             When::Body,
             When::SubjectOrBody,
+            When::HeaderWords,
             When::Attachment,
             When::Importance,
             When::Sensitivity,
@@ -4613,6 +4668,7 @@ pub(crate) mod rules {
                 When::Subject => "Subject contains",
                 When::Body => "Body contains",
                 When::SubjectOrBody => "Subject or body contains",
+                When::HeaderWords => "Header contains",
                 When::Attachment => "Has an attachment",
                 When::Importance => "Importance is",
                 When::Sensitivity => "Sensitivity is",
@@ -4656,6 +4712,7 @@ pub(crate) mod rules {
                 When::Subject => "subjectContains",
                 When::Body => "bodyContains",
                 When::SubjectOrBody => "subjectOrBodyContains",
+                When::HeaderWords => "headerContains",
                 When::Attachment => "hasAttachment",
                 When::Importance => "importance",
                 When::Sensitivity => "sensitivity",
@@ -4681,6 +4738,7 @@ pub(crate) mod rules {
                     | When::Subject
                     | When::Body
                     | When::SubjectOrBody
+                    | When::HeaderWords
                     | When::Header
                     | When::HeaderIs
             )
@@ -5226,6 +5284,7 @@ pub(crate) mod rules {
             Condition::ToOrCcMe => tl!("my address is in To or Cc").to_string(),
             Condition::NotToMe => tl!("my address isn't in To").to_string(),
             Condition::SubjectOrBodyContains(t) => one(tl!("subject or body contains {words}"), t),
+            Condition::HeaderContains(t) => one(tl!("header contains {words}"), t),
             Condition::Sensitivity(s) => {
                 let level = match s {
                     Sensitivity::Normal => tl!("normal"),

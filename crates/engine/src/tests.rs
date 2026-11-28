@@ -2487,6 +2487,42 @@ mod two_way {
         assert_eq!(binned, ["news whole"]);
     }
 
+    /// The same with an exception on words in the header (#566): the fields past what the reader
+    /// keeps leave the rule unable to tell, though the lines read into the message were kept.
+    #[test]
+    fn new_imap_mail_with_headers_left_out_isnt_deleted_past_a_header_exception() {
+        let mut s = session();
+        let a = run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+        let inbox = folder(&s, a, FolderKind::Inbox);
+        let purge = json!({"name": "Purge", "account": a, "conditions": [{"type": "subjectContains", "value": "news"}],
+            "exceptions": [{"type": "headerContains", "value": "x-keep"}], "actions": [{"type": "delete"}]});
+        run(&mut s, "rules.add", purge);
+        apply(
+            &mut s,
+            SyncResult {
+                account: a,
+                folders: vec![FolderDelta { complete: true, ..news(None, "INBOX", FolderKind::Inbox, 7, vec![from_server(1, "first")], vec![]) }],
+                ..Default::default()
+            },
+        );
+        // (Read as the reader reads a header: with the lines it reads into the message kept.)
+        let read = |uid: u32, subject: &str| Message { read_header: "MIME-Version: 1.0\n".into(), ..from_server(uid, subject) };
+        let cut = Message { headers_cut: true, ..read(2, "news cut") };
+        let whole = read(3, "news whole");
+        apply(
+            &mut s,
+            SyncResult {
+                account: a,
+                folders: vec![news(Some(inbox), "INBOX", FolderKind::Inbox, 7, vec![whole, cut], vec![])],
+                ..Default::default()
+            },
+        );
+        let left: Vec<String> = s.mailbox.messages_in(inbox).map(|m| m.subject.clone()).collect();
+        assert_eq!(left, ["first", "news cut"]);
+        let binned: Vec<String> = s.mailbox.messages_in(folder(&s, a, FolderKind::Deleted)).map(|m| m.subject.clone()).collect();
+        assert_eq!(binned, ["news whole"]);
+    }
+
     #[test]
     fn a_backlog_goes_up_in_batches_and_is_counted_fast() {
         let (mut s, a, inbox, archive) = synced();

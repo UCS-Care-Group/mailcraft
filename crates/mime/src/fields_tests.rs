@@ -79,3 +79,17 @@ fn who_got_a_blind_copy_of_a_resend_is_written_only_with_the_bcc() {
     let draft = String::from_utf8(write(&m, &WriteOptions { include_bcc: true, offset_minutes: 0 })).unwrap();
     assert!(draft.contains("eve@example.net") && draft.contains("resent-BCC: mallory@example.net\r\n"), "{draft}");
 }
+
+/// A message to 1,900 people, read whole (each field under the field cap, the recipients under
+/// `MAX_RECIPIENTS`): nothing a rule about its recipients or its other fields reads was left out,
+/// so it isn't said cut. Only the lines kept as they came for a header rule ran past
+/// [`crate::MAX_READ_HEADER`], and say so apart (#566).
+#[test]
+fn a_long_recipient_list_read_whole_isnt_said_cut() {
+    let list = |prefix: &str, n: usize| (0..n).map(|i| format!("{prefix}-long-recipient-name-{i:04}@example.org")).collect::<Vec<_>>().join(",\r\n ");
+    let raw = format!("From: a@example.org\r\nTo: {}\r\nCc: {}\r\nSubject: Many\r\n\r\nBody\r\n", list("to", 1000), list("cc", 900));
+    let m = parse(raw.as_bytes());
+    assert_eq!((m.to.len(), m.cc.len()), (1000, 900));
+    assert!(!m.headers_cut, "every recipient was read, none left out");
+    assert!(m.read_header_cut && m.read_header.len() <= crate::MAX_READ_HEADER);
+}
