@@ -1,0 +1,1 @@
+- Subscribed calendars with `webcal://` or `webcals://` addresses now load and refresh over HTTPS ([#1459](https://github.com/UCS-Care-Group/mailcraft/pull/1459)).
