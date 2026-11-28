@@ -1948,6 +1948,24 @@ fn server_rule_deletes(s: &Session, id: &str, params: &Value) -> bool {
             })
     };
     let there = |r: &mailcraft_model::Rule| r.keep == mailcraft_model::Keep::Server;
+    // A filter of the owner's own Sieve script, as the webmail wrote it, or a rule of that script
+    // the builder changes (#2057): on the server, where it runs whether MailCraft is open or not,
+    // judged as the rule it will be shown as, its folder found in the script as the command finds
+    // it (`rules_webmail`, `sieve_blocks`), not among MailCraft's own rules.
+    {
+        use crate::cmd::{rules_webmail as w, sieve_blocks as b};
+        let script = p::id(params, "id").filter(|r| crate::cmd::sieve_elsewhere::is_elsewhere(*r));
+        match (id, script) {
+            ("rules.add", _) if params.get("webmail").is_some() => return w::added(s, params).is_ok_and(|(_, r, _)| deletes(&r)),
+            ("rules.edit", Some(r)) if b::find(s, r).is_some_and(|f| !f.span.filter) => {
+                return b::edited(s, params).is_ok_and(|(_, _, after, _)| after.enabled && deletes(&after));
+            }
+            ("rules.edit", Some(_)) => return w::edited(s, params).is_ok_and(|(_, r, _)| r.enabled && deletes(&r)),
+            ("rules.enable", Some(_)) => return w::enabled(s, params).is_ok_and(|(_, r, on, text)| on && text.is_some() && deletes(&r)),
+            ("rules.move", Some(_)) => return w::moved(s, params).is_ok_and(|(_, r, _, text)| text.is_some() && r.enabled && deletes(&r)),
+            _ => {}
+        }
+    }
     match id {
         "rules.add" => crate::cmd::rules::rule_from_params(s, params).is_ok_and(|r| there(&r) && deletes(&r)),
         "rules.fromMessage" => crate::cmd::rules::rule_from_message(s, params).is_ok_and(|(r, _)| there(&r) && deletes(&r)),

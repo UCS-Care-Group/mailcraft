@@ -466,6 +466,45 @@ fn an_agent_is_asked_about_a_filter_with_what_it_does() {
     assert!(describe(&s, "rules.move", &up).starts_with("move the filter “ML-list” up"));
 }
 
+/// A filter of the owner's script that files into Deleted Items deletes mail on the server, where
+/// undo doesn't reach: every rule command that puts one there or switches one on is asked as a
+/// delete, as for a server rule of MailCraft's own; the others as a change of settings (#2058).
+#[test]
+fn every_rule_command_on_a_filter_that_files_into_deleted_items_is_asked_as_a_delete() {
+    let text = script();
+    let (mut s, account, junk, _) = session(&text);
+    let bin = s.mailbox.folder_of_kind(account, FolderKind::Deleted).unwrap();
+    s.mailbox.folder_mut(bin).unwrap().remote = "Trash".into();
+    let r = rules(&s, account);
+    let new = |folder: Id| {
+        json!({"webmail": true, "account": account, "name": "Bin", "conditions": [{"type": "toContains", "value": "x@example.org"}], "actions": [{"type": "moveTo", "value": folder}]})
+    };
+    assert_eq!(classify(&s, "rules.add", &new(bin)), Access::Owner(Class::Delete));
+    assert_eq!(classify(&s, "rules.add", &new(junk)), Access::Owner(Class::Settings));
+    let to = |id: Id, folder: Id| params(id, "Lists", json!({"type": "toContains", "value": "list@lists.example.org"}), folder);
+    assert_eq!(classify(&s, "rules.edit", &to(r[1].id, bin)), Access::Owner(Class::Delete));
+    assert_eq!(classify(&s, "rules.edit", &to(r[1].id, junk)), Access::Owner(Class::Settings));
+    // The filter made, as the server then has it.
+    let added = written(&run(&mut s, "rules.add", new(bin)), &text);
+    read(&mut s, account, &added);
+    let (binned, first) = (rules(&s, account).last().unwrap().id, rules(&s, account)[0].id);
+    assert_eq!(classify(&s, "rules.edit", &to(binned, bin)), Access::Owner(Class::Delete));
+    assert_eq!(classify(&s, "rules.edit", &to(binned, junk)), Access::Owner(Class::Settings));
+    assert_eq!(classify(&s, "rules.move", &json!({"id": binned, "direction": "up"})), Access::Owner(Class::Delete));
+    assert_eq!(classify(&s, "rules.move", &json!({"id": first, "direction": "up"})), Access::Owner(Class::Settings));
+    assert_eq!(classify(&s, "rules.remove", &json!({"id": binned})), Access::Owner(Class::Delete));
+    // Switched off, then on again.
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": binned, "value": false})), Access::Owner(Class::Settings));
+    let off = written(&run(&mut s, "rules.enable", json!({"id": binned, "value": false})), &added);
+    read(&mut s, account, &off);
+    let binned = rules(&s, account).last().unwrap().id;
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": binned})), Access::Owner(Class::Delete));
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": binned, "value": true})), Access::Owner(Class::Delete));
+    // Changed while off: it runs nowhere until switched on.
+    assert_eq!(classify(&s, "rules.edit", &to(binned, bin)), Access::Owner(Class::Settings));
+    assert_eq!(classify(&s, "rules.enable", &json!({"id": rules(&s, account)[0].id, "value": false})), Access::Owner(Class::Settings));
+}
+
 proptest! {
     #[test]
     fn hostile_settings_never_panic_and_a_known_filter_stays_byte_for_byte(
