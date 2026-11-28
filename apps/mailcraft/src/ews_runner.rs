@@ -90,6 +90,9 @@ struct SignIn {
     scheme: Option<Scheme>,
     /// The held connection of an NTLM run, signed in.
     connection: Option<Connection>,
+    /// The held connection is the first request's, which has not signed in yet: the NTLM sign-in
+    /// goes on it, so that a run shakes hands with the server once, not twice.
+    unsigned: bool,
 }
 
 /// One HTTPS exchange after another with the server of one account.
@@ -230,7 +233,19 @@ impl Transport {
                 // with no body (a message being sent is not uploaded to be turned away, and then
                 // uploaded again): its answer is the probe's, and the request itself is made
                 // only once the way to sign in is known.
-                let answer = self.alone_with(request, false, &[])?;
+                // (On a connection that is kept, for the NTLM sign-in that may follow: a handshake with
+                // some servers takes seconds.)
+                let mut probe = Connection::open(request.url(), &self.trusted).map_err(|error| self.judged_for(error, request))?;
+                let fields = Self::fields(request, None);
+                let ask = mailcraft_net::https::Request {
+                    method: request.method().as_str(),
+                    url: request.url(),
+                    fields: &fields,
+                    body: &[],
+                    max_response: request.max_response_bytes(),
+                    trusted: &self.trusted,
+                };
+                let answer = probe.send(&ask).map_err(|error| self.judged_for(error, request))?;
                 if answer.status != 401 {
                     state.scheme = Some(Scheme::Basic);
                     return self.alone(request, true).map(Self::response);
@@ -242,6 +257,8 @@ impl Transport {
                     }
                     Ok(Scheme::Ntlm) => {
                         state.scheme = Some(Scheme::Ntlm);
+                        state.connection = Some(probe);
+                        state.unsigned = true;
                         self.over_ntlm(&mut state, request)
                     }
                     Err(error) => {
@@ -268,11 +285,18 @@ impl Transport {
             return Ok(HttpResponse::new(401, Vec::new()));
         };
         for attempt in 0..2 {
-            let fresh = !state.connection.as_ref().is_some_and(Connection::is_open);
+            let open = state.connection.as_ref().is_some_and(Connection::is_open);
+            // (The first request's connection, if it is still open, signs in here: no new handshake.)
+            let probe = state.unsigned && open;
+            let fresh = probe || !open;
             let mut third: Option<Secret> = None;
             if fresh {
-                state.connection = None;
-                let mut connection = Connection::open(request.url(), &self.trusted).map_err(|e| self.judged_for(e, request))?;
+                state.unsigned = false;
+                let held = state.connection.take().filter(|_| probe);
+                let mut connection = match held {
+                    Some(connection) => connection,
+                    None => Connection::open(request.url(), &self.trusted).map_err(|e| self.judged_for(e, request))?,
+                };
                 let hash = connection.end_point_hash();
                 let context = ntlm::Context {
                     client_challenge: mailcraft_net::https::client_challenge().map_err(|_| TransportError::Other)?,

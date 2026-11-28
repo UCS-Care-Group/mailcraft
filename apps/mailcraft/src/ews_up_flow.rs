@@ -45,6 +45,9 @@ struct Misbehaviour {
     /// An NTLM sign-in covers the one request it came with (IIS `Persistent-Auth: false`): the
     /// answer says so, and the next request on the connection without credentials gets 401.
     one_request_per_sign_in: bool,
+    /// The connection is dropped after the answer to its first request, with no word of it in the
+    /// answer (a server or a proxy that closes it while the client is already sending the next).
+    close_after_first_answer: bool,
 }
 
 pub(crate) struct Server {
@@ -143,9 +146,10 @@ fn connection(
 ) -> std::io::Result<()> {
     stream.set_read_timeout(Some(Duration::from_secs(10)))?;
     // NTLM ties the sign-in to the connection: where it is.
-    let (mut negotiate, mut challenge, mut signed_in, mut served) = (String::new(), Vec::new(), false, 0usize);
+    let (mut negotiate, mut challenge, mut signed_in, mut served, mut asked) = (String::new(), Vec::new(), false, 0usize, 0usize);
     loop {
         let Some((fields, body)) = read_request(&mut stream)? else { return Ok(()) };
+        asked += 1;
         let authorization = fields.iter().find(|(n, _)| n == "authorization").map(|(_, v)| v.clone()).unwrap_or_default();
         let scheme = authorization.split(' ').next().unwrap_or_default().to_ascii_lowercase();
         // (A request with no credential must carry no body: a message is not uploaded to be turned away.)
@@ -181,6 +185,9 @@ fn connection(
                 }
                 if !signed_in {
                     write_answer(&mut stream, 401, &offered, b"", true)?;
+                    if asked == 1 && misbehaves.lock().unwrap().close_after_first_answer {
+                        return Ok(());
+                    }
                     continue;
                 }
                 proceed = true;
@@ -276,7 +283,11 @@ fn an_ntlm_server_is_signed_in_to_on_one_connection_and_never_given_the_password
     assert!(schemes.iter().all(|s| s.is_empty() || s == "ntlm"), "{schemes:?}");
     // The first request had no credential; then the three legs; then every request on that connection.
     assert!(schemes.first().is_some_and(String::is_empty));
-    assert_eq!(server.connections.load(Ordering::Relaxed), 2, "one to learn the offer, one held for the sign-in and the run");
+    assert_eq!(
+        server.connections.load(Ordering::Relaxed),
+        1,
+        "the first request's connection learns the offer, is signed in on, and is held for the run"
+    );
     assert!(server.standin.state().requests.len() > 4);
 }
 
@@ -318,11 +329,12 @@ fn a_server_that_keeps_a_sign_in_for_one_request_is_signed_in_to_again_for_each_
     for subject in ["Kickoff", "Budget", "Agenda"] {
         assert!(here(&app, account, subject).is_some(), "{subject}");
     }
-    // One connection to learn the offer, then one fresh sign-in for every request served: none
-    // signed in twice, and no refused request tried more than once.
+    // The first request's connection learns the offer and is signed in on for that request; every
+    // other request served gets a fresh sign-in on a new connection: none signed in twice, and no
+    // refused request tried more than once.
     let served = server.standin.state().requests.len();
     assert!(served > 3, "{served}");
-    assert_eq!(server.connections.load(Ordering::Relaxed), 1 + served);
+    assert_eq!(server.connections.load(Ordering::Relaxed), served);
     assert!(server.schemes.lock().unwrap().iter().all(|s| s.is_empty() || s == "ntlm" || s == "anonymous-with-body"));
 
     write_and_send(&mut app, account, "Quarterly");
@@ -345,8 +357,8 @@ fn a_wrong_password_on_a_server_that_keeps_a_sign_in_for_one_request_is_still_tu
     // Nothing of the sign-in is in what the person is told.
     assert!(!status.contains("NTLM") && !status.contains("not the password") && !status.contains(USER), "{status}");
     assert!(here(&app, account, "Kickoff").is_none());
-    // The offer, then one sign-in that was refused: not tried again.
-    assert_eq!(server.connections.load(Ordering::Relaxed), 2);
+    // The offer is learned on the connection that then signs in; that one sign-in was refused: not tried again.
+    assert_eq!(server.connections.load(Ordering::Relaxed), 1);
     assert_eq!(send_receive(&mut app, json!({"account": account}))["pending"], "password");
 }
 
@@ -363,6 +375,18 @@ fn a_connection_the_server_closes_mid_run_is_opened_again_and_signed_in_again() 
         assert!(here(&app, account, subject).is_some(), "{subject}");
     }
     assert!(server.connections.load(Ordering::Relaxed) > 3, "{}", server.connections.load(Ordering::Relaxed));
+}
+
+#[test]
+fn a_connection_the_server_drops_after_the_first_answer_is_replaced_for_the_sign_in() {
+    let server = serve(Mode::Ntlm);
+    server.standin.state().deliver("inbox", "Kickoff", false);
+    server.misbehaves.lock().unwrap().close_after_first_answer = true;
+    let (mut app, account) = window(&server);
+    first_run(&mut app, account);
+    assert!(here(&app, account, "Kickoff").is_some());
+    // The first connection learned the offer and was dropped; the sign-in and the run are on a second.
+    assert_eq!(server.connections.load(Ordering::Relaxed), 2);
 }
 
 #[test]
