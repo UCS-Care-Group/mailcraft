@@ -11781,7 +11781,7 @@ msgstr "尚无回复"
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
 msgid "No require here: MailCraft writes it at the top of its script."
-msgstr "此处不需要 require：MailCraft 会把它写在脚本开头。"
+msgstr "此处不能有 require：MailCraft 会把它写在脚本开头。"
 
 #. interface, name
 #: crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -12627,7 +12627,7 @@ msgstr "目前手机上只能使用 Microsoft 账户登录。"
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
 msgid "Only a comment may follow text: on its line."
-msgstr "text: 所在行后面只能跟注释。"
+msgstr "在 text: 所在的同一行上，它后面只能是注释。"
 
 #. interface
 #: crates/ui-egui/src/windows.rs
@@ -21427,7 +21427,7 @@ msgstr "无法读取此任务。"
 #: crates/engine/src/sieve_check.rs
 #, fuzzy
 msgid "This text: has no line with a lone dot to end it."
-msgstr "此 text: 没有以单独一个点结束的行。"
+msgstr "此 text: 没有用来结束它的、只含一个点的行。"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs

@@ -17038,7 +17038,7 @@ msgstr "Jelentkezz be a Microsoft-nál még egyszer, hogy a MailCraft elolvashas
 #: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "Sign in with Send/Receive first, then change your automatic replies."
-msgstr "Jelentkezz be a Küldés/Értesítés első, majd változtass automatikus válasz."
+msgstr "Először jelentkezzen be a Küldés/fogadás paranccsal, majd módosítsa az automatikus válaszokat."
 
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
@@ -20583,7 +20583,7 @@ msgstr "A MailCraft ezen verziója nem tudja elérni a fiók kiszolgálóját."
 #: crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/sieve_replies.rs
 #, fuzzy
 msgid "This build can't reach the server to change automatic replies. Use the desktop app."
-msgstr "Ez a konstrukció nem éri el a szervert az automatikus válaszok megváltoztatásához."
+msgstr "Ez a változat nem éri el a kiszolgálót az automatikus válaszok módosításához. Használja az asztali alkalmazást."
 
 #. interface
 #: crates/ui-egui/src/sieve_replies.rs
