@@ -68,7 +68,7 @@ pub(super) fn contents(ui: &mut Ui, app: &mut MailApp) {
             }
             match &state.loading {
                 Loading::Pending(_) => {
-                    ui.spinner();
+                    crate::software::spinner(ui, ui.spacing().interact_size.y, None);
                 }
                 Loading::Ready(paths) if paths.is_empty() => {
                     ui.label(tl!("No recent files"));
