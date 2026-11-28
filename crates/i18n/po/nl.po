@@ -2263,8 +2263,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "Bestand bijvoegen"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 msgid "Attach Item"
 msgstr "Item bijvoegen"
 
@@ -15289,7 +15289,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "Een bureaubladmelding weergeven voor herinneringen"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Een bureaubladmelding weergeven wanneer nieuwe e-mail binnenkomt"

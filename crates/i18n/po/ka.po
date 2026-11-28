@@ -2329,8 +2329,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "ფაილის მიმაგრება"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Attach Item"
 msgstr "ელემენტის მიმაგრება"
@@ -12667,8 +12667,9 @@ msgstr "სურათის ჩასმა"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "მხოლოდ ტექსტის ჩასმა"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15749,7 +15750,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "შეხსენებებისას სამუშაო მაგიდაზე შეტყობინების ჩვენება"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "ახალი ფოსტის მოსვლისას სამუშაო მაგიდაზე შეტყობინების ჩვენება"

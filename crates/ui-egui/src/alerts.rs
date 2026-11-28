@@ -349,6 +349,7 @@ pub fn tick(app: &mut MailApp, ctx: &egui::Context) {
         }
         found.extend(arrivals::alerted(&app.session.mailbox, &fresh));
     }
+    found.retain(|arrival| app.session.mailbox.account(arrival.account).is_some_and(|a| !a.mute_desktop_mail));
     if !found.is_empty() {
         let focused = ctx.input(|i| i.focused);
         let on = app.ui.alert_new_mail;

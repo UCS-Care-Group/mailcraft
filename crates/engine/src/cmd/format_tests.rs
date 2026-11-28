@@ -322,6 +322,33 @@ fn html_that_can_be_pasted_is_pasted_beside_a_text_too_long_to_be() {
 }
 
 #[test]
+fn a_plain_text_message_pastes_the_clipboards_own_text() {
+    // A copied link: the HTML's words and the clipboard's text differ.
+    let copied = json!({"html": "<a href=\"https://example.org/plan\">Agenda</a>", "text": "https://example.org/plan"});
+    let mut s = session();
+    run(&mut s, "mail.new", json!({}));
+    run(&mut s, "compose.set", json!({"body": "Plan for Friday"}));
+    // An HTML message takes the HTML, link and all.
+    run(&mut s, "compose.select", json!({"from": 0, "to": 4}));
+    run(&mut s, "edit.paste", copied.clone());
+    assert_eq!(compose(&s).body.plain(), "Agenda for Friday");
+    let link = compose(&s).body.text().paragraphs().iter().flat_map(|p| p.runs.iter()).find_map(|r| r.style.link.clone());
+    assert_eq!(link.as_deref(), Some("https://example.org/plan"));
+    // A plain-text one takes the clipboard's text.
+    run(&mut s, "compose.formatPlain", json!({}));
+    run(&mut s, "compose.select", json!({"from": 0, "to": 6}));
+    run(&mut s, "edit.paste", copied);
+    assert_eq!(compose(&s).body.plain(), "https://example.org/plan for Friday");
+    // A text that comes to nothing gives way to the HTML, as HTML alone does.
+    run(&mut s, "compose.select", json!({"from": 0, "to": 24}));
+    run(&mut s, "edit.paste", json!({"html": "<b>Agenda</b>", "text": "\u{0}"}));
+    assert_eq!(compose(&s).body.plain(), "Agenda for Friday");
+    // And a text too long to paste is refused there.
+    run(&mut s, "compose.select", json!({"from": 0, "to": 6}));
+    assert!(s.run("edit.paste", &json!({"html": "<b>Agenda</b>", "text": "x".repeat(5 << 20)})).is_err());
+}
+
+#[test]
 fn a_reply_is_written_the_way_the_original_was() {
     let mut s = session();
     let plain = s.mailbox.messages.values().find(|m| m.body.html.is_none() && !m.draft).map(|m| m.id).unwrap();
