@@ -539,6 +539,24 @@ fn a_filter_with_settings_too_long_to_read_again_is_refused() {
     assert!(e.contains("too much text"), "{e}");
 }
 
+/// A filter whose value has spaces at its ends, renamed in the builder (which shows its words
+/// trimmed): the value stays byte for byte (#2058).
+#[test]
+fn a_rename_keeps_a_value_with_spaces_as_it_is() {
+    let spaced = SPAM.replace("\"Value\":\"YES\"", "\"Value\":\" YES \"");
+    let sieve = SPAM_SIEVE.replace("\"YES\"", "\" YES \"");
+    let text = format!("{HEAD}{}\n", block(SPAM_ID, &spaced, &sieve));
+    let (mut s, account, junk, _) = session(&text);
+    let r = rules(&s, account);
+    assert!(super::rules_webmail::read_only(&s, r[0].id).is_none(), "the filter is known");
+    // The condition as the builder shows it, its words trimmed.
+    let Condition::Header { names, words, exact } = r[0].conditions[0].clone() else { panic!("{:?}", r[0].conditions) };
+    let words: Vec<String> = words.iter().map(|w| w.trim().to_string()).collect();
+    let words = json!({"type": "header", "value": {"names": names, "words": words, "exact": exact}});
+    let got = written(&run(&mut s, "rules.edit", params(r[0].id, "Junk mail", words, junk)), &text);
+    assert!(got.contains("\" YES \""), "{got}");
+}
+
 proptest! {
     #[test]
     fn hostile_settings_never_panic_and_a_known_filter_stays_byte_for_byte(

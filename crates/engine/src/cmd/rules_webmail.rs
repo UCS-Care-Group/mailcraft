@@ -133,7 +133,9 @@ fn wanted(s: &Session, v: &Value, account: Id, id: &str, enabled: bool, old: Opt
         _ => None,
     };
     let folder = folder.map(|f| f.remote.clone()).filter(|r| value_ok(r)).ok_or_else(|| CmdError::Failed(NotWebmail::Action.said().to_string()))?;
-    let kept = old.filter(|o| webmail_conditions(&o.conditions).as_ref() == Some(&condition));
+    // The same condition, its words as the builder shows them (trimmed): the stored ones are kept
+    // byte for byte, " YES " too (#2058).
+    let kept = old.filter(|o| webmail_conditions(&o.conditions).map(|c| trimmed(&c)) == Some(trimmed(&condition)));
     let conditions = match kept {
         Some(o) => o.conditions.clone(),
         None => conditions(&condition)?,
@@ -144,6 +146,16 @@ fn wanted(s: &Session, v: &Value, account: Id, id: &str, enabled: bool, old: Opt
         return Err(fail("A filter of your webmail's has too much text to look for."));
     }
     Ok(settings)
+}
+
+/// `c` with its words and names trimmed, as the rule builder sends them.
+fn trimmed(c: &Condition) -> Condition {
+    let trim = |w: &[String]| w.iter().map(|x| x.trim().to_string()).collect::<Vec<_>>();
+    match c {
+        Condition::ToContains(w) => Condition::ToContains(trim(w)),
+        Condition::Header { names, words, exact } => Condition::Header { names: trim(names), words: trim(words), exact: *exact },
+        other => other.clone(),
+    }
 }
 
 /// A rule's condition as the webmail's conditions, any one of which is enough.
