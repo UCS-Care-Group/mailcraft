@@ -287,6 +287,7 @@ msgstr "Файл .pst ({format})"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "1 Line"
 msgstr "1 строка"
 
@@ -322,6 +323,7 @@ msgstr "1. Скопируйте сообщение ниже и отправьт�
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
 msgid "10 Minutes"
 msgstr "10 минут"
 
@@ -339,16 +341,19 @@ msgstr "12 месяцев"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "12-hour (3:05 PM)"
 msgstr "12-часовой (3:05 PM)"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
 msgid "15 Minutes"
 msgstr "15 минут"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "2 Lines"
 msgstr "2 строки"
 
@@ -372,11 +377,13 @@ msgstr "2. Когда он одобрит MailCraft, вернитесь сюда
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "24-hour (15:05)"
 msgstr "24-часовой (15:05)"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "3 Lines"
 msgstr "3 строки"
 
@@ -394,6 +401,7 @@ msgstr "3 месяца"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
 msgid "30 Minutes"
 msgstr "30 минут"
 
@@ -405,6 +413,7 @@ msgstr "3D-модели"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
 msgid "5 Minutes"
 msgstr "5 минут"
 
@@ -416,6 +425,7 @@ msgstr "5 лет"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
 msgid "6 Minutes"
 msgstr "6 минут"
 
@@ -427,6 +437,7 @@ msgstr "6 месяцев"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
+#, fuzzy
 msgid "60 Minutes"
 msgstr "60 минут"
 
@@ -1382,11 +1393,13 @@ msgstr "Все"
 
 #. command label, interface
 #: crates/engine/src/cmd/view.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "All Accounts"
 msgstr "Все учётные записи"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "All Archives"
 msgstr "Все архивы"
 
@@ -1410,16 +1423,19 @@ msgstr "Все категории…"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "All Deleted Items"
 msgstr "Все удалённые"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "All Drafts"
 msgstr "Все черновики"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "All Inboxes"
 msgstr "Все входящие"
 
@@ -1431,6 +1447,7 @@ msgstr "Все почтовые ящики"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
+#, fuzzy
 msgid "All Sent Items"
 msgstr "Все отправленные"
 
@@ -2250,6 +2267,7 @@ msgstr "В заданные дату и время"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
 msgid "At most 20 entries in each list."
 msgstr "Не более 20 записей в каждом списке."
 
@@ -2424,6 +2442,7 @@ msgstr "Автоматически"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Automatic (the language's)"
 msgstr "Автоматически (по языку)"
 
@@ -2699,6 +2718,7 @@ msgstr "Синий"
 
 #. interface
 #: crates/ui-egui/src/i18n.rs
+#, fuzzy
 msgid "Blue category"
 msgstr "Синяя категория"
 
@@ -2734,6 +2754,7 @@ msgstr "Закладка"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Bottom"
 msgstr "Снизу"
 
@@ -3675,6 +3696,7 @@ msgstr "Буфер обмена"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Clock"
 msgstr "Часы"
 
@@ -4456,6 +4478,7 @@ msgstr "Стиль тёмной темы"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#, fuzzy
 msgid "Dark page in the dark theme"
 msgstr "Тёмная страница в тёмной теме"
 
@@ -5513,6 +5536,7 @@ msgstr "Адрес электронной почты (необязательно
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
 msgid "Email addresses, one per line"
 msgstr "Адреса электронной почты, по одному в строке"
 
@@ -7007,6 +7031,7 @@ msgstr "Зелёный"
 
 #. interface
 #: crates/ui-egui/src/i18n.rs
+#, fuzzy
 msgid "Green category"
 msgstr "Зелёная категория"
 
@@ -7180,6 +7205,7 @@ msgstr "Скрыть эту копию"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt
+#, fuzzy
 msgid "Hide details"
 msgstr "Скрыть подробности"
 
@@ -8589,6 +8615,7 @@ msgstr "Светлая"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#, fuzzy
 msgid "Light page in the dark theme"
 msgstr "Светлая страница в тёмной теме"
 
@@ -10285,6 +10312,7 @@ msgstr "Сервер исходящей почты не требует вход�
 
 #. interface
 #: crates/ui-egui/src/symbol.rs
+#, fuzzy
 msgid "NBSP"
 msgstr "Неразрывный пробел"
 
@@ -10628,6 +10656,7 @@ msgstr "Новые сообщения"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
 msgid "New person"
 msgstr "Новый контакт"
 
@@ -11873,6 +11902,7 @@ msgstr "Одно из серии: {rule}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
 msgid "One of these is not an email address."
 msgstr "Один из них не является адресом электронной почты."
 
@@ -12392,11 +12422,13 @@ msgstr "Оранжевый"
 
 #. interface
 #: crates/ui-egui/src/i18n.rs
+#, fuzzy
 msgid "Orange category"
 msgstr "Оранжевая категория"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Organisation"
 msgstr "Организация"
 
@@ -12744,6 +12776,7 @@ msgstr "Телефон"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PersonEditor.kt
+#, fuzzy
 msgid "Phone numbers, one per line"
 msgstr "Номера телефонов, по одному в строке"
 
@@ -13201,6 +13234,7 @@ msgstr "Фиолетовый"
 
 #. interface
 #: crates/ui-egui/src/i18n.rs
+#, fuzzy
 msgid "Purple category"
 msgstr "Фиолетовая категория"
 
@@ -13308,6 +13342,7 @@ msgstr "Читается с входом {owner}, пока вы его сохр�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt
+#, fuzzy
 msgid "Reading"
 msgstr "Чтение"
 
@@ -13483,6 +13518,7 @@ msgstr "Повторение"
 
 #. interface
 #: crates/ui-egui/src/i18n.rs
+#, fuzzy
 msgid "Red category"
 msgstr "Красная категория"
 
@@ -14236,6 +14272,7 @@ msgstr "Форматированный текст"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Right"
 msgstr "Справа"
 
@@ -15847,6 +15884,7 @@ msgstr "Показывать выполненные задачи"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt
+#, fuzzy
 msgid "Show details"
 msgstr "Показать подробности"
 
@@ -15888,11 +15926,13 @@ msgstr "Показать больше задач"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt
+#, fuzzy
 msgid "Show on a dark background"
 msgstr "Показывать на тёмном фоне"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingToolbar.kt
+#, fuzzy
 msgid "Show on a light background"
 msgstr "Показывать на светлом фоне"
 
@@ -17156,6 +17196,7 @@ msgstr "Предварительно принято {when}"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
+#, fuzzy
 msgid "Testers"
 msgstr "Тестировщики"
 
@@ -18256,6 +18297,7 @@ msgstr "Поле «{field}» объединённого контакта был�
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt
+#, fuzzy
 msgid "The message body is drawn on a light page, as its sender made it. The header stays dark. You can change it for one message in its menu."
 msgstr "Текст сообщения показывается на светлой странице, как его оформил отправитель. Заголовок остаётся тёмным. Для отдельного сообщения это можно изменить в его меню."
 
@@ -21511,11 +21553,13 @@ msgstr "При переключении:"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "When {when}, except if {except}: {then}"
 msgstr "Когда {when}, кроме случаев, когда {except}: {then}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "When {when}: {then}"
 msgstr "Когда {when}: {then}"
 
@@ -21773,6 +21817,7 @@ msgstr "Жёлтый"
 
 #. interface
 #: crates/ui-egui/src/i18n.rs
+#, fuzzy
 msgid "Yellow category"
 msgstr "Жёлтая категория"
 
@@ -22700,6 +22745,7 @@ msgstr "{others}, {last}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "body contains {words}"
 msgstr "текст содержит {words}"
 
@@ -22729,11 +22775,13 @@ msgstr "отменено"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "categorize it as {category}"
 msgstr "назначить категорию {category}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "category is {words}"
 msgstr "категория: {words}"
 
@@ -22745,11 +22793,13 @@ msgstr "выберите время в пределах года"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "clear its categories"
 msgstr "снять категории"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "clear its flag"
 msgstr "снять флажок"
 
@@ -22773,6 +22823,7 @@ msgstr "появится после проверки MailCraft в Google"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "confidential"
 msgstr "конфиденциально"
 
@@ -22784,21 +22835,25 @@ msgstr "проблема с подключением: {reason}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "copy it to a folder"
 msgstr "скопировать в папку"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "copy it to a folder that is gone"
 msgstr "скопировать в папку, которой больше нет"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "copy it to {folder}"
 msgstr "скопировать в {folder}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "copy it to {folder} - {who}"
 msgstr "скопировать в {folder} — {who}"
 
@@ -22822,6 +22877,7 @@ msgstr "день"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "delete it"
 msgstr "удалить"
 
@@ -22857,26 +22913,31 @@ msgstr "ожидаемый и заменяющий текст должны бы�
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "flag it"
 msgstr "пометить флажком"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "flag it for next week"
 msgstr "пометить флажком на следующую неделю"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "flag it for this week"
 msgstr "пометить флажком на эту неделю"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "flag it for today"
 msgstr "пометить флажком на сегодня"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "flag it for tomorrow"
 msgstr "пометить флажком на завтра"
 
@@ -22956,6 +23017,7 @@ msgstr "папки вложены слишком глубоко"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "from contains {words}"
 msgstr "отправитель содержит {words}"
 
@@ -22967,11 +23029,13 @@ msgstr "с {from} по {to}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "from {words}"
 msgstr "от {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "has an attachment"
 msgstr "есть вложение"
 
@@ -22983,6 +23047,7 @@ msgstr "содержит слишком много файлов: остальн�
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "high"
 msgstr "высокая"
 
@@ -23006,6 +23071,7 @@ msgstr "icloud.com, me.com и mac.com"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "importance is {level}"
 msgstr "важность: {level}"
 
@@ -23041,16 +23107,19 @@ msgstr "является ссылкой: не открыта, и ничего в
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "is a meeting invitation or update"
 msgstr "это приглашение на встречу или его обновление"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "is an automatic reply"
 msgstr "это автоматический ответ"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "is flagged"
 msgstr "помечено флажком"
 
@@ -23260,11 +23329,13 @@ msgstr "больше {mb} МБ: загрузите через Файл › Им�
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "low"
 msgstr "низкая"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "mark it as read"
 msgstr "пометить как прочитанное"
 
@@ -23390,41 +23461,49 @@ msgstr "более {max} папок"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "move it to a folder"
 msgstr "переместить в папку"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "move it to a folder that is gone"
 msgstr "переместить в папку, которой больше нет"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "move it to {folder}"
 msgstr "переместить в {folder}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "move it to {folder} - {who}"
 msgstr "переместить в {folder} — {who}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "my address is in Cc"
 msgstr "мой адрес в поле «Копия»"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "my address is in To"
 msgstr "мой адрес в поле «Кому»"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "my address is in To or Cc"
 msgstr "мой адрес в поле «Кому» или «Копия»"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "my address isn't in To"
 msgstr "моего адреса нет в поле «Кому»"
 
@@ -23442,6 +23521,7 @@ msgstr "требуется учётная запись Gmail"
 
 #. why a command can't run
 #: crates/engine/src/cmd/view.rs
+#, fuzzy
 msgid "needs two mailboxes at least (a shared mailbox counts)"
 msgstr "нужно не менее двух почтовых ящиков (общий ящик считается)"
 
@@ -23483,6 +23563,7 @@ msgstr "ни у одной учётной записи нет сервера к�
 
 #. what a command says
 #: crates/engine/src/cmd/view.rs
+#, fuzzy
 msgid "no account has a folder of that kind"
 msgstr "ни в одной учётной записи нет папки такого вида"
 
@@ -23758,6 +23839,7 @@ msgstr "ни одно из этих писем не отложено"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "normal"
 msgstr "обычная"
 
@@ -23949,6 +24031,7 @@ msgstr "прошедшие"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "personal"
 msgstr "личное"
 
@@ -23960,6 +24043,7 @@ msgstr "изображения из интернета не загружаютс
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "private"
 msgstr "частное"
 
@@ -23971,31 +24055,37 @@ msgstr "readOnly"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "received from {from} to {to}"
 msgstr "получено с {from} по {to}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "received on any day"
 msgstr "получено в любой день"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "received on or after {day}"
 msgstr "получено {day} или позже"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "received on or before {day}"
 msgstr "получено {day} или раньше"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "recipient contains {words}"
 msgstr "получатель содержит {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "recipient's address contains {words}"
 msgstr "адрес получателя содержит {words}"
 
@@ -24055,6 +24145,7 @@ msgstr "сначала выберите встречу"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "sender's address contains {words}"
 msgstr "адрес отправителя содержит {words}"
 
@@ -24088,21 +24179,25 @@ msgstr "Приватная"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "sensitivity is {level}"
 msgstr "конфиденциальность: {level}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "sent only to me"
 msgstr "отправлено только мне"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "sent to {words}"
 msgstr "отправлено {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "set importance to {level}"
 msgstr "установить важность: {level}"
 
@@ -24126,6 +24221,7 @@ msgstr "общие почтовые ящики открываются в учё�
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "show a desktop alert"
 msgstr "показать оповещение на рабочем столе"
 
@@ -24155,6 +24251,7 @@ msgstr "требуется вход"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "size is {min} KB to {max} KB"
 msgstr "размер от {min} до {max} КБ"
 
@@ -24166,11 +24263,13 @@ msgstr "someone@example.org или @example.org"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "subject contains {words}"
 msgstr "тема содержит {words}"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "subject or body contains {words}"
 msgstr "тема или текст содержит {words}"
 
@@ -24668,6 +24767,7 @@ msgstr "последний календарь удалить нельзя"
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs
+#, fuzzy
 msgid "the list shows every account's folder: open one account's folder, or name the folder"
 msgstr "в списке показаны папки всех учётных записей: откройте папку одной учётной записи или укажите папку"
 
