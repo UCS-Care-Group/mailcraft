@@ -388,3 +388,29 @@ fn what_the_server_said_its_scripts_may_use_is_kept_with_the_account() {
     assert!(matches!(crate::agent::access("rules.add"), Some(crate::agent::Access::Owner(_))));
     assert_eq!(crate::agent::access("sync.sieveScript"), Some(crate::agent::Access::Never));
 }
+
+/// A rule the owner keeps on this computer stays here when a change makes it one the server could
+/// keep; one kept here only because the server couldn't keep it goes there (#2058).
+#[test]
+fn a_rule_kept_here_by_choice_stays_here_when_it_could_go_to_the_server() {
+    let (mut s, account, lists) = session(&ALL);
+    run(&mut s, "sync.applySieve", json!({"account": account, "state": state(None, None)}));
+    let attachment = |server: Option<bool>| {
+        let mut v = json!({"name": "Files", "account": account, "conditions": [{"type": "hasAttachment"}], "actions": [{"type": "moveTo", "value": lists}]});
+        if let Some(server) = server {
+            v["server"] = json!(server);
+        }
+        v
+    };
+    let subject = |id: Id| json!({"id": id, "name": "Files", "conditions": [{"type": "subjectContains", "value": "files"}], "actions": [{"type": "moveTo", "value": lists}]});
+    let chosen = run(&mut s, "rules.add", attachment(Some(false)))["id"].as_u64().unwrap();
+    assert_eq!(run(&mut s, "rules.edit", subject(chosen))["keep"], "here");
+    let forced = run(&mut s, "rules.add", attachment(None))["id"].as_u64().unwrap();
+    assert_eq!(s.mailbox.rules.iter().find(|r| r.id == forced).unwrap().keep, Keep::Here);
+    assert_eq!(run(&mut s, "rules.edit", subject(forced))["keep"], "server");
+    // Asked for the server, the choice is gone.
+    let mut there = subject(chosen);
+    there["server"] = json!(true);
+    assert_eq!(run(&mut s, "rules.edit", there)["keep"], "server");
+    assert!(!s.mailbox.rules.iter().find(|r| r.id == chosen).unwrap().here_by_choice);
+}

@@ -716,6 +716,10 @@ pub struct Rule {
     /// Why the server didn't take it, when it didn't: it is kept here, and said so.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub refused: String,
+    /// The owner keeps it on this computer (`"server": false`), not only because its server
+    /// couldn't keep it: a change that makes it one the server could keep leaves it here (#2058).
+    #[serde(skip_serializing_if = "is_false")]
+    pub here_by_choice: bool,
     /// It went to the server to be made there and no answer came: the server may have it. It is
     /// not sent again until the server's rules have been read whole, which either have it (and
     /// it is taken as this one) or don't (and it is sent again).

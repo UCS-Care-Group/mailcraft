@@ -577,7 +577,7 @@ fn place(s: &Session, rule: &mut Rule, v: &Value) -> Result<(), CmdError> {
     let account = rule.account;
     let cannot = if account == 0 { None } else { server_cannot(&s.mailbox, rule, account) };
     match (p::opt_bool(v, "server")?, cannot) {
-        (Some(false), _) => {}
+        (Some(false), _) => rule.here_by_choice = true,
         (Some(true), _) if account == 0 => return Err(bad("say which account's server is to keep it (`account`)")),
         (Some(true), Some(why)) => return Err(CmdError::Failed(why.said().to_string())),
         (_, None) if account != 0 => rule.keep = Keep::Server,
@@ -708,6 +708,7 @@ pub(crate) fn rule_edited(s: &Session, v: &Value) -> Result<(usize, Rule, Option
     // Kept where it is, unless asked otherwise; one kept here only because its server couldn't
     // keep it, or didn't take it, goes there once it can, as a new rule would.
     let forced_here = old.keep == Keep::Here
+        && !old.here_by_choice
         && account != 0
         && (!old.refused.is_empty()
             || server_cannot(&s.mailbox, old, account).is_some_and(|n| !matches!(n, NotOnServer::NoServer | NotOnServer::NotInStep)));
@@ -715,7 +716,10 @@ pub(crate) fn rule_edited(s: &Session, v: &Value) -> Result<(usize, Rule, Option
         Some(true) if account == 0 => {
             return Err(fail("a rule for every account is kept on this computer: Keep on Server sends it to one account's server"));
         }
-        Some(wanted) => wanted,
+        Some(wanted) => {
+            rule.here_by_choice = !wanted;
+            wanted
+        }
         None => old.keep == Keep::Server || forced_here,
     };
     rule.keep = if wanted && cannot.is_none() { Keep::Server } else { Keep::Here };
@@ -1116,6 +1120,7 @@ fn keep_on_server(s: &mut Session, v: &Value) -> CmdResult {
         r.account = account;
         r.keep = Keep::Server;
         r.refused.clear();
+        r.here_by_choice = false;
     }
     Ok(json!({"id": id, "account": account, "keep": "server"}))
 }
