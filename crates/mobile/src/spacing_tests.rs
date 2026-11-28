@@ -60,3 +60,46 @@ fn a_framed_button_keeps_both_its_frame_and_its_fill() {
     assert!(button.outline && button.lines.iter().all(|l| l.width == 2 && l.color == Some(0x8eaadb)));
     assert_eq!(button.rows.first().and_then(|r| r.cells.first()).and_then(|c| c.background), Some(0x1f3864));
 }
+
+fn first_cell(blocks: &[BlockView]) -> Option<&crate::blocks::CellView> {
+    table(blocks).rows.first().and_then(|r| r.cells.first())
+}
+
+fn all(px: u8) -> Option<InsetsView> {
+    Some(InsetsView { top: px, right: px, bottom: px, left: px })
+}
+
+#[test]
+fn cellpadding_reaches_every_cell_that_gives_none() {
+    let blocks = shown(
+        "<table border=1 cellpadding=10 cellspacing=0><tr><th>Item</th><th>Price</th></tr>\
+         <tr><td>Seed trays</td><td style='padding:2px'>£24.00</td></tr></table>",
+    );
+    let paddings: Vec<_> = table(&blocks).rows.iter().flat_map(|r| &r.cells).map(|c| c.padding).collect();
+    assert_eq!(paddings, [all(10), all(10), all(10), all(2)]);
+    assert_eq!(first_cell(&shown("<table border=1 cellpadding=900><tr><td>x</td><td>y</td></tr></table>")).and_then(|c| c.padding), all(64));
+}
+
+#[test]
+fn outlooks_own_spacing_reaches_the_phone_where_the_plain_one_is_missing() {
+    let blocks = shown(
+        "<table border=1><tr><td style='mso-padding-alt:6pt 12pt'>Order</td><td style='padding:1px;mso-padding-alt:30px'>Note</td></tr></table>",
+    );
+    let paddings: Vec<_> = table(&blocks).rows.iter().flat_map(|r| &r.cells).map(|c| c.padding).collect();
+    assert_eq!(paddings, [Some(InsetsView { top: 8, right: 16, bottom: 8, left: 16 }), all(1)]);
+    let blocks = shown("<p style='margin:0'>One</p><p style='mso-margin-top-alt:24px;margin-bottom:0'>Two</p>");
+    assert_eq!(blocks.get(1).map(|b| b.gap), Some(24));
+}
+
+#[test]
+fn an_empty_coloured_block_with_a_height_is_a_bar_and_without_colour_no_room() {
+    let blocks = shown("<div style='height:4px;background:#2da44e'></div><div style='border:1px solid #d0d7de'>Card</div>");
+    let bar = first_cell(&blocks);
+    assert!(bar.is_some_and(|c| c.blocks.is_empty() && c.background == Some(0x2da44e)), "{blocks:?}");
+    assert_eq!(bar.and_then(|c| c.padding), Some(InsetsView { top: 4, right: 0, bottom: 0, left: 0 }));
+    let blocks = shown("<div style='height:9999px;background:#2da44e'></div>");
+    assert_eq!(first_cell(&blocks).and_then(|c| c.padding).map(|p| p.top), Some(64));
+    // Without a colour it is no block, and the text after it has no more room than it had.
+    let blocks = shown("<p>One</p><div style='height:60px'></div><p>Two</p>");
+    assert_eq!(blocks.iter().map(|b| b.space).collect::<Vec<_>>(), [0, 1]);
+}

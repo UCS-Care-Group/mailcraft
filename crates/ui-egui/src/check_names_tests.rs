@@ -66,7 +66,7 @@ fn answers(app: &mut MailApp, found: Vec<EwsResolved>, refused: bool) {
     app.services.ews_resolve = Some(Box::new(move |job| {
         let (tx, rx) = std::sync::mpsc::channel();
         let error = refused.then(|| "The server turned the password down".to_string());
-        tx.send(EwsResolveResult { account: job.request.account, found: found.clone(), error, auth_refused: refused }).unwrap();
+        tx.send(EwsResolveResult { account: job.request.account, found: found.clone(), error, auth_refused: refused, ..Default::default() }).unwrap();
         rx
     }));
 }

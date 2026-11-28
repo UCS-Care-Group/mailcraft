@@ -62,7 +62,7 @@ pub fn media_lists(html: &str) -> Vec<String> {
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
 pub use quote::{WrittenPicture, quotable, quotable_in, quotable_with_pictures};
 pub use style::{MAX_FAMILIES, MAX_FONT_PX};
-pub use text::{blocks_to_text, from_text, quote_to_text, text_and_hidden, text_blocks, to_text};
+pub use text::{autolink, blocks_to_text, from_text, quote_to_text, text_and_hidden, text_blocks, to_text};
 
 /// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
 /// it ([`MAX_SHEET_BYTES`] of it, [`MAX_SHEET_RULES`] rules). For the fuzz target.
@@ -532,6 +532,10 @@ pub struct Cell {
     /// A picture behind what it holds, over its background colour (#601).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub bg_picture: Option<Box<BgPicture>>,
+    /// Hidden in its place (`visibility: hidden` and the like): it keeps its slot in the grid and
+    /// shows nothing, not even its row's colour.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub held: bool,
 }
 
 impl Default for Cell {
@@ -549,6 +553,7 @@ impl Default for Cell {
             radius: 0,
             valign: None,
             bg_picture: None,
+            held: false,
         }
     }
 }
@@ -683,6 +688,8 @@ mod inline_tests;
 mod nested_align_tests;
 #[cfg(test)]
 mod rtl_tests;
+#[cfg(test)]
+mod spacing_tests;
 #[cfg(test)]
 mod text_link_tests;
 

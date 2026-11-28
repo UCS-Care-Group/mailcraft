@@ -325,3 +325,31 @@ fn current_mailbox_and_subfolders_ask_the_account_in_view_and_keep_what_they_loo
     answer(&mut s, &requests[0], replies(), "");
     assert_eq!(subjects(&s), ["Budget in"]);
 }
+
+#[test]
+fn a_received_day_is_sent_with_exact_utc_bounds_and_late_results_are_ignored() {
+    use mailcraft_time::iso_to_timestamp;
+
+    let (mut s, _, _, _) = session();
+    let utc = |at| iso_to_timestamp(at, 0).unwrap();
+    s.clock = crate::Clock { now: Some(utc("2026-10-12T18:00:00Z")), offset: Some(-480), zone: None };
+    s.run("account.removeSharedMailbox", &json!({"address": SHARED})).unwrap();
+    search(&mut s, "received:today", "everywhere");
+    let request = asked(&mut s).remove(0);
+    let (start, end) = (utc("2026-10-12T08:00:00Z"), utc("2026-10-13T08:00:00Z"));
+    assert_eq!(request.received, Some((Some(start), Some(end))));
+    assert!(!s.server_search.checked_here);
+    let messages = vec![
+        found("AAkA-1", "in", "At the start", start),
+        found("AAkA-2", "in", "At the end", end),
+        found("AAkA-3", "in", "Before the start", start - 1),
+    ];
+    answer(&mut s, &request, messages.clone(), "");
+    assert_eq!(subjects(&s), ["At the start"]);
+    s.clock.now = Some(end);
+    let next = asked(&mut s).remove(0);
+    assert_eq!(next.received, Some((Some(end), Some(end + 86_400))));
+    assert_ne!(next.ticket, request.ticket);
+    assert_eq!(answer(&mut s, &request, messages, "")["stale"], true);
+    assert!(subjects(&s).is_empty());
+}

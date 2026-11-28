@@ -1,0 +1,1 @@
+| 2026-11-21 | patch | Gap 7: a picture is sized by any of its four corners, and Escape while one is held puts it back; one sized from a left corner keeps its place in the text and grows to the right on release |

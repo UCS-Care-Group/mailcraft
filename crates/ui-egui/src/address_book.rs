@@ -1,14 +1,22 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! People's Address Book (#1262): the organisation's address list of an Exchange server account,
-//! beside the contacts, chosen where People chooses whose contacts it shows (`people.addressBook`).
+//! People's Address Book (#1262, #1393): the organisation's address list of an Exchange server
+//! account, beside the contacts, chosen where People chooses whose contacts it shows
+//! (`people.addressBook`).
 //!
-//! An address list can be searched and not listed whole (Exchange Web Services answers a search,
-//! at most 100 people for it), so what is typed in People's search box is looked up, after a short
-//! pause and from two characters on, by the host ([`crate::Services::ews_resolve`], as Check Names
-//! is) with the account's own server, sign-in and certificate. Only the text typed is sent. Who is
-//! found is shown here and kept nowhere: not in the mailbox, not in a file, not in a log; a
-//! contact is made of somebody only when the owner presses Add to Contacts.
+//! **The whole list.** When it is first shown in a run, the account's Offline Address Book is
+//! downloaded from its own server by the host ([`crate::Services::ews_resolve`] with
+//! `address_list`, the account's sign-in and certificate) and held in memory while the program
+//! runs ([`HeldList`]), never written anywhere; it is downloaded again when it is shown a day
+//! later. Everybody in it is listed, by name, and what is typed in People's search box narrows the
+//! list on this computer, without asking the server anything.
+//!
+//! **A search.** A server that publishes no address book (or one that can't be had) is searched
+//! instead, as before: what is typed is looked up after a short pause and from two characters on,
+//! at most 100 people for it. Only the text typed is sent.
+//!
+//! Who is listed or found is shown here and kept nowhere else: not in the mailbox, not in a file,
+//! not in a log; a contact is made of somebody only when the owner presses Add to Contacts.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -16,10 +24,12 @@ use std::sync::mpsc::{Receiver, TryRecvError};
 
 use egui::{Align2, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::Module;
-use mailcraft_engine::cmd::ews_mail::ews_resolve_request_for;
+use mailcraft_engine::cmd::ews_mail::{ews_address_list_request, ews_resolve_request_for};
 use mailcraft_engine::cmd::people;
-use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, EwsResolveResult, MAX_RESOLVE_PEOPLE, MAX_RESOLVE_TEXT, one_line};
-use mailcraft_model::{AccountChoice, Id};
+use mailcraft_model::sync::{
+    DirectoryKind, DirectoryPerson, EwsAddressList, EwsResolveRequest, EwsResolveResult, MAX_RESOLVE_PEOPLE, MAX_RESOLVE_TEXT, one_line,
+};
+use mailcraft_model::{AccountChoice, ContactKey, Id, KeyKind};
 use serde_json::json;
 
 use crate::check_names::EwsResolveJob;
@@ -30,25 +40,82 @@ use crate::{MailApp, icons, widgets};
 pub const MIN_CHARS: usize = 2;
 /// How long typing pauses before what is typed is looked up, in milliseconds.
 pub const PAUSE_MS: f64 = 400.0;
+/// How old a downloaded address list may get before it is downloaded again, in milliseconds.
+pub const REFRESH_MS: f64 = 24.0 * 3600.0 * 1000.0;
+/// How long after a download that failed one is tried again, in milliseconds; after one the
+/// server's own answer stopped (none published, a file too large or unreadable), [`REFRESH_MS`].
+pub const RETRY_MS: f64 = 60.0 * 1000.0;
 const ROW_H: f32 = 52.0;
 const CARD_W: f32 = 720.0;
 
-/// What People's Address Book has: what was looked up and who it found, while it is shown.
+/// The whole address list of one account, downloaded, or being downloaded (#1393).
+pub(crate) struct HeldList {
+    account: Id,
+    /// The account's server and sign-in it was downloaded with ([`server_of`]): changed, it goes.
+    server: String,
+    /// The mailbox it is of (`Session::openings`).
+    opening: u64,
+    pub(crate) list: Option<EwsAddressList>,
+    /// What each person is found by, in lower case, beside [`EwsAddressList::people`].
+    keys: Vec<String>,
+    /// Why the last download failed.
+    pub(crate) error: Option<String>,
+    /// What kept it from asking, said in `error`: once that has gone, it asks again at once.
+    blocked: Option<Blocked>,
+    /// It failed for a reason the server's answer gives, which a minute doesn't change: it is
+    /// tried again a day later.
+    lasting: bool,
+    pending: Option<Pending>,
+    /// When the list came, or the last download was tried.
+    at_ms: f64,
+    /// One more each time a list comes.
+    version: u64,
+}
+
+/// The server and sign-in `account`'s list is downloaded with: its address, its EWS address, the
+/// user name and the certificate trusted for it (no password), or nothing when it has none.
+fn server_of(session: &mailcraft_engine::Session, account: Id) -> String {
+    ews_address_list_request(session, account).map(|r| [r.email, r.url, r.username, r.trusted].join("\n")).unwrap_or_default()
+}
+
+impl HeldList {
+    /// What `person` is found by: the name, the address, department, title, company and office.
+    fn key(person: &DirectoryPerson) -> String {
+        [&person.name, &person.email, &person.department, &person.title, &person.company, &person.office]
+            .iter()
+            .filter(|s| !s.is_empty())
+            .map(|s| s.to_lowercase())
+            .collect::<Vec<_>>()
+            .join("\u{1}")
+    }
+
+    /// The people every word of `typed` is found in, in the list's order.
+    fn matching(&self, typed: &str) -> Vec<Arc<DirectoryPerson>> {
+        let Some(list) = &self.list else { return Vec::new() };
+        let words: Vec<String> = typed.split_whitespace().map(str::to_lowercase).collect();
+        list.people.iter().zip(&self.keys).filter(|(_, key)| words.iter().all(|w| key.contains(w.as_str()))).map(|(p, _)| p.clone()).collect()
+    }
+}
+
+/// What People's Address Book has while it is shown: who it lists, and what was looked up.
 pub(crate) struct AddressBook {
     account: Id,
     /// The mailbox it is of (`Session::openings`): another mailbox starts it again.
     opening: u64,
-    /// What was looked up last, and its answer.
+    /// What was looked up last (or the list narrowed by), and its answer.
     query: String,
-    pub(crate) people: Vec<DirectoryPerson>,
+    /// Shared with the whole list when it is narrowed from one.
+    pub(crate) people: Vec<Arc<DirectoryPerson>>,
     pub(crate) more: bool,
     pub(crate) error: Option<String>,
     pub(crate) selected: Option<usize>,
     pending: Option<Pending>,
     /// What the search box held when it was last seen to change, and when.
     typed: (String, f64),
+    /// The version of the whole list `people` were taken from; none while it is searched.
+    local: Option<u64>,
     /// What the owner typed in the search box while this list was shown (or held there when they
-    /// chose it): only that is looked up, and only while the box still holds it.
+    /// chose it): only that is looked up or narrowed by, and only while the box still holds it.
     owner: String,
     /// What kept it from asking, said in `error`: once that has gone, it asks again.
     blocked: Option<Blocked>,
@@ -63,7 +130,7 @@ enum Blocked {
     Password,
 }
 
-/// A look-up under way, for `query`.
+/// A look-up or a download under way, for `query`.
 struct Pending {
     query: String,
     rx: Receiver<EwsResolveResult>,
@@ -90,6 +157,7 @@ impl AddressBook {
             selected: None,
             pending: None,
             typed: (String::new(), 0.0),
+            local: None,
             owner: String::new(),
             blocked: None,
         }
@@ -102,7 +170,7 @@ impl AddressBook {
 
     /// The person whose card is shown.
     pub(crate) fn chosen(&self) -> Option<&DirectoryPerson> {
-        self.selected.and_then(|i| self.people.get(i))
+        self.selected.and_then(|i| self.people.get(i)).map(|p| &**p)
     }
 
     fn clear(&mut self) {
@@ -126,7 +194,8 @@ impl MailApp {
     }
 
     /// `text` typed in People's search box: the contacts are searched for it, and an address list
-    /// that is shown is asked for it when the owner typed it (not the control channel's input).
+    /// that is shown is narrowed by it or asked for it when the owner typed it (not the control
+    /// channel's input).
     pub fn type_people_search(&mut self, text: &str) {
         if !self.driven
             && let Some(account) = self.address_book_shown()
@@ -137,8 +206,9 @@ impl MailApp {
                 *book = AddressBook::new(account, opening);
             }
             // Something else typed: who was found for what was there before goes at once, before
-            // the list and the card are drawn again, and so does a look-up still out for it.
-            if book.owner != text {
+            // the list and the card are drawn again, and so does a look-up still out for it. (The
+            // whole list is narrowed again instead, and the person chosen stays when still in it.)
+            if book.owner != text && book.local.is_none() {
                 book.clear();
             }
             book.owner = text.to_string();
@@ -147,14 +217,140 @@ impl MailApp {
     }
 
     /// Who People's Address Book shows, while it is shown.
-    pub fn address_book_found(&self) -> &[DirectoryPerson] {
+    pub fn address_book_found(&self) -> &[Arc<DirectoryPerson>] {
         self.address_book.as_ref().map_or(&[], |b| b.people.as_slice())
     }
 
-    /// Each frame: what the search box holds is looked up once typing has paused, and an answer
-    /// that has come is taken in. Away from it, it is let go of.
+    /// The whole address list of `account` held for this mailbox, when it has come.
+    pub fn address_list(&self, account: Id) -> Option<&EwsAddressList> {
+        let opening = self.session.openings();
+        self.address_lists.iter().find(|h| h.account == account && h.opening == opening).and_then(|h| h.list.as_ref())
+    }
+
+    /// Whether the whole address list of an account is being downloaded.
+    pub fn downloading_address_list(&self) -> bool {
+        self.address_lists.iter().any(|h| h.pending.is_some())
+    }
+
+    /// Downloads that have ended are taken in, those of another mailbox let go of; and the list of
+    /// `account`, when it is shown, is downloaded when there is none, it is a day old, or the last
+    /// try failed a while ago, and Work Offline is off.
+    fn poll_address_lists(&mut self, shown: Option<Id>) {
+        let opening = self.session.openings();
+        let now = crate::now_ms();
+        // A removed account's list goes with it, and so does one whose server or sign-in changed;
+        // a download of it is let go of, and what the Address Book shows of it too.
+        let session = &self.session;
+        let mut gone = Vec::new();
+        self.address_lists.retain(|h| {
+            let keep =
+                h.opening == opening && session.mailbox.accounts.iter().any(|a| a.id == h.account) && server_of(session, h.account) == h.server;
+            if !keep {
+                gone.push(h.account);
+            }
+            keep
+        });
+        if self.address_book.as_ref().is_some_and(|book| gone.contains(&book.account)) {
+            self.address_book = None;
+        }
+        let mut refused = Vec::new();
+        for held in &mut self.address_lists {
+            let Some(pending) = &held.pending else { continue };
+            let result = match pending.rx.try_recv() {
+                Ok(result) => result,
+                Err(TryRecvError::Empty) => continue,
+                Err(TryRecvError::Disconnected) => {
+                    EwsResolveResult { error: Some(tl!("Downloading the address book stopped unexpectedly").to_string()), ..Default::default() }
+                }
+            };
+            if result.auth_refused
+                && let Some(pending) = held.pending.take()
+            {
+                refused.push((held.account, pending.used.clone()));
+            }
+            held.pending = None;
+            held.at_ms = now;
+            held.lasting = result.address_list_lasting;
+            if result.address_list_unchanged && held.list.is_some() {
+                // The server's is the one held: it stays, and is asked about again a day later.
+                held.error = None;
+                continue;
+            }
+            match result.address_list {
+                Some(mut list) => {
+                    list.people =
+                        std::mem::take(&mut list.people).into_iter().filter_map(|p| Arc::unwrap_or_clone(p).checked().map(Arc::new)).collect();
+                    held.keys = list.people.iter().map(|p| HeldList::key(p)).collect();
+                    held.list = Some(list);
+                    held.error = None;
+                    held.version = held.version.wrapping_add(1);
+                }
+                None => held.error = Some(result.error.unwrap_or_else(|| tl!("The server sent no address book").to_string())),
+            }
+        }
+        for (account, used) in refused {
+            self.ews_password_refused_with(account, &used);
+        }
+        let Some(account) = shown.filter(|_| !self.offline()) else { return };
+        let due = match self.address_lists.iter().find(|h| h.account == account) {
+            None => true,
+            Some(h) if h.pending.is_some() => false,
+            Some(h) if h.blocked.is_some() => match h.blocked {
+                Some(Blocked::Offline) => true,
+                _ => self.ews_secret(account).is_some(),
+            },
+            Some(h) if h.list.is_some() && h.error.is_none() => now - h.at_ms >= REFRESH_MS,
+            Some(h) if h.lasting => now - h.at_ms >= REFRESH_MS,
+            Some(h) => now - h.at_ms >= RETRY_MS,
+        };
+        if !due {
+            return;
+        }
+        // The generation held goes with the request, so that the file is downloaded again only
+        // when the server has written another.
+        let have = self.address_lists.iter().find(|h| h.account == account).and_then(|h| h.list.as_ref()).map(|list| list.sequence);
+        let started = ews_address_list_request(&self.session, account)
+            .map(|request| EwsResolveRequest { address_list_held: have, ..request })
+            .map_err(|e| tl!(&e.to_string()).to_string())
+            .map_err(|error| (error, None))
+            .and_then(|r| self.start_job(r, ""));
+        if !self.address_lists.iter().any(|h| h.account == account) {
+            let server = server_of(&self.session, account);
+            self.address_lists.push(HeldList {
+                account,
+                server,
+                opening,
+                list: None,
+                keys: Vec::new(),
+                error: None,
+                blocked: None,
+                lasting: false,
+                pending: None,
+                at_ms: now,
+                version: 0,
+            });
+        }
+        let Some(held) = self.address_lists.iter_mut().find(|h| h.account == account) else { return };
+        held.at_ms = now;
+        held.blocked = None;
+        match started {
+            Ok(pending) => held.pending = Some(pending),
+            // What goes by itself (no password yet) is not a failure to wait a minute out: once
+            // it has gone, the list is asked for at once.
+            Err((error, blocked)) => {
+                held.error = Some(error);
+                held.blocked = blocked;
+            }
+        }
+    }
+
+    /// Each frame: the whole list is downloaded and narrowed by what the search box holds; or,
+    /// where there is none, what the search box holds is looked up once typing has paused, and an
+    /// answer that has come is taken in. Away from it, it is let go of.
     pub fn poll_address_book(&mut self, ctx: &egui::Context) {
-        let Some(account) = self.address_book_shown() else {
+        let shown = self.address_book_shown();
+        self.poll_address_lists(shown);
+        let Some(account) = shown else {
             self.address_book = None;
             return;
         };
@@ -178,11 +374,30 @@ impl MailApp {
         };
         let mut refused = None;
         let Some(book) = &mut self.address_book else { return };
+        let changed = typed != book.typed.0;
+        if changed {
+            book.typed = (typed.clone(), now);
+        }
+        let held = self.address_lists.iter().find(|h| h.account == account && h.opening == opening);
+        // The whole list: narrowed here, and nothing is asked. A list the download had to cut short
+        // isn't the whole of it: the server is searched as without one.
+        if let Some(held) = held.filter(|h| h.list.as_ref().is_some_and(|list| !list.more)) {
+            if book.local != Some(held.version) || book.query != typed {
+                let chosen = book.chosen().map(|p| p.email.clone());
+                book.people = held.matching(&typed);
+                book.selected = chosen.and_then(|email| book.people.iter().position(|p| p.email == email)).or((book.people.len() == 1).then_some(0));
+                (book.query, book.more, book.error, book.pending, book.local) = (typed, false, None, None, Some(held.version));
+            }
+            return;
+        }
+        if book.local.is_some() {
+            book.clear();
+            book.local = None;
+        }
         // Something else in the box (a script changed it, or the owner typed): what was found for,
         // or is being asked for, what was there before goes, and an answer for it that has come
         // is not taken in, so that nobody found for that is written to or kept for this.
-        if typed != book.typed.0 {
-            book.typed = (typed.clone(), now);
+        if changed {
             book.clear();
         }
         if let Some(pending) = &book.pending {
@@ -193,7 +408,7 @@ impl MailApp {
                     let answer = result.found.into_iter().find(|f| f.text.to_lowercase() == query.to_lowercase());
                     book.people = answer
                         .as_ref()
-                        .map(|a| a.people.iter().take(MAX_RESOLVE_PEOPLE).cloned().filter_map(DirectoryPerson::checked).collect())
+                        .map(|a| a.people.iter().take(MAX_RESOLVE_PEOPLE).cloned().filter_map(DirectoryPerson::checked).map(Arc::new).collect())
                         .unwrap_or_default();
                     book.more = answer.is_some_and(|a| a.more);
                     book.error = result.error;
@@ -233,7 +448,13 @@ impl MailApp {
             ctx.request_repaint_after(std::time::Duration::from_millis((PAUSE_MS - waited).max(1.0) as u64));
             return;
         }
-        let started = self.start_address_book(account, &typed);
+        let started = if self.offline() {
+            Err((crate::send_receive::said(), Some(Blocked::Offline)))
+        } else {
+            ews_resolve_request_for(&self.session, account, std::slice::from_ref(&typed))
+                .map_err(|e| (tl!(&e.to_string()).to_string(), None))
+                .and_then(|request| self.start_job(request, &typed))
+        };
         if let Some(book) = &mut self.address_book {
             match started {
                 Ok(pending) => book.pending = Some(pending),
@@ -247,13 +468,10 @@ impl MailApp {
         }
     }
 
-    /// The look-up of `typed`, or what keeps it from being asked, and what that is when it can go
-    /// by itself (working offline, no password).
-    fn start_address_book(&mut self, account: Id, typed: &str) -> Result<Pending, (String, Option<Blocked>)> {
-        if self.offline() {
-            return Err((crate::send_receive::said(), Some(Blocked::Offline)));
-        }
-        let request = ews_resolve_request_for(&self.session, account, &[typed.to_string()]).map_err(|e| (tl!(&e.to_string()).to_string(), None))?;
+    /// Hands `request` to the host, for `query`; or what keeps it from being asked, and what that
+    /// is when it can go by itself (no password).
+    fn start_job(&self, request: EwsResolveRequest, query: &str) -> Result<Pending, (String, Option<Blocked>)> {
+        let account = request.account;
         let Some(resolve) = &self.services.ews_resolve else {
             return Err((tl!("This version of MailCraft can't search an address list").to_string(), None));
         };
@@ -263,7 +481,7 @@ impl MailApp {
         let cancel = Arc::new(AtomicBool::new(false));
         let used = secret.clone();
         let rx = resolve(EwsResolveJob { request, secret, cancel: cancel.clone() });
-        Ok(Pending { query: typed.to_string(), rx, cancel, used })
+        Ok(Pending { query: query.to_string(), rx, cancel, used })
     }
 }
 
@@ -382,13 +600,24 @@ pub(crate) fn contact_folders(mailbox: &mailcraft_model::Mailbox, account: Id) -
 }
 
 /// The owner chose `account`'s address list in People: what the search box holds as they choose
-/// is looked up in it.
+/// is looked up in it, or narrows it.
 pub(crate) fn choose_address_list(app: &mut MailApp, account: Id) {
     if app.run("people.addressBook", json!({"account": account})).is_ok() {
         let mut book = AddressBook::new(account, app.session.openings());
         book.owner = app.session.view.people_search.clone();
         app.address_book = Some(book);
     }
+}
+
+/// What there is to say in place of the list, said.
+fn say(ui: &mut Ui, t: &Tokens, text: String, icon: &str) {
+    ui.vertical_centered(|ui| {
+        ui.add_space(56.0);
+        let (r, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
+        icons::paint(ui.painter(), r, icon, t.border_strong, t.border_strong);
+        ui.add_space(10.0);
+        ui.add(egui::Label::new(RichText::new(text).font(regular(12.5)).color(t.text_dim)).wrap());
+    });
 }
 
 fn list(app: &mut MailApp, ui: &mut Ui) {
@@ -402,9 +631,27 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     ui.painter().line_segment([pos2(header.min.x, line), pos2(header.max.x, line)], Stroke::new(1.0, t.border));
     let typed = search_text(app);
     let Some(book) = &app.address_book else { return };
+    let opening = app.session.openings();
+    let held = app.address_lists.iter().find(|h| h.account == book.account && h.opening == opening);
     // What there is to say in place of a list.
-    let said = if typed.chars().count() < MIN_CHARS {
-        Some((tl!("Type a name in the search box to search the organisation's address list").to_string(), "search"))
+    let said = if book.local.is_some() {
+        match (book.people.is_empty(), typed.is_empty()) {
+            (true, true) => Some((tl!("The organisation's address book is empty").to_string(), "people")),
+            (true, false) => Some((tl!("Nobody in the address book matches").to_string(), "search")),
+            _ => None,
+        }
+    } else if typed.chars().count() < MIN_CHARS {
+        // While the whole list downloads, that is said; what is typed meanwhile is searched as
+        // without it, and shown as such below.
+        if held.is_some_and(|h| h.pending.is_some()) {
+            return say(ui, &t, tl!("Downloading the organisation's address book…").to_string(), "people");
+        }
+        let hint = tl!("Type a name in the search box to search the organisation's address list");
+        let text = match held.and_then(|h| h.error.as_ref()) {
+            Some(error) => format!("{}\n\n{hint}", tl!(error)),
+            None => hint.to_string(),
+        };
+        Some((text, "search"))
     } else if book.searching() && book.people.is_empty() {
         Some((tl!("Searching…").to_string(), "search"))
     } else if let Some(error) = &book.error {
@@ -417,20 +664,17 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
         None
     };
     if let Some((text, icon)) = said {
-        ui.vertical_centered(|ui| {
-            ui.add_space(56.0);
-            let (r, _) = ui.allocate_exact_size(vec2(44.0, 44.0), Sense::hover());
-            icons::paint(ui.painter(), r, icon, t.border_strong, t.border_strong);
-            ui.add_space(10.0);
-            ui.add(egui::Label::new(RichText::new(text).font(regular(12.5)).color(t.text_dim)).wrap());
-        });
-        return;
+        return say(ui, &t, text, icon);
     }
-    let (people, more, selected) = (book.people.clone(), book.more, book.selected);
+    let (count, more, selected) = (book.people.len(), book.more, book.selected);
     let mut clicked = None;
     let mut write = None;
-    egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("address_list").show(ui, |ui| {
-        for (index, person) in people.iter().enumerate() {
+    // Only the rows on screen are drawn: a whole address list may hold many thousands.
+    egui::ScrollArea::vertical().auto_shrink([false, false]).id_salt("address_list").show_rows(ui, ROW_H, count, |ui, rows| {
+        let shown: Vec<(usize, Arc<DirectoryPerson>)> =
+            app.address_book.as_ref().map(|b| rows.clone().filter_map(|i| b.people.get(i).cloned().map(|p| (i, p))).collect()).unwrap_or_default();
+        for (index, person) in &shown {
+            let index = *index;
             let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), ROW_H), Sense::click());
             app.hit.add("addressListRow", index as u64, r);
             if selected == Some(index) {
@@ -448,17 +692,17 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
                 clicked = Some(index);
             }
             if resp.double_clicked() {
-                write = Some(index);
+                write = Some(person.clone());
             }
         }
-        if more {
+        if more && rows.end >= count {
             ui.add_space(8.0);
             ui.horizontal_wrapped(|ui| {
                 ui.add_space(12.0);
                 ui.label(
                     RichText::new(crate::i18n::fmt(
                         tl!("Only the first {n} are shown: type more of the name to find somebody else."),
-                        &[("n", &people.len().to_string())],
+                        &[("n", &count.to_string())],
                     ))
                     .font(regular(11.5))
                     .color(t.text_dim),
@@ -469,8 +713,8 @@ fn list(app: &mut MailApp, ui: &mut Ui) {
     if let (Some(index), Some(book)) = (clicked, &mut app.address_book) {
         book.selected = Some(index);
     }
-    if let Some(person) = write.and_then(|i| people.get(i)) {
-        new_email(app, person);
+    if let Some(person) = write {
+        new_email(app, &person);
     }
 }
 
@@ -503,20 +747,46 @@ fn new_email(app: &mut MailApp, person: &DirectoryPerson) {
     let _ = app.run("mail.new", json!({"to": person.address().full(), "account": account}));
 }
 
-/// A contact on this computer made of `person`, on the owner's say-so.
+/// The contact that already has `person`'s address, if any: Add to Contacts makes no second one.
+fn known_contact(app: &MailApp, person: &DirectoryPerson) -> Option<Id> {
+    (!person.email.trim().is_empty()).then(|| app.session.mailbox.contact_by_email(&person.email).map(|c| c.id)).flatten()
+}
+
+/// The contact `id` shown among the contacts, leaving the address list.
+fn open_contact(app: &mut MailApp, id: Id) {
+    if let Err(e) = app.run("people.select", json!({"id": id})) {
+        app.status(tl!(&e));
+    }
+}
+
+/// A contact on this computer made of `person`, on the owner's say-so; one that has the address
+/// already is not made twice. The address list stays in view, and the card says the contact is
+/// there, with Open Contact.
 fn add_to_contacts(app: &mut MailApp, person: &DirectoryPerson) {
+    if known_contact(app, person).is_some() {
+        app.status(tl!("Already in your contacts"));
+        return;
+    }
     let mut phones = Vec::new();
     for (label, number) in [("work", &person.phone), ("mobile", &person.mobile)] {
         if !number.is_empty() {
             phones.push(json!({"label": label, "value": number}));
         }
     }
+    // The certificates go onto the contact's card, those a card takes (for mail, not an
+    // authority's), as a certificate added from a file would.
+    let keys: Vec<serde_json::Value> = person
+        .certificates
+        .iter()
+        .filter(|der| mailcraft_engine::cmd::keys::card_key_from(der).is_ok())
+        .map(|der| json!({"data": mailcraft_engine::cmd::base64_encode(der)}))
+        .collect();
     let params = json!({
         "displayName": person.name, "email": person.email, "company": person.company,
-        "department": person.department, "title": person.title, "phones": phones,
+        "department": person.department, "title": person.title, "phones": phones, "keys": keys,
+        "keepAddressList": true,
     });
     match app.run("people.new", params) {
-        // (`people.new` shows the new contact: People goes back to the contacts.)
         Ok(_) => app.status(tl!("Added to Contacts")),
         Err(e) => app.status(tl!(&e)),
     }
@@ -569,8 +839,21 @@ fn card(app: &mut MailApp, ui: &mut Ui) {
                 if widgets::primary_button(ui, tl!("Email"), true).clicked() {
                     new_email(app, &person);
                 }
-                if widgets::icon_text_button(ui, "newContact", tl!("Add to Contacts"), true).clicked() {
-                    add_to_contacts(app, &person);
+                match known_contact(app, &person) {
+                    Some(id) => {
+                        if widgets::icon_text_button(ui, "people", tl!("Open Contact"), true).clicked() {
+                            open_contact(app, id);
+                        }
+                        ui.add_space(4.0);
+                        let (r, _) = ui.allocate_exact_size(vec2(16.0, 16.0), Sense::hover());
+                        icons::paint(ui.painter(), r, "check", t.text_dim, t.text_dim);
+                        ui.label(RichText::new(tl!("In your contacts")).font(regular(12.5)).color(t.text_dim));
+                    }
+                    None => {
+                        if widgets::icon_text_button(ui, "newContact", tl!("Add to Contacts"), true).clicked() {
+                            add_to_contacts(app, &person);
+                        }
+                    }
                 }
             });
             crate::people_view::section(ui, tl!("Contact"));
@@ -588,11 +871,40 @@ fn card(app: &mut MailApp, ui: &mut Ui) {
                 crate::people_view::section(ui, tl!("Workplace"));
                 crate::people_view::field(ui, "address", &person.office, "", false);
             }
+            // Only certificates that can be read: one that can't says nothing worth a line.
+            let readable: Vec<ContactKey> = person
+                .certificates
+                .iter()
+                .map(|der| ContactKey { kind: KeyKind::X509, data: der.to_vec(), ..ContactKey::default() })
+                .filter(|key| mailcraft_engine::cmd::keys::card_key_facts(key).format.is_some())
+                .collect();
+            if !readable.is_empty() {
+                crate::people_view::section(ui, tl!("Certificates"));
+                for key in &readable {
+                    let der = &key.data;
+                    crate::security::card_key_line(app, ui, key, &t);
+                    if mailcraft_engine::cmd::keys::card_key_from(der).is_err() {
+                        ui.label(
+                            RichText::new(tl!("Not for mail, or an authority's: Add to Contacts leaves it out."))
+                                .font(regular(11.5))
+                                .color(t.text_dim),
+                        );
+                    }
+                }
+            }
             ui.add_space(14.0);
-            let from = crate::i18n::fmt(
-                tl!("From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."),
-                &[("account", &widgets::place_name(&app.session.mailbox, account))],
-            );
+            let place = widgets::place_name(&app.session.mailbox, account);
+            let from = if app.address_book.as_ref().is_some_and(|b| b.local.is_some()) {
+                crate::i18n::fmt(
+                    tl!("From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."),
+                    &[("account", &place)],
+                )
+            } else {
+                crate::i18n::fmt(
+                    tl!("From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."),
+                    &[("account", &place)],
+                )
+            };
             ui.add(egui::Label::new(RichText::new(from).font(regular(11.5)).color(t.text_dim)).wrap());
         });
     });

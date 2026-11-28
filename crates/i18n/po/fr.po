@@ -818,6 +818,12 @@ msgid "A short note with the link to that page, to paste into mail or chat. Mail
 msgstr "Une courte note avec le lien de cette page, à coller dans un e-mail ou une discussion. MailCraft n'envoie rien lui-même."
 
 #. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "A text signature file is at most 10,000 characters."
+msgstr "Un fichier de signature texte contient au plus 10 000 caractères."
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "A web address, an email address, a phone number (tel:) or another address such as ms-settings:network-vpn. With nothing selected, the address is put in as it is."
 msgstr "Une adresse web, une adresse e-mail, un numéro de téléphone (tel:) ou une autre adresse comme ms-settings:network-vpn. Sans sélection, l'adresse est insérée telle quelle."
@@ -1548,7 +1554,7 @@ msgid "Allowed"
 msgstr "Autorisé"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Already in your contacts"
 msgstr "Déjà dans vos contacts"
@@ -1612,6 +1618,12 @@ msgstr "Un agent demande"
 #, fuzzy
 msgid "An Exchange server or IMAP?"
 msgstr "Un serveur Exchange ou IMAP ?"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "An HTML signature file is at most 64 KB."
+msgstr "Un fichier de signature HTML fait au plus 64 Ko."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -2330,8 +2342,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "Joindre un fichier"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Attach Item"
 msgstr "Joindre un élément"
@@ -2385,6 +2397,11 @@ msgstr "Options de pièce jointe pour {name}"
 #, fuzzy
 msgid "Attachments"
 msgstr "Pièces jointes"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+msgid "Attachments can't be opened here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -3186,7 +3203,7 @@ msgid "Celebrate"
 msgstr "Fêter"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Certificates"
 msgstr "Certificats"
@@ -3505,6 +3522,12 @@ msgstr "Choisir la signature par défaut"
 msgid "Choose Google sign-in, or select Use an app password instead."
 msgstr "Choisissez la connexion avec Google ou l’option Utiliser plutôt un mot de passe d’application."
 
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Choose Signature File"
+msgstr "Choisir un fichier de signature"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -3528,6 +3551,24 @@ msgstr "Choisissez un premier et un dernier jour, séparés d'un an au plus."
 #, fuzzy
 msgid "Choose a folder"
 msgstr "Choisir un dossier"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Choose a signature file"
+msgstr "Choisir un fichier de signature"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
+msgstr "Choisissez un fichier de signature texte, HTML, PNG, JPEG ou GIF."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Choose an absolute local path for the signature file."
+msgstr "Choisissez un chemin local absolu pour le fichier de signature."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3558,6 +3599,12 @@ msgstr "Choisissez si ces tâches sont envoyées vers le To Do d'un compte Micro
 #, fuzzy
 msgid "Choose who this is sent from"
 msgstr "Choisir l'expéditeur"
+
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Choose…"
+msgstr "Choisir…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5093,8 +5140,18 @@ msgstr "Terminé : à jour"
 msgid "Done: {n} new"
 msgstr "Terminé : {n} nouveau(x)"
 
-#. android, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to download {name}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to open {name}"
+msgstr ""
+
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Download"
 msgstr "Télécharger"
@@ -5210,6 +5267,12 @@ msgid "Downloading pictures…"
 msgstr "Téléchargement des images…"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the address book stopped unexpectedly"
+msgstr "Le téléchargement du carnet d'adresses s'est arrêté de façon inattendue"
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "Downloading the message first…"
@@ -5220,6 +5283,12 @@ msgstr "Téléchargement préalable du message…"
 #, fuzzy
 msgid "Downloading the messages first…"
 msgstr "Téléchargement préalable des messages…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the organisation's address book…"
+msgstr "Téléchargement du carnet d'adresses de l'organisation…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -5960,8 +6029,8 @@ msgstr "Donner votre avis"
 msgid "Fewer than two of these contacts are still here, so there is nothing to merge."
 msgstr "Moins de deux de ces contacts sont encore là, il n'y a donc rien à fusionner."
 
-#. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#. command label, interface, name, ribbon location
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "File"
 msgstr "Fichier"
@@ -5971,6 +6040,12 @@ msgstr "Fichier"
 #, fuzzy
 msgid "File dialogs aren't available here"
 msgstr "Les boîtes de dialogue de fichiers ne sont pas disponibles ici"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "File signature"
+msgstr "Signature de fichier"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -6564,6 +6639,12 @@ msgstr "De l'extérieur de votre organisation."
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
+msgstr "Du carnet d'adresses de l'organisation de {account}, gardé en mémoire tant que MailCraft s'exécute et jamais enregistré : Ajouter aux contacts en conserve une copie sur cet ordinateur."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
 msgstr "Issu de la liste d'adresses de l'organisation de {account}. Affiché pendant votre recherche et non conservé : « Ajouter aux contacts » en garde une copie sur cet ordinateur."
 
@@ -7036,6 +7117,12 @@ msgstr "Faire envoyer les réponses à"
 #: crates/ui-egui/src/ribbon.rs
 msgid "Have replies sent to other addresses"
 msgstr "Faire envoyer les réponses à d'autres adresses"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "L'en-tête contient"
 
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
@@ -7664,6 +7751,12 @@ msgstr "Dans la sélection"
 #, fuzzy
 msgid "In this calendar:"
 msgstr "Dans ce calendrier :"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "In your contacts"
+msgstr "Dans vos contacts"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -8951,6 +9044,11 @@ msgstr "MailCraft peut désormais synchroniser {account} avec Microsoft via Micr
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "MailCraft ne peut pas conserver les règles de ce compte sur son serveur"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "MailCraft can't open {name} because of its file type."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11155,6 +11253,12 @@ msgstr "Personne n'a proposé d'autre horaire."
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
+msgid "Nobody in the address book matches"
+msgstr "Personne dans le carnet d'adresses ne correspond"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Nobody in the address list matches"
 msgstr "Personne ne correspond dans la liste d'adresses"
 
@@ -11331,6 +11435,12 @@ msgstr "Tous les serveurs n'ont pas été trouvés : le reste n'est qu'une suppo
 #, fuzzy
 msgid "Not everything could be removed. Some of it is still here. Try again."
 msgstr "Tout n’a pas pu être supprimé. Une partie est toujours là. Réessayez."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
+msgstr "Pas pour la messagerie, ou celui d'une autorité : Ajouter aux contacts l'omet."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11561,7 +11671,7 @@ msgid "Nothing was done: what the agent asked about changed after you were asked
 msgstr "Rien n'a été fait : ce dont l'agent parlait a changé après que la question vous a été posée."
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Nothing was done: what you were asked about has changed since. Ask again."
 msgstr "Rien n'a été fait : ce sur quoi vous avez été interrogé a changé depuis. Recommencez."
@@ -11998,7 +12108,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "Uniquement quand MailCraft n'est pas la fenêtre au premier plan, et uniquement pour les boîtes de réception de vos propres comptes."
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Open"
 msgstr "Ouvrir"
@@ -12030,6 +12140,12 @@ msgstr "Ouvrir la pièce jointe"
 msgid "Open Calendar"
 msgstr "Ouvrir un calendrier"
 
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Open Contact"
+msgstr "Ouvrir le contact"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -12047,6 +12163,11 @@ msgstr "Ouvrir la boîte de dialogue"
 #, fuzzy
 msgid "Open Draft"
 msgstr "Ouvrir le brouillon"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Open Draft Attachment"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12624,8 +12745,9 @@ msgstr "Coller une image"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "Coller le texte seul"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -12774,6 +12896,12 @@ msgstr "Images"
 #, fuzzy
 msgid "Pictures are always downloaded from ({n}):"
 msgstr "Les images sont toujours téléchargées depuis ({n}) :"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
+msgstr "Les images ne sont pas incluses dans les messages en texte brut. Passez en HTML pour les inclure."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13220,6 +13348,12 @@ msgid "Read Invitation"
 msgstr "Lire l'invitation"
 
 #. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Read again for each new message. If unavailable, the usual signature is used."
+msgstr "Relu pour chaque nouveau message. S'il est indisponible, la signature habituelle est utilisée."
+
+#. interface
 #: crates/ui-egui/src/advanced_search.rs
 #, fuzzy
 msgid "Read status"
@@ -13439,6 +13573,12 @@ msgstr "Rétablir {what}"
 msgid "Refresh"
 msgstr "Actualiser"
 
+#. interface
+#: crates/ui-egui/src/signatures.rs
+#, fuzzy
+msgid "Refresh Preview"
+msgstr "Actualiser l'aperçu"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -13544,7 +13684,7 @@ msgid "Remove Account"
 msgstr "Supprimer le compte"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Remove Attachment"
 msgstr "Supprimer la pièce jointe"
@@ -15710,7 +15850,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "Afficher une alerte sur le bureau pour les rappels"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Afficher une alerte sur le bureau à l'arrivée de nouveau courrier"
@@ -16128,8 +16268,8 @@ msgstr "Connectez-vous avec Envoyer/Recevoir pour voir quand les autres personne
 msgid "Sign-in cancelled"
 msgstr "Connexion annulée"
 
-#. android, command label, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#. android, command label, interface, ribbon
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/signature_files.rs
 #, fuzzy
 msgid "Signature"
 msgstr "Signature"
@@ -16140,8 +16280,20 @@ msgstr "Signature"
 msgid "Signature file:"
 msgstr "Fichier de signature :"
 
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "Signature files can only be configured by the owner in the desktop app."
+msgstr "Les fichiers de signature ne peuvent être configurés que par le propriétaire dans l'application de bureau."
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Signature from File"
+msgstr "Signature depuis un fichier"
+
 #. android, command label, interface, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/signatures.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
 #, fuzzy
 msgid "Signatures"
 msgstr "Signatures"
@@ -16790,6 +16942,12 @@ msgstr "Basculer"
 #: crates/ui-egui/src/account_setup.rs
 msgid "Switch to Google sign-in"
 msgstr "Passer à la connexion avec Google"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Switch to HTML"
+msgstr "Passer en HTML"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
@@ -17869,6 +18027,11 @@ msgid "The download was called off."
 msgstr "Le téléchargement a été annulé."
 
 #. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "The draft isn't open any more"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The e-mail address of the person whose calendar you want to open"
@@ -18315,6 +18478,12 @@ msgid "The one this build came with"
 msgstr "Celui fourni avec cette version"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The organisation's address book is empty"
+msgstr "Le carnet d'adresses de l'organisation est vide"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18692,6 +18861,12 @@ msgid "The server or the organisation wouldn't give its settings. Ask your admin
 msgstr "Le serveur ou l'organisation n'a pas fourni ses paramètres. Demandez l'adresse du serveur à votre administrateur et saisissez-la dans les paramètres du serveur."
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The server sent no address book"
+msgstr "Le serveur n'a envoyé aucun carnet d'adresses"
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server sent the setup somewhere that isn't encrypted, which MailCraft never follows. Type the server's address in Server settings."
@@ -18914,9 +19089,45 @@ msgid "The sign-in was declined."
 msgstr "La connexion a été refusée."
 
 #. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "The signature changed while the signature file picker was open."
+msgstr "La signature a changé pendant que le sélecteur de fichier de signature était ouvert."
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
 msgstr ""
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file could not be read."
+msgstr "Le fichier de signature n'a pas pu être lu."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file is too large."
+msgstr "Le fichier de signature est trop volumineux."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file must be a regular file of at most 256 KB."
+msgstr "Le fichier de signature doit être un fichier ordinaire de 256 Ko au plus."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature file must contain UTF-8 text."
+msgstr "Le fichier de signature doit contenir du texte UTF-8."
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "The signature image could not be decoded."
+msgstr "L'image de la signature n'a pas pu être décodée."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -22851,6 +23062,12 @@ msgstr "contient trop de fichiers : le reste n'a pas été supprimé"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "header contains {words}"
+msgstr "l'en-tête contient {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "high"
 msgstr "haute"
 
@@ -26206,6 +26423,12 @@ msgid "{name} is already in {folder}."
 msgstr "{name} est déjà dans {folder}."
 
 #. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr "{name} a été joint : il ne peut pas être inséré dans le texte ({why})"
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "{name} is being sent and received now. Use Stop."
@@ -27535,6 +27758,12 @@ msgstr "La page de connexion de {provider} est ouverte dans votre navigateur"
 #, fuzzy
 msgid "{read} of {total} MB"
 msgstr "{read} sur {total} Mo"
+
+#. interface
+#: crates/ui-egui/src/signature_files.rs
+#, fuzzy
+msgid "{reason} Using the account's usual signature instead."
+msgstr "{reason} La signature habituelle du compte est utilisée à la place."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
