@@ -3546,6 +3546,7 @@ dependencies = [
  "mailcraft-time",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "skrifa 0.50.0",
  "tempfile",
  "toml",

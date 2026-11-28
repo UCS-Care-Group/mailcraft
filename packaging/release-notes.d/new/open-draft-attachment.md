@@ -1,0 +1,1 @@
+- Open a draft attachment by double-clicking it or choosing Open from its menu. MailCraft opens the attached copy so you can check it before sending. In the browser, the menu downloads the copy.

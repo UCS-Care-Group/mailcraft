@@ -439,6 +439,8 @@ mod category_rows_tests;
 #[cfg(test)]
 mod composing_tests;
 #[cfg(test)]
+mod conversations_tests;
+#[cfg(test)]
 mod counts_tests;
 #[cfg(test)]
 mod draft_in_thread_tests;
@@ -472,6 +474,8 @@ mod list_sort_tests;
 mod many_folders_tests;
 #[cfg(test)]
 mod pop_out_tests;
+#[cfg(test)]
+mod read_header_kept_tests;
 #[cfg(test)]
 mod read_pane_off_tests;
 #[cfg(test)]
