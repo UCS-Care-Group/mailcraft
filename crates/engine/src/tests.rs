@@ -3290,6 +3290,50 @@ fn the_servers_folder_tree_is_here_before_its_mail() {
 }
 
 #[test]
+fn imap_repairs_full_path_labels_of_nested_folders_and_preserves_local_names() {
+    use mailcraft_model::sync::{ListedFolder, SyncResult};
+
+    let mut s = session();
+    let account =
+        run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+    let clients = s.mailbox.add_folder(account, None, "Clients").unwrap();
+    let acme = s.mailbox.add_folder(account, Some(clients), "Clients.Acme").unwrap();
+    let plant = s.mailbox.add_folder(account, Some(acme), "Plant office").unwrap();
+    for (id, remote) in [(acme, "Clients.Acme"), (plant, "Clients.Acme.Plant1")] {
+        s.mailbox.folder_mut(id).unwrap().remote = remote.into();
+    }
+    let listed = |remote: &str, parent: &str, name: &str| ListedFolder {
+        remote: remote.into(),
+        parent: parent.into(),
+        name: name.into(),
+        ..Default::default()
+    };
+    let tree = vec![
+        listed("Clients.Acme.Plant1", "Clients.Acme", "Plant1"),
+        listed("Clients.Acme", "Clients", "Acme"),
+        listed("Other.Acme", "Other", "Acme"),
+    ];
+    cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree.clone(), ..Default::default() }).unwrap();
+    assert_eq!(s.mailbox.folder(acme).unwrap().name, "Acme");
+    assert_eq!(s.mailbox.folder(acme).unwrap().parent, Some(clients));
+    assert_eq!(s.mailbox.folder(acme).unwrap().remote, "Clients.Acme");
+    assert_eq!(s.mailbox.folder(plant).unwrap().name, "Plant office");
+    let other = s.mailbox.folders.iter().find(|f| f.account == account && f.remote == "Other.Acme").unwrap().id;
+    assert_eq!((s.mailbox.folder(other).unwrap().parent, s.mailbox.folder(other).unwrap().name.as_str()), (None, "Other.Acme"));
+
+    // If the server starts listing the missing parent, move the flat folder and shorten its label.
+    let mut tree = tree;
+    tree.push(listed("Other", "", "Other"));
+    cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree.clone(), ..Default::default() }).unwrap();
+    let folder = s.mailbox.folder(other).unwrap();
+    assert_eq!(folder.name, "Acme");
+    assert_eq!(s.mailbox.folder(folder.parent.unwrap()).unwrap().name, "Other");
+    let folders = s.mailbox.folders.clone();
+    cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree, ..Default::default() }).unwrap();
+    assert_eq!(s.mailbox.folders, folders);
+}
+
+#[test]
 fn a_windows_1250_contact_file_keeps_its_letters() {
     // #185: a vCard 2.1 file with raw 8-bit values in Windows-1250 lost đ, ć, č and Š, because the
     // bytes were read as UTF-8 before the CHARSET of each line was looked at.

@@ -2208,9 +2208,8 @@ fn folder_for(mb: &mut Mailbox, account: Id, remote: &str, kind: FolderKind) -> 
 
 /// Give every folder of mail the server lists a folder here, in the same tree, before any of its
 /// mail has come: the standard folder of its kind when that follows no mailbox yet, else a new
-/// folder under the one its parent has here. A folder that is here already stays as it is,
-/// except one at the top whose place in the tree is now known (folders moved here are not moved
-/// on the server yet, so the server's tree is the one that holds).
+/// folder under the one its parent has here. Move a flat folder into its parent once known,
+/// and repair an automatically derived label using the server's leaf name for a nested folder.
 fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed: &[mailcraft_model::sync::ListedFolder]) {
     let listed = listed.get(..listed.len().min(mailcraft_model::sync::MAX_LISTED_FOLDERS)).unwrap_or_default();
     // Each folder's parent by the folder's path, the first listed of a path being the one: one
@@ -2247,31 +2246,37 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
         let parent = on_server.by_remote.get(&f.parent).copied().filter(|_| !f.parent.is_empty());
         match on_server.by_remote.get(&f.remote).copied() {
             Some(id) => {
-                let here = find(mb, &at, id).and_then(|i| mb.folders.get(i)).cloned();
-                // A name an earlier version cut short at a dot is put right.
-                let listed_as = clean_name(&f.name).filter(|name| !name.contains('/'));
-                if let (Some(name), Some(here)) = (listed_as, &here)
-                    && here.kind == FolderKind::Custom
-                    && here.name != name
-                    && here.name == cut_name(&f.remote)
+                let Some(here) = find(mb, &at, id).and_then(|i| mb.folders.get(i)) else { continue };
+                if here.kind != FolderKind::Custom {
+                    continue;
+                }
+                let mut local_parent = here.parent;
+                let local_name = here.name.clone();
+                if let Some(p) = parent
+                    && local_parent.is_none()
+                    && mb.move_folder(id, Some(p)).is_ok()
+                {
+                    local_parent = Some(p);
+                    names.entry(local_parent).or_default().insert(local_name.to_lowercase());
+                }
+                // A flat folder keeps the path for context. A nested one has that context in
+                // the pane, even when the parent is local only and the server never lists it.
+                let flat = local_parent.is_none() && !f.parent.is_empty();
+                let listed_as = if flat { &f.remote } else { &f.name };
+                if let Some(name) = clean_name(listed_as).filter(|name| !name.contains('/'))
+                    && local_name != name
+                    && (local_name == cut_name(&f.remote)
+                        || (local_parent.is_some() && !f.parent.is_empty() && clean_name(&f.remote).as_deref() == Some(local_name.as_str())))
                     && mb.rename_folder(id, &name).is_ok()
                 {
-                    names.entry(here.parent).or_default().insert(name.to_lowercase());
-                }
-                let at_top = here.as_ref().is_some_and(|here| here.parent.is_none() && here.kind == FolderKind::Custom);
-                if let Some(p) = parent
-                    && at_top
-                    && !mb.subtree(id).contains(&p)
-                    && mb.move_folder(id, Some(p)).is_ok()
-                    && let Some(moved) = find(mb, &at, id).and_then(|i| mb.folders.get(i))
-                {
-                    names.entry(Some(p)).or_default().insert(moved.name.to_lowercase());
+                    names.entry(local_parent).or_default().insert(name.to_lowercase());
                 }
             }
             None => {
                 let standard = if f.kind == FolderKind::Custom { None } else { mb.folder_of_kind(account, f.kind) };
                 let standard = standard.filter(|id| find(mb, &at, *id).and_then(|i| mb.folders.get(i)).is_some_and(|here| here.remote.is_empty()));
-                let base = clean_name(&f.name).unwrap_or_else(|| leaf_name(&f.remote));
+                let listed_as = if parent.is_none() && !f.parent.is_empty() { &f.remote } else { &f.name };
+                let base = clean_name(listed_as).unwrap_or_else(|| leaf_name(&f.remote));
                 // A name already taken beside it gets a number.
                 let made = standard.or_else(|| {
                     let taken = names.entry(parent).or_default();

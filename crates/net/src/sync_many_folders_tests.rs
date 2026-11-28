@@ -81,6 +81,19 @@ fn ten_thousand_folders_are_all_read_in_their_tree() {
     assert_eq!(result.new_count(), 1);
 }
 
+#[test]
+fn a_dotted_folder_keeps_its_leaf_and_parent_path_even_when_its_parent_is_not_listed() {
+    let imap = Fake::imap(ImapWorld {
+        delimiter: Some('.'),
+        mailboxes: vec![mailbox("Clients.Acme.Plant1", "\\HasNoChildren"), mailbox("Clients.Acme", "\\HasChildren")],
+        ..world(1)
+    });
+    let result = sync(&request(&imap));
+    assert!(result.errors.is_empty(), "{:?}", result.errors);
+    let folders: Vec<_> = result.listed.iter().map(|f| (f.remote.as_str(), f.parent.as_str(), f.name.as_str())).collect();
+    assert_eq!(folders, [("Clients.Acme.Plant1", "Clients.Acme", "Plant1"), ("Clients.Acme", "Clients", "Acme")]);
+}
+
 /// A server with more folders than a run reads has the first 10,000 read, and the owner is told
 /// how many more there were and where they begin.
 #[test]
@@ -118,8 +131,8 @@ fn the_tree_of_ten_thousand_folders_is_found_at_once() {
     assert!(took < Duration::from_secs(1), "{took:?}");
 }
 
-/// The parent found is the first folder of that name, as a search from the start found it,
-/// and a parent past what a run reads is no parent.
+/// The parent found is the first folder of that name. A parent past the cap is identified by
+/// its path, without adding it to this run's listing.
 #[test]
 fn the_first_of_a_name_is_the_parent_and_only_one_that_is_read() {
     let mailboxes = [proto_mailbox("A"), proto_mailbox(" A "), proto_mailbox("A/b"), proto_mailbox("Inbox"), proto_mailbox("INBOX/c")];
@@ -137,7 +150,8 @@ fn the_first_of_a_name_is_the_parent_and_only_one_that_is_read() {
     let tree = listed(&plan);
     assert_eq!(tree.len(), MAX_FOLDERS);
     let child = tree.iter().find(|f| f.remote == "Late/child").map(|f| (f.parent.as_str(), f.name.as_str()));
-    assert_eq!(child, Some(("", "Late/child")));
+    assert_eq!(child, Some(("Late", "child")));
+    assert!(!tree.iter().any(|f| f.remote == "Late"));
     let said = left_out(&plan, false).map(|t| t.to_string()).unwrap_or_default();
     assert!(said.ends_with("leaves out the other 2, from \"F9999\" on"), "{said}");
     // Nothing left out, nothing said.
