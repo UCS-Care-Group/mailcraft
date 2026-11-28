@@ -680,7 +680,7 @@ pub struct ListedFolder {
     /// Its path on the server.
     pub remote: String,
     pub kind: FolderKind,
-    /// The path of the folder it lies in; empty for one at the top.
+    /// The path of the folder it lies in, which may be absent from the list. Empty for one at the top.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub parent: String,
     /// The last part of its name, as people read it.

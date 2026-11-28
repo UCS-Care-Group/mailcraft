@@ -600,8 +600,8 @@ fn planned<'a>(mailboxes: &'a [Mailbox], tied: &[(&str, FolderKind)], microsoft:
     plan
 }
 
-/// The folders of mail a run will read, as a tree: each with the path of the folder it lies in
-/// (where the server names its parts apart and that folder is one of them).
+/// The folders of mail a run will read, each with its leaf name and the path of its parent
+/// when the server gives a hierarchy delimiter. The parent may be missing from the list.
 ///
 /// Each folder's parent is found by its name in an index made in one pass over the folders read
 /// (#991), the first of a name being the one: searching them all for each folder would be a
@@ -635,8 +635,11 @@ fn listed(plan: &[(&Mailbox, FolderKind)]) -> Vec<mailcraft_model::sync::ListedF
         } else {
             by_name.get(above).copied()
         };
-        let parent = at.and_then(|at| read.get(at)).map(|(other, _)| kinds::remote_name(other)).unwrap_or_default();
-        let name = if leaf.is_empty() || (parent.is_empty() && !above.is_empty()) { name } else { leaf };
+        let parent = at.and_then(|at| read.get(at)).map_or_else(
+            || if above.eq_ignore_ascii_case("inbox") { "INBOX".to_string() } else { above.to_string() },
+            |(other, _)| kinds::remote_name(other),
+        );
+        let name = if leaf.is_empty() { name } else { leaf };
         out.push(mailcraft_model::sync::ListedFolder { remote, kind: *kind, parent, name: name.to_string() });
     }
     out
