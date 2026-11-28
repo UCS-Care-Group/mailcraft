@@ -161,6 +161,7 @@ pub(crate) fn row(s: &Session, m: &Message, r: &mailcraft_engine::list::Row) -> 
         member_ids: r.members.iter().copied().take(text::MAX_ROW_MEMBERS).collect(),
         group_is_category: r.group.is_some() && r.category,
         group: r.group.as_deref().map(|g| text::clip(g, MAX_NAME)),
+        low_importance: m.importance == Importance::Low,
     }
 }
 

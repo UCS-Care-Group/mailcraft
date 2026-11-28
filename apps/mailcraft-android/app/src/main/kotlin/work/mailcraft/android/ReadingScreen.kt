@@ -4,7 +4,6 @@
 package work.mailcraft.android
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -46,14 +45,15 @@ import uniffi.mailcraft_mobile.ComposeStart
 import uniffi.mailcraft_mobile.MessageView
 
 private val Gutter = 16.dp
-private const val RGB_MASK = 0xFFFFFF
 
 /** What the reading pane asks of the app. */
 internal class ReadingActions(
     /** Message [id] is shown with a body this many dp wide in a dark or light window: read it so. */
-    val onOpen: (ULong, Int, Boolean) -> Unit,
-    /** Message [id] is no longer on screen: pictures still on their way are let go of. */
-    val onClose: (ULong) -> Unit,
+    val onOpen: (ULong, Int, Boolean, Long?) -> Unit,
+    /** Message [id] is no longer on screen (true: a swipe is taking another's place): pictures on their way stop. */
+    val onClose: (ULong, Boolean) -> Unit,
+    /** The messages either side of the open one: read them ahead (a body this many dp wide, dark or light). */
+    val onNear: (List<ULong>, Int, Boolean) -> Unit = { _, _, _ -> },
     val onAllow: (AllowScope) -> Unit,
     val onDownloadNow: () -> Unit,
     val onLink: (LinkInfo) -> LinkResult,
@@ -64,7 +64,9 @@ internal class ReadingActions(
     val onTriaged: (id: ULong, unread: Boolean?, flagged: Boolean?) -> Unit = { _, _, _ -> },
 ) {
     companion object {
-        val None = ReadingActions({ _, _, _ -> }, {}, {}, {}, { LinkResult.Ignored })
+        val None = ReadingActions(
+            { _, _, _, _ -> }, { _, _ -> }, onAllow = {}, onDownloadNow = {}, onLink = { LinkResult.Ignored },
+        )
     }
 }
 
@@ -86,7 +88,7 @@ internal fun ReadingPane(
     draft: Boolean = false,
     tools: ReadingTools = ReadingTools.None,
 ) {
-    val dark = isSystemInDarkTheme()
+    val dark = appIsDark()
     // In a dark window the body may sit on a light page; the choice for this message alone wins.
     var pageChoice by remember(id) { mutableStateOf<Boolean?>(null) }
     val light = dark && (pageChoice ?: tools.prefs.lightMessages)
@@ -100,46 +102,43 @@ internal fun ReadingPane(
             notice = null
         }
     }
+    // The message swiped to: it counts as read only after a short while (passing by quickly leaves it unread).
+    var swipedTo by remember { mutableStateOf<ULong?>(null) }
+    val swipe = tools.swipe
+    // (The neighbours are drawn only while a drag is on, from what was read ahead; their links are not followed.)
     Box(modifier = modifier.fillMaxSize()) {
-        BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val bodyWidth = maxWidth - Gutter * 2
-            // (A light page asks the core for the message's light design, the one its sender made for it.)
-            val designDark = dark && !light
-            LaunchedEffect(id, bodyWidth.value.toInt(), designDark) {
-                actions.onOpen(id, bodyWidth.value.toInt(), designDark)
-            }
-            DisposableEffect(id) { onDispose { actions.onClose(id) } }
-            val opened = ui.opened
-            when {
-                ui.load == LoadState.Failed || opened == null || ui.id != id ->
-                    NotThere(texts, tools, ui.load == LoadState.Failed)
-                else -> {
-                    val colors = if (light) LightColors else MaterialTheme.colorScheme
-                    val env = remember(opened, ui.pictures, texts, colors) {
-                        BodyEnv(
-                            texts = texts,
-                            links = opened.links,
-                            pictures = ui.pictures,
-                            rule = colors.outlineVariant,
-                            onLink = { link -> notice = followed(texts, actions, link) },
-                            onLinkDetails = { details = it },
-                        )
-                    }
-                    val page = if (light) colors.surfaceContainerLowest else colors.surface
-                    val paper = Paper.of(page.toArgb() and RGB_MASK, colors.primary.toArgb() and RGB_MASK)
-                        .copy(ink = colors.onSurface.toArgb() and RGB_MASK)
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        val title = opened.view.subject.ifBlank { shortName(opened.view.from) }
-                        ReadingBar(texts, tools, title) { menu = true }
-                        MessageBody(
-                            texts, ui, opened, env, paper, bodyWidth, actions, tools, if (light) page else null,
-                            Modifier.weight(1f),
-                        )
-                        HorizontalDivider()
-                        ReplyBar(texts, draft) { actions.onCompose(startFor(it, id)) }
-                    }
+        SwipeStrip(
+            texts, swipe, { to -> swipedTo = to.id }, Modifier.fillMaxSize(),
+            before = { NeighbourPage(texts, swipe?.previous, ui, actions, tools, draft, light) },
+            after = { NeighbourPage(texts, swipe?.next, ui, actions, tools, draft, light) },
+        ) {
+            BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+                val bodyWidth = maxWidth - Gutter * 2
+                // (A light page asks the core for the message's light design, the one its sender made for it.)
+                val designDark = dark && !light
+                LaunchedEffect(id, bodyWidth.value.toInt(), designDark) {
+                    val after = tools.prefs.markRead.delayMs(swiped = swipedTo == id)
+                    swipedTo = null
+                    actions.onOpen(id, bodyWidth.value.toInt(), designDark, after)
+                }
+                DisposableEffect(id) { onDispose { actions.onClose(id, swipedTo != null) } }
+                val settled = ui.id == id && ui.load == LoadState.Ready
+                val before = swipe?.previous?.id
+                val after = swipe?.next?.id
+                LaunchedEffect(id, settled, before, after, bodyWidth.value.toInt(), designDark) {
+                    if (settled) actions.onNear(listOfNotNull(before, after), bodyWidth.value.toInt(), designDark)
+                }
+                // The open message, or (a swipe just made it so) the one read ahead: no flash of loading.
+                val shown = shownFor(ui, id)
+                if (shown?.opened == null) {
+                    NotThere(texts, tools, ui.load == LoadState.Failed && ui.id == id)
+                } else {
+                    MessagePage(
+                        texts, id, shown, actions, tools, draft, light, bodyWidth,
+                        { link -> notice = followed(texts, actions, link) }, { details = it },
+                    ) { menu = true }
                     MessageMenu(
-                        texts, tools, opened.view, dark, light, menu, { menu = false }, actions.onTriaged,
+                        texts, tools, shown.opened.view, dark, light, menu, { menu = false }, actions.onTriaged,
                     ) { on -> pageChoice = on }
                 }
             }
@@ -157,7 +156,7 @@ internal fun ReadingPane(
 
 /** The message is loading or could not be read: the bar still offers the way back that a phone has no other of. */
 @Composable
-private fun NotThere(texts: Texts, tools: ReadingTools, failed: Boolean) {
+internal fun NotThere(texts: Texts, tools: ReadingTools, failed: Boolean) {
     Column {
         ReadingBar(texts, tools, "", null)
         val said = if (failed) texts.t("The message could not be read.") else texts.t("Loading…")
@@ -171,14 +170,14 @@ private fun linkNotice(texts: Texts, result: LinkResult): String? = when (result
 }
 
 /** Follows [link]: a mail address opens the composer, filled in and never sent by itself; the rest goes to the core. */
-private fun followed(texts: Texts, actions: ReadingActions, link: LinkInfo): String? {
+internal fun followed(texts: Texts, actions: ReadingActions, link: LinkInfo): String? {
     if (link.goes != LinkGoes.Composer) return linkNotice(texts, actions.onLink(link))
     actions.onCompose(ComposeStart.New(0uL, link.shown))
     return null
 }
 
 @Composable
-private fun MessageBody(
+internal fun MessageBody(
     texts: Texts,
     ui: ReadingUi,
     opened: OpenedMessage,
@@ -211,7 +210,7 @@ private fun MessageBody(
     ) {
         item(key = "header") {
             Box(side) {
-                MessageHeader(texts, view, tools.prefs.headerOpen) { tools.onPrefs(tools.prefs.copy(headerOpen = it)) }
+                MessageHeader(texts, view, tools.prefs.headerOpen) { tools.onPrefs { p -> p.copy(headerOpen = it) } }
             }
         }
         item(key = "banner") { Box(side) { PicturesBanner(texts, ui, actions) } }
