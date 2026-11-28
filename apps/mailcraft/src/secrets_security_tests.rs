@@ -13,7 +13,7 @@ use super::os::{self, OsStore};
 fn backend() -> (OsStore, Arc<CredentialStore>) {
     let mock: Arc<CredentialStore> = mock::Store::new().unwrap();
     let own = mock.clone();
-    (OsStore::with(Box::new(move || Ok(own.clone()))), mock)
+    (OsStore::with_layout(Box::new(move || Ok(own.clone())), os::Layout::Pieces), mock)
 }
 
 fn entry(mock: &Arc<CredentialStore>, name: &str) -> keyring_core::Entry {

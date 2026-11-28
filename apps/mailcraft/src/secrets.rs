@@ -25,7 +25,13 @@ pub fn store() -> Option<std::sync::Arc<dyn SecretStore>> {
 
 /// Windows keeps at most 2560 bytes per credential (1280 UTF-16 units), and a refresh token can
 /// be longer, so a secret is kept in pieces: `<key>#n` holds how many, `<key>#0`… hold them.
-/// (The same on every system, so that what is kept looks alike everywhere.)
+/// (Linux and FreeBSD keep that layout too, as earlier versions did everywhere.)
+///
+/// The macOS keychain keeps a secret of any length in one item, and asks the owner about each
+/// item on its own (a keychain item's access list trusts one build of the program), so there a
+/// secret is one item, `<key>#all` ([`os::WHOLE`]): one question per secret instead of one per
+/// piece and one for the count. What earlier versions kept in pieces is still read, and moved
+/// into one item when it is.
 #[cfg_attr(not(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "freebsd", test)), allow(dead_code))]
 const PIECE: usize = 1000;
 /// More pieces than any secret needs; a count beyond it is damage, not a secret.
@@ -42,6 +48,7 @@ fn pieces(secret: &str) -> Option<Vec<String>> {
 
 #[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "freebsd"))]
 mod os {
+    use std::collections::HashSet;
     use std::sync::{Arc, Mutex};
 
     use keyring_core::{CredentialStore, Entry, Error};
@@ -84,6 +91,30 @@ mod os {
         }
     }
 
+    /// The name of the one item a secret is kept in where it is kept whole (the macOS keychain):
+    /// `<key>#all`. (Never a piece's name: those are numbers, or `n`.)
+    pub(super) const WHOLE: &str = "all";
+
+    /// How a secret is laid out in the store (see [`super::PIECE`]).
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(super) enum Layout {
+        /// `<key>#n` with the count, `<key>#0`… with the pieces (Windows, Linux, FreeBSD).
+        Pieces,
+        /// One item, `<key>#all` (the macOS keychain); pieces an earlier version left are read
+        /// and moved into it.
+        Whole,
+    }
+
+    impl Layout {
+        /// This system's.
+        fn here() -> Self {
+            if cfg!(target_os = "macos") { Layout::Whole } else { Layout::Pieces }
+        }
+    }
+
+    /// Most keys whose leftover pieces this run has already cleared (a mailbox's accounts are few).
+    const CLEARED: usize = 1000;
+
     pub struct OsStore {
         /// Why the store couldn't be used the last time, until the window takes it.
         trouble: Mutex<Option<StoreTrouble>>,
@@ -91,6 +122,50 @@ mod os {
         /// couldn't be reached (a Secret Service started, or started again, after the window).
         store: Mutex<Option<Arc<CredentialStore>>>,
         connect: Connect,
+        layout: Layout,
+        /// Kept whole: the keys whose pieces from earlier versions this run has already removed,
+        /// so that writing a secret again (a refresh token, after each refresh) doesn't remove
+        /// them again.
+        cleared: Mutex<HashSet<String>>,
+        /// Kept whole: the writes and deletes made through this store. Held while one is made,
+        /// so that moving a secret out of its old pieces (read on the background thread, with no
+        /// lock held while the keychain may ask) writes only if no write or delete of that key
+        /// came in since it looked: never over a newer secret, nor bringing back one the owner
+        /// removed.
+        writes: Mutex<Writes>,
+    }
+
+    /// Most keys whose last write is noted one by one; past it, any write counts for every key.
+    pub(super) const NOTED: usize = 1000;
+
+    /// The writes and deletes made through a store kept whole.
+    #[derive(Default)]
+    pub(super) struct Writes {
+        /// How many, all keys together.
+        count: u64,
+        /// The count at each key's last write or delete, so that one account's refresh doesn't
+        /// stop another's move out of its pieces.
+        last: std::collections::HashMap<String, u64>,
+        /// The count at the last write of a key that found no room in `last`: a change to any key
+        /// since then may have been to the one asked about.
+        unnoted: u64,
+    }
+
+    impl Writes {
+        /// Note a write or delete of `key`.
+        pub(super) fn note(&mut self, key: &str) {
+            self.count = self.count.wrapping_add(1);
+            if self.last.len() < NOTED || self.last.contains_key(key) {
+                self.last.insert(key.to_string(), self.count);
+            } else {
+                self.unnoted = self.count;
+            }
+        }
+
+        /// Whether `key` may have been written or deleted since the count was `before`.
+        pub(super) fn changed_since(&self, key: &str, before: u64) -> bool {
+            self.unnoted > before || self.last.get(key).is_some_and(|&at| at > before)
+        }
     }
 
     impl Default for OsStore {
@@ -100,9 +175,22 @@ mod os {
     }
 
     impl OsStore {
-        /// A store that opens what `connect` gives: the system's, or in tests a mock.
+        /// A store that opens what `connect` gives: the system's, or in tests a mock; laid out
+        /// as this system lays it out.
         pub(super) fn with(connect: Connect) -> Self {
-            Self { trouble: Mutex::new(None), store: Mutex::new(None), connect }
+            Self::with_layout(connect, Layout::here())
+        }
+
+        /// [`with`](Self::with), laid out as `layout` says (tests try both on any system).
+        pub(super) fn with_layout(connect: Connect, layout: Layout) -> Self {
+            Self {
+                trouble: Mutex::new(None),
+                store: Mutex::new(None),
+                connect,
+                layout,
+                cleared: Mutex::new(HashSet::new()),
+                writes: Mutex::new(Writes::default()),
+            }
         }
 
         /// Remember why the store couldn't be used, when that is what `e` says.
@@ -144,10 +232,30 @@ mod os {
         fn count(&self, key: &str) -> Option<usize> {
             self.read(key, "n")?.parse::<usize>().ok().filter(|n| (1..=MAX_PIECES).contains(n))
         }
-    }
 
-    impl SecretStore for OsStore {
-        fn get(&self, key: &str) -> Option<String> {
+        /// Remove one item, without reading it (reading is what the macOS keychain asks the
+        /// owner about). Gives whether it is gone: removed, or not there, which is what removing
+        /// wants anyway.
+        fn remove_part(&self, key: &str, part: &str) -> bool {
+            let Some(e) = self.entry(key, part) else { return false };
+            match e.delete_credential() {
+                Ok(()) | Err(Error::NoEntry) => true,
+                Err(err) => {
+                    self.note(&err);
+                    false
+                }
+            }
+        }
+
+        /// The writes and deletes, held: a poisoned lock still counts (nothing kept under it can
+        /// be left half made).
+        fn writing(&self) -> std::sync::MutexGuard<'_, Writes> {
+            self.writes.lock().unwrap_or_else(std::sync::PoisonError::into_inner)
+        }
+
+        // ---- In pieces (Windows, Linux, FreeBSD, and what earlier versions left on macOS). ----
+
+        fn get_pieces(&self, key: &str) -> Option<String> {
             let mut secret = String::new();
             for i in 0..self.count(key)? {
                 secret.push_str(&self.read(key, &i.to_string())?);
@@ -155,34 +263,30 @@ mod os {
             Some(secret)
         }
 
-        fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
+        fn set_pieces(&self, key: &str, secret: &str) -> Result<(), SecretError> {
             // Platform errors may echo the attempted secret, so never return their words.
             let refused = |e: Error| {
                 self.note(&e);
                 SecretError::Refused
             };
-            if secret.is_empty() {
-                self.delete(key);
-                return Ok(());
-            }
             let pieces = pieces(secret).ok_or(SecretError::TooLong)?;
-            self.delete(key);
+            self.delete_pieces(key);
             for (i, piece) in pieces.iter().enumerate() {
                 if let Err(e) = self.build(key, &i.to_string()).and_then(|entry| entry.set_password(piece)) {
                     // The count marker is deliberately written last. Clean up even an
                     // incomplete write so an account removal cannot leave token fragments.
-                    self.delete(key);
+                    self.delete_pieces(key);
                     return Err(refused(e));
                 }
             }
             if let Err(e) = self.build(key, "n").and_then(|entry| entry.set_password(&pieces.len().to_string())) {
-                self.delete(key);
+                self.delete_pieces(key);
                 return Err(refused(e));
             }
             Ok(())
         }
 
-        fn delete(&self, key: &str) {
+        fn delete_pieces(&self, key: &str) {
             // A failed older write may have stored #0, #1... without ever committing #n.
             // A damaged or stale #n can also underestimate the parts. Probe #0 or the
             // first uncounted piece, then sweep the bounded number of parts only if needed.
@@ -194,11 +298,166 @@ mod os {
                 None => 0,
             };
             for part in (0..pieces).map(|i| i.to_string()).chain(["n".to_string()]) {
-                if let Some(e) = self.entry(key, &part) {
-                    // Nothing kept under the key is what deleting wants anyway.
-                    if let Err(err) = e.delete_credential() {
-                        self.note(&err);
+                let _ = self.remove_part(key, &part);
+            }
+        }
+
+        // ---- Whole (the macOS keychain). ----
+
+        /// What is kept whole under `key`: `Ok(None)` when nothing is, `Err` when the store
+        /// couldn't say (locked, refused): then nothing else is asked of it.
+        fn read_whole(&self, key: &str) -> Result<Option<String>, ()> {
+            let Some(entry) = self.entry(key, WHOLE) else { return Err(()) };
+            match entry.get_password() {
+                Ok(secret) => Ok(Some(secret)),
+                Err(Error::NoEntry) => Ok(None),
+                Err(e) => {
+                    self.note(&e);
+                    Err(())
+                }
+            }
+        }
+
+        /// Remove every piece an earlier version may have left under `key`, reading none of them
+        /// (a missing one is not asked about; a present one is removed, not read). Noted as done
+        /// only when every one is gone: a piece the store wouldn't remove is tried again with the
+        /// next write.
+        fn clear_pieces_unread(&self, key: &str) {
+            let mut all_gone = true;
+            for part in (0..MAX_PIECES).map(|i| i.to_string()).chain(["n".to_string()]) {
+                all_gone &= self.remove_part(key, &part);
+            }
+            if all_gone
+                && let Ok(mut cleared) = self.cleared.lock()
+                && cleared.len() < CLEARED
+            {
+                cleared.insert(key.to_string());
+            }
+        }
+
+        fn pieces_cleared(&self, key: &str) -> bool {
+            self.cleared.lock().is_ok_and(|cleared| cleared.contains(key))
+        }
+
+        fn get_whole(&self, key: &str) -> Option<String> {
+            // (An older build run after this one keeps a sign-in in pieces again and leaves this
+            // build's item as it was: a newer build then reads that item first. The server refuses
+            // the stale secret and the owner is asked to sign in once more; nothing is lost.)
+            //
+            // Counted before the item is looked for: a write of this key after this, even one that
+            // lands between the look and the pieces' read and couldn't sweep the pieces, stops the
+            // move. (Another key's write doesn't.)
+            let before = self.writing().count;
+            match self.read_whole(key) {
+                Ok(Some(secret)) => Some(secret),
+                Err(()) => None,
+                // Not kept whole: perhaps in pieces, by an earlier version. Moved into one item,
+                // so that the next start asks about one item, not about each piece.
+                Ok(None) => {
+                    // (Kept until the writes are looked at: a write of this key while the pieces
+                    // are read may have swept one still to be read, and its secret is the answer.)
+                    let pieces = self.get_pieces(key);
+                    let writes = self.writing();
+                    // A write or delete of this key came in while the pieces were read: it may be
+                    // a newer secret, or the owner removing this one. What it left stands, and is what is
+                    // given back (nothing, when it was a delete): the pieces' value is older than
+                    // it, and a caller would keep it as current. (Read again with no lock held;
+                    // an item this build just wrote, or none, asks the owner nothing.)
+                    if writes.changed_since(key, before) {
+                        drop(writes);
+                        return self.read_whole(key).ok().flatten();
                     }
+                    let secret = pieces?;
+                    let mut writes = writes;
+                    let moved = self.write_whole(key, &secret);
+                    if moved.is_ok() {
+                        // A write of this key like any other: a read of it under way at the same
+                        // time, which may find a piece this move sweeps, reads the item instead.
+                        writes.note(key);
+                    }
+                    // The item is written: the pieces are swept with no lock held, so that a write
+                    // from the window never waits on the keychain removing them.
+                    drop(writes);
+                    match moved {
+                        Ok(()) => self.sweep_once(key),
+                        // (Kept as it was: the pieces stay until a write succeeds.)
+                        Err(e) => log::warn!("couldn't move a remembered sign-in into one keychain item: {e}"),
+                    }
+                    Some(secret)
+                }
+            }
+        }
+
+        fn set_whole(&self, key: &str, secret: &str) -> Result<(), SecretError> {
+            self.write_whole(key, secret)?;
+            self.sweep_once(key);
+            Ok(())
+        }
+
+        /// The one item for `key` holds `secret`: what a write must do under the lock.
+        fn write_whole(&self, key: &str, secret: &str) -> Result<(), SecretError> {
+            // As long as the pieces could be: no longer than what any system keeps.
+            if pieces(secret).is_none() {
+                return Err(SecretError::TooLong);
+            }
+            // Removed first, then added: writing over an item that is there reads it first,
+            // and reading an item an earlier build made asks the owner for the keychain
+            // password. A new item trusts this build, so reading it later asks nothing.
+            let _ = self.remove_part(key, WHOLE);
+            if let Err(e) = self.build(key, WHOLE).and_then(|entry| entry.set_password(secret)) {
+                // Platform errors may echo the attempted secret, so never return their words.
+                self.note(&e);
+                let _ = self.remove_part(key, WHOLE);
+                return Err(SecretError::Refused);
+            }
+            Ok(())
+        }
+
+        /// The secret is safe in one item: what an earlier version left in pieces goes, once.
+        fn sweep_once(&self, key: &str) {
+            if !self.pieces_cleared(key) {
+                self.clear_pieces_unread(key);
+            }
+        }
+
+        fn delete_whole(&self, key: &str) {
+            let _ = self.remove_part(key, WHOLE);
+            self.clear_pieces_unread(key);
+        }
+    }
+
+    impl SecretStore for OsStore {
+        fn get(&self, key: &str) -> Option<String> {
+            match self.layout {
+                Layout::Pieces => self.get_pieces(key),
+                Layout::Whole => self.get_whole(key),
+            }
+        }
+
+        fn set(&self, key: &str, secret: &str) -> Result<(), mailcraft_host::SecretError> {
+            if secret.is_empty() {
+                self.delete(key);
+                return Ok(());
+            }
+            match self.layout {
+                Layout::Pieces => self.set_pieces(key, secret),
+                Layout::Whole => {
+                    // (Held while the write is made: the move out of pieces waits for it.)
+                    let mut writes = self.writing();
+                    writes.note(key);
+                    self.set_whole(key, secret)
+                }
+            }
+        }
+
+        fn delete(&self, key: &str) {
+            match self.layout {
+                Layout::Pieces => self.delete_pieces(key),
+                Layout::Whole => {
+                    // (Held while the write is made: the move out of pieces waits for it.)
+                    let mut writes = self.writing();
+                    writes.note(key);
+                    self.delete_whole(key);
                 }
             }
         }
@@ -207,11 +466,24 @@ mod os {
             self.trouble.lock().ok()?.take()
         }
     }
+
+    #[cfg(test)]
+    impl OsStore {
+        /// Whether a write holds the lock on the writes just now.
+        pub(super) fn writes_held(&self) -> bool {
+            self.writes.try_lock().is_err()
+        }
+    }
 }
 
 #[cfg(test)]
 #[path = "secrets_security_tests.rs"]
 mod security_tests;
+
+#[cfg(test)]
+#[cfg(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "freebsd"))]
+#[path = "secrets_whole_tests.rs"]
+mod whole_tests;
 
 #[cfg(test)]
 mod tests {
@@ -277,7 +549,7 @@ mod tests {
         let mock: Arc<CredentialStore> = mock::Store::new().unwrap();
         let store = {
             let mock = mock.clone();
-            os::OsStore::with(Box::new(move || Ok(mock.clone())))
+            os::OsStore::with_layout(Box::new(move || Ok(mock.clone())), os::Layout::Pieces)
         };
         let entry = |user: &str| mock.build("MailCraft", user, None).unwrap();
         assert_eq!(os::SERVICE, "MailCraft");
