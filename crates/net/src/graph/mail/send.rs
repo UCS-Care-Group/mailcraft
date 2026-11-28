@@ -146,30 +146,19 @@ fn forget_draft(graph: &Graph<'_>, id: &str, done: &mut SendDone) -> Result<bool
         done.outcome = SendOutcome::Held { lost: false, why: "Microsoft wouldn't take the message".to_string() };
         return Ok(false);
     };
-    let asked = graph.call(Kind::Once, &graph.url(&graph.mail_path(&format!("/messages/{id}"))), "DELETE", &[], None, WRITE_TIMEOUT, MAX_PAGE);
-    let reply = match asked {
-        Ok(reply) => reply,
-        Err(e) if e.is_unreachable() => {
-            done.outcome = SendOutcome::Held { lost: true, why: String::new() };
-            return Ok(false);
-        }
-        Err(e) => return Err(e),
-    };
+    // Nothing has been sent yet. A server that can't be reached leaves the message in the Outbox
+    // for the next run: it is not held as one that may have gone.
+    let reply = graph.call(Kind::Once, &graph.url(&graph.mail_path(&format!("/messages/{id}"))), "DELETE", &[], None, WRITE_TIMEOUT, MAX_PAGE)?;
     super::refusing(graph, &reply)?;
     match reply.status {
         200..=299 | 404 => Ok(true),
         401 | 429 | 503 => Err(graph.refusal(Doing::Sending, &reply, "")),
         400 | 403 | 413 | 415 => {
-            let code = code_of(&reply.body, &[graph.token]);
-            log::info!("graph sending: an earlier draft could not be removed (status {}{code})", reply.status);
-            let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-            done.outcome = held_refused(reply.status, text(json.get("error").unwrap_or(&Value::Null), "code"), graph.shared());
+            hold_refused_reply(graph, &reply, done, "an earlier draft could not be removed");
             Ok(false)
         }
-        _ => {
-            done.outcome = SendOutcome::Held { lost: true, why: String::new() };
-            Ok(false)
-        }
+        // The delete's answer doesn't say, and no send was asked. Tried again, not reported as sent.
+        _ => Err(graph.refusal(Doing::Sending, &reply, "")),
     }
 }
 
@@ -207,10 +196,7 @@ fn make_mime_draft(graph: &Graph<'_>, body: &str, done: &mut SendDone) -> Result
         }
         401 | 429 | 503 => Err(graph.refusal(Doing::Sending, &reply, "")),
         400 | 403 | 404 | 413 | 415 => {
-            let code = code_of(&reply.body, &[graph.token]);
-            log::info!("graph sending: a draft for a delivery receipt was refused (status {}{code})", reply.status);
-            let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-            done.outcome = held_refused(reply.status, text(json.get("error").unwrap_or(&Value::Null), "code"), graph.shared());
+            hold_refused_reply(graph, &reply, done, "a draft for a delivery receipt was refused");
             Ok(None)
         }
         _ => {
@@ -246,10 +232,7 @@ fn stamp_receipt(graph: &Graph<'_>, id: &str, marker: &str, done: &mut SendDone)
         200..=299 => Ok(true),
         401 | 429 | 503 => Err(graph.refusal(Doing::Sending, &reply, "")),
         400 | 403 | 404 | 413 | 415 => {
-            let code = code_of(&reply.body, &[graph.token]);
-            log::info!("graph sending: a delivery receipt could not be set (status {}{code})", reply.status);
-            let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-            done.outcome = held_refused(reply.status, text(json.get("error").unwrap_or(&Value::Null), "code"), graph.shared());
+            hold_refused_reply(graph, &reply, done, "a delivery receipt could not be set");
             Ok(false)
         }
         _ => {
@@ -277,12 +260,7 @@ fn settle(graph: &Graph<'_>, asked: Result<Reply, NetError>, done: &mut SendDone
         200..=299 => done.outcome = SendOutcome::Sent,
         // Not taken: it goes next run.
         401 | 429 | 503 => return Err(graph.refusal(Doing::Sending, &reply, "")),
-        400 | 403 | 404 | 413 | 415 => {
-            let code = code_of(&reply.body, &[graph.token]);
-            log::info!("graph sending: a message was refused (status {}{code})", reply.status);
-            let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
-            done.outcome = held_refused(reply.status, text(json.get("error").unwrap_or(&Value::Null), "code"), graph.shared());
-        }
+        400 | 403 | 404 | 413 | 415 => hold_refused_reply(graph, &reply, done, "a message was refused"),
         // An answer that doesn't say whether it went.
         status => {
             log::info!("graph sending: a send was answered with status {status}; the message is held");
@@ -290,6 +268,14 @@ fn settle(graph: &Graph<'_>, asked: Result<Reply, NetError>, done: &mut SendDone
         }
     }
     Ok(())
+}
+
+/// The server refused `reply`. The message is held, with why in plain words.
+fn hold_refused_reply(graph: &Graph<'_>, reply: &Reply, done: &mut SendDone, refused: &str) {
+    let code = code_of(&reply.body, &[graph.token]);
+    log::info!("graph sending: {refused} (status {}{code})", reply.status);
+    let json = serde_json::from_slice::<Value>(&reply.body).unwrap_or(Value::Null);
+    done.outcome = held_refused(reply.status, text(json.get("error").unwrap_or(&Value::Null), "code"), graph.shared());
 }
 
 /// Held for a refusal: why, in plain words. `shared`: it was to go from a shared mailbox (#70).

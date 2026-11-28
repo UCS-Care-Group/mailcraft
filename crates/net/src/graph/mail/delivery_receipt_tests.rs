@@ -100,6 +100,17 @@ fn a_corrected_message_replaces_the_draft_an_earlier_attempt_left() {
 }
 
 #[test]
+fn a_draft_that_cannot_be_removed_stays_to_be_sent() {
+    let server = StandIn::start().unwrap();
+    leave_draft(&server, "Earlier copy", "mailcraft-send-9");
+    server.state().lose_next.push("DELETE /v1.0/me/messages/*".into());
+    let all = run(&server, vec![SendUp { message: 9, draft: None, mime: Some(Box::new(going(true))) }]);
+    assert!(all.sent.is_empty(), "no send was asked, so it is not held as possibly sent: {:?}", all.sent);
+    assert!(all.errors.iter().any(|e| e.contains("Couldn't send")), "{:?}", all.errors);
+    assert!(server.state().sent.is_empty());
+}
+
+#[test]
 fn a_message_that_asks_for_none_still_goes_with_send_mail() {
     let server = StandIn::start().unwrap();
     let all = run(&server, vec![SendUp { message: 4, draft: None, mime: Some(Box::new(going(false))) }]);
