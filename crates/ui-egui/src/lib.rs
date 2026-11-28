@@ -269,6 +269,7 @@ mod send_warnings;
 #[cfg(test)]
 mod send_warnings_tests;
 mod sender_images;
+mod senders;
 mod sending;
 pub mod server_search;
 pub mod server_sync;

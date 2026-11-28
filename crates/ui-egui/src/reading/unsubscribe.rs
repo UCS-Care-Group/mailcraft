@@ -101,12 +101,34 @@ pub(crate) fn poll(app: &mut MailApp) {
         app.unsubscribing.say(id, if let Err(why) = answer { Outcome::Failed(why) } else { Outcome::Accepted });
     }
     // One at a time: each list's server is asked once, and none waits on another's slowness long.
+    // Under Work Offline nothing goes to a server: the next waits, kept, until it is turned off.
+    if app.offline() {
+        return;
+    }
     if let Some((id, url)) = app.unsubscribing.waiting.pop_front() {
         match &app.services.unsubscribe {
             Some(post) => app.unsubscribing.flying = Some((id, post(url))),
             None => app.unsubscribing.say(id, Outcome::Failed(tl!("this build can't unsubscribe in one click").to_string())),
         }
     }
+}
+
+/// What came of unsubscribing from message `id`, once something has: Senders says it on its row.
+pub(crate) fn outcome(app: &MailApp, id: u64) -> Option<Outcome> {
+    app.unsubscribing.said.get(&id).cloned()
+}
+
+/// How many one-click requests are on their way or waiting their turn.
+pub(crate) fn pending(app: &MailApp) -> usize {
+    app.unsubscribing.waiting.len() + usize::from(app.unsubscribing.flying.is_some())
+}
+
+/// Stop: the one-click requests still waiting their turn are dropped, unasked (the one on its way
+/// can't be called back, and its answer is still said). How many were dropped.
+pub(crate) fn stop(app: &mut MailApp) -> usize {
+    let dropped = app.unsubscribing.waiting.len();
+    app.unsubscribing.waiting.clear();
+    dropped
 }
 
 /// Whether the engine would offer `m` a way to unsubscribe (its server vouches for it, and it has

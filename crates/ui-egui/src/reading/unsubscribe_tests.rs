@@ -206,6 +206,16 @@ fn a_selection_unsubscribes_each_list_once_one_click_at_a_time() {
     assert_eq!(app.unsubscribing.said.get(&page), None);
 }
 
+#[test]
+fn stop_drops_the_one_click_requests_still_waiting() {
+    let (mut app, _) = list_app(&ONE_CLICK);
+    app.unsubscribing.waiting.extend([(1, "https://a.example/u".to_string()), (2, "https://b.example/u".to_string())]);
+    assert_eq!(super::pending(&app), 2);
+    assert_eq!(super::stop(&mut app), 2);
+    assert_eq!(super::pending(&app), 0);
+    assert!(super::outcome(&app, 1).is_none(), "a request dropped unasked says nothing came of it");
+}
+
 /// A host that keeps each one-click unsubscribe waiting for its answer; the addresses asked, and
 /// the senders of the answers to come.
 type Held = (Arc<Mutex<Vec<String>>>, Arc<Mutex<Vec<mpsc::Sender<Result<(), String>>>>>);
@@ -446,9 +456,11 @@ fn what_an_agent_is_allowed_is_what_is_written_and_nothing_more() {
     let shop = add_at(&mut app, "deals@shop.example", 60, &[("List-Unsubscribe", "<mailto:leave@shop.example?subject=Leave%20me>")]);
     let club = add_at(&mut app, "news@club.example", 120, &[("List-Unsubscribe", "<mailto:quit@club.example>")]);
     app.session.sel.messages = vec![one, shop, club];
-    // One message named by `id`: the question is about it alone, so the selection never runs.
-    let (_, rx) = agent_asks(&mut app, "ui.unsubscribeMany", json!({"id": shop}));
-    assert_eq!(rx.try_recv().unwrap()["ok"], false);
+    // One message named by `id`: refused before the owner is asked, so the selection never runs.
+    let (req, _rx) = crate::control::ControlRequest::new("engine.execute", json!({"command": "ui.unsubscribeMany", "params": {"id": shop}}));
+    let out = crate::control::handle(&mut app, &egui::Context::default(), &req.from_agent(Vec::new()));
+    assert!(matches!(out, crate::control::Outcome::Done(ref v) if v["ok"] == false), "refused at once");
+    assert!(app.asking.is_empty(), "nothing is asked");
     assert!(app.unsubscribing.waiting.is_empty() && app.unsubscribing.flying.is_none() && outbox(&app).is_empty());
     // A request named wrongly among those to write (0): the question shows none, and none goes.
     let (what, rx) = agent_asks(&mut app, "ui.unsubscribeMany", json!({"ids": [shop], "mail": [shop, 0]}));
@@ -479,4 +491,24 @@ fn more_requests_by_mail_than_a_question_lists_are_refused() {
     let refused = app.execute("ui.unsubscribeMany", json!({"ids": [1], "mail": mail})).unwrap_err();
     assert!(refused.contains("20"), "{refused}");
     assert!(outbox(&app).is_empty());
+}
+
+#[test]
+fn under_work_offline_the_next_list_waits_and_is_kept() {
+    let (mut app, first) = list_app(&ONE_CLICK);
+    let second = add(&mut app, "deals@shop.example", "<https://shop.example/leave>");
+    let (asked, answers) = held_host(&mut app);
+    app.execute("ui.unsubscribeMany", json!({"ids": [first, second]})).unwrap();
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    app.session.prefs.offline = true;
+    answers.lock().unwrap()[0].send(Ok(())).unwrap();
+    for _ in 0..4 {
+        poll(&mut app);
+    }
+    // The answer on its way is taken in; the next isn't asked, and still waits.
+    assert_eq!(asked.lock().unwrap().len(), 1);
+    assert_eq!(super::pending(&app), 1);
+    app.session.prefs.offline = false;
+    poll(&mut app);
+    assert_eq!(asked.lock().unwrap().len(), 2);
 }

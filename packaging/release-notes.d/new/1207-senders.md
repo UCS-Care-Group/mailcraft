@@ -1,0 +1,1 @@
+- Folder › Clean Up › Senders lists who writes to the folder in view: how many messages, how many unread, the last one and how to unsubscribe. Tick several to unsubscribe from all their lists at once, or to delete or move all their messages ([#1207](https://github.com/GITHUB_REPOSITORY/issues/1207)).

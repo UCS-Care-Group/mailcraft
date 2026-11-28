@@ -2828,6 +2828,12 @@ msgstr "Par taille"
 msgid "By Subject"
 msgstr "Par objet"
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "By mail"
+msgstr "Par mail"
+
 #. android, command label, interface, name, ribbon, ribbon location, what a command says
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/selection.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/view.rs crates/engine/src/session.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/reading/invitation.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -3578,7 +3584,7 @@ msgid "Classic Ribbon"
 msgstr "Ruban classique"
 
 #. ribbon, ribbon location
-#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Clean Up"
 msgstr "Nettoyer"
@@ -3679,7 +3685,7 @@ msgid "Clock"
 msgstr ""
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/senders.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
 #, fuzzy
 msgid "Close"
 msgstr "Fermer"
@@ -4627,6 +4633,12 @@ msgstr ""
 "Supprimer\n"
 "le dossier"
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Delete All"
+msgstr "Tout supprimer"
+
 #. command label
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
@@ -5363,6 +5375,12 @@ msgstr "Chaque condition et chaque exception a besoin de quelque chose à recher
 #, fuzzy
 msgid "Each sender gets one automatic reply, with the message below:"
 msgstr "Chaque expéditeur reçoit une réponse automatique, avec le message ci-dessous :"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Each ticked sender's newest message says how: MailCraft asks first."
+msgstr "Le message le plus récent de chaque expéditeur coché indique comment : MailCraft demande d'abord."
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt crates/ui-egui/src/menubar.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/tasks_view.rs
@@ -6181,7 +6199,7 @@ msgid "Folded"
 msgstr "Replié"
 
 #. interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/unsubscribe.rs crates/model/src/mailbox.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Folder"
 msgstr "Dossier"
@@ -7257,6 +7275,12 @@ msgstr "C'est à l'organisateur de décider de sa périodicité."
 msgid "How many messages each folder holds and the space they take"
 msgstr "Le nombre de messages que contient chaque dossier et l'espace qu'ils occupent"
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "How to unsubscribe"
+msgstr "Désabonnement"
+
 #. command label
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
@@ -7628,6 +7652,12 @@ msgstr "Dans un message en texte brut"
 #, fuzzy
 msgid "In line with text"
 msgstr "Aligné sur le texte"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "In one click"
+msgstr "En un clic"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -8443,6 +8473,12 @@ msgstr "Dernier commit"
 #, fuzzy
 msgid "Last name"
 msgstr "Nom"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Last received"
+msgstr "Dernier reçu"
 
 #. interface, name
 #: crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/tasks_view.rs
@@ -9535,7 +9571,7 @@ msgid "Message sent."
 msgstr "Message envoyé."
 
 #. interface, ribbon, ribbon location
-#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs
+#: crates/engine/src/cmd/view.rs crates/engine/src/cmd/view/display.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/senders.rs
 #, fuzzy
 msgid "Messages"
 msgstr "Messages"
@@ -9949,6 +9985,12 @@ msgstr "Déplacer le compte"
 #, fuzzy
 msgid "Move All and Send Invitations"
 msgstr "Tout déplacer et envoyer les invitations"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Move All…"
+msgstr "Tout déplacer…"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -10960,6 +11002,12 @@ msgstr "Aucune boîte aux lettres ni aucun identifiant existant n'a été modifi
 msgid "No message is being read there"
 msgstr "Aucun message n'y est en cours de lecture"
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "No messages in this folder."
+msgstr "Aucun message dans ce dossier."
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt
 #, fuzzy
@@ -11393,6 +11441,12 @@ msgid "Not sent yet"
 msgstr "Pas encore envoyé"
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Not unsubscribed"
+msgstr "Non désabonné"
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Not unsubscribed."
@@ -11627,7 +11681,7 @@ msgid "Numbering"
 msgstr "Numérotation"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/senders.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -11684,6 +11738,12 @@ msgstr "Le jour"
 #, fuzzy
 msgid "On Wayland, restart MailCraft after enabling this option. A reachable X11/XWayland server and a system tray are required."
 msgstr "Sous Wayland, redémarrez MailCraft après avoir activé cette option. Un serveur X11/XWayland accessible et une zone de notification sont nécessaires."
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "On its own page"
+msgstr "Sur sa propre page"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12138,6 +12198,12 @@ msgid "Open on GitHub"
 msgstr "Ouvrir sur GitHub"
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Open one of its messages to unsubscribe there."
+msgstr "Ouvrez l'un de ses messages pour vous y désabonner."
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "Open or save the Digital signature"
@@ -12544,6 +12610,12 @@ msgstr "Page suivante"
 #, fuzzy
 msgid "Page Up"
 msgstr "Page précédente"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Page opened"
+msgstr "Page ouverte"
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -13961,6 +14033,12 @@ msgid "Request a Read Receipt"
 msgstr "Demander une confirmation de lecture"
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Request in your Outbox"
+msgstr "Demande dans votre Boîte d'envoi"
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Request in your Outbox."
@@ -15248,6 +15326,12 @@ msgstr "Envoyer/Recevoir avec JMAP"
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Envoyer/Recevoir avec Microsoft Graph"
 
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Sender"
+msgstr "Expéditeur"
+
 #. command label
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
@@ -15271,6 +15355,18 @@ msgstr "Images des expéditeurs"
 #, fuzzy
 msgid "Sender's address contains"
 msgstr "L'adresse de l'expéditeur contient"
+
+#. command label, interface, ribbon
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Senders"
+msgstr "Expéditeurs"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Senders in {folder}"
+msgstr "Expéditeurs dans {folder}"
 
 #. name
 #: crates/model/src/sync/progress.rs
@@ -16554,7 +16650,7 @@ msgid "Still indexing: some older mail is searched more slowly"
 msgstr "Indexation en cours : la recherche dans le courrier plus ancien est plus lente"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/sync_panel.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt crates/ui-egui/src/senders.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "Stop"
 msgstr "Arrêter"
@@ -18091,6 +18187,12 @@ msgstr "Le serveur de la liste n'a pas accepté la demande : {why}."
 #, fuzzy
 msgid "The list's server took the request. Mail from it may take a few days to stop."
 msgstr "Le serveur de la liste a accepté la demande. Ses envois peuvent mettre quelques jours à cesser."
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "The lists not yet asked aren't asked; the one being asked still is."
+msgstr "Les listes pas encore sollicitées ne le sont pas ; celle en cours l'est quand même."
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -20222,6 +20324,18 @@ msgid "Tick at least one more contact to merge into the kept one."
 msgstr "Cochez au moins un autre contact à fusionner avec celui qui est conservé."
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Tick every sender listed"
+msgstr "Cocher tous les expéditeurs listés"
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Tick senders to unsubscribe from their lists, or to delete or move all their messages in this folder."
+msgstr "Cochez des expéditeurs pour vous désabonner de leurs listes, ou pour supprimer ou déplacer tous leurs messages de ce dossier."
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "Tick the contacts that are the same person, and choose the one to keep:"
@@ -20719,7 +20833,7 @@ msgid "Unpin"
 msgstr "Détacher"
 
 #. android, interface, name
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailRowParts.kt crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/senders.rs
 #, fuzzy
 msgid "Unread"
 msgstr "Non lu"
@@ -20765,7 +20879,7 @@ msgid "Unsaved Message"
 msgstr "Message non enregistré"
 
 #. command label, interface
-#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs
+#: crates/engine/src/cmd/unsubscribe.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/reading/unsubscribe.rs crates/ui-egui/src/senders.rs
 #, fuzzy
 msgid "Unsubscribe"
 msgstr "Se désabonner"
@@ -20809,6 +20923,12 @@ msgid "Unsubscribe on the list's page in your browser."
 msgstr "Désabonnez-vous sur la page de la liste, dans votre navigateur."
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Unsubscribed"
+msgstr "Désabonné"
+
+#. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
 #, fuzzy
 msgid "Unsubscribed."
@@ -20819,6 +20939,14 @@ msgstr "Désabonné."
 #, fuzzy
 msgid "Unsubscribing: {click} in one click, {mail} by mail, {pages} to do on their own page, {left} left out."
 msgstr "Désabonnement : {click} en un clic, {mail} par e-mail, {pages} à faire sur leur page, {left} laissés de côté."
+
+#. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "Unsubscribing: {n} list left."
+msgid_plural "Unsubscribing: {n} lists left."
+msgstr[0] "Désabonnement : {n} liste restante."
+msgstr[1] "Désabonnement : {n} listes restantes."
 
 #. interface
 #: crates/ui-egui/src/reading/unsubscribe.rs
@@ -22527,6 +22655,14 @@ msgstr[0] "et {n} autre dossier"
 msgstr[1] "et {n} autres dossiers"
 
 #. interface
+#: crates/ui-egui/src/senders.rs
+#, fuzzy
+msgid "and {n} more sender, with fewer messages"
+msgid_plural "and {n} more senders, with fewer messages"
+msgstr[0] "et {n} autre expéditeur, avec moins de messages"
+msgstr[1] "et {n} autres expéditeurs, avec moins de messages"
+
+#. interface
 #: crates/ui-egui/src/merge_contacts.rs
 #, fuzzy
 msgid "and {n} more, not merged now"
@@ -23383,7 +23519,7 @@ msgid "no folder \"{path}\""
 msgstr "aucun dossier « {path} »"
 
 #. what a command says
-#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
+#: crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/imported_dupes.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/unsubscribe.rs crates/engine/src/import_pst.rs crates/engine/src/io.rs
 #, fuzzy
 msgid "no folder with id {id}"
 msgstr "aucun dossier avec l'id {id}"

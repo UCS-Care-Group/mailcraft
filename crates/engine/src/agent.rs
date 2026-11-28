@@ -169,6 +169,8 @@ const SAFE: &[&str] = &[
     // How a message can be unsubscribed from ("send": true is asked about, `classify`).
     "mail.unsubscribe",
     "mail.unsubscribeMany",
+    // The senders of a folder, counted, and how each can be unsubscribed from: read only.
+    "mail.senders",
     "mail.clearFlag",
     "mail.complete",
     "mail.toggleFlag",
@@ -2172,6 +2174,10 @@ fn verdict(s: &Session, id: &str, params: &Value, allow: &[Class], yes: Option<C
         {
             return Verdict::Refuse(format!("`{id}`: {e}"));
         }
+        // It reads `ids` alone (#1207): `id` is refused before the owner is asked about it.
+        if id == "ui.unsubscribeMany" && params.get("id").is_some() {
+            return Verdict::Refuse(format!("`{id}` reads `ids` alone: name the messages by `ids`, not `id`"));
+        }
     }
     // Add to Tasks may take the selection, but a message named wrongly is refused all the same.
     if id == "tasks.fromMessage"
@@ -2948,9 +2954,10 @@ fn what_it_does(s: &Session, id: &str, params: &Value) -> String {
             let ids = if named.is_empty() { s.sel.messages.clone() } else { named };
             // Only `ui.unsubscribeMany` writes, and only to the requests by mail it names (`mail`),
             // read as it reads them: each named is shown, or the call is refused (at most 20).
-            let mails: Vec<String> = taken(&json!({"ids": params.get("mail")})).into_iter().filter_map(|m| unsubscribe_mail(s, m)).collect();
-            let writes =
-                if id == "ui.unsubscribeMany" && !mails.is_empty() { format!(", and writing {}", some(&mails, mails.len())) } else { String::new() };
+            // (More than 20 is refused all the same: only the first 21 are written out here, so a
+            // long list names a "more" without building a line for each.)
+            let mails: Vec<String> = taken(&json!({"ids": params.get("mail")})).into_iter().take(21).filter_map(|m| unsubscribe_mail(s, m)).collect();
+            let writes = if id == "ui.unsubscribeMany" && !mails.is_empty() { format!(", and writing {}", some(&mails, 20)) } else { String::new() };
             format!("unsubscribe from the lists of {} by their servers{writes}", messages_text(s, &ids))
         }
         _ if BATCH.contains(&id) && is_batch(s, id, params) => batch_text(s, id, params, label),

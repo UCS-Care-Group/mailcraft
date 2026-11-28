@@ -165,6 +165,9 @@ pub enum Dialog {
     /// People › Merge Duplicates (#506, [`crate::merge_contacts`]): it only collects what to
     /// merge, then runs `people.merge`.
     MergeContacts(Box<crate::merge_contacts::MergeContacts>),
+    /// Folder › Clean Up › Senders (#1207, [`crate::senders`]): it only lets the owner tick
+    /// senders, then runs Unsubscribe, Delete All or Move All once it has closed.
+    Senders(Box<crate::senders::Senders>),
     /// Move to Contacts Folder… (#1144, [`crate::move_contacts`]): it only chooses the folder
     /// (and asks about somebody there already), then runs `people.moveToFolder`.
     MoveContacts(Box<crate::move_contacts::MoveContacts>),
@@ -337,6 +340,7 @@ impl Dialog {
             Dialog::ImportTree(_) => "importTree",
             Dialog::ImportPst(_) => "importPst",
             Dialog::MergeContacts(_) => "mergeContacts",
+            Dialog::Senders(_) => "senders",
             Dialog::MoveContacts(_) => "moveContacts",
             Dialog::Pick(p) => match p.kind {
                 crate::pick_item::PickKind::Message => "attachItem",
@@ -500,6 +504,10 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
         app.session.compose.as_ref()?;
         let kind = if name == "attachItem" { crate::pick_item::PickKind::Message } else { crate::pick_item::PickKind::Contact };
         return Some(Dialog::Pick(Box::new(crate::pick_item::Pick::new(kind))));
+    }
+    if name == "senders" {
+        // (The engine counts; when it refuses, there is no dialog.)
+        return crate::senders::Senders::open(app, params).map(|d| Dialog::Senders(Box::new(d)));
     }
     if name == "mergeContacts" {
         return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
@@ -2112,6 +2120,8 @@ pub fn input_dialog(id: &str, params: &Value) -> Option<&'static str> {
         "people.edit" if empty => Some("editContact"),
         // Which contacts, and what the kept one has, are chosen in Merge Duplicates (#506).
         "people.merge" if !has("keep") => Some("mergeContacts"),
+        // The senders of a folder are a list to tick, in a dialog of their own (#1207).
+        "mail.senders" => Some("senders"),
         // Which contacts folder, and what to do about somebody there already (#1144).
         "people.moveToFolder" if !has("folder") => Some("moveContacts"),
         "tasks.new" if !has("title") => Some("task"),
@@ -2368,6 +2378,8 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     });
     let mut close = escape;
     let mut reopen: Option<Dialog> = None;
+    // What Senders runs once it has closed, so that the question or dialog it leads to is shown.
+    let mut then: Option<Vec<(String, Value)>> = None;
     // The Verify dialog's answer, run with the dialog in its place (`ui.markKeyVerified` does
     // nothing without it).
     let mut mark: Option<Value> = None;
@@ -3140,6 +3152,10 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
             let open = window(ctx, tl!("Merge Duplicate Contacts"), crate::merge_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
             close |= !open || done;
         }
+        Dialog::Senders(dialog) => {
+            let open = window(ctx, tl!("Senders"), crate::senders::WIDTH, |ui| then = dialog.show(app, ui, enter));
+            close |= !open || then.is_some();
+        }
         Dialog::MoveContacts(dialog) => {
             let mut done = false;
             let open = window(ctx, tl!("Move to Contacts Folder"), crate::move_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
@@ -3221,6 +3237,12 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
     // Closed. The window that opened it does not keep the next dialog: one opened below, or by
     // the main window in the rest of this frame, belongs to whoever opens it.
     app.windows.dialog_for = None;
+    for (id, params) in then.into_iter().flatten() {
+        if let Err(e) = app.run(&id, params) {
+            app.status(e);
+            break;
+        }
+    }
     // Command search hands over the command it picked.
     if let Some(Dialog::Commands { query: id, selected: usize::MAX }) = reopen {
         let id = match id.as_str() {
