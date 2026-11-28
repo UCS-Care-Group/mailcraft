@@ -713,7 +713,15 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     // A longer one on a device that lists only its window's mail (a phone, MB3.16): its folders
     // are listed afresh, to bring the older mail it now covers.
     let lengthened = a.keep_offline > before.keep_offline && s.mailbox.device_limits.is_some();
+    // Where its ManageSieve server is (named, or the incoming server's host): what is known of the
+    // Sieve scripts and replies of the server before is no longer this account's (#2058).
+    let sieve_at = |a: &mailcraft_model::Account| (a.sieve_host.trim().to_ascii_lowercase(), a.sieve_port, a.incoming.as_ref().map(|i| i.host.trim().to_ascii_lowercase()));
+    let sieve_moved = sieve_at(&before) != sieve_at(&a);
     *s.mailbox.account_mut(id)? = a;
+    if sieve_moved {
+        s.sieve.remove(&id);
+        s.auto_replies.remove(&id);
+    }
     if shortened {
         s.driver.thinning.now = true;
     }

@@ -226,3 +226,18 @@ fn the_owner_may_name_another_managesieve_server_and_an_agent_is_asked_about_it(
     let a = s.mailbox.account(account).unwrap();
     assert_eq!((a.sieve_host.as_str(), a.sieve_port), ("", 0));
 }
+
+/// Another ManageSieve server named in Account Settings: what was known of the one before (its
+/// script, its replies) is no longer the account's, and is read again before anything is written;
+/// a change of anything else keeps it (#2058).
+#[test]
+fn another_sieve_server_forgets_what_the_one_before_had() {
+    let (mut s, account) = session();
+    read(&mut s, account, state(&ALL, None, None));
+    assert!(s.sieve.contains_key(&account) && s.auto_replies.contains_key(&account));
+    run(&mut s, "account.edit", json!({"id": account, "name": "Ada"}));
+    assert!(s.sieve.contains_key(&account) && s.auto_replies.contains_key(&account));
+    run(&mut s, "account.edit", json!({"id": account, "sieve": {"host": "sieve.example.org", "port": 4191}}));
+    assert!(!s.sieve.contains_key(&account) && !s.auto_replies.contains_key(&account));
+    assert!(refusal(&mut s, "account.setAutomaticReplies", json!({"account": account, "status": "disabled"})).contains("read"));
+}
