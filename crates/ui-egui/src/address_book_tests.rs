@@ -1,14 +1,15 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! People's Address Book (#1262), the host played by a stand-in that answers as told: what is
-//! looked up and when, what is shown, and what is made of it on the owner's say-so.
+//! People's Address Book (#1262, #1393), the host played by a stand-in that answers as told: the
+//! whole list downloaded and narrowed here, or (where there is none) what is looked up and when,
+//! what is shown, and what is made of it on the owner's say-so.
 
 use std::sync::{Arc, Mutex};
 
 use egui_kittest::Harness;
 use egui_kittest::kittest::Queryable;
 use mailcraft_engine::{Module, Session};
-use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, EwsResolveResult, EwsResolved};
+use mailcraft_model::sync::{DirectoryKind, DirectoryPerson, EwsAddressList, EwsResolveResult, EwsResolved};
 use mailcraft_model::{Id, Mailbox};
 use serde_json::json;
 
@@ -18,7 +19,9 @@ use crate::Services;
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
 
-type Asked = Arc<Mutex<Vec<(Vec<String>, Arc<AtomicBool>)>>>;
+/// What the host was asked: the texts looked up (none for a download of the whole list), whether
+/// it was the whole list, and the job's cancel.
+type Asked = Arc<Mutex<Vec<(Vec<String>, bool, Arc<AtomicBool>)>>>;
 
 fn person(name: &str, email: &str) -> DirectoryPerson {
     DirectoryPerson { name: name.into(), email: email.into(), kind: DirectoryKind::Mailbox, ..Default::default() }
@@ -49,8 +52,18 @@ fn answer(text: &str) -> Vec<EwsResolved> {
 }
 
 /// A window with one Exchange server account whose password was typed, and a host that writes
-/// down what it was asked and answers at once, or (`hold`) never.
+/// down what it was asked and answers a look-up at once, or (`hold`) never; and a download of the
+/// whole list at once, with `list`, or saying that the server publishes none.
 fn window(hold: bool) -> (MailApp, Id, Asked) {
+    window_with(hold, None)
+}
+
+fn window_with(hold: bool, list: Option<Vec<DirectoryPerson>>) -> (MailApp, Id, Asked) {
+    window_downloading(hold, list, false)
+}
+
+/// [`window_with`], with a download of the whole list that never ends when `endless`.
+fn window_downloading(hold: bool, list: Option<Vec<DirectoryPerson>>, endless: bool) -> (MailApp, Id, Asked) {
     let mut app = MailApp::new(Session::at(Mailbox::with_local_account("", ""), NOW, 0), Services::default());
     app.autosave = false;
     let added = app
@@ -66,9 +79,29 @@ fn window(hold: bool) -> (MailApp, Id, Asked) {
     // A held look-up's sender is kept here, so that it neither answers nor hangs up.
     let held = Mutex::new(Vec::new());
     app.services.ews_resolve = Some(Box::new(move |job| {
-        log.lock().unwrap().push((job.request.texts.clone(), job.cancel.clone()));
+        log.lock().unwrap().push((job.request.texts.clone(), job.request.address_list, job.cancel.clone()));
         let (tx, rx) = std::sync::mpsc::channel();
-        if hold {
+        if job.request.address_list && endless {
+            held.lock().unwrap().push(tx);
+        } else if job.request.address_list {
+            let result = match &list {
+                Some(people) => EwsResolveResult {
+                    address_list: Some(EwsAddressList {
+                        name: "Address list".into(),
+                        sequence: 3,
+                        people: people.iter().cloned().map(std::sync::Arc::new).collect(),
+                        more: false,
+                    }),
+                    ..Default::default()
+                },
+                None => EwsResolveResult {
+                    error: Some("Couldn't download the organisation's address book: the server publishes none".into()),
+                    address_list_lasting: true,
+                    ..Default::default()
+                },
+            };
+            tx.send(result).unwrap();
+        } else if hold {
             held.lock().unwrap().push(tx);
         } else {
             let text = job.request.texts.first().cloned().unwrap_or_default();
@@ -90,8 +123,14 @@ fn search(app: &mut MailApp, ctx: &egui::Context, text: &str) {
     app.poll_address_book(ctx);
 }
 
+/// The texts looked up, one entry a look-up.
 fn texts(asked: &Asked) -> Vec<Vec<String>> {
-    asked.lock().unwrap().iter().map(|(texts, _)| texts.clone()).collect()
+    asked.lock().unwrap().iter().filter(|(_, whole, _)| !whole).map(|(texts, _, _)| texts.clone()).collect()
+}
+
+/// How many times the whole list was asked for.
+fn downloads(asked: &Asked) -> usize {
+    asked.lock().unwrap().iter().filter(|(_, whole, _)| *whole).count()
 }
 
 #[test]
@@ -129,10 +168,10 @@ fn a_search_typed_further_lets_go_of_the_one_before() {
     app.run("people.addressBook", json!({})).unwrap();
     search(&mut app, &ctx, "ad");
     search(&mut app, &ctx, "ada");
-    let asked = asked.lock().unwrap();
+    let asked: Vec<_> = asked.lock().unwrap().iter().filter(|(_, whole, _)| !whole).map(|(_, _, cancel)| cancel.clone()).collect();
     assert_eq!(asked.len(), 2);
-    assert!(asked[0].1.load(Ordering::Relaxed), "the first look-up is told it isn't wanted");
-    assert!(!asked[1].1.load(Ordering::Relaxed));
+    assert!(asked[0].load(Ordering::Relaxed), "the first look-up is told it isn't wanted");
+    assert!(!asked[1].load(Ordering::Relaxed));
     assert!(app.address_book.as_ref().unwrap().searching());
 }
 
@@ -146,9 +185,14 @@ fn an_answer_for_what_was_typed_before_is_not_taken_in() {
     let keep = senders.clone();
     let log = asked.clone();
     app.services.ews_resolve = Some(Box::new(move |job| {
-        log.lock().unwrap().push((job.request.texts.clone(), job.cancel.clone()));
+        log.lock().unwrap().push((job.request.texts.clone(), job.request.address_list, job.cancel.clone()));
         let (tx, rx) = std::sync::mpsc::channel();
-        keep.lock().unwrap().push((tx, job.request.account));
+        if job.request.address_list {
+            // No whole list to be had: the address list is searched.
+            tx.send(EwsResolveResult { error: Some("none published".into()), ..Default::default() }).unwrap();
+        } else {
+            keep.lock().unwrap().push((tx, job.request.account));
+        }
         rx
     }));
     app.run("people.addressBook", json!({})).unwrap();
@@ -164,7 +208,8 @@ fn an_answer_for_what_was_typed_before_is_not_taken_in() {
     app.poll_address_book(&ctx);
     let book = app.address_book.as_ref().unwrap();
     assert!(book.people.is_empty() && book.selected.is_none() && book.chosen().is_none());
-    assert!(asked.lock().unwrap()[0].1.load(Ordering::Relaxed), "the look-up for what was there before is let go of");
+    let first = asked.lock().unwrap().iter().find(|(_, whole, _)| !whole).map(|(_, _, cancel)| cancel.clone()).unwrap();
+    assert!(first.load(Ordering::Relaxed), "the look-up for what was there before is let go of");
 }
 
 /// A password typed while a search was out is kept when the server turns down the one it went with.
@@ -174,11 +219,17 @@ fn a_password_typed_meanwhile_is_kept_when_the_one_before_is_turned_down() {
     let ctx = egui::Context::default();
     app.services.ews_resolve = Some(Box::new(move |job| {
         let (tx, rx) = std::sync::mpsc::channel();
-        let error = Some("The server turned the password down".to_string());
-        tx.send(EwsResolveResult { account: job.request.account, error, auth_refused: true, ..Default::default() }).unwrap();
+        if job.request.address_list {
+            tx.send(EwsResolveResult { error: Some("none published".into()), ..Default::default() }).unwrap();
+        } else {
+            let error = Some("The server turned the password down".to_string());
+            tx.send(EwsResolveResult { account: job.request.account, error, auth_refused: true, ..Default::default() }).unwrap();
+        }
         rx
     }));
     app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
     app.type_people_search("ada");
     app.poll_address_book(&ctx);
     if let Some(book) = &mut app.address_book {
@@ -224,6 +275,26 @@ fn without_the_password_it_is_said_and_nothing_is_asked() {
     assert!(error.contains("password"), "{error}");
 }
 
+/// A list that can't be asked for yet, as no password is at hand, is asked for as soon as the
+/// password is typed, not a minute later.
+#[test]
+fn the_list_is_asked_for_at_once_when_the_password_arrives() {
+    let (mut app, account, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.passwords.remove(&account);
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 0);
+    assert!(app.address_lists[0].error.as_deref().is_some_and(|e| e.contains("password")));
+    app.passwords.insert(account, "an invented password".into());
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 1, "no minute is waited out");
+    assert!(app.address_lists[0].error.is_none());
+    assert_eq!(names(&app).len(), 4);
+}
+
 #[test]
 fn the_owner_writes_to_somebody_found_or_makes_a_contact_of_them() {
     let (mut app, account, _) = window(false);
@@ -232,10 +303,19 @@ fn the_owner_writes_to_somebody_found_or_makes_a_contact_of_them() {
     search(&mut app, &ctx, "ada");
     let ada = app.address_book.as_ref().unwrap().people[0].clone();
     add_to_contacts(&mut app, &ada);
+    // Pressed again, nothing more is made: the address is in a contact already.
+    add_to_contacts(&mut app, &ada);
+    assert_eq!(app.session.mailbox.contacts.len(), 1);
+    assert_eq!(app.status_msg.as_ref().map(|(text, _)| text.as_str()), Some("Already in your contacts"));
     let contact = app.session.mailbox.contacts.values().next().cloned().unwrap();
     assert_eq!((contact.display_name.as_str(), contact.company.as_str(), contact.title.as_str()), ("Ada Lovelace", "Example Ltd", "Controller"));
     let phones: Vec<&str> = contact.phones.iter().map(|p| p.value.as_str()).collect();
     assert_eq!(phones, ["+1 555 0100", "+1 555 0199"]);
+    assert_eq!(app.session.view.people_book, Some(account), "the address list stays, its card saying so");
+    // A contact made with the form meanwhile is shown among the contacts.
+    let made = app.run("people.new", json!({"displayName": "Noor Haddad", "email": "noor@example.org"})).unwrap();
+    assert_eq!(app.session.view.people_book, None);
+    assert_eq!(app.session.sel.contact, made["id"].as_u64());
 
     app.run("people.addressBook", json!({})).unwrap();
     search(&mut app, &ctx, "ada");
@@ -355,7 +435,8 @@ fn once_what_kept_it_from_asking_has_gone_it_asks() {
 }
 
 /// A password the server turns down is forgotten, and what is typed is looked up again once
-/// another is typed.
+/// another is typed. (Here the download of the whole list asks first and is turned down: the search
+/// then waits for a password.)
 #[test]
 fn a_password_the_server_turns_down_is_forgotten_and_the_search_waits_for_another() {
     let (mut app, account, _) = window(false);
@@ -374,12 +455,14 @@ fn a_password_the_server_turns_down_is_forgotten_and_the_search_waits_for_anothe
     settle(&mut app, &ctx);
     assert_eq!(*asked.lock().unwrap(), 1);
     assert!(!app.passwords.contains_key(&account) && app.jmap_refused.contains(&account));
-    assert_eq!(app.address_book.as_ref().unwrap().error.as_deref(), Some("The server turned the password down"));
+    assert!(app.address_book.as_ref().unwrap().error.as_deref().is_some_and(|e| e.contains("password")));
     settle(&mut app, &ctx);
     assert_eq!(*asked.lock().unwrap(), 1, "not asked again with no password");
     app.passwords.insert(account, "another invented password".into());
     settle(&mut app, &ctx);
-    assert_eq!(*asked.lock().unwrap(), 2);
+    assert_eq!(*asked.lock().unwrap(), 2, "the search, and not yet the download again");
+    assert_eq!(app.address_book.as_ref().unwrap().error.as_deref(), Some("The server turned the password down"));
+    assert!(!app.passwords.contains_key(&account), "turned down again, and forgotten again");
 }
 
 /// What a script or an agent puts in the search box is searched for among the contacts, and not
@@ -401,4 +484,378 @@ fn a_search_an_agent_puts_in_the_box_is_not_looked_up() {
     // The owner types the same: now it is.
     search(&mut app, &ctx, "ada");
     assert_eq!(texts(&asked), [vec!["ada".to_string()]]);
+}
+
+/// The organisation of the whole list: two Adas, a list, and Grace.
+/// Working offline, the whole list is not downloaded either; it is once Work Offline is off.
+#[test]
+fn working_offline_the_whole_list_is_not_downloaded() {
+    let (mut app, _, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.session.prefs.offline = true;
+    app.run("people.addressBook", json!({})).unwrap();
+    settle(&mut app, &ctx);
+    assert_eq!(downloads(&asked), 0);
+    app.session.prefs.offline = false;
+    settle(&mut app, &ctx);
+    assert_eq!(downloads(&asked), 1);
+}
+
+fn organisation() -> Vec<DirectoryPerson> {
+    vec![
+        DirectoryPerson { department: "Accounts".into(), ..person("Ada Lovelace", "ada.lovelace@example.org") },
+        DirectoryPerson { department: "Engines".into(), ..person("Ada Byron", "ada.byron@example.org") },
+        DirectoryPerson { kind: DirectoryKind::List, ..person("All Staff", "staff@example.org") },
+        person("Grace Hopper", "grace@example.org"),
+        // An address mail can't go to is never shown.
+        person("Not one", "not-an-address"),
+    ]
+}
+
+fn names(app: &MailApp) -> Vec<String> {
+    app.address_book_found().iter().map(|p| p.name.clone()).collect()
+}
+
+/// The whole list is downloaded once, everybody in it listed, and what is typed narrows it here:
+/// no name is looked up on the server.
+#[test]
+fn the_whole_list_is_listed_and_narrowed_without_asking_the_server() {
+    let (mut app, account, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    assert!(app.downloading_address_list());
+    app.poll_address_book(&ctx);
+    assert!(!app.downloading_address_list());
+    assert_eq!(app.address_list(account).map(|l| l.people.len()), Some(4));
+    assert_eq!(names(&app), ["Ada Lovelace", "Ada Byron", "All Staff", "Grace Hopper"]);
+    search(&mut app, &ctx, "ada");
+    assert_eq!(names(&app), ["Ada Lovelace", "Ada Byron"]);
+    // Every word, in the name, the address, the department and the rest.
+    search(&mut app, &ctx, "ADA engines");
+    assert_eq!(names(&app), ["Ada Byron"]);
+    assert_eq!(app.address_book.as_ref().unwrap().selected, Some(0), "one found is shown at once");
+    search(&mut app, &ctx, "hopper");
+    assert_eq!(names(&app), ["Grace Hopper"]);
+    search(&mut app, &ctx, "nobody");
+    assert!(names(&app).is_empty());
+    assert!(texts(&asked).is_empty(), "nothing typed went to the server");
+    assert_eq!(downloads(&asked), 1);
+    // Away and back: the list held is shown again, and not downloaded again.
+    app.run("view.mail", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.type_people_search("");
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    assert_eq!(names(&app).len(), 4);
+    assert_eq!(downloads(&asked), 1);
+    // Nobody is kept in the mailbox.
+    assert!(app.session.mailbox.contacts.is_empty());
+}
+
+/// While the whole list is still being downloaded, what is typed is searched on the server as
+/// without one: a slow download, or one that never ends, doesn't leave the owner without a search.
+#[test]
+fn while_the_list_downloads_what_is_typed_is_searched_on_the_server() {
+    let (mut app, _, asked) = window_downloading(false, Some(organisation()), true);
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    assert!(app.downloading_address_list());
+    search(&mut app, &ctx, "ada");
+    search(&mut app, &ctx, "ada");
+    assert!(app.downloading_address_list());
+    assert_eq!(texts(&asked), [vec!["ada".to_string()]]);
+    assert_eq!(names(&app), ["Ada Lovelace", "Ada Byron", "Ada's team"]);
+    assert_eq!(downloads(&asked), 1, "the download is not asked for again meanwhile");
+}
+
+/// A day later it is downloaded again; when the server publishes none, that is asked again a day
+/// later too, while a download that failed otherwise is tried again a minute later (below).
+#[test]
+fn the_list_is_downloaded_again_a_day_later() {
+    let (mut app, _, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    app.address_lists[0].at_ms -= REFRESH_MS - 1000.0;
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 1);
+    app.address_lists[0].at_ms -= 2000.0;
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 2);
+    // Meanwhile the list held is still listed.
+    assert_eq!(names(&app).len(), 4);
+
+    let (mut app, _, asked) = window(false);
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert!(app.address_lists[0].error.as_deref().is_some_and(|e| e.contains("publishes none")));
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 1);
+    // The server's own answer that it publishes none: not asked again a minute later, but a day.
+    app.address_lists[0].at_ms -= RETRY_MS;
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 1);
+    app.address_lists[0].at_ms -= REFRESH_MS;
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 2);
+}
+
+/// A day later the server is asked whether its list has changed: the generation held goes with
+/// the request, and when it is the server's, the list held stays and nothing is downloaded.
+#[test]
+fn an_unchanged_list_is_kept_without_downloading_it_again() {
+    let (mut app, _, _) = window_with(false, Some(organisation()));
+    let held: Arc<Mutex<Vec<Option<u32>>>> = Arc::default();
+    let log = held.clone();
+    let people = organisation();
+    app.services.ews_resolve = Some(Box::new(move |job| {
+        log.lock().unwrap().push(job.request.address_list_held);
+        let (tx, rx) = std::sync::mpsc::channel();
+        let result = if job.request.address_list_held == Some(3) {
+            EwsResolveResult { address_list_unchanged: true, ..Default::default() }
+        } else {
+            let list =
+                EwsAddressList { name: "Address list".into(), sequence: 3, people: people.iter().cloned().map(Arc::new).collect(), more: false };
+            EwsResolveResult { address_list: Some(list), ..Default::default() }
+        };
+        tx.send(result).unwrap();
+        rx
+    }));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    let version = app.address_lists[0].version;
+    app.address_lists[0].at_ms -= REFRESH_MS + 1000.0;
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(*held.lock().unwrap(), [None, Some(3)]);
+    assert_eq!(names(&app).len(), 4);
+    assert!(app.address_lists[0].error.is_none());
+    assert_eq!(app.address_lists[0].version, version, "the list held is the one kept");
+    // It is asked about again a day after that, not at once.
+    app.poll_address_book(&ctx);
+    assert_eq!(held.lock().unwrap().len(), 2);
+}
+
+/// A refresh that fails after a list has come is tried again a minute later, and the list held is
+/// listed meanwhile.
+#[test]
+fn a_refresh_that_fails_is_tried_again_a_minute_later() {
+    let (mut app, _, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 1);
+    let log = asked.clone();
+    app.services.ews_resolve = Some(Box::new(move |job| {
+        log.lock().unwrap().push((job.request.texts.clone(), job.request.address_list, job.cancel.clone()));
+        let (tx, rx) = std::sync::mpsc::channel();
+        tx.send(EwsResolveResult {
+            error: Some("Couldn't download the organisation's address book: the server is busy".into()),
+            ..Default::default()
+        })
+        .unwrap();
+        rx
+    }));
+    app.address_lists[0].at_ms -= REFRESH_MS;
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 2);
+    assert!(app.address_lists[0].error.is_some());
+    assert_eq!(names(&app).len(), 4, "the list held is still listed");
+    app.address_lists[0].at_ms -= RETRY_MS;
+    app.poll_address_book(&ctx);
+    assert_eq!(downloads(&asked), 3);
+}
+
+/// A list the download had to cut short isn't narrowed here: what is typed is searched on the
+/// server, which says whether it found more than it shows.
+#[test]
+fn a_list_cut_short_is_searched_on_the_server() {
+    let (mut app, account, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    app.address_lists[0].list.as_mut().unwrap().more = true;
+    search(&mut app, &ctx, "ada");
+    assert_eq!(texts(&asked), [vec!["ada".to_string()]]);
+    let book = app.address_book.as_ref().unwrap();
+    assert!(book.more, "the server found more than it shows");
+    assert_eq!((book.account, book.local), (account, None));
+}
+
+/// An account removed takes its list along, and a download of it on its way is let go of.
+#[test]
+fn a_removed_accounts_list_goes_with_it() {
+    let (mut app, account, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert!(app.address_list(account).is_some());
+    app.address_lists[0].at_ms -= REFRESH_MS;
+    app.poll_address_book(&ctx);
+    assert!(app.downloading_address_list());
+    app.execute("account.remove", json!({"id": account})).unwrap();
+    assert!(app.session.mailbox.accounts.iter().all(|a| a.id != account));
+    app.poll_address_book(&ctx);
+    assert!(app.address_list(account).is_none());
+    assert!(app.address_lists.is_empty());
+    let cancel = asked.lock().unwrap().last().map(|(_, _, cancel)| cancel.clone()).unwrap();
+    assert!(cancel.load(std::sync::atomic::Ordering::Relaxed), "the download on its way is let go of");
+}
+
+/// A change of the account's server or sign-in lets go of the list of the server before, of a
+/// download of it on its way and of what the Address Book shows of it; the new server's is
+/// downloaded.
+#[test]
+fn another_server_for_the_account_lets_go_of_the_list_before() {
+    let (mut app, account, asked) = window_with(false, Some(organisation()));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    assert_eq!(names(&app).len(), 4);
+    app.address_lists[0].at_ms -= REFRESH_MS;
+    app.poll_address_book(&ctx);
+    assert!(app.downloading_address_list());
+    let before = asked.lock().unwrap().last().map(|(_, _, cancel)| cancel.clone()).unwrap();
+    app.execute("account.edit", json!({"id": account, "ews": {"username": "EXAMPLE\\someone"}})).unwrap();
+    app.poll_address_book(&ctx);
+    assert!(before.load(std::sync::atomic::Ordering::Relaxed), "the download for the sign-in before is let go of");
+    assert!(app.address_list(account).is_none());
+    assert!(names(&app).is_empty(), "nothing of the list before is shown");
+    // The sign-in changed, so its password is asked again; with it, at the next try, the new
+    // sign-in's list comes.
+    assert_eq!(downloads(&asked), 2);
+    app.passwords.insert(account, "another invented password".into());
+    app.address_lists[0].at_ms -= RETRY_MS;
+    settle(&mut app, &ctx);
+    assert_eq!(downloads(&asked), 3);
+    assert_eq!(names(&app).len(), 4);
+}
+
+/// Thousands of people: only the rows on screen are drawn, and a row far down is reached.
+#[test]
+fn a_long_list_draws_only_what_is_on_screen() {
+    let many: Vec<DirectoryPerson> = (0..5000).map(|i| person(&format!("Person {i:04}"), &format!("p{i}@example.org"))).collect();
+    let (mut app, _, _) = window_with(false, Some(many));
+    let ctx = egui::Context::default();
+    app.run("people.addressBook", json!({})).unwrap();
+    app.poll_address_book(&ctx);
+    app.poll_address_book(&ctx);
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.run_steps(4);
+    assert!(h.state().hit.rect("addressListRow", 0).is_some());
+    assert!(h.state().hit.rect("addressListRow", 4000).is_none(), "a row far down is not drawn");
+    assert_eq!(h.state().address_book_found().len(), 5000);
+}
+
+/// While the whole list downloads, People says so; a search typed meanwhile shows who it found,
+/// not the notice.
+#[test]
+fn a_search_during_the_download_shows_who_it_found() {
+    let (app, _, _) = window_downloading(false, Some(organisation()), true);
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.state_mut().run("people.addressBook", json!({})).unwrap();
+    h.run_steps(3);
+    h.get_by_label("Downloading the organisation's address book…");
+    h.state_mut().type_people_search("ada");
+    h.run_steps(1);
+    if let Some(book) = &mut h.state_mut().address_book {
+        book.typed.1 -= PAUSE_MS * 2.0;
+    }
+    h.run_steps(4);
+    assert!(h.state().downloading_address_list());
+    assert_eq!(names(h.state()), ["Ada Lovelace", "Ada Byron", "Ada's team"]);
+    assert!(h.query_by_label("Downloading the organisation's address book…").is_none());
+    assert!(h.state().hit.rect("addressListRow", 0).is_some());
+}
+
+/// Add to Contacts says on the card that the person is in the contacts now, and becomes Open
+/// Contact, which shows that contact among the contacts: nothing is made twice (#1393).
+#[test]
+fn the_card_says_who_is_in_the_contacts_and_opens_them() {
+    let (app, _, _) = window_with(false, Some(organisation()));
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.state_mut().run("people.addressBook", json!({})).unwrap();
+    h.run_steps(4);
+    let first = h.state().address_book.as_ref().and_then(|b| b.people.first().cloned()).unwrap();
+    h.state_mut().address_book.as_mut().unwrap().selected = Some(0);
+    h.run_steps(2);
+    h.get_by_label("Add to Contacts").click();
+    h.run_steps(3);
+    assert_eq!(h.state().session.mailbox.contacts.len(), 1);
+    assert!(h.query_by_label("Add to Contacts").is_none());
+    h.get_by_label("In your contacts");
+    // Still the address list, with the same person's card.
+    assert_eq!(h.state().address_book.as_ref().and_then(|b| b.chosen()).map(|p| p.email.clone()), Some(first.email.clone()));
+
+    h.get_by_label("Open Contact").click();
+    h.run_steps(3);
+    let id = h.state().session.mailbox.contact_by_email(&first.email).map(|c| c.id);
+    assert!(h.state().address_book.is_none());
+    assert_eq!(h.state().session.sel.contact, id);
+}
+
+/// A person's certificates from the address book are on the card, and Add to Contacts puts on the
+/// contact's card those a card takes: a certificate for mail, not an authority's (#1393).
+#[test]
+fn certificates_are_shown_and_go_onto_the_contacts_card() {
+    let alice: &[u8] = include_bytes!("../../smime/testdata/alice.sign.der");
+    let authority: &[u8] = include_bytes!("../../smime/testdata/ca.rsa.der");
+    let mut person = person("Alice Example", "alice@smime.example");
+    // (The third has the shape of one but isn't: it isn't shown.)
+    person.certificates = vec![Arc::new(alice.to_vec()), Arc::new(authority.to_vec()), Arc::new(vec![0x30, 0x03, 0x02, 0x01, 0x01])];
+    let (app, _, _) = window_with(false, Some(vec![person]));
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(1280.0, 800.0)).build_ui_state(
+        |ui, app: &mut MailApp| {
+            let ctx = ui.ctx().clone();
+            app.logic(&ctx);
+            app.ui(ui);
+        },
+        app,
+    );
+    h.state_mut().run("people.addressBook", json!({})).unwrap();
+    h.run_steps(4);
+    h.state_mut().address_book.as_mut().unwrap().selected = Some(0);
+    h.run_steps(2);
+    // Each in a line of its own, saying who issued it.
+    assert_eq!(h.query_all_by_label_contains("issued by").count(), 2);
+    assert!(h.query_by_label_contains("can't be read").is_none());
+    // The authority's is said to stay behind.
+    assert_eq!(h.query_all_by_label_contains("Add to Contacts leaves it out").count(), 1);
+    h.get_by_label("Add to Contacts").click();
+    h.run_steps(3);
+    let contact = h.state().session.mailbox.contacts.values().next().cloned().unwrap();
+    let keys: Vec<&[u8]> = contact.keys.iter().map(|k| k.data.as_slice()).collect();
+    assert_eq!(keys, [alice]);
 }

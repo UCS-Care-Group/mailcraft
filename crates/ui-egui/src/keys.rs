@@ -323,6 +323,15 @@ pub(crate) fn gate(ctx: &egui::Context, blocked: bool) {
             // (What has the keyboard now is in it, or over it: under it, it was given up above.)
             return Some(Owner { layer: top, field: focus });
         }
+        // A picture's corner held in a text being written: Escape is that drag's, as though the
+        // text had the keyboard, so that nothing of its window (File, a message that closes on
+        // Escape) takes it.
+        if key == Key::Escape
+            && let Some((layer, id)) = escape_held(ctx)
+        {
+            let layer = if layer.order == Order::Background { main_layer() } else { window_of(ctx, layer).unwrap_or(layer) };
+            return Some(Owner { layer, field: Some(id) });
+        }
         if key == Key::Escape && ctx.memory(|m| m.areas().is_visible(&crate::sync_panel::layer())) {
             return Some(Owner { layer: crate::sync_panel::layer(), field: None });
         }
@@ -425,6 +434,22 @@ fn ask(ctx: &egui::Context, layer: LayerId, key: Key, want: Want, take: bool) ->
         }
         mine
     })
+}
+
+/// Says, in a pass, that the widget `id` of `layer` holds Escape for itself while something is
+/// held (a picture's corner being dragged): the next new press of Escape in this viewport is its,
+/// for it to take with [`take_escape_any`]. Said again in every pass it is held.
+pub(crate) fn hold_escape(ctx: &egui::Context, layer: LayerId, id: egui::Id) {
+    let held = (ctx.viewport_id(), ctx.cumulative_pass_nr(), layer, id);
+    ctx.data_mut(|d| d.insert_temp(egui::Id::unique("mailcraft-escape-held"), held));
+}
+
+/// What holds Escape now ([`hold_escape`]): said in this pass or the one before, in this viewport.
+fn escape_held(ctx: &egui::Context) -> Option<(LayerId, egui::Id)> {
+    let (viewport, pass) = (ctx.viewport_id(), ctx.cumulative_pass_nr());
+    ctx.data(|d| d.get_temp::<(ViewportId, u64, LayerId, egui::Id)>(egui::Id::unique("mailcraft-escape-held")))
+        .filter(|(v, p, _, _)| *v == viewport && p.saturating_add(1) >= pass)
+        .map(|(_, _, layer, id)| (layer, id))
 }
 
 /// Whether Escape was pressed for `layer`, with no widget of it keeping the keyboard: it closes

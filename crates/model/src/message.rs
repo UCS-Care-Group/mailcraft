@@ -338,6 +338,10 @@ pub struct Message {
     pub answered: bool,
     pub forwarded: bool,
     pub draft: bool,
+    /// A local draft saved with HTML to retain editable pictures, but composed as plain text.
+    /// Sending rebuilds the message in its chosen format; this flag never becomes a MIME header.
+    #[serde(skip_serializing_if = "is_false")]
+    pub draft_plain: bool,
     pub pinned: bool,
     /// Its snooze (#949): when it comes back and where it came from; once it has come back, the
     /// mark it wears until opened. `None` for a message never snoozed.
