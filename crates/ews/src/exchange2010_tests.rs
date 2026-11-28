@@ -309,7 +309,7 @@ fn an_exchange_2010_archive_is_found_in_a_version_that_has_it() {
     let state = standin.state();
     let last = state.versions.last().unwrap();
     assert_eq!(last, Version::FALLBACK.as_str(), "stepped down once, to a version that has the archive");
-    assert!(Version::FALLBACK >= Store::Archive.since());
+    assert!(Version::FALLBACK >= Version::Exchange2010Sp1);
 }
 
 #[test]

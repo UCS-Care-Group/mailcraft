@@ -6,7 +6,7 @@
 
 use crate::error::Error;
 use crate::reply::Reply;
-use crate::soap::{Element, TYPES, Version};
+use crate::soap::{Element, TYPES};
 use crate::xml::Node;
 
 /// The longest folder id kept: real ones are about 150 characters.
@@ -99,23 +99,6 @@ impl Store {
         match self {
             Self::Primary => DistinguishedFolder::MessageRoot,
             Self::Archive => DistinguishedFolder::ArchiveMessageRoot,
-        }
-    }
-
-    /// Its Deleted Items.
-    pub fn deleted_items(self) -> DistinguishedFolder {
-        match self {
-            Self::Primary => DistinguishedFolder::DeletedItems,
-            Self::Archive => DistinguishedFolder::ArchiveDeletedItems,
-        }
-    }
-
-    /// The oldest version of the schema that has it: a request about the archive asks for this
-    /// or a later one ([`crate::Client`] never asks for less than [`Version::FALLBACK`]).
-    pub fn since(self) -> Version {
-        match self {
-            Self::Primary => Version::Exchange2007,
-            Self::Archive => Version::Exchange2010Sp1,
         }
     }
 }

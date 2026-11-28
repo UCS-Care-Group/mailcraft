@@ -61,11 +61,11 @@ fn a_folder_made_or_moved_to_the_top_goes_to_the_top_of_its_store() {
 
 #[test]
 fn the_archive_is_asked_for_in_a_version_that_has_it() {
-    assert_eq!(Store::Archive.since(), Version::Exchange2010Sp1);
-    // (The client asks for 2013 and never steps down below its fallback.)
-    assert!(Version::default() >= Store::Archive.since() && Version::FALLBACK >= Store::Archive.since());
+    // (The archive came with Exchange 2010 SP1; the client asks for 2013 and never steps down
+    // below its fallback.)
+    assert!(Version::default() >= Version::Exchange2010Sp1 && Version::FALLBACK >= Version::Exchange2010Sp1);
     assert_eq!(Store::Archive.message_root().as_str(), "archivemsgfolderroot");
-    assert_eq!(Store::Archive.deleted_items().as_str(), "archivedeleteditems");
+    assert_eq!(DistinguishedFolder::ArchiveDeletedItems.as_str(), "archivedeleteditems");
     assert_eq!(DistinguishedFolder::ArchiveRoot.as_str(), "archiveroot");
     assert_eq!(DistinguishedFolder::ArchiveInbox.as_str(), "archiveinbox");
     assert_eq!(Store::default(), Store::Primary);
