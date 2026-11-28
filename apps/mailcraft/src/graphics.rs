@@ -5,7 +5,7 @@
 use eframe::{
     NativeOptions,
     egui_wgpu::WgpuSetup,
-    wgpu::{Backends, DeviceType},
+    wgpu::{Backends, DeviceType, Dx12SwapchainKind},
 };
 
 /// What the start-up probe learned about one DirectX 12 adapter.
@@ -57,11 +57,58 @@ pub fn configure_backends(options: &mut NativeOptions, backends: Backends) {
     }
 }
 
-/// Chooses the backends ([`choose_backends`]) and applies them to `options`. Without a
-/// `backend_override` this first probes DirectX 12 with a short-lived instance of its own, which
-/// is dropped before eframe creates the real one.
+/// How DirectX 12 hands the window's frames to the desktop.
+///
+/// An explicit `presentation_override` (normally `Dx12SwapchainKind::from_env()`, i.e.
+/// `WGPU_DX12_PRESENTATION_SYSTEM`) always wins. Otherwise through a DirectComposition visual over
+/// the window, as browsers and the system's own programs present, so that the window can be
+/// composed with premultiplied alpha ([`premultiplied_backbuffer`]).
+///
+/// Why: a swap chain made straight from the window is promoted by Windows to independent flip as
+/// soon as the window fills the screen (maximized, the owner's usual way): it then takes a plane
+/// of the display of its own, as a full-screen game does. NVIDIA's overlay watches the first
+/// frames a program presents, and one presented that way makes it take the program for a game:
+/// it puts up its "Alt+Z" notice and offers to record and stream MailCraft. Its own log
+/// (`ShadowPlay\CaptureCore.log`) then says `game[1]` and `bIFlip = 1`; otherwise "Not a game".
+pub fn choose_presentation(presentation_override: Option<Dx12SwapchainKind>) -> Dx12SwapchainKind {
+    presentation_override.unwrap_or(Dx12SwapchainKind::DxgiFromVisual)
+}
+
+/// Whether the window's frames go to the desktop with premultiplied alpha: when DirectX 12 alone
+/// draws (`backends`) and presents through DirectComposition.
+///
+/// A DirectComposition swap chain without alpha is still promoted to independent flip, only a
+/// little later, and NVIDIA's overlay then catches it some of the time (two maximized starts in
+/// six, against every one through the window's own swap chain). With premultiplied alpha the
+/// desktop has to blend it itself, every frame, so it isn't promoted (no start in ten, three of
+/// them with the window kept repainting through the overlay's first checks). The frames stay opaque: eframe's
+/// clear colour is replaced by an opaque one (`App::clear_color` in `main.rs`) and the panels are
+/// opaque, so nothing behind the window shows through. eframe gives the swap chain that alpha
+/// when the window is marked transparent; on Windows winit does nothing more for it than an empty
+/// blur-behind region (no layered window, clicks still reach it). Not when OpenGL is among the
+/// backends (no usable DirectX 12 GPU): that path keeps the opaque window it has always had.
+pub fn premultiplied_backbuffer(backends: Backends, presentation: Dx12SwapchainKind) -> bool {
+    backends == Backends::DX12 && presentation == Dx12SwapchainKind::DxgiFromVisual
+}
+
+/// Makes the DirectX 12 surfaces of the wgpu instance eframe creates present through
+/// `presentation`, with premultiplied alpha where [`premultiplied_backbuffer`] says so for
+/// `backends`. It has no effect on the other backends.
+pub fn configure_presentation(options: &mut NativeOptions, backends: Backends, presentation: Dx12SwapchainKind) {
+    if let WgpuSetup::CreateNew(create) = &mut options.wgpu_options.wgpu_setup {
+        create.instance_descriptor.backend_options.dx12.presentation_system = presentation;
+    }
+    if premultiplied_backbuffer(backends, presentation) {
+        options.viewport.transparent = Some(true);
+    }
+}
+
+/// Chooses the backends ([`choose_backends`]) and the DirectX 12 presentation
+/// ([`choose_presentation`]) and applies them to `options`. Without a `backend_override` this
+/// first probes DirectX 12 with a short-lived instance of its own, which is dropped before eframe
+/// creates the real one.
 #[cfg(target_os = "windows")]
-pub fn configure(options: &mut NativeOptions, backend_override: Option<Backends>) {
+pub fn configure(options: &mut NativeOptions, backend_override: Option<Backends>, presentation_override: Option<Dx12SwapchainKind>) {
     let backends = match backend_override {
         Some(backends) => {
             log::info!("graphics: WGPU_BACKEND override, backends {backends:?}");
@@ -75,6 +122,10 @@ pub fn configure(options: &mut NativeOptions, backend_override: Option<Backends>
         }
     };
     configure_backends(options, backends);
+    let presentation = choose_presentation(presentation_override);
+    let premultiplied = premultiplied_backbuffer(backends, presentation);
+    log::info!("graphics: DirectX 12 presents through {presentation:?}, premultiplied alpha: {premultiplied}");
+    configure_presentation(options, backends, presentation);
 }
 
 /// Lists the DirectX 12 adapters, checking each against the limits eframe's device descriptor
@@ -103,55 +154,5 @@ fn probe_dx12(options: &NativeOptions) -> Vec<Dx12Adapter> {
 }
 
 #[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn configured_backends(backends: Backends) -> Backends {
-        let mut options = NativeOptions::default();
-        configure_backends(&mut options, backends);
-        let WgpuSetup::CreateNew(create) = options.wgpu_options.wgpu_setup else {
-            panic!("default native options must create a wgpu instance");
-        };
-        create.instance_descriptor.backends
-    }
-
-    const fn adapter(device_type: DeviceType, meets_limits: bool) -> Dx12Adapter {
-        Dx12Adapter { device_type, meets_limits }
-    }
-
-    #[test]
-    fn windows_default_initializes_only_dx12() {
-        // eframe's own default (PRIMARY | GL) would initialize OpenGL as well.
-        let WgpuSetup::CreateNew(eframe_default) = NativeOptions::default().wgpu_options.wgpu_setup else {
-            panic!("default native options must create a wgpu instance");
-        };
-        assert!(eframe_default.instance_descriptor.backends.contains(Backends::GL));
-        let gpu = [adapter(DeviceType::IntegratedGpu, true)];
-        assert_eq!(configured_backends(choose_backends(None, &gpu)), Backends::DX12);
-    }
-
-    #[test]
-    fn explicit_backend_override_is_preserved() {
-        let warp_only = [adapter(DeviceType::Cpu, true)];
-        for backends in [Backends::VULKAN, Backends::GL, Backends::DX12, Backends::VULKAN | Backends::DX12, Backends::empty()] {
-            // Whatever the probe would have found, the override wins (the probe doesn't run then).
-            assert_eq!(choose_backends(Some(backends), &[]), backends);
-            assert_eq!(choose_backends(Some(backends), &warp_only), backends);
-            assert_eq!(configured_backends(backends), backends);
-        }
-    }
-
-    #[test]
-    fn gl_when_dx12_has_no_usable_gpu() {
-        // #316: no DirectX 12 driver, so DirectX 12 offers only WARP (or nothing) and lags.
-        let warp_only = [adapter(DeviceType::Cpu, true)];
-        assert_eq!(choose_backends(None, &warp_only), Backends::GL | Backends::DX12);
-        assert_eq!(choose_backends(None, &[]), Backends::GL);
-        // A GPU that can't create eframe's device: GL alone, so it isn't picked over the GL one.
-        let weak_gpu = [adapter(DeviceType::IntegratedGpu, false), adapter(DeviceType::Cpu, true)];
-        assert_eq!(choose_backends(None, &weak_gpu), Backends::GL);
-        // Any usable GPU keeps DirectX 12 only, next to WARP or a weaker GPU.
-        let mixed = [adapter(DeviceType::Cpu, true), adapter(DeviceType::IntegratedGpu, false), adapter(DeviceType::DiscreteGpu, true)];
-        assert_eq!(choose_backends(None, &mixed), Backends::DX12);
-    }
-}
+#[path = "graphics_tests.rs"]
+mod graphics_tests;

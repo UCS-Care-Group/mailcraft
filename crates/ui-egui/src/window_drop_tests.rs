@@ -122,12 +122,20 @@ fn a_picture_let_go_over_a_new_emails_window_goes_into_its_text() {
     // go over takes it.
     let other = app.run("mail.new", json!({})).unwrap()["compose"].as_u64().unwrap();
     assert_ne!(app.session.compose_id(), Some(compose));
+    // The window's message has text with the caret in the middle of it, the other a caret of its own.
+    app.run("compose.type", json!({"compose": compose, "text": "abcdef"})).unwrap();
+    let end = app.session.composing_by_id(compose).unwrap().body.selection().head;
+    app.run("compose.select", json!({"compose": compose, "from": end - 3})).unwrap();
+    app.run("compose.type", json!({"compose": other, "text": "zz"})).unwrap();
+    let other_before = app.session.composing_by_id(other).unwrap().body.plain();
     drops.borrow_mut().push(picture);
     frame(&ctx, &mut app, vec![]);
     assert!(drops.borrow().is_empty(), "the window was shown");
     assert_eq!(taken(&app, compose), (1, 0), "{:?}", app.status_msg);
-    assert!(app.session.composing_by_id(compose).unwrap().body.plain().contains(OBJECT));
+    let plain = app.session.composing_by_id(compose).unwrap().body.plain();
+    assert!(plain.contains(&format!("abc{OBJECT}def")), "at the caret, not appended: {plain:?}");
     assert_eq!(taken(&app, other), (0, 0), "the other message is left as it was");
+    assert_eq!(app.session.composing_by_id(other).unwrap().body.plain(), other_before);
     let _ = std::fs::remove_dir_all(dir);
 }
 

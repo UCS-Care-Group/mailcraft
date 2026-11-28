@@ -362,3 +362,27 @@ proptest::proptest! {
         let _ = keyword_spans(&format!("received:{v}"));
     }
 }
+
+#[test]
+fn received_period_uses_the_offset_at_each_midnight() {
+    use mailcraft_time::{Zone, iso_to_timestamp};
+
+    let zone = Zone::named("America/New_York").unwrap();
+    let period = |q: &str| Query::parse(q).received_period(zone);
+    let utc = |at| iso_to_timestamp(at, 0);
+    assert_eq!(period("received:2026-03-08"), Some((utc("2026-03-08T05:00:00Z"), utc("2026-03-09T04:00:00Z"))));
+    assert_eq!(period("received:2026-11-01"), Some((utc("2026-11-01T04:00:00Z"), utc("2026-11-02T05:00:00Z"))));
+    assert_eq!(period("received:>2026-03-08"), Some((utc("2026-03-09T04:00:00Z"), None)));
+    assert_eq!(period("received:<=2026-03-08"), Some((None, utc("2026-03-09T04:00:00Z"))));
+    for q in ["sent:2026-03-08", "-received:2026-03-08", "budget received:2026-03-08", "received:2026-03-09..2026-03-08"] {
+        assert_eq!(period(q), None, "{q}");
+    }
+}
+
+#[test]
+fn a_received_day_that_crosses_midnight_twice_stays_local() {
+    let zone = mailcraft_time::Zone::named("America/St_Johns").unwrap();
+    for query in ["received:2009-10-31", "received:2009-11-01"] {
+        assert_eq!(Query::parse(query).received_period(zone), None, "{query}");
+    }
+}
