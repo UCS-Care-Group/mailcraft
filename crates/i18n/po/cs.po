@@ -77,8 +77,9 @@ msgstr "„{name}“ uchovává server účtu {who}. Změny provedené zde se za
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "\"{name}\" is no longer on the recipient lines"
-msgstr ""
+msgstr "„{name}“ už není v řádcích příjemců"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -890,8 +891,9 @@ msgstr "Barva zvýraznění"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Accent colour as hex"
-msgstr ""
+msgstr "Barva zvýraznění jako hex"
 
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
@@ -1267,8 +1269,9 @@ msgstr "Přidáno novější verzí MailCraftu: odesílejte a přijímejte v ní
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Added to Contacts"
-msgstr ""
+msgstr "Přidáno do kontaktů"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt crates/ui-egui/src/account_setup/senders.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/signatures.rs
@@ -1278,25 +1281,29 @@ msgstr "Adresa"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Address\n"
 "Book"
-msgstr ""
+msgstr "Adresář"
 
 #. command label
 #: crates/engine/src/cmd/people.rs
+#, fuzzy
 msgid "Address Book"
-msgstr ""
+msgstr "Adresář"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Address list"
-msgstr ""
+msgstr "Seznam adres"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Address list · {account}"
-msgstr ""
+msgstr "Seznam adres · {account}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -1378,8 +1385,9 @@ msgstr "Agenda"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
+#, fuzzy
 msgid "Align Text"
-msgstr ""
+msgstr "Zarovnat text"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
@@ -1473,8 +1481,9 @@ msgstr "Veškerá pošta a všechny účty uložené v tomto telefonu budou odst
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "All names are checked"
-msgstr ""
+msgstr "Všechna jména jsou zkontrolována"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -2401,8 +2410,9 @@ msgstr "Přílohy"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Attachments can't be opened here."
-msgstr ""
+msgstr "Přílohy se zde nedají otevřít."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -3732,8 +3742,9 @@ msgstr "Schránka"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Clock"
-msgstr ""
+msgstr "Hodiny"
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
@@ -4005,8 +4016,9 @@ msgstr "Změny kontaktů k odeslání"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "Contacts"
-msgstr ""
+msgstr "Kontakty"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -4470,8 +4482,9 @@ msgstr "Aktuální zobrazení"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
 msgid "Custom color"
-msgstr ""
+msgstr "Vlastní barva"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -5044,8 +5057,9 @@ msgstr "Zobrazované jméno"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Distribution list"
-msgstr ""
+msgstr "Distribuční seznam"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5157,13 +5171,15 @@ msgstr "Hotovo: {n} nových"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to download {name}"
-msgstr ""
+msgstr "Dvojitým kliknutím stáhnete {name}"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to open {name}"
-msgstr ""
+msgstr "Dvojitým kliknutím otevřete {name}"
 
 #. android, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
@@ -6681,8 +6697,9 @@ msgstr "Z adresáře organizace účtu {account}, drženo v paměti, dokud MailC
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
-msgstr ""
+msgstr "Ze seznamu adres organizace účtu {account}. Zobrazuje se jen během hledání a neukládá se: Přidat do kontaktů uloží kopii do tohoto počítače."
 
 #. interface
 #: crates/ui-egui/src/tasks_view.rs
@@ -7108,8 +7125,9 @@ msgstr "Šedá"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Group"
-msgstr ""
+msgstr "Skupina"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -8883,13 +8901,15 @@ msgstr "Hledám váš server Exchange…"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Looking the names up in the organisation's address list…"
-msgstr ""
+msgstr "Jména se vyhledávají v seznamu adres organizace…"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Looking the names up stopped unexpectedly"
-msgstr ""
+msgstr "Vyhledávání jmen se neočekávaně zastavilo"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
@@ -9103,8 +9123,9 @@ msgstr "MailCraft nemůže uchovávat pravidla tohoto účtu na jeho serveru"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "MailCraft can't open {name} because of its file type."
-msgstr ""
+msgstr "MailCraft nemůže otevřít {name} kvůli typu souboru."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -10066,8 +10087,9 @@ msgstr "O další výsledky na serveru teď nelze požádat"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "More than one person matches \"{name}\". Choose one:"
-msgstr ""
+msgstr "Názvu „{name}“ odpovídá více osob. Vyberte jednu:"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -10822,8 +10844,9 @@ msgstr "Další události"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Next message"
-msgstr ""
+msgstr "Další zpráva"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11325,8 +11348,9 @@ msgstr "V adresáři nikdo neodpovídá"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Nobody in the address list matches"
-msgstr ""
+msgstr "V seznamu adres nikdo neodpovídá"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs/share.rs
@@ -11354,8 +11378,9 @@ msgstr "Hledání neodpovídá nikdo"
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Nobody matches: {names}"
-msgstr ""
+msgstr "Nikdo neodpovídá: {names}"
 
 #. what a command says
 #: crates/engine/src/sync_driver/free_busy.rs
@@ -11521,8 +11546,9 @@ msgstr "Zatím se nikde neuchovává: použijte Otevřít a exportovat › Ulož
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Not looked up in the address list: {names}"
-msgstr ""
+msgstr "Nevyhledáno v seznamu adres: {names}"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -12114,8 +12140,9 @@ msgstr "Je zde jen začátek této zprávy. Zbytek se stáhne při dalším Odes
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Only the first {n} are shown: type more of the name to find somebody else."
-msgstr ""
+msgstr "Zobrazeno je jen prvních {n}: zadejte více z jména, abyste našli někoho jiného."
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -12231,8 +12258,9 @@ msgstr "Otevřít koncept"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Open Draft Attachment"
-msgstr ""
+msgstr "Otevřít přílohu konceptu"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -12680,8 +12708,9 @@ msgstr "Mimo mou organizaci (zapnuto)"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Outside the organisation"
-msgstr ""
+msgstr "Mimo organizaci"
 
 #. android, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/engine/src/session.rs crates/ui-egui/src/tasks_view.rs
@@ -13185,8 +13214,9 @@ msgstr "Předchozí stránka"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Previous message"
-msgstr ""
+msgstr "Předchozí zpráva"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -13310,8 +13340,9 @@ msgstr "Veřejné klíče"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "Public folder"
-msgstr ""
+msgstr "Veřejná složka"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -14741,8 +14772,9 @@ msgstr "Zpráva uložena do {name}"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"
-msgstr ""
+msgstr "Zpráva byla uložena do {name}, sestavená z toho, co o ní tento počítač uchovává: ne bajt po bajtu tak, jak byla přijata"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
@@ -14994,8 +15026,9 @@ msgstr "Hledat lidi"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "Search the address list"
-msgstr ""
+msgstr "Prohledat seznam adres"
 
 #. interface
 #: crates/ui-egui/src/zones.rs
@@ -15005,8 +15038,9 @@ msgstr "Hledat časová pásma"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Searching the address list stopped unexpectedly"
-msgstr ""
+msgstr "Prohledávání seznamu adres se neočekávaně zastavilo"
 
 #. interface
 #: crates/ui-egui/src/mail_view/server_rows.rs
@@ -15016,8 +15050,9 @@ msgstr "Prohledávám server…"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Searching…"
-msgstr ""
+msgstr "Hledání…"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -15129,8 +15164,9 @@ msgstr "Nejprve vyberte nějaký text"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Select somebody to see the details"
-msgstr ""
+msgstr "Vyberte někoho, abyste viděli podrobnosti"
 
 #. interface
 #: crates/ui-egui/src/attachment_preview.rs
@@ -15712,15 +15748,19 @@ msgstr "Více textů: oddělte je středníkem (;). Stačí kterýkoli z nich."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Shade\n"
 "Rows"
 msgstr ""
+"Stínovat\n"
+"řádky"
 
 #. command label
 #: crates/engine/src/cmd/view/display.rs
+#, fuzzy
 msgid "Shade Alternate Rows"
-msgstr ""
+msgstr "Stínovat střídavé řádky"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -17652,8 +17692,9 @@ msgstr "Účet, přes který je {address} otevřena, už neexistuje."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "The account's password is needed first: press Send/Receive and type it"
-msgstr ""
+msgstr "Nejprve je potřeba heslo k účtu: stiskněte Odeslat/přijmout a zadejte je"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -17699,8 +17740,9 @@ msgstr "Server účtu ji vytvoří při odeslání schůzky; odkaz pro připojen
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
+#, fuzzy
 msgid "The address list has more people of that name than it shows: type more of it to find one not listed."
-msgstr ""
+msgstr "Seznam adres obsahuje více osob s tímto jménem, než zobrazuje: zadejte více z jména, abyste našli někoho, kdo není uveden."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/dialogs.rs
@@ -18136,8 +18178,9 @@ msgstr "Stahování bylo zrušeno."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "The draft isn't open any more"
-msgstr ""
+msgstr "Koncept už není otevřen"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19212,8 +19255,9 @@ msgstr "Podpis se změnil, zatímco byl otevřen výběr souboru podpisu."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
-msgstr ""
+msgstr "Podpis se nepodařilo uložit: {why}. Dalším zavřením ho necháte neuložený."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
@@ -20519,8 +20563,9 @@ msgstr "Tento úkol se nepodařilo přečíst."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "This version of MailCraft can't search an address list"
-msgstr ""
+msgstr "Tato verze MailCraftu neumí prohledávat seznam adres"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -20976,8 +21021,9 @@ msgstr "Typ"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Type a name in the search box to search the organisation's address list"
-msgstr ""
+msgstr "Zadejte jméno do vyhledávacího pole a prohledejte seznam adres organizace"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -21919,8 +21965,9 @@ msgstr "Práce offline: odeslaná pošta čeká ve složce Pošta k odeslání"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Workplace"
-msgstr ""
+msgstr "Pracoviště"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt
@@ -22788,8 +22835,9 @@ msgstr "úkol potřebuje název"
 
 #. what a command says, why a command can't run
 #: crates/engine/src/cmd/people.rs
+#, fuzzy
 msgid "add an Exchange server account first: its organisation's address list is searched"
-msgstr ""
+msgstr "nejprve přidejte účet serveru Exchange: prohledává se seznam adres jeho organizace"
 
 #. what a command says
 #: crates/engine/src/cmd/folder.rs crates/engine/src/cmd/signature.rs
@@ -23891,8 +23939,9 @@ msgstr "takový odstavec neexistuje"
 
 #. what a command says
 #: crates/model/src/rich.rs
+#, fuzzy
 msgid "no such signature"
-msgstr ""
+msgstr "žádný takový podpis"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -24064,8 +24113,9 @@ msgstr "z „{subject}“ jsou zde jen záhlaví, takže ji nelze přeposlat jak
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
-msgstr ""
+msgstr "jsou zde jen hlavičky zprávy „{subject}“, proto ji nelze uložit jako zprávu"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
@@ -24415,8 +24465,9 @@ msgstr "ta poštovní schránka je otevřená v jiném okně MailCraftu; nejprve
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "that message is a draft: open it and send it"
-msgstr ""
+msgstr "tato zpráva je koncept: otevřete ho a odešlete"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25470,8 +25521,9 @@ msgstr "text „{subject}“ nelze v tomto počítači přečíst, takže ji nel
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be saved as a message"
-msgstr ""
+msgstr "text zprávy „{subject}“ nelze na tomto počítači přečíst, proto ji nelze uložit jako zprávu"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -26913,11 +26965,12 @@ msgstr[2] "Vybráno {n} položek kalendáře"
 
 #. what a command says
 #: crates/engine/src/undo.rs
+#, fuzzy
 msgid "{n} category couldn't be put back: the list of categories is full."
 msgid_plural "{n} categories couldn't be put back: the list of categories is full."
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} kategorii se nepodařilo vrátit: seznam kategorií je plný."
+msgstr[1] "{n} kategorie se nepodařilo vrátit: seznam kategorií je plný."
+msgstr[2] "{n} kategorií se nepodařilo vrátit: seznam kategorií je plný."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -27125,11 +27178,12 @@ msgstr[2] "{n} zobrazených událostí"
 
 #. what a command says
 #: crates/engine/src/session.rs
+#, fuzzy
 msgid "{n} event keeps its categories as they were on its server: too many changes are waiting to be sent."
 msgid_plural "{n} events keep their categories as they were on their servers: too many changes are waiting to be sent."
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "{n} událost si ponechává kategorie, jaké měla na svém serveru: čeká na odeslání příliš mnoho změn."
+msgstr[1] "{n} události si ponechávají kategorie, jaké měly na svých serverech: čeká na odeslání příliš mnoho změn."
+msgstr[2] "{n} událostí si ponechává kategorie, jaké měly na svých serverech: čeká na odeslání příliš mnoho změn."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -27160,11 +27214,12 @@ msgstr[2] "{n} složek"
 
 #. interface
 #: crates/ui-egui/src/chrome.rs
+#, fuzzy
 msgid "{n} found in the address list"
 msgid_plural "{n} found in the address list"
-msgstr[0] ""
-msgstr[1] ""
-msgstr[2] ""
+msgstr[0] "Nalezeno v seznamu adres: {n}"
+msgstr[1] "Nalezeno v seznamu adres: {n}"
+msgstr[2] "Nalezeno v seznamu adres: {n}"
 
 #. interface
 #: crates/ui-egui/src/merge_contacts.rs
@@ -28218,8 +28273,9 @@ msgstr "„{subject}“ ještě není stažená: otevřete ji, až budete online
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "„{subject}“ ještě není stažena: otevřete ji, až budete online, a pak ji uložte"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -28229,8 +28285,9 @@ msgstr "„{subject}“ byla příliš velká na stažení: je zde jen její zá
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
-msgstr ""
+msgstr "„{subject}“ byla příliš velká ke stažení: je zde jen její hlavička, proto ji nelze uložit jako zprávu"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -28249,9 +28306,9 @@ msgstr "• komu: {to}, předmět „{subject}“"
 #, fuzzy
 msgid "…and {n} more — type to narrow it"
 msgid_plural "…and {n} more — type to narrow it"
-msgstr[0] "…and {n} more — type to narrow it"
-msgstr[1] "…and {n} more — type to narrow it"
-msgstr[2] ""
+msgstr[0] "…a ještě {n} — zadáním zúžíte výběr"
+msgstr[1] "…a ještě {n} — zadáním zúžíte výběr"
+msgstr[2] "…a ještě {n} — zadáním zúžíte výběr"
 
 #. interface
 #: crates/ui-egui/src/credits.rs

@@ -894,8 +894,9 @@ msgstr "Kiemelőszín"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Accent colour as hex"
-msgstr ""
+msgstr "Kiemelőszín hexadecimális kódként"
 
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
@@ -1387,8 +1388,9 @@ msgstr "Napirend"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
+#, fuzzy
 msgid "Align Text"
-msgstr ""
+msgstr "Szöveg igazítása"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
@@ -3736,8 +3738,9 @@ msgstr "Vágólap"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Clock"
-msgstr ""
+msgstr "Óra"
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
@@ -4473,8 +4476,9 @@ msgstr "Jelenlegi nézet"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
 msgid "Custom color"
-msgstr ""
+msgstr "Egyéni szín"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -10798,8 +10802,9 @@ msgstr "Következő események"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Next message"
-msgstr ""
+msgstr "Következő üzenet"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -13167,8 +13172,9 @@ msgstr "Előző oldal"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Previous message"
-msgstr ""
+msgstr "Előző üzenet"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -14718,8 +14724,9 @@ msgstr "Az üzenet mentve ide: {name}"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"
-msgstr ""
+msgstr "Az üzenet mentve ide: {name}, abból összeállítva, amit ez a számítógép tárol róla: nem bájtról bájtra úgy, ahogyan megérkezett"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
@@ -15687,15 +15694,19 @@ msgstr "Több szöveg: válassza el őket pontosvesszővel (;). Bármelyik elég
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Shade\n"
 "Rows"
 msgstr ""
+"Sorok\n"
+"árnyékolása"
 
 #. command label
 #: crates/engine/src/cmd/view/display.rs
+#, fuzzy
 msgid "Shade Alternate Rows"
-msgstr ""
+msgstr "Váltakozó sorok árnyékolása"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -19179,8 +19190,9 @@ msgstr "Az aláírás megváltozott, miközben az aláírásfájl-választó nyi
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
-msgstr ""
+msgstr "Az aláírást nem sikerült menteni: {why}. Zárja be újra, hogy mentetlenül maradjon."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
@@ -23837,8 +23849,9 @@ msgstr "nincs ilyen bekezdés"
 
 #. what a command says
 #: crates/model/src/rich.rs
+#, fuzzy
 msgid "no such signature"
-msgstr ""
+msgstr "nincs ilyen aláírás"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -24010,8 +24023,9 @@ msgstr "a(z) „{subject}” üzenetnek csak a fejléce van letöltve, ezért az
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
-msgstr ""
+msgstr "„{subject}” esetében csak a fejlécek vannak meg, ezért nem menthető üzenetként"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
@@ -24361,8 +24375,9 @@ msgstr "a postafiók egy másik MailCraft-ablakban van nyitva. Előbb zárja be 
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "that message is a draft: open it and send it"
-msgstr ""
+msgstr "ez az üzenet piszkozat: nyissa meg, és küldje el"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25416,8 +25431,9 @@ msgstr "a(z) „{subject}” üzenet szövege ezen a számítógépen nem olvash
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be saved as a message"
-msgstr ""
+msgstr "„{subject}” szövege nem olvasható ezen a számítógépen, ezért nem menthető üzenetként"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -28035,8 +28051,9 @@ msgstr "a(z) „{subject}” üzenet még nincs letöltve. Nyissa meg internetka
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "„{subject}” még nincs letöltve: nyissa meg, ha online van, majd mentse"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -28046,8 +28063,9 @@ msgstr "a(z) „{subject}” üzenet túl nagy a letöltéshez, ezért csak a fe
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
-msgstr ""
+msgstr "„{subject}” túl nagy volt a letöltéshez: csak a fejléce van meg, ezért nem menthető üzenetként"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
