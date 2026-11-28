@@ -96,7 +96,7 @@ pub fn specs() -> Vec<CommandSpec> {
             .when_writing(needs_doc),
         CommandSpec::new("edit.paste", "Paste", "Message › Clipboard", paste)
             .pure()
-            .params(r#"{"html"?: string, "text"?: string} — over the selection; supported HTML formatting includes bold, italic, underline, font, size, colours, links, lists and a paragraph's indent and alignment. The HTML composer keeps bounded tables as selectable objects. Tables flatten to text in plain-text messages and signatures. HTML that comes to no text gives way to `text`, and nothing to paste changes nothing. Web and email addresses in pasted text, or in unlinked pasted HTML, become links in HTML messages and signatures"#)
+            .params(r#"{"html"?: string, "text"?: string} — over the selection; supported HTML formatting includes bold, italic, underline, font, size, colours, links, lists and a paragraph's indent and alignment. The HTML composer keeps bounded tables as selectable objects. Tables flatten to text in plain-text messages and signatures. A plain-text message takes `text` when it comes to something, and the HTML's text otherwise. HTML that comes to no text gives way to `text`, and nothing to paste changes nothing. Web and email addresses in pasted text, or in unlinked pasted HTML, become links in HTML messages and signatures"#)
             .when_writing(needs_doc),
         CommandSpec::new("compose.formatHtml", "HTML", "Format Text › Format", format_html).pure().when_writing(needs_compose),
         CommandSpec::new("compose.formatPlain", "Plain Text", "Format Text › Format", format_plain).pure().when_writing(needs_compose),
@@ -529,11 +529,20 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
         return Err(bad("`html` or `text` (string) is required"));
     }
     let too_much = || fail("that is too much to paste into one message");
-    // The HTML when there is some, reduced to the set; when it comes to nothing at all (a picture
-    // alone, which a text can't hold), the text beside it, weighed only then; and nothing at all
-    // changes nothing, the selection included. Lines left blank on purpose are something. (What
-    // is looked at is what would be pasted, once cleaned of what a text never keeps.)
+    // Into a plain-text message, the text when it comes to something: the HTML's text can differ
+    // from it (a link's words, where the text is its address).
+    let own = match text {
+        Some(text) if plain && text.len() > MAX_PASTE => return Err(too_much()),
+        Some(text) if plain => Some(RichText::from_plain(text)).filter(|rich| !rich.is_empty()),
+        _ => None,
+    };
+    // Otherwise the HTML when there is some, reduced to the set; when it comes to nothing at all
+    // (a picture alone, which a text can't hold), the text beside it, weighed only then; and
+    // nothing at all changes nothing, the selection included. Lines left blank on purpose are
+    // something. (What is looked at is what would be pasted, once cleaned of what a text never
+    // keeps.)
     let from_html = match html {
+        _ if own.is_some() => None,
         Some(html) if html.len() > MAX_PASTE => return Err(too_much()),
         Some(html) => {
             let rich = if !plain && s.signature_edit.is_none() {
@@ -545,7 +554,7 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
         }
         None => None,
     };
-    let fragment = match (from_html, text) {
+    let fragment = match (own.or(from_html), text) {
         (Some(rich), _) => rich,
         (None, Some(text)) if text.len() > MAX_PASTE => return Err(too_much()),
         (None, Some(text)) => RichText::from_plain(text),
@@ -559,11 +568,8 @@ fn paste(s: &mut Session, v: &Value) -> CmdResult {
     let mut out = state(s);
     // A signature's pictures come from files only (nothing is fetched); say so when the paste
     // had some.
-    let pictures = p::str(v, "html").is_some_and(|h| h.to_ascii_lowercase().contains("<img"));
-    if pictures
-        && s.signature_edit.is_some()
-        && let Some(o) = out.as_object_mut()
-    {
+    let pictures = s.signature_edit.is_some() && p::str(v, "html").is_some_and(|h| h.to_ascii_lowercase().contains("<img"));
+    if pictures && let Some(o) = out.as_object_mut() {
         o.insert("note".into(), json!("pictures in what was pasted were left out: save each one and add it with Insert Picture"));
     }
     Ok(out)

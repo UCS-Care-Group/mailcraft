@@ -13,7 +13,8 @@
 //! - Cut and Copy are greyed while nothing is selected; a password offers Paste alone, a text that
 //!   is only read Copy and Select All; Paste is greyed with no host clipboard (the browser).
 //! - The body of a message or a signature also offers Paste Text Only: the clipboard's text, with
-//!   none of the HTML or picture beside it, so what is pasted has no formatting of its own.
+//!   none of the HTML or picture beside it, so what is pasted has no formatting of its own. A
+//!   plain-text message doesn't: its Paste brings the text alone already.
 //! - Using the menu isn't leaving the text ([`left`]).
 //! - A choice made by input the control channel injected (`MailApp::driven`) cuts, copies and
 //!   pastes nothing.
@@ -41,9 +42,53 @@ enum Item {
     Cut,
     Copy,
     Paste,
-    /// The clipboard's text alone, into a text that takes more ([`Takes::Pictures`]).
+    /// The clipboard's text alone, into a text that takes more ([`Takes::Pictures`]) and isn't
+    /// plain.
     PasteText,
     SelectAll,
+}
+
+/// Ribbon buttons use the composer's text-menu path for clipboard actions.
+fn compose_clipboard_item(command: &str) -> Option<Item> {
+    match command {
+        "edit.cut" => Some(Item::Cut),
+        "edit.copy" => Some(Item::Copy),
+        "edit.paste" => Some(Item::Paste),
+        _ => None,
+    }
+}
+
+/// The visible draft's focused header field or body, with the commands it can take.
+fn compose_clipboard_target(app: &MailApp, ctx: &Context, command: &str) -> Option<(Item, Option<(Id, Takes)>)> {
+    let item = compose_clipboard_item(command)?;
+    let compose = app.session.compose.as_ref()?;
+    // A pop-out draws its own composer. The main window draws it only in Mail.
+    let visible = app.hit.window() != 0
+        || (app.session.view.module == mailcraft_engine::Module::Mail && crate::windows::compose_window::pane_compose(app) == Some(compose.id));
+    if !visible {
+        // Consume a composer clipboard command without touching the clipboard when its draft is hidden.
+        return Some((item, None));
+    }
+    let (target, takes, selected) = if let Some(field) = crate::compose::focused_header(ctx, compose.id) {
+        let selected = TextEdit::load_state(ctx, field).and_then(|state| state.cursor.char_range()).is_some_and(|r| !r.is_empty());
+        (field, Takes::Text, selected)
+    } else {
+        (crate::compose::editor::id_of(compose.id), Takes::Pictures, !compose.body.selection().is_empty())
+    };
+    let enabled = if item == Item::Paste { app.services.clipboard.is_some() } else { selected };
+    Some((item, enabled.then_some((target, takes))))
+}
+
+pub(crate) fn compose_clipboard_enabled(app: &MailApp, ctx: &Context, command: &str) -> Option<bool> {
+    compose_clipboard_target(app, ctx, command).map(|(_, target)| target.is_some())
+}
+
+pub(crate) fn compose_clipboard(app: &MailApp, ctx: &Context, command: &str) -> bool {
+    let Some((item, target)) = compose_clipboard_target(app, ctx, command) else { return false };
+    if let Some((id, takes)) = target {
+        choose(ctx, id, item, takes);
+    }
+    true
 }
 
 /// What a text takes from the clipboard besides text.
@@ -168,16 +213,17 @@ pub(crate) fn menu_item(ui: &mut Ui, enabled: bool, label: &str, key: &str) -> R
     ui.add_enabled(enabled, button)
 }
 
-/// The items for a text of `kind` that takes `takes`, `selected` whether anything is selected in
-/// it, `paste` whether there is a clipboard to paste from. What was chosen; the menu shuts then.
-fn items(ui: &mut Ui, kind: Kind, takes: Takes, selected: bool, paste: bool) -> (Option<Item>, bool) {
+/// The items for a text of `kind`, `text_only` whether it offers Paste Text Only, `selected`
+/// whether anything is selected in it, `paste` whether there is a clipboard to paste from. What was
+/// chosen; the menu shuts then.
+fn items(ui: &mut Ui, kind: Kind, text_only: bool, selected: bool, paste: bool) -> (Option<Item>, bool) {
     let (mut chosen, mut keyboard) = (None, false);
     let edits = kind == Kind::Text;
     let shown = [
         (edits, selected, "Cut", "Mod+X", Item::Cut),
         (kind != Kind::Secret, selected, "Copy", "Mod+C", Item::Copy),
         (kind != Kind::ReadOnly, paste, "Paste", "Mod+V", Item::Paste),
-        (edits && takes == Takes::Pictures, paste, tl_later!("Paste Text Only"), "", Item::PasteText),
+        (edits && text_only, paste, tl_later!("Paste Text Only"), "", Item::PasteText),
         (kind != Kind::Secret, true, "Select All", "Mod+A", Item::SelectAll),
     ];
     for (offered, enabled, label, key, item) in shown {
@@ -203,10 +249,10 @@ fn items(ui: &mut Ui, kind: Kind, takes: Takes, selected: bool, paste: bool) -> 
 /// has its menu as a submenu of it instead: open by its own note ([`Nested`]), and counted by the
 /// drop-down as one of its own (`MenuState`), so that neither closes the other.
 fn menu(resp: &Response, kind: Kind, selected: bool, takes: Takes) {
-    menu_with(resp, kind, selected, takes, |_| false);
+    menu_with(resp, kind, selected, takes, false, |_| false);
 }
 
-fn menu_with(resp: &Response, kind: Kind, selected: bool, takes: Takes, mut extra: impl FnMut(&mut Ui) -> bool) {
+fn menu_with(resp: &Response, kind: Kind, selected: bool, takes: Takes, text_only: bool, mut extra: impl FnMut(&mut Ui) -> bool) {
     let ctx = &resp.ctx;
     let id = Popup::default_response_id(resp);
     let pass = ctx.cumulative_pass_nr();
@@ -226,7 +272,7 @@ fn menu_with(resp: &Response, kind: Kind, selected: bool, takes: Takes, mut extr
     let (mut chosen, mut keyboard) = (None, false);
     let mut contents = |ui: &mut Ui| {
         let extra_keyboard = extra(ui);
-        (chosen, keyboard) = items(ui, kind, takes, selected, paste);
+        (chosen, keyboard) = items(ui, kind, text_only, selected, paste);
         keyboard |= extra_keyboard;
     };
     let open = match nested.as_mut() {
@@ -265,9 +311,13 @@ fn menu_with(resp: &Response, kind: Kind, selected: bool, takes: Takes, mut extr
         None => ctx.data_mut(|d| d.remove::<Nested>(shown(resp.id))),
     }
     if let Some(item) = chosen {
-        let viewport = ctx.viewport_id();
-        ctx.data_mut(|d| d.insert_temp(asked(), Asked { viewport, target: resp.id, item, takes }));
+        choose(ctx, resp.id, item, takes);
     }
+}
+
+fn choose(ctx: &Context, target: Id, item: Item, takes: Takes) {
+    let viewport = ctx.viewport_id();
+    ctx.data_mut(|d| d.insert_temp(asked(), Asked { viewport, target, item, takes }));
 }
 
 /// Whether the text field `resp` was left in this pass, as its `lost_focus` says, but not for its
@@ -378,10 +428,11 @@ fn attach(resp: Response, kind: Kind) -> Response {
 }
 
 /// The body of a message being written, or a signature being edited, `resp`, with the menu;
-/// `selected`: whether anything is selected in it; `takes`: what a paste brings into it. (Where a
-/// right click puts the caret is the body's own.)
-pub(crate) fn body(resp: &Response, selected: bool, takes: Takes, extra: impl FnMut(&mut Ui) -> bool) {
-    menu_with(resp, Kind::Text, selected, takes, extra);
+/// `selected`: whether anything is selected in it; `takes`: what a paste brings into it; `plain`:
+/// the message is plain text, where Paste brings the text alone and Paste Text Only isn't offered.
+/// (Where a right click puts the caret is the body's own.)
+pub(crate) fn body(resp: &Response, selected: bool, takes: Takes, plain: bool, extra: impl FnMut(&mut Ui) -> bool) {
+    menu_with(resp, Kind::Text, selected, takes, takes == Takes::Pictures && !plain, extra);
 }
 
 /// What was chosen this pass becomes its input, for [`deliver`]. The extra pass asked for runs in

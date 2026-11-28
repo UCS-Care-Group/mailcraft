@@ -707,6 +707,10 @@ impl Services {
 pub trait RichClipboard {
     /// Put `html` on the clipboard with `text` beside it for programs that take text.
     fn put(&self, html: &str, text: &str) -> Result<(), String>;
+    /// Put plain text on the clipboard when the source document has no HTML.
+    fn put_text(&self, _text: &str) -> Result<(), String> {
+        Err("the clipboard cannot write plain text".into())
+    }
     /// The HTML on the clipboard, when what is on it has HTML.
     fn html(&self) -> Option<String>;
     /// The picture on the clipboard as PNG, when what is on it is a picture.
@@ -2583,9 +2587,13 @@ impl MailApp {
         {
             self.recipient_focus_wanted = answer.get("compose").and_then(Value::as_u64);
         }
+        // Formatting keeps the keyboard where the owner is typing. If a header field has it,
+        // the ribbon still formats the body without moving the keyboard out of that field.
+        let format_body = id.starts_with("format.")
+            && self.ctx.as_ref().zip(self.session.compose_id()).is_none_or(|(ctx, compose)| compose::focused_header(ctx, compose).is_none());
         // What was done to the text being written leaves the keyboard in it.
         if r.is_ok()
-            && (id.starts_with("format.")
+            && (format_body
                 || matches!(id, "compose.link" | "compose.undo" | "compose.redo" | "edit.paste" | "compose.formatHtml" | "compose.formatPlain"))
         {
             self.want_body_focus();

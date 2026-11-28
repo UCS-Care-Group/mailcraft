@@ -2333,8 +2333,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "附加文件"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Attach Item"
 msgstr "附加项目"
@@ -12737,8 +12737,9 @@ msgstr "粘贴图片"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "仅粘贴文本"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
