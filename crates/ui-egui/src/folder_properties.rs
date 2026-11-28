@@ -266,10 +266,17 @@ impl FolderProperties {
             Some((tl!("Messages"), g.messages.to_string())),
             Some((tl!("Unread"), g.unread.to_string())),
         ];
+        let rtl = crate::i18n::current() == crate::i18n::Lang::Hebrew;
         egui::Grid::new("folder_properties_general").num_columns(2).spacing(vec2(GAP, 6.0)).show(ui, |ui| {
             for (label, value) in lines.into_iter().flatten() {
-                cell(ui, LABEL_W, false, |ui| ui.label(RichText::new(label).color(t.text_dim)));
-                cell(ui, VALUE_W, false, |ui| ui.add(egui::Label::new(RichText::new(value).color(t.text)).truncate()));
+                if rtl {
+                    // Keep label and value at the Hebrew reading edge, without changing the data.
+                    cell(ui, VALUE_W, true, |ui| ui.add(egui::Label::new(RichText::new(value).color(t.text)).truncate()));
+                    cell(ui, LABEL_W, true, |ui| ui.label(RichText::new(label).color(t.text_dim)));
+                } else {
+                    cell(ui, LABEL_W, false, |ui| ui.label(RichText::new(label).color(t.text_dim)));
+                    cell(ui, VALUE_W, false, |ui| ui.add(egui::Label::new(RichText::new(value).color(t.text)).truncate()));
+                }
                 ui.end_row();
             }
         });
