@@ -263,6 +263,14 @@ pub(crate) fn added(s: &Session, v: &Value) -> Result<(Id, Rule, String), CmdErr
             spliced(text, &(last.end..last.end), &format!("{gap}{block}"))?
         }
         [last] => spliced(text, &(last.end..last.end), &format!("{nl}{nl}{block}"))?,
+        // No filter yet: at the end, only of a script with nothing but its `require` and
+        // comments (the webmail's empty one). After commands of the owner's own a new filter
+        // could never run (a `stop;` for every message), and where else it could go isn't known.
+        [] if !e.rules.is_empty() || e.replies || e.unreadable => {
+            return Err(fail(
+                "Your webmail's Sieve script has commands of its own and no filter to put a new one after: add the filter in your webmail, or change the whole script.",
+            ));
+        }
         [] => {
             let end = text.trim_end().len();
             let tail = text.get(end..).filter(|t| !t.is_empty()).unwrap_or(nl);

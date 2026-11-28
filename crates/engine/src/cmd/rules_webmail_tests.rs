@@ -290,6 +290,14 @@ fn a_new_filter_goes_after_the_last_with_a_fresh_id() {
     let got = written(&run(&mut s, "rules.add", first), bare);
     assert!(got.starts_with("require [\"body\", \"vacation\", \"fileinto\"];\n\n# RAINLOOP:SIEVE\n\n/*\nBEGIN:FILTER:"), "{got}");
     assert!(got.ends_with("/* END:FILTER */\n"));
+    // A webmail's script with no filter but commands of the owner's own, ending in `stop;`: a
+    // filter put after them would never run, so none is added (#2058).
+    let stops = "require [\"fileinto\"];\n# RAINLOOP:SIEVE\n\nif header :contains \"subject\" \"x\" { keep; }\nstop;\n";
+    let (mut s, account, junk, _) = session(stops);
+    let mut after_stop = new.clone();
+    after_stop["account"] = json!(account);
+    after_stop["actions"] = json!([{"type": "moveTo", "value": junk}]);
+    assert!(err(&mut s, "rules.add", after_stop).contains("no filter to put a new one after"));
     // Not a webmail's script: no filter is added to it.
     let (mut s, account, junk, _) = session("require \"fileinto\";\nkeep;\n");
     let mut other = new;
