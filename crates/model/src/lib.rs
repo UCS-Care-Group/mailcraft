@@ -8,6 +8,7 @@
 //! servers in `mailcraft-proto`.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod accounts;
 mod address;
 pub mod auth_results;
 pub mod auto_replies;
@@ -71,6 +72,7 @@ pub mod zoned;
 
 use serde::{Deserialize, Serialize};
 
+pub use accounts::AccountRow;
 pub use address::{Address, MAX_ADDRESS, format_list, format_list_capped, is_valid_email, mailbox_address};
 pub use calendar::{
     Attendee, Calendar, CalendarOwner, Event, Freq, ListedTwice, MAX_JOIN_LINK, MAX_OPENED_CALENDARS, Occurrence, OnlineMeeting, OnlineProvider,
@@ -189,6 +191,8 @@ mod account_categories_tests;
 mod account_color_tests;
 #[cfg(test)]
 mod account_order_tests;
+#[cfg(test)]
+mod accounts_tests;
 #[cfg(test)]
 mod auth_results_tests;
 #[cfg(test)]
