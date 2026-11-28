@@ -14,7 +14,7 @@
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
 
-use super::{MailIdentity, Mailbox, ONLY_SERVER_FOLDERS, Pending, Queued, awaits_its_copy, invalid, kept_for_put_back, not_found};
+use super::{MailIdentity, Mailbox, ONLY_SERVER_FOLDERS, Pending, Queued, Waits, awaits_its_copy, invalid, kept_for_put_back, not_found};
 use crate::{FolderKind, Id, Message, ModelError};
 
 // How many times `Mailbox::move_each` was called on this thread: for the tests of what moves
@@ -22,6 +22,8 @@ use crate::{FolderKind, Id, Message, ModelError};
 #[cfg(test)]
 thread_local! {
     pub(crate) static MOVE_EACH_CALLS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    // How many times a message's waiting move was searched for through all of them.
+    pub(crate) static WAITING_SCANS: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
 }
 
 /// What a removal of many messages looks up once rather than for each message.
@@ -41,14 +43,19 @@ pub(super) struct Removal {
 
 impl Removal {
     pub(super) fn start(mb: &Mailbox) -> Removal {
-        let mut moves = HashMap::new();
-        for (at, p) in mb.pending.iter().enumerate() {
-            if let Pending::Move { message, .. } = p {
-                moves.entry(*message).or_insert(at);
-            }
-        }
-        Removal { moves, deletes: None, unplaced: HashSet::new(), gone: HashSet::new() }
+        Removal { moves: first_moves(mb), deletes: None, unplaced: HashSet::new(), gone: HashSet::new() }
     }
+}
+
+/// Where the first move waiting for each message lies in [`Mailbox::pending`].
+fn first_moves(mb: &Mailbox) -> HashMap<Id, usize> {
+    let mut moves = HashMap::new();
+    for (at, p) in mb.pending.iter().enumerate() {
+        if let Pending::Move { message, .. } = p {
+            moves.entry(*message).or_insert(at);
+        }
+    }
+    moves
 }
 
 /// `ids` without a message named twice, in their order.
@@ -101,27 +108,34 @@ impl Mailbox {
     /// Move each message of `moves` to its own folder ([`Mailbox::move_message`]), unless it is there
     /// already: answers the ones moved, each with the account it was in. What waits for a message
     /// (a move its server is to make, a copy to be put on a server) is looked for only for the
-    /// messages something waited for before the first of them was moved: moving one adds nothing
-    /// for another, so a big move takes time in proportion to its size rather than to its square.
+    /// messages something waited for before the first of them was moved, and a move waiting is
+    /// found where it lay then (looked for again only when one called off before has shifted
+    /// it): moving one adds nothing for another, so a big move takes time in proportion to its
+    /// size rather than to its square.
     pub fn move_each(&mut self, moves: &[(Id, Id)]) -> Result<Vec<(Id, Id)>, ModelError> {
         #[cfg(test)]
         MOVE_EACH_CALLS.with(|c| c.set(c.get() + 1));
-        let pending = self.pending.iter().filter_map(|p| match p {
-            Pending::Move { message, .. } => Some(*message),
-            Pending::Delete { .. } => None,
-        });
-        let queued = self.queued.iter().filter_map(|q| match q {
-            Queued::PlaceMessage { message, .. } => Some(*message),
-            _ => None,
-        });
-        let waited: HashSet<Id> = pending.chain(queued).collect();
+        let first = first_moves(self);
+        let queued: HashSet<Id> = self
+            .queued
+            .iter()
+            .filter_map(|q| match q {
+                Queued::PlaceMessage { message, .. } => Some(*message),
+                _ => None,
+            })
+            .collect();
         let mut moved = Vec::new();
         for (id, folder) in moves {
             let Some(account) = self.message(*id).filter(|m| m.folder != *folder).map(|m| m.account) else { continue };
             if self.folder(*folder).is_some() && self.stays_out_of(*id, *folder) {
                 return Err(invalid(ONLY_SERVER_FOLDERS));
             }
-            self.move_anyway(*id, *folder, !waited.contains(id))?;
+            let waits = match first.get(id) {
+                Some(at) => Waits::MoveAt(*at),
+                None if queued.contains(id) => Waits::Unknown,
+                None => Waits::Nothing,
+            };
+            self.move_anyway(*id, *folder, waits)?;
             moved.push((*id, account));
         }
         Ok(moved)

@@ -34,8 +34,8 @@ use mailcraft_html::{Align, BgPicture, Block, BlockKind, Cell, Length, Line, Lin
 use mailcraft_model::Message;
 
 use super::colors::Paper;
-use super::fonts::{Chooser, Pick};
 use super::images::{self, Pictures};
+use crate::fonts::{Chooser, Pick};
 use crate::theme::{Tokens, mono, regular, semibold};
 
 /// The size of text that asks for none, in points.
@@ -67,7 +67,7 @@ const BOX_PADDING: Vec2 = vec2(12.0, 9.0);
 const COLUMN_GAP: f32 = 16.0;
 const ROW_GAP: f32 = 6.0;
 /// A layout table is stacked rather than given columns narrower than this.
-const MIN_LAYOUT_COLUMN: f32 = 110.0;
+const MIN_LAYOUT_COLUMN: f32 = mailcraft_html::reading::MIN_LAYOUT_COLUMN as f32;
 /// Nothing is laid out narrower than this, however little room there is.
 const MIN_WIDTH: f32 = 40.0;
 /// What is in a table cell is given at least this much room, and a column is at least this wide
@@ -88,7 +88,7 @@ const MAX_NESTING: usize = 24;
 /// Most pictures that stand in one line run.
 const MAX_RUN: usize = 64;
 /// The space between boxes on a line, and between their lines.
-const BOX_GAP: f32 = 4.0;
+const BOX_GAP: f32 = mailcraft_html::reading::BOX_GAP as f32;
 /// The space between the wrapped lines of pictures and text.
 const WRAP_GAP: f32 = 2.0;
 /// The least room a text that is longer than the line needs beside what is before it to start there.
@@ -353,7 +353,7 @@ impl Laid {
         let mut cx = Cx {
             ctx,
             t,
-            message,
+            parts: message.map(|m| mailcraft_model::shown::PartIndex::new(&m.attachments)),
             pictures,
             remote: self.remote,
             frame: images::frame(ctx),
@@ -391,7 +391,8 @@ impl Laid {
 struct Cx<'a> {
     ctx: &'a egui::Context,
     t: Tokens,
-    message: Option<&'a Message>,
+    /// The message's parts by `Content-ID`, where `cid:` pictures are looked up.
+    parts: Option<mailcraft_model::shown::PartIndex<'a>>,
     pictures: &'a mut Pictures,
     /// Pictures from the web are shown when they have come.
     remote: bool,
@@ -481,8 +482,7 @@ impl Cx<'_> {
             return None;
         }
         let src = picture.src.trim();
-        let bytes =
-            picture.data.as_ref().map(|p| p.0.clone()).or_else(|| self.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone()));
+        let bytes = picture.data.as_ref().map(|p| p.0.clone()).or_else(|| self.parts.as_ref().and_then(|p| p.find(src)).map(|(_, a)| a.data.clone()));
         let (data, size) = bytes.and_then(|data| self.pictures.size(&data, self.frame).map(|size| (data, size)))?;
         self.stats.behind += 1;
         Some(Behind { slot: self.slot(), data, size })
@@ -974,10 +974,12 @@ fn list_marker(cx: &mut Cx<'_>, marker: &Marker, depth: u8, y: f32, side: Hang, 
 
 // ---- pictures ----
 
-/// How many pictures stand in one line from `index`: those that follow the first directly.
+/// How many pictures stand in one line from `index`: those that follow the first directly, in
+/// its line (one the message starts on a line of its own starts one here too, #1653).
 fn run_length(blocks: &[Block], index: usize) -> usize {
     let Some(first) = blocks.get(index) else { return 1 };
-    let follows = |b: &&Block| matches!(b.kind, BlockKind::Image { .. }) && b.space == 0 && b.quote == first.quote && b.align == first.align;
+    let follows =
+        |b: &&Block| matches!(b.kind, BlockKind::Image { .. }) && b.beside && b.space == 0 && b.quote == first.quote && b.align == first.align;
     1 + blocks.iter().skip(index + 1).take(MAX_RUN - 1).take_while(follows).count()
 }
 
@@ -1026,7 +1028,7 @@ fn picture_tile<'a>(cx: &mut Cx<'_>, block: &'a Block, room: f32, padding: f32, 
     // One of the message's own, written into it or attached to it; or one from the web, when
     // the owner asked and it has come.
     let asked_for = cx.remote && images::is_remote(src);
-    let mut bytes = data.as_ref().map(|p| p.0.clone()).or_else(|| cx.message.and_then(|m| images::attachment(m, src)).map(|a| a.data.clone()));
+    let mut bytes = data.as_ref().map(|p| p.0.clone()).or_else(|| cx.parts.as_ref().and_then(|p| p.find(src)).map(|(_, a)| a.data.clone()));
     if bytes.is_none()
         && asked_for
         && let Some(images::Remote::Ready(data)) = cx.pictures.remote(src.trim(), cx.frame)
@@ -1307,7 +1309,7 @@ fn box_margins(table: &Table) -> f32 {
 /// The gap in front of a box on a line, when it stands after another: the one the source has,
 /// white space (none where the columns are written touching, or at a size of nothing).
 fn box_gap(table: &Table) -> f32 {
-    if table.spaced { BOX_GAP } else { 0.0 }
+    f32::from(mailcraft_html::reading::box_gap(table))
 }
 
 /// Lay out boxes that stand on a line, each as wide as it asks (`width`, a share of the line) or
@@ -1556,48 +1558,17 @@ struct Grid<'a> {
     rows: usize,
 }
 
-/// Give every cell its place, minding the cells that span rows and columns. A cell that finds no
-/// room left in its row goes on in a new one: nothing is ever dropped or laid over another.
+/// Give every cell its place by [`mailcraft_html::grid`], the rule the phone draws by too.
 fn grid(table: &Table) -> Grid<'_> {
-    let columns = usize::from(table.columns).clamp(1, mailcraft_html::MAX_TABLE_COLUMNS);
-    // Per column, how many rows a cell from above still covers.
-    let mut covered = vec![0usize; columns];
-    let mut cells = Vec::new();
-    let mut row = 0usize;
-    for source in &table.rows {
-        let mut col = 0usize;
-        for cell in &source.cells {
-            loop {
-                while covered.get(col).is_some_and(|c| *c > 0) {
-                    col += 1;
-                }
-                if col < columns {
-                    break;
-                }
-                for c in &mut covered {
-                    *c = c.saturating_sub(1);
-                }
-                row += 1;
-                col = 0;
-            }
-            let wanted = usize::from(cell.colspan).clamp(1, columns - col);
-            let cols = covered.iter().skip(col).take(wanted).take_while(|c| **c == 0).count().max(1);
-            let rows = usize::from(cell.rowspan).max(1);
-            for c in covered.iter_mut().skip(col).take(cols) {
-                *c = rows;
-            }
-            cells.push(Placed { cell, row, col, cols, rows });
-            col += cols;
-        }
-        for c in &mut covered {
-            *c = c.saturating_sub(1);
-        }
-        row += 1;
-    }
-    for placed in &mut cells {
-        placed.rows = placed.rows.min(row.saturating_sub(placed.row)).max(1);
-    }
-    Grid { cells, columns, rows: row }
+    let laid = mailcraft_html::grid(table);
+    let cells = table
+        .rows
+        .iter()
+        .flat_map(|r| &r.cells)
+        .zip(laid.places)
+        .map(|(cell, p)| Placed { cell, row: p.row, col: p.col, cols: p.cols, rows: p.rows })
+        .collect();
+    Grid { cells, columns: laid.columns, rows: laid.rows }
 }
 
 /// Whether the table itself is painted: a background, or lines.
@@ -1733,15 +1704,20 @@ fn columns(cx: &mut Cx<'_>, table: &Table, grid: &Grid<'_>, depth: usize) -> Col
             *hi = hi.max(max);
         }
     }
-    // The columns a cell spans hold it together: what they lack is shared out among them.
+    // The columns a cell spans hold it together: what they lack is shared out among them, among
+    // those whose width the message didn't set when there are any (#1653).
     for (col, cols, min, max) in spanning {
         let between = gap * (cols - 1) as f32;
+        let free = out.fixed.iter().skip(col).take(cols).filter(|fixed| !**fixed).count();
+        let takes = |fixed: &bool| free == 0 || !*fixed;
         for (values, need) in [(&mut out.min, min - between), (&mut out.max, max - between)] {
             let have: f32 = values.iter().skip(col).take(cols).sum();
             if need > have {
-                let each = (need - have) / cols as f32;
-                for v in values.iter_mut().skip(col).take(cols) {
-                    *v += each;
+                let each = (need - have) / if free == 0 { cols } else { free } as f32;
+                for (v, fixed) in values.iter_mut().zip(&out.fixed).skip(col).take(cols) {
+                    if takes(fixed) {
+                        *v += each;
+                    }
                 }
             }
         }

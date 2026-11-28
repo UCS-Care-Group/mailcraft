@@ -62,7 +62,8 @@ fn an_attached_picture_is_behind_its_cell_under_the_text() {
             let (rect, item) = behind[0];
             // It covers the cell (which is as tall as what it holds: a picture behind a box gives
             // it no height, as in CSS), is painted before the text in it, and once.
-            assert!((rect.width() - 600.0).abs() < 1.0 && rect.height() >= 20.0, "{rect:?}");
+            let text = laid.items.get(text_at(&laid, "Autumn sale")).map_or(0.0, |i| i.rect.height());
+            assert!((rect.width() - 600.0).abs() < 1.0 && text > 0.0 && rect.height() >= text, "{rect:?} {text}");
             let at = laid.items.iter().position(|i| matches!(i.kind, ItemKind::Backdrop(_))).unwrap();
             assert!(at < text_at(&laid, "Autumn sale"));
             assert_eq!((item.tile, item.repeat), (egui::vec2(300.0, 100.0), [false, false]));

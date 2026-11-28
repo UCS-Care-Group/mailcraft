@@ -1,7 +1,8 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
 //! Whether a new version of MailCraft is out: one question to GitHub's API about the newest
-//! release of the repository the build names (`CARGO_PKG_REPOSITORY`), and nothing else.
+//! release of the repository under its new owner ([`RENAMED`]), and, only when GitHub has no
+//! such repository yet, the same question about the one the build names (`CARGO_PKG_REPOSITORY`).
 //!
 //! The request is a GET over HTTPS with the crate's fixed `User-Agent` (`MailCraft`, no version)
 //! and an `Accept` header: no account, address, mailbox detail, identifier or version of this
@@ -34,6 +35,14 @@ pub const RELEASE_KEYS: [&str; 2] = ["Mu5RF5oJpFhDGfa5wpgznC39tDC8vbUbyNkiAMdluP
 
 /// The repository this build came from: `https://github.com/{owner}/{repo}`.
 pub const REPOSITORY: &str = env!("CARGO_PKG_REPOSITORY");
+/// The repository after its organisation is renamed `UCS-Care-Group` → `UCSLabs`, asked first.
+/// Until the rename GitHub has no such repository (404) and [`REPOSITORY`] is asked; after it,
+/// this answers and the old name, which GitHub only redirects, is never asked. Each answer is
+/// checked against the repository asked, so one owner's release never passes as the other's.
+/// lean: two names for one move; the next release after the rename names only `UCSLabs`.
+pub const RENAMED: &str = "https://github.com/UCSLabs/mailcraft";
+/// What [`latest_at`] says when GitHub has no such repository or no release of it.
+const NO_RELEASE: &str = "GitHub has no release of MailCraft";
 /// GitHub's API.
 const API: &str = "https://api.github.com";
 /// How long connecting may take, and so may the answer: ten seconds together at most.
@@ -48,9 +57,22 @@ const MAX_ASSETS: usize = 200;
 
 /// The newest release of this build's repository, when GitHub says there is one that this
 /// build could run. `pre_releases`: the running build is a pre-release itself, so one is not
-/// passed over. Blocks for ten seconds at most.
+/// passed over. Blocks for ten seconds at most, twenty when the new name isn't there yet.
 pub fn latest(pre_releases: bool) -> Result<Release, NetError> {
-    latest_at(API, REPOSITORY, pre_releases)
+    latest_of(API, &[RENAMED, REPOSITORY], pre_releases)
+}
+
+/// [`latest_at`] for each of `repositories` in turn, moving on to the next only when GitHub
+/// has no release of one (a 404): any other answer, or none, is the answer.
+pub fn latest_of(api: &str, repositories: &[&str], pre_releases: bool) -> Result<Release, NetError> {
+    let mut answer = Err(said("this build names no repository on GitHub"));
+    for repository in repositories {
+        answer = latest_at(api, repository, pre_releases);
+        if !matches!(&answer, Err(NetError::Config(why)) if why.to_string() == NO_RELEASE) {
+            break;
+        }
+    }
+    answer
 }
 
 /// [`latest`], asking the API at `api` (an `https://` address, or `http://` on this machine)
@@ -64,7 +86,7 @@ pub fn latest_at(api: &str, repository: &str, pre_releases: bool) -> Result<Rele
         .map_err(|e| without_address(&e))?;
     match reply.status {
         200 => release(&reply.body, owner, repo, pre_releases),
-        404 => Err(said("GitHub has no release of MailCraft")),
+        404 => Err(said(NO_RELEASE)),
         403 | 429 => Err(said("GitHub asked to be asked later")),
         status => Err(said(&format!("GitHub answered {status}"))),
     }
@@ -301,6 +323,76 @@ mod tests {
         let server = FakeHttp::answering(moved);
         assert_eq!(config(ask(&server, false)), "GitHub answered 301");
         assert_eq!(server.asked(), 1);
+    }
+
+    /// A server that answers each request with the next of `answers`, recording what it was asked.
+    fn answering_in_turn(answers: Vec<Vec<u8>>) -> (String, std::thread::JoinHandle<Vec<String>>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let url = format!("http://127.0.0.1:{}", listener.local_addr().unwrap().port());
+        let served = std::thread::spawn(move || {
+            let mut asked = Vec::new();
+            for bytes in answers {
+                let (mut stream, _) = listener.accept().unwrap();
+                let mut buf = [0u8; 4096];
+                let n = std::io::Read::read(&mut stream, &mut buf).unwrap();
+                asked.push(String::from_utf8_lossy(&buf[..n]).lines().next().unwrap_or_default().to_string());
+                stream.write_all(&bytes).unwrap();
+            }
+            asked
+        });
+        (url, served)
+    }
+
+    const RENAMED_REPO: &str = "https://github.com/UCSLabs/mailcraft";
+
+    fn release_under(owner: &str, tag: &str) -> Vec<u8> {
+        let mut release = release_of(tag);
+        release["html_url"] = Value::String(format!("https://github.com/{owner}/mailcraft/releases/tag/{tag}"));
+        release["assets"] = serde_json::json!([{"name": "mailcraft.msi", "size": 1,
+            "browser_download_url": format!("https://github.com/{owner}/mailcraft/releases/download/{tag}/mailcraft.msi")}]);
+        answer(&release)
+    }
+
+    #[test]
+    fn the_new_name_is_asked_first_and_the_old_only_when_github_has_no_such_repository() {
+        // After the rename: the new name answers, and the old is never asked.
+        let (url, served) = answering_in_turn(vec![release_under("UCSLabs", "v0.9.0")]);
+        let got = latest_of(&url, &[RENAMED_REPO, REPO], false).unwrap();
+        assert_eq!(got.page, "https://github.com/UCSLabs/mailcraft/releases/tag/v0.9.0");
+        assert_eq!(got.assets.len(), 1);
+        assert_eq!(served.join().unwrap(), ["GET /repos/UCSLabs/mailcraft/releases/latest HTTP/1.1"]);
+
+        // Before it: no such repository under the new name, so the old one is asked.
+        let (url, served) = answering_in_turn(vec![json_answer("404 Not Found", "{}"), release_under("UCS-Care-Group", "v0.9.0")]);
+        let got = latest_of(&url, &[RENAMED_REPO, REPO], false).unwrap();
+        assert_eq!(got.page, "https://github.com/UCS-Care-Group/mailcraft/releases/tag/v0.9.0");
+        assert_eq!(got.assets.len(), 1);
+        assert_eq!(
+            served.join().unwrap(),
+            ["GET /repos/UCSLabs/mailcraft/releases/latest HTTP/1.1", "GET /repos/UCS-Care-Group/mailcraft/releases/latest HTTP/1.1",]
+        );
+
+        // Neither has one: GitHub has no release.
+        let (url, served) = answering_in_turn(vec![json_answer("404 Not Found", "{}"), json_answer("404 Not Found", "{}")]);
+        assert_eq!(config(latest_of(&url, &[RENAMED_REPO, REPO], false)), NO_RELEASE);
+        assert_eq!(served.join().unwrap().len(), 2);
+
+        // Any other answer from the new name is the answer: the old is not asked.
+        for status in ["403 Forbidden", "500 Oops"] {
+            let (url, served) = answering_in_turn(vec![json_answer(status, "{}")]);
+            assert!(latest_of(&url, &[RENAMED_REPO, REPO], false).is_err());
+            assert_eq!(served.join().unwrap().len(), 1, "{status}");
+        }
+    }
+
+    #[test]
+    fn one_owners_files_never_pass_as_the_others() {
+        // Asked under the old name, a release whose files are under the new one keeps none of them.
+        let (url, served) = answering_in_turn(vec![json_answer("404 Not Found", "{}"), release_under("UCSLabs", "v0.9.0")]);
+        let got = latest_of(&url, &[RENAMED_REPO, REPO], false).unwrap();
+        assert!(got.assets.is_empty());
+        assert_eq!(got.page, "https://github.com/UCS-Care-Group/mailcraft/releases/tag/v0.9.0");
+        served.join().unwrap();
     }
 
     #[test]

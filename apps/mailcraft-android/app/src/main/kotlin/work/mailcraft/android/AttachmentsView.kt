@@ -38,6 +38,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -55,15 +56,60 @@ internal fun actionLabel(texts: Texts, action: AttachmentAction): String = when 
 
 /** The message's files, one row each: a tap does the first thing that can be done, the menu offers the rest. */
 @Composable
-internal fun AttachmentsList(texts: Texts, id: ULong, items: List<AttachmentItem>, actions: AttachmentActions) {
+internal fun AttachmentsList(
+    texts: Texts,
+    id: ULong,
+    items: List<AttachmentItem>,
+    actions: AttachmentActions,
+    heading: Boolean = true,
+) {
     if (items.isEmpty()) return
     Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
-        Text(
-            texts.tn(items.size.toULong(), "{n} attachment", "{n} attachments"),
-            style = MaterialTheme.typography.labelLarge,
-            modifier = Modifier.semantics { heading() },
-        )
+        if (heading) {
+            Text(
+                texts.tn(items.size.toULong(), "{n} attachment", "{n} attachments"),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.semantics { heading() },
+            )
+        }
         items.forEach { item -> AttachmentRow(texts, id, item, actions) }
+    }
+}
+
+/**
+ * The files as one row, "N attachments", that opens the list in place and folds it again. Each message starts
+ * folded: the caller keeps [open] by message (above any lazy list, so scrolling away does not fold it) and does not save it.
+ */
+@Composable
+internal fun FoldedAttachments(
+    texts: Texts,
+    id: ULong,
+    items: List<AttachmentItem>,
+    actions: AttachmentActions,
+    open: Boolean,
+    onOpen: (Boolean) -> Unit,
+) {
+    if (items.isEmpty()) return
+    val state = if (open) texts.t("Unfolded") else texts.t("Folded")
+    Column(modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = RowHeight)
+                .semantics { stateDescription = state }
+                .clickable(role = Role.Button) { onOpen(!open) },
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Icon(AppIcons.Attach, contentDescription = null, modifier = Modifier.size(24.dp))
+            Text(
+                texts.tn(items.size.toULong(), "{n} attachment", "{n} attachments"),
+                style = MaterialTheme.typography.labelLarge,
+                modifier = Modifier.weight(1f),
+            )
+            Text(if (open) "▴" else "▾", style = MaterialTheme.typography.titleMedium)
+        }
+        if (open) AttachmentsList(texts, id, items, actions, heading = false)
     }
 }
 
@@ -138,12 +184,14 @@ internal fun AttachmentLayers(texts: Texts, ui: AttachmentUi, actions: Attachmen
     }
 }
 
-/** What the owner is asked before a file that can carry macros or scripts is opened, in the desktop's words. */
+/** What the owner is asked before a file that can carry macros or scripts, or one its program acts on, is opened, in the desktop's words. */
 internal fun question(texts: Texts, item: AttachmentItem): String {
-    val why = if (item.verdict == OpenVerdict.SCRIPTS) {
-        texts.t("Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it.")
-    } else {
-        texts.t("Files like this can carry macros, which run as programs do. Open it only if you know who sent it and expect it.")
+    val why = when (item.verdict) {
+        OpenVerdict.SCRIPTS ->
+            texts.t("Pages like this open in the browser, where scripts in them run. Open it only if you know who sent it and expect it.")
+        OpenVerdict.ACTIVE ->
+            texts.t("Programs that open files like this act on what is in them: they can show web content in it, or take in the keys and certificates it holds. Open it only if you know who sent it and expect it.")
+        else -> texts.t("Files like this can carry macros, which run as programs do. Open it only if you know who sent it and expect it.")
     }
     return texts.t("Open {name}? {why}").replace("{name}", item.name).replace("{why}", why)
 }

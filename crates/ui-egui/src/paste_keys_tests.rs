@@ -74,6 +74,14 @@ fn cut_and_copy_become_their_events() {
 }
 
 #[test]
+fn linux_control_chords_translate_to_clipboard_events() {
+    let board = Board { text: Some("selected"), picture: false };
+    let control = Modifiers::CTRL | Modifiers::COMMAND;
+    let out = run(vec![press(Key::X, control), press(Key::C, control), press(Key::V, control)], &board);
+    assert!(matches!(out.as_slice(), [Event::Cut, Event::Copy, Event::Paste(text)] if text == "selected"));
+}
+
+#[test]
 fn other_keys_and_other_modifiers_pass_through() {
     let board = Board { text: Some("x"), picture: false };
     let shifted = Modifiers { shift: true, ..Modifiers::COMMAND };
