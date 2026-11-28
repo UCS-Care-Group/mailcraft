@@ -177,6 +177,8 @@ mod keep_offline;
 mod key_chain_tests;
 pub mod keys;
 #[cfg(test)]
+mod label_columns_tests;
+#[cfg(test)]
 #[path = "late_work_tests.rs"]
 mod late_work_tests;
 #[cfg(test)]

@@ -1,0 +1,1 @@
+- The contact form, the meeting dialog and the task details fit their labels in a language whose words are longer than English's: the label column is as wide as its widest label needs (two fifths of the window at most) instead of cutting the label.
