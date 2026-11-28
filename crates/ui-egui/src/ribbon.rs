@@ -304,9 +304,15 @@ pub(crate) fn submenu(ui: &mut Ui, app: &mut MailApp, name: String, menu: Menu) 
     if menu_usable(app, menu) {
         if holds_a_field(menu) {
             let config = egui::containers::menu::MenuConfig::default().close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside);
-            egui::containers::menu::MenuButton::new(name).config(config).ui(ui, |ui| menu_contents(ui, app, menu));
+            egui::containers::menu::MenuButton::new(name).config(config).ui(ui, |ui| {
+                menu_contents(ui, app, menu);
+                app.hit.add("ribbonPopup", 0, ui.min_rect());
+            });
         } else {
-            ui.menu_button(name, |ui| menu_contents(ui, app, menu));
+            ui.menu_button(name, |ui| {
+                menu_contents(ui, app, menu);
+                app.hit.add("ribbonPopup", 0, ui.min_rect());
+            });
         }
         return;
     }
@@ -2336,7 +2342,10 @@ fn more_entries(ui: &mut Ui, app: &mut MailApp, b: &Button<'_>) {
         match b.item.menu {
             Some(menu) if b.drops.is_empty() => submenu(ui, app, b.item.name(), menu),
             _ => {
-                ui.menu_button(b.item.name(), |ui| drop_menu(ui, app, b));
+                ui.menu_button(b.item.name(), |ui| {
+                    drop_menu(ui, app, b);
+                    app.hit.add("ribbonPopup", 0, ui.min_rect());
+                });
             }
         }
         return;
