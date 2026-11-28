@@ -3071,6 +3071,18 @@ msgstr "გაუქმებები {account}-ის სერვერიდ
 msgid "Cancelled"
 msgstr "გაუქმებულია"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalize the first word of sentences"
+msgstr "წინადადების პირველი სიტყვის დიდი ასოთი დაწყება"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+msgstr "სიტყვის აკრეფის შემდეგ მის პირველ ასოს ადიდებს. გაუქმება აღადგენს აკრეფილ ტექსტს."
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -28189,14 +28201,6 @@ msgstr "−სტრ."
 #~ msgid_plural "{n} messages matched"
 #~ msgstr[0] "დამთხვეული წერილი: {n}"
 #~ msgstr[1] "დამთხვეული წერილი: {n}"
-
-#, fuzzy
-#~ msgid "Capitalize the first word of sentences"
-#~ msgstr "წინადადების პირველი სიტყვის დიდი ასოთი დაწყება"
-
-#, fuzzy
-#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
-#~ msgstr "სიტყვის აკრეფის შემდეგ მის პირველ ასოს ადიდებს. გაუქმება აღადგენს აკრეფილ ტექსტს."
 
 #, fuzzy
 #~ msgid "Spelling & Grammar"

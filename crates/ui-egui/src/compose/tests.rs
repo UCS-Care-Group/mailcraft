@@ -181,7 +181,7 @@ fn enter_goes_on_with_a_list_and_ends_it_on_an_empty_item() {
     assert_eq!(kinds(&h), [ListKind::None, ListKind::Bullet, ListKind::Bullet, ListKind::Bullet]);
     key(&mut h, Key::Enter);
     assert_eq!(kinds(&h), [ListKind::None, ListKind::Bullet, ListKind::Bullet, ListKind::None]);
-    assert_eq!(plain(&h), "Shopping:\nbread\nmilk\n");
+    assert_eq!(plain(&h), "Shopping:\nBread\nMilk\n");
     // Shift+Tab takes an item out of its list; Backspace at an item's start does too.
     key(&mut h, Key::ArrowUp);
     key_with(&mut h, Modifiers::SHIFT, Key::Tab);
@@ -190,7 +190,19 @@ fn enter_goes_on_with_a_list_and_ends_it_on_an_empty_item() {
     key(&mut h, Key::Home);
     key(&mut h, Key::Backspace);
     assert_eq!(kinds(&h), [ListKind::None; 4]);
-    assert_eq!(plain(&h), "Shopping:\nbread\nmilk\n");
+    assert_eq!(plain(&h), "Shopping:\nBread\nMilk\n");
+}
+
+#[test]
+fn keyboard_capitalizes_first_words_and_undo_restores_the_original_case() {
+    let mut h = writing();
+    for text in ["è", " ", "chiaro.", " ", "ora"] {
+        type_in(&mut h, text);
+    }
+    key(&mut h, Key::Enter);
+    assert_eq!(plain(&h), "È chiaro. Ora\n");
+    key_with(&mut h, Modifiers::COMMAND, Key::Z);
+    assert_eq!(plain(&h), "È chiaro. ora\n");
 }
 
 #[test]
@@ -602,7 +614,7 @@ fn a_long_message_lays_out_only_what_changes() {
     key(&mut h, Key::Enter);
     assert!(editor::laid(&h.ctx, h.state()) - before <= 5);
     key_with(&mut h, Modifiers::CTRL, Key::End);
-    assert!(plain(&h).starts_with("x\nParagraph 0"));
+    assert!(plain(&h).starts_with("X\nParagraph 0"));
     let t0 = std::time::Instant::now();
     h.run_steps(10);
     // Generous: a debug build on whatever machine runs the tests.
@@ -709,7 +721,7 @@ fn tab_takes_a_list_item_a_level_deeper_and_shift_tab_out() {
     type_in(&mut h, "one.two");
     let levels = |h: &Window| h.state().session.compose.as_ref().unwrap().body.text().paragraphs().iter().map(|p| p.level).collect::<Vec<_>>();
     assert_eq!(levels(&h), [0, 1, 1], "Enter goes on at the same level");
-    assert_eq!(plain(&h), "one\none.one\none.two", "Tab at an item's start is no tab character");
+    assert_eq!(plain(&h), "One\none.one\none.two", "Tab at an item's start is no tab character");
     assert_eq!(mailcraft_model::rich::numbers(h.state().session.compose.as_ref().unwrap().body.text().paragraphs()), [1, 1, 2]);
     // Tab inside an item's text is a tab; the ribbon buttons do what the keys do.
     type_in(&mut h, "");

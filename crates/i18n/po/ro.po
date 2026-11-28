@@ -3069,6 +3069,18 @@ msgstr "Anulări de la serverul contului {account}:"
 msgid "Cancelled"
 msgstr "Anulat"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalize the first word of sentences"
+msgstr "Scrie cu majusculă primul cuvânt din propoziție"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+msgstr "Majuscula este adăugată la terminarea cuvântului. Anularea restabilește textul tastat."
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -28341,14 +28353,6 @@ msgstr "−Linii"
 #~ msgstr[0] "{n} mesaj găsit"
 #~ msgstr[1] "{n} mesaje găsite"
 #~ msgstr[2] "{n} de mesaje găsite"
-
-#, fuzzy
-#~ msgid "Capitalize the first word of sentences"
-#~ msgstr "Scrie cu majusculă primul cuvânt din propoziție"
-
-#, fuzzy
-#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
-#~ msgstr "Majuscula este adăugată la terminarea cuvântului. Anularea restabilește textul tastat."
 
 #, fuzzy
 #~ msgid "Spelling & Grammar"

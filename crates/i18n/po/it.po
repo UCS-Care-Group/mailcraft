@@ -3062,6 +3062,18 @@ msgstr "Annullamenti dal server di {account}:"
 msgid "Cancelled"
 msgstr "Annullato"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalize the first word of sentences"
+msgstr "Metti la maiuscola alla prima parola delle frasi"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+msgstr "La maiuscola viene inserita quando finisci di digitare una parola. Annulla ripristina il testo digitato."
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -28096,14 +28108,6 @@ msgstr "−Righe"
 #~ msgid_plural "{n} messages matched"
 #~ msgstr[0] "{n} messaggio corrispondente"
 #~ msgstr[1] "{n} messaggi corrispondenti"
-
-#, fuzzy
-#~ msgid "Capitalize the first word of sentences"
-#~ msgstr "Metti la maiuscola alla prima parola delle frasi"
-
-#, fuzzy
-#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
-#~ msgstr "La maiuscola viene inserita quando finisci di digitare una parola. Annulla ripristina il testo digitato."
 
 #, fuzzy
 #~ msgid "Spelling & Grammar"

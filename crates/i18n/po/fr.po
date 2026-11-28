@@ -3058,6 +3058,18 @@ msgstr "Annulations envoyées par le serveur de {account} :"
 msgid "Cancelled"
 msgstr "Annulé"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalize the first word of sentences"
+msgstr "Mettre une majuscule au début des phrases"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+msgstr "La majuscule est ajoutée à la fin de la saisie d’un mot. Annuler rétablit le texte saisi."
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -28023,14 +28035,6 @@ msgstr "−Lignes"
 #~ msgid_plural "{n} messages matched"
 #~ msgstr[0] "{n} message correspondant"
 #~ msgstr[1] "{n} messages correspondants"
-
-#, fuzzy
-#~ msgid "Capitalize the first word of sentences"
-#~ msgstr "Mettre une majuscule au début des phrases"
-
-#, fuzzy
-#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
-#~ msgstr "La majuscule est ajoutée à la fin de la saisie d’un mot. Annuler rétablit le texte saisi."
 
 #~ msgid "Spelling & Grammar"
 #~ msgstr "Orthographe et grammaire"

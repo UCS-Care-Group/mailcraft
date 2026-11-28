@@ -3068,6 +3068,18 @@ msgstr "Lemondások a(z) {account} kiszolgálójától:"
 msgid "Cancelled"
 msgstr "Lemondva"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalize the first word of sentences"
+msgstr "A mondatok első szava kezdődjön nagybetűvel"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+msgstr "A nagybetű a szó begépelése után jelenik meg. A visszavonás visszaállítja az eredeti szöveget."
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -28126,14 +28138,6 @@ msgstr "−Sorok"
 #~ msgid_plural "{n} messages matched"
 #~ msgstr[0] "{n} üzenet felel meg a keresésnek"
 #~ msgstr[1] "{n} üzenet felel meg a keresésnek"
-
-#, fuzzy
-#~ msgid "Capitalize the first word of sentences"
-#~ msgstr "A mondatok első szava kezdődjön nagybetűvel"
-
-#, fuzzy
-#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
-#~ msgstr "A nagybetű a szó begépelése után jelenik meg. A visszavonás visszaállítja az eredeti szöveget."
 
 #, fuzzy
 #~ msgid "Spelling & Grammar"

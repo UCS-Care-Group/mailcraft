@@ -271,6 +271,167 @@ fn huge_documents_are_capped() {
 // ---- writing: RichBody ----
 
 #[test]
+fn auto_capitalization_respects_sentence_endings_and_existing_word_case() {
+    for (before, typed, lang, expected) in [
+        ("ready？", "\n", "en", "Ready？\n"),
+        ("go！ ready。", " ", "en", "go！ Ready。 "),
+        ("iPhone", " ", "en", "iPhone "),
+        ("eBay", "\n", "en", "eBay\n"),
+        ("ijs", " ", "nl", "IJs "),
+        ("I ordered 2. please confirm", " ", "en", "I ordered 2. please confirm "),
+        ("I ordered 2. please", " ", "en", "I ordered 2. Please "),
+        ("2. item", " ", "en", "2. item "),
+        ("Sejdeme se 18. listopadu", " ", "cs-CZ", "Sejdeme se 18. listopadu "),
+        ("2026. november", " ", "hu_HU", "2026. november "),
+        ("Spotkajmy się 18. listopada", " ", "pl", "Spotkajmy się 18. listopada "),
+        ("Er kam am 18. des Monats", " ", "de", "Er kam am 18. des Monats "),
+        ("We met on Tuesday. please", " ", "cs", "We met on Tuesday. Please "),
+        ("Home vs. away", " ", "en", "Home vs. away "),
+        ("Acme Inc. reported", " ", "en", "Acme Inc. reported "),
+        ("See no. three", " ", "en", "See no. three "),
+        ("Wir warten ca. drei", " ", "de", "Wir warten ca. drei "),
+        ("Bitte ggf. nachfragen", " ", "de", "Bitte ggf. nachfragen "),
+        ("Die Anlage evtl. nachreichen", " ", "de", "Die Anlage evtl. nachreichen "),
+        ("J. user", " ", "en", "J. user "),
+    ] {
+        let mut body = RichBody::default();
+        body.type_text(before).unwrap();
+        body.type_with_auto_capitalization(typed, lang).unwrap();
+        assert_eq!(body.plain(), expected, "{before:?}");
+    }
+}
+
+#[test]
+fn auto_capitalization_distinguishes_abbreviations_from_standalone_no() {
+    for (typed, expected) in [
+        ("We need the dept. of finance ", "We need the dept. of finance "),
+        ("no. thanks ", "No. Thanks "),
+        ("See no. three ", "See no. three "),
+        ("Ready? no. thanks ", "Ready? No. Thanks "),
+        ("Ready. no. thanks ", "Ready. No. Thanks "),
+        ("Visit the dept. no. three ", "Visit the dept. no. three "),
+        ("Done. thanks ", "Done. Thanks "),
+        ("She has a Ph.D. in physics ", "She has a Ph.D. in physics "),
+        ("He has an M.Sc. in chemistry ", "He has an M.Sc. in chemistry "),
+        ("A B.Sc. in mathematics ", "A B.Sc. in mathematics "),
+        ("A Sc.D. in biology ", "A Sc.D. in biology "),
+        ("Her Ph.D. is complete. thanks ", "Her Ph.D. is complete. Thanks "),
+        ("“no.” thanks ", "“No.” Thanks "),
+        ("Smith et al. showed the result. thanks ", "Smith et al. showed the result. Thanks "),
+        ("Smith ET AL. showed the result ", "Smith ET AL. showed the result "),
+        ("Read (et al. for details) ", "Read (et al. for details) "),
+        ("Ask Al. thanks ", "Ask Al. Thanks "),
+        ("I enjoy art. thanks ", "I enjoy art. Thanks "),
+        ("I see art. thanks ", "I see art. Thanks "),
+        ("I enjoy art. five galleries opened ", "I enjoy art. Five galleries opened "),
+        ("See art. five for details ", "See art. five for details "),
+        ("See art. twenty-one for details ", "See art. twenty-one for details "),
+        ("Art. iii of the agreement ", "Art. iii of the agreement "),
+        ("Under art. 5 of the agreement ", "Under art. 5 of the agreement "),
+    ] {
+        let mut body = RichBody::default();
+        for character in typed.chars() {
+            body.type_with_auto_capitalization(&character.to_string(), "en").unwrap();
+        }
+        assert_eq!(body.plain(), expected, "{typed:?}");
+    }
+}
+
+#[test]
+fn auto_capitalization_handles_quoted_first_words_and_following_sentences() {
+    for (typed, expected) in [
+        ("„hallo welt.“ danke ", "„Hallo welt.“ Danke "),
+        ("„hallo.“ danke ", "„Hallo.“ Danke "),
+        ("„hallo.“\ndanke ", "„Hallo.“\nDanke "),
+        ("«hallo welt.» danke ", "«Hallo welt.» Danke "),
+        ("«hallo.» danke ", "«Hallo.» Danke "),
+        ("“hello.” thanks ", "“Hello.” Thanks "),
+        ("hallo welt. danke ", "Hallo welt. Danke "),
+    ] {
+        let mut body = RichBody::default();
+        for character in typed.chars() {
+            body.type_with_auto_capitalization(&character.to_string(), "de").unwrap();
+        }
+        assert_eq!(body.plain(), expected, "{typed:?}");
+    }
+}
+
+#[test]
+fn auto_capitalization_preserves_georgian_script_independently_of_writing_language() {
+    for language in ["ka", "ka-GE", "ka_GE", "en", "tr", "nl"] {
+        let typed = "გამარჯობა. როგორ ხარ? ყველაფერი კარგადაა!\nნახვამდის\n";
+        let mut body = RichBody::default();
+        for character in typed.chars() {
+            body.type_with_auto_capitalization(&character.to_string(), language).unwrap();
+        }
+        assert_eq!(body.plain(), typed, "{language}");
+    }
+    // Selecting Georgian does not suppress capitalization of another script.
+    let mut body = RichBody::default();
+    for character in "ქართული. hello world. thanks ".chars() {
+        body.type_with_auto_capitalization(&character.to_string(), "ka").unwrap();
+    }
+    assert_eq!(body.plain(), "ქართული. Hello world. Thanks ");
+}
+
+#[test]
+fn auto_capitalization_preserves_additional_ordinal_dates_in_typed_prose() {
+    for (language, typed) in [
+        ("da-DK", "Vi mødes den 18. november "),
+        ("nb-NO", "Vi møtes den 18. november "),
+        ("nn_NO", "Vi møtest den 18. november "),
+        ("no", "Vi møtes den 18. november "),
+        ("fi-FI", "Tapaamme 18. marraskuuta "),
+        ("sk-SK", "Stretneme sa 18. novembra "),
+    ] {
+        let mut body = RichBody::default();
+        for character in typed.chars() {
+            body.type_with_auto_capitalization(&character.to_string(), language).unwrap();
+        }
+        assert_eq!(body.plain(), typed, "{language}");
+        for character in "Done. thanks ".chars() {
+            body.type_with_auto_capitalization(&character.to_string(), language).unwrap();
+        }
+        assert!(body.plain().ends_with("Done. Thanks "), "{language}");
+    }
+}
+
+#[test]
+fn auto_capitalization_keeps_a_pasted_word_when_followed_by_typed_punctuation() {
+    let mut body = RichBody::default();
+    body.paste(&RichText::from_plain("ready")).unwrap();
+    body.type_with_auto_capitalization("!", "en").unwrap();
+    body.type_with_auto_capitalization("\n", "en").unwrap();
+    assert_eq!(body.plain(), "ready!\n");
+
+    body.type_with_auto_capitalization("ready", "en").unwrap();
+    body.type_with_auto_capitalization("!", "en").unwrap();
+    body.type_with_auto_capitalization("\n", "en").unwrap();
+    assert_eq!(body.plain(), "ready!\nReady!\n");
+}
+
+#[test]
+fn auto_capitalization_keeps_the_delimiter_when_the_table_uses_the_rest_of_storage() {
+    let cell = TableCell {
+        lines: vec![vec![CellText { text: "x".repeat(MAX_CHARS - 11), style: Style::default() }]],
+        header: false,
+        colspan: 1,
+        rowspan: 1,
+        background: None,
+        alignment: CellAlignment::Left,
+    };
+    let table = std::sync::Arc::new(PastedTable::new(1, vec![vec![cell]]).unwrap());
+    let text = RichText::from_paragraphs(vec![Paragraph::new(vec![Run::table(table)], ListKind::None), Paragraph::default()]);
+    let mut body = RichBody::new(text);
+    body.select(2, 2).unwrap();
+    body.type_with_auto_capitalization("ßeta", "de").unwrap();
+    assert_eq!(body.text().storage_len(), MAX_CHARS - 1);
+    body.type_with_auto_capitalization(" ", "de").unwrap();
+    assert_eq!(body.text().storage_len(), MAX_CHARS);
+    assert_eq!(body.text().paragraphs()[1].text(), "ßeta ");
+}
+
+#[test]
 fn a_body_saved_as_plain_text_still_opens() {
     let b: RichBody = serde_json::from_str(r#""Dear Ada,\n\nThanks.""#).unwrap();
     assert_eq!(b.plain(), "Dear Ada,\n\nThanks.");

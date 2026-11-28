@@ -2909,6 +2909,18 @@ msgstr "Absagen vom Server von {account}:"
 msgid "Cancelled"
 msgstr "Abgesagt"
 
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalize the first word of sentences"
+msgstr "Erstes Wort eines Satzes großschreiben"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
+msgstr "Schreibt das erste Wort nach der Eingabe groß. Rückgängig stellt die ursprüngliche Schreibweise wieder her."
+
 #. interface, name
 #: crates/engine/src/session.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/tasks_view.rs
 #, fuzzy
@@ -26565,14 +26577,6 @@ msgstr "−Zeilen"
 #~ msgid_plural "{n} messages matched"
 #~ msgstr[0] "{n} Nachricht gefunden"
 #~ msgstr[1] "{n} Nachrichten gefunden"
-
-#, fuzzy
-#~ msgid "Capitalize the first word of sentences"
-#~ msgstr "Erstes Wort eines Satzes großschreiben"
-
-#, fuzzy
-#~ msgid "Capitalizes after you finish typing a word. Undo restores what you typed."
-#~ msgstr "Schreibt das erste Wort nach der Eingabe groß. Rückgängig stellt die ursprüngliche Schreibweise wieder her."
 
 #~ msgid "Spelling & Grammar"
 #~ msgstr "Rechtschreibung & Grammatik"
