@@ -1299,3 +1299,27 @@ fn a_change_to_mail_moved_into_the_archive_goes_up_with_its_owner_once_hidden() 
         request.messages
     );
 }
+
+/// Reply, Reply All, Forward and Forward as Attachment on mail in the online archive are written
+/// from its owner, whose Drafts and Outbox they go to: the archive has neither and sends nothing
+/// (#1834 review).
+#[test]
+fn mail_in_the_archive_is_answered_from_its_owner() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M9", "Budget 2019", 1_600_000_000)], true, true), "S1");
+    let m = here(&s, archive, "M9").unwrap().id;
+    // Here whole, as its first opening brings it.
+    let held = s.mailbox.message_mut(m).unwrap();
+    held.unfetched = false;
+    held.body = mailcraft_model::Body { text: "The figures.".into(), html: None };
+    for command in ["mail.reply", "mail.replyAll", "mail.forward", "mail.forwardAsAttachment"] {
+        s.run(command, &json!({"id": m})).unwrap();
+        let c = s.compose.as_ref().unwrap();
+        assert_eq!(c.account, account, "{command}");
+        s.run("compose.close", &json!({"discard": true})).unwrap();
+    }
+}

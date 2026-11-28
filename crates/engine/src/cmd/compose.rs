@@ -601,13 +601,22 @@ fn with_window(id: Id, v: &Value) -> Value {
     }
 }
 
+/// The account a message of `account`'s is answered, forwarded or sent again from: its own, but
+/// for an online archive's, which has no Drafts or Outbox and sends nothing: its owner's, whose
+/// server and sign-in it is (#1834 review).
+fn composing_account(s: &Session, account: Id) -> Id {
+    s.mailbox.archive_owner(account).map_or(account, |owner| owner.id)
+}
+
 fn respond(s: &mut Session, v: &Value, mode: ComposeMode) -> CmdResult {
     let place = read_in(v)?;
     // A forward carries every file; a reply only quotes the text and the pictures it shows.
-    let m = match mode {
+    let mut m = match mode {
         ComposeMode::Forward => source_message(s, v)?,
         _ => reply_source(s, v)?,
     };
+    // (Answered from the account that sends: the copy here is this command's own.)
+    m.account = composing_account(s, m.account);
     let is_mine = |a: &Address| is_owners(s, &a.email);
     // From the address the original was sent to (#797).
     let from = reply_from(s, &m);
@@ -810,7 +819,7 @@ fn forward_attached(s: &mut Session, ids: &[Id], focus: Id) -> CmdResult {
         attachments.push(Attachment { name, ..a });
     }
     let m = s.mailbox.message(focus).ok_or_else(|| failed!("no message with id {id}", id = focus))?;
-    let account = m.account;
+    let account = composing_account(s, m.account);
     // Several have no subject: one message's would name the others wrongly. The owner writes it.
     let subject = match ids {
         [_] => prefixed("FW", &m.subject),
@@ -1065,7 +1074,8 @@ fn resend(s: &mut Session, v: &Value) -> CmdResult {
         return Err(fail("this message isn't downloaded: open it once you're online, then send it again"));
     }
     let c = reopened(s, &m);
-    let compose = s.open_compose(Compose { mode: ComposeMode::New, dirty: true, ..c })?;
+    let account = composing_account(s, c.account);
+    let compose = s.open_compose(Compose { mode: ComposeMode::New, dirty: true, account, ..c })?;
     s.view.module = crate::Module::Mail;
     Ok(json!({"composing": true, "from": m.id, "compose": compose}))
 }
