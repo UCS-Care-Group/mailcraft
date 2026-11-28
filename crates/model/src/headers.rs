@@ -355,7 +355,6 @@ impl Message {
         }
         let mut all = self.all_headers();
         all.retain(|(have, _)| !have.eq_ignore_ascii_case(name));
-        self.hops_kept |= !self.header_block.lines().is_empty();
         (self.headers, self.header_block) = split(all);
     }
 
@@ -376,10 +375,8 @@ impl Message {
             return;
         }
         let all = self.all_headers();
-        // Its hops are this version's only if every line is here: an empty block may be one lost
-        // (damaged, or named by a name that isn't one), and the server's own hop with it, and a
-        // message read before blocks were kept can't be told from that (`Message::hops_kept`).
-        self.hops_kept |= !self.header_block.lines().is_empty();
+        // (It leaves `hops_kept` as it was: lines split again may be short of one a block lost, so
+        // they say nothing of where the server's hop was.)
         (self.headers, self.header_block) = split(all);
     }
 
