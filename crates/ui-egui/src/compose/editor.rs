@@ -741,6 +741,12 @@ pub(crate) fn html_signature(app: &MailApp) -> Option<&str> {
     app.session.compose.as_ref()?.signature_html_shown()
 }
 
+/// Whether the message being written has a signature laid out in its text (not one drawn under it
+/// as its HTML).
+pub(crate) fn signature_in_text(app: &MailApp) -> bool {
+    app.session.compose.as_ref().is_some_and(|c| c.body.text().paragraphs().iter().any(|p| p.signature)) && html_signature(app).is_none()
+}
+
 /// The signature's own HTML while it is still unedited: an HTML signature that ends an HTML
 /// message with text before it, shown as it goes out or as its simpler copy.
 pub(crate) fn unedited_html_signature(app: &MailApp) -> Option<&str> {
