@@ -73,17 +73,20 @@ fn a_question_that_came_to_nothing_is_tried_again_after_half_a_minute() {
 
 #[test]
 fn nothing_is_asked_while_something_goes_first_and_nobody_with_an_address_is_nobody() {
-    let (mut s, _, calendar) = session();
+    let (mut s, account, calendar) = session();
     for busy in [
         Busy { free_busy: true, ..Default::default() },
-        Busy { signing_in: true, ..Default::default() },
+        Busy { signing_in: Some(account), ..Default::default() },
         Busy { graph: true, ..Default::default() },
         Busy { calendar: true, ..Default::default() },
     ] {
-        assert!(busy.blocks(Start::FreeBusy));
+        assert!(busy.blocks(Start::FreeBusy, account));
         let facts = FreeBusyFacts { busy, ..facts(None) };
         assert!(s.free_busy_look(calendar, &people(), day(), &facts, 0.0).1.is_none(), "{busy:?}");
     }
+    // Another account's sign-in holds nothing of this one's (#1557).
+    let other = FreeBusyFacts { busy: Busy { signing_in: Some(account + 1), ..Default::default() }, ..facts(None) };
+    assert!(s.free_busy_look(calendar, &people(), day(), &other, 0.0).1.is_some());
     let (look, ask) = s.free_busy_look(calendar, &["nobody".into(), String::new()], day(), &facts(None), 0.0);
     assert_eq!(look, Look::default());
     assert!(ask.is_none());

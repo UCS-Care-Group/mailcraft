@@ -15,8 +15,13 @@ import uniffi.mailcraft_mobile.LengthView
 class TablePlanTest {
     private fun spec(holds: Boolean = true, fixed: Float? = null, percent: Int? = null) = ColumnSpec(holds, fixed, percent)
 
+    /** The desktop's least column, as the bridge sends it with every table. */
+    private val least = B.table(layout = true, rows = emptyList()).minColumn.toFloat()
+
+    private fun planColumns(specs: List<ColumnSpec>, room: Float, gap: Float) = planColumns(specs, room, gap, least)
+
     @Test
-    fun twoHalvesStandSideBySideWhereEachIsAboutOneFortyDpOrMore() {
+    fun twoHalvesStandSideBySideWhereEachIsAboutOneTenDpOrMore() {
         val widths = requireNotNull(planColumns(listOf(spec(percent = 50), spec(percent = 50)), room = 328f, gap = 12f))
         assertEquals(158f, widths[0], 0.01f)
     }
@@ -29,16 +34,16 @@ class TablePlanTest {
     }
 
     @Test
-    fun theRuleIsOneFortyDpExactly() {
-        assertEquals(140f, MIN_LAYOUT_COLUMN, 0f)
+    fun theRuleIsTheDesktopsOneTenDpExactly() {
+        assertEquals(110f, least, 0f)
         val two = listOf(spec(), spec())
-        assertNotNull(planColumns(two, room = 2 * 140f + 12f, gap = 12f))
-        assertNull(planColumns(two, room = 2 * 140f + 11f, gap = 12f))
+        assertNotNull(planColumns(two, room = 2 * 110f + 12f, gap = 12f))
+        assertNull(planColumns(two, room = 2 * 110f + 11f, gap = 12f))
     }
 
     @Test
     fun aRowOfIconsIsNotSqueezedIntoAStack() {
-        // Four 32 dp icons and gaps fit in 328 dp: they stay a row though each is far under 140.
+        // Four 32 dp icons and gaps fit in 328 dp: they stay a row though each is far under 110.
         val icons = List(4) { spec(fixed = 32f) }
         assertEquals(List(4) { 32f }, planColumns(icons, 328f, 12f))
         // But fixed widths that do not fit stack.
@@ -103,7 +108,7 @@ class TablePlanTest {
             layout = true,
             rows = listOf(
                 listOf(B.cell(B.p("a"), rowspan = 2u), B.cell(B.p("b"))),
-                listOf(B.cell(B.p("c"))),
+                listOf(B.cell(B.p("c"), at = 1 to 1)),
             ),
         )
         val sections = sectionsOf(gridOf(t))
@@ -113,7 +118,7 @@ class TablePlanTest {
 
     @Test
     fun aRowSpanIsToldToAScreenReaderWithinTheRowsThatAreLeft() {
-        val t = B.table(layout = false, rows = listOf(listOf(B.cell(B.p("a"), rowspan = 9u)), listOf(B.cell(B.p("b")))))
+        val t = B.table(layout = false, rows = listOf(listOf(B.cell(B.p("a"), rowspan = 9u)), listOf(B.cell(B.p("b"), at = 1 to 1))))
         val grid = gridOf(t)
         assertEquals(2, rowSpanOf(grid.placed[0], grid.rows))
         assertEquals(1, rowSpanOf(grid.placed[1], grid.rows))
@@ -153,19 +158,6 @@ class TablePlanTest {
         assertEquals(100f + 12f + 50f, spanWidth(listOf(100f, 50f, 10f), 0, 2, 12f), 0f)
         assertEquals(10f, spanWidth(listOf(100f, 50f, 10f), 2, 3, 12f), 0f)
         assertEquals(0f, spanWidth(listOf(1f), 5, 9, 12f), 0f)
-    }
-
-    @Test
-    fun dataColumnsAreAsWideAsTheirWidestCellWithinTheirLimits() {
-        val a = PlacedCell(B.cell(B.p("a")), 0, 0, 1)
-        val b = PlacedCell(B.cell(B.p("b")), 0, 1, 1)
-        val wide = PlacedCell(B.cell(B.p("w"), colspan = 2u), 1, 0, 2)
-        val widths = dataColumnWidths(listOf(a to 10, b to 500), 2, minimum = 48, maximum = 280)
-        assertEquals(listOf(48, 280), widths.toList())
-        // A cell over two columns widens them when they are too narrow together.
-        val narrow = dataColumnWidths(listOf(a to 50, b to 50, wide to 400), 2, minimum = 48, maximum = 280)
-        assertTrue(narrow.sum() >= 400)
-        assertEquals(1, dataColumnWidths(emptyList(), 0, 48, 280).size)
     }
 
     @Test

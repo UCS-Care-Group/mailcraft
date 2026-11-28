@@ -398,7 +398,7 @@ impl MailApp {
             driver.perm.remove(&account);
         }
         if let Some(change) = driver.held.remove(&account) {
-            driver.waiting = Some((account, change));
+            driver.waiting.insert(account, change);
             self.auto_replies_tick_at(now_ms());
         }
     }

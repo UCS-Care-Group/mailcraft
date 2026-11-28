@@ -4748,12 +4748,12 @@ pub(crate) fn time_scale_menu(ui: &mut Ui, app: &mut MailApp) {
     let current = time_scale(&app.session);
     for minutes in TIME_SCALES {
         let label = match minutes {
-            60 => "60 Minutes",
-            30 => "30 Minutes",
-            15 => "15 Minutes",
-            10 => "10 Minutes",
-            6 => "6 Minutes",
-            _ => "5 Minutes",
+            60 => tl_later!("60 Minutes"),
+            30 => tl_later!("30 Minutes"),
+            15 => tl_later!("15 Minutes"),
+            10 => tl_later!("10 Minutes"),
+            6 => tl_later!("6 Minutes"),
+            _ => tl_later!("5 Minutes"),
         };
         crate::widgets::mi_check(ui, app, label, minutes == current, "view.timeScale", json!({"minutes": minutes}));
     }
