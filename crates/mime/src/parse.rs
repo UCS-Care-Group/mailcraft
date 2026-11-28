@@ -24,6 +24,12 @@ const MAX_OPAQUE: usize = 1;
 /// The most bytes opened from opaque signed parts in one message: past it they stay files.
 const MAX_OPAQUE_BYTES: usize = 64 * 1024 * 1024;
 
+/// How many TNEF streams (`winmail.dat`) of one message are opened: one. One inside another
+/// (an attached message) is never opened, and nor is a second beside the first.
+const MAX_TNEF: usize = 1;
+/// The biggest TNEF stream opened: past it, it stays a file.
+const MAX_TNEF_BYTES: usize = 64 * 1024 * 1024;
+
 /// Most unmodelled header fields kept in [`Message::headers`], and their total size in bytes.
 const MAX_KEPT_HEADERS: usize = 200;
 const MAX_KEPT_BYTES: usize = 64 * 1024;
@@ -60,7 +66,11 @@ const MAX_IDS: usize = 1000;
 /// it is not opened. `inline` is set for `Content-Disposition: inline`, and for a part with a
 /// `Content-ID` inside `multipart/related`. An S/MIME opaque signed part (`application/pkcs7-mime`
 /// signed data, #30) is an attachment, and what it holds is read as if it stood in its place:
-/// its text joins the body and its files the attachments.
+/// its text joins the body and its files the attachments. A TNEF stream (`winmail.dat`,
+/// `application/ms-tnef`, [MS-OXTNEF]) stays an attachment, and the files it holds are added
+/// before it; its text is the body only when the message has none of its own, as the MIME
+/// around it is to be believed before what is inside it (2.1.3.5.2). Its other contents (its
+/// rich text, an attached message, an OLE object) are not opened: they stay in the stream.
 pub fn parse(bytes: &[u8]) -> Message {
     parse_opening(bytes, MAX_OPAQUE_BYTES)
 }
@@ -76,6 +86,13 @@ pub(crate) fn parse_opening(bytes: &[u8], opaque_limit: usize) -> Message {
     // The HTML is read once: its text (when there is no plain part to use) and the words it hides.
     let (html_text, hidden) = walk.html.as_deref().map(mailcraft_html::text_and_hidden).unzip();
     message.hidden_text = hidden.unwrap_or_default();
+    // A winmail.dat's text, for a message with no text or HTML of its own.
+    if walk.html.is_none()
+        && walk.text.as_deref().is_none_or(|t| t.trim().is_empty())
+        && let Some(text) = walk.tnef_text.take()
+    {
+        walk.text = Some(text);
+    }
     message.body.text = match (walk.text, html_text) {
         (Some(text), Some(html)) if text.trim().is_empty() => html,
         (Some(text), _) => text,
@@ -88,6 +105,8 @@ pub(crate) fn parse_opening(bytes: &[u8], opaque_limit: usize) -> Message {
 }
 
 fn read_headers(headers: &Headers, m: &mut Message) {
+    // Fields left out as the header was split, past its caps: what they said can't be told (#566).
+    m.headers_cut |= headers.1;
     let mut kept_bytes = 0usize;
     let mut kept_auth_as = 0usize;
     let mut kept_direction = 0usize;
@@ -98,11 +117,15 @@ fn read_headers(headers: &Headers, m: &mut Message) {
         match name.as_str() {
             "to" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
-                m.to.extend(address::parse_list(value).into_iter().take(room));
+                let list = address::parse_list(value);
+                m.headers_cut |= list.len() > room;
+                m.to.extend(list.into_iter().take(room));
             }
             "cc" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
-                m.cc.extend(address::parse_list(value).into_iter().take(room));
+                let list = address::parse_list(value);
+                m.headers_cut |= list.len() > room;
+                m.cc.extend(list.into_iter().take(room));
             }
             "bcc" => {
                 let room = MAX_RECIPIENTS.saturating_sub(m.to.len() + m.cc.len() + m.bcc.len());
@@ -118,9 +141,13 @@ fn read_headers(headers: &Headers, m: &mut Message) {
             }
             "keywords" => {
                 let room = MAX_CATEGORIES.saturating_sub(m.categories.len());
-                m.categories.extend(value.split(',').map(|k| decode_words(k.trim())).filter(|k| !k.is_empty()).take(room));
+                let mut words = value.split(',').map(|k| decode_words(k.trim())).filter(|k| !k.is_empty());
+                m.categories.extend(words.by_ref().take(room));
+                m.headers_cut |= words.next().is_some();
             }
-            "status" => m.read |= value.contains('R'),
+            "status" => {
+                m.read |= value.contains('R');
+            }
             "x-status" => {
                 if value.contains('F') {
                     m.flag = FlagStatus::Flagged;
@@ -133,7 +160,7 @@ fn read_headers(headers: &Headers, m: &mut Message) {
             // Nor of where in a .pst file a message was (#815).
             "x-mailcraft-pst-item" => {}
             // Read once, below.
-            "date" | "from" | "subject" | "message-id" | "in-reply-to" | "importance" | "x-priority" | "mime-version" => {}
+            "from" | "subject" | "message-id" | "in-reply-to" | "date" | "importance" | "x-priority" | "mime-version" => {}
             structural if structural.starts_with("content-") => {}
             // Kept apart from the cap below, so that a sender's padding can't push Exchange's own out.
             auth_as if auth_as.eq_ignore_ascii_case(AUTH_AS) => {
@@ -142,6 +169,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                     // Cut short by `header::split` already.
                     m.headers.push((field.name.clone(), value.to_string()));
                     m.fresh_stamps = true;
+                } else {
+                    m.headers_cut = true;
                 }
             }
             // So is Exchange's word on which way the message went.
@@ -149,6 +178,8 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                 if kept_direction < MAX_AUTH_AS {
                     kept_direction += 1;
                     m.headers.push((field.name.clone(), value.to_string()));
+                } else {
+                    m.headers_cut = true;
                 }
             }
             _ => {
@@ -157,6 +188,9 @@ fn read_headers(headers: &Headers, m: &mut Message) {
                     kept_bytes += size;
                     let value = if has_words(&name) { decode_words(value) } else { value.to_string() };
                     m.headers.push((field.name.clone(), value));
+                } else {
+                    // Left out: what it says can't be told from the message (#566).
+                    m.headers_cut = true;
                 }
             }
         }
@@ -229,6 +263,9 @@ struct Walk {
     opaque_bytes: usize,
     /// The most bytes opened from opaque signed parts ([`MAX_OPAQUE_BYTES`] but in tests).
     opaque_limit: usize,
+    /// TNEF streams opened so far ([`MAX_TNEF`]), and the text of the first that had one.
+    tnef: usize,
+    tnef_text: Option<String>,
 }
 
 impl Walk {
@@ -294,6 +331,14 @@ impl Walk {
         let name = file_name.unwrap_or_else(|| media::default_name(&mime));
         let inline = disposition.value == "inline" || (!content_id.is_empty() && parent == Parent::Related);
         let data = Arc::new(decode(body, &encoding));
+        // A TNEF stream (`winmail.dat`): the files Outlook wrapped in it come first, then the
+        // stream itself, which keeps what of it isn't read here.
+        let tnef_type = matches!(mime.as_str(), "application/ms-tnef" | "application/vnd.ms-tnef") || name.eq_ignore_ascii_case("winmail.dat");
+        // Only a stream that reads takes the one place: a broken one before it (a version that
+        // can't be read) doesn't keep a good one shut.
+        if tnef_type && self.tnef < MAX_TNEF && data.len() <= MAX_TNEF_BYTES && mailcraft_tnef::is_tnef(&data) && self.open_tnef(&data) {
+            self.tnef = self.tnef.saturating_add(1);
+        }
         // S/MIME's opaque signed data (#30): the message is what it holds, read in its place after
         // the file itself. Not one sent along as a file inside another message, and nothing is
         // checked here. The file is kept beside what it holds (about twice the room): it is the
@@ -317,6 +362,33 @@ impl Walk {
             let (inner_headers, inner_body) = header::split(&content, false);
             self.part(&inner_headers, inner_body, depth.saturating_add(1), parent);
         }
+    }
+
+    /// The files of a TNEF stream, as attachments, and its text for later. False when it can't
+    /// be read at all.
+    ///
+    /// Its files don't count against [`MAX_PARTS`], which bounds the MIME parts read: they are
+    /// bounded by the reader's own cap (`Limits::max_files`, of the one stream opened), so a
+    /// stream's files never keep the message's own later parts from being read.
+    fn open_tnef(&mut self, data: &[u8]) -> bool {
+        let Ok(found) = mailcraft_tnef::read(data, &mailcraft_tnef::Limits::default()) else { return false };
+        for file in found.files {
+            let name = file.name.unwrap_or_default();
+            let mime = match file.mime_type.as_deref().map(media::safe_media_type) {
+                Some(t) if t != "application/octet-stream" => t,
+                _ => media::media_type_for(&name).to_string(),
+            };
+            let name = if name.is_empty() { media::default_name(&mime) } else { name };
+            // No content id: only the stream's own rich text refers to one, and it isn't shown.
+            // Carried, it could clash with a part of the message's own (a `cid:` picture goes to
+            // the first attachment with its id, and the stream's files stand before what follows
+            // it), so the stream could put its file in the place of the message's picture.
+            self.attachments.push(Attachment { name, mime, content_id: String::new(), inline: false, data: Arc::new(file.data) });
+        }
+        if self.tnef_text.is_none() {
+            self.tnef_text = found.body.map(|t| charset::unix_lines(&t));
+        }
+        true
     }
 
     fn add_text(&mut self, text: String, parent: Parent) {

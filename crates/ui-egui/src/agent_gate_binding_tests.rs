@@ -47,6 +47,7 @@ struct Ids {
     task2: Id,
     event: Id,
     event2: Id,
+    paste_event: Id,
     rule: Id,
     calendar: Id,
 }
@@ -75,6 +76,7 @@ fn ids(a: &MailApp) -> Ids {
         task2: tasks[1],
         event: events[0],
         event2: events[1],
+        paste_event: mb.events.values().find(|e| e.recurrence.is_none()).expect("the sample has an ordinary appointment for paste").id,
         rule: mb.rules[0].id,
         calendar: mb.calendars.first().map(|c| c.id).unwrap_or(0),
     }
@@ -94,6 +96,7 @@ fn params(text: &str, i: &Ids) -> Value {
         ("$contact", i.contact),
         ("$task", i.task),
         ("$event", i.event),
+        ("$pasteEvent", i.paste_event),
         ("$rule", i.rule),
         ("$calendar", i.calendar),
     ] {
@@ -119,6 +122,12 @@ enum Setup {
     /// The account signs in with Microsoft, and the selected to-do is in its To Do list shared
     /// with other people, with a category.
     Shared,
+    /// The calendar shown in London's zone, and a rule here that reads the days mail came by it
+    /// and moves that mail onto another account's server.
+    Days,
+    /// The account is a Microsoft account whose list of categories is kept in step with
+    /// Outlook's, and MailCraft may change it there; the first contact is the account's (#661).
+    Synced,
 }
 
 /// One row for every command an agent can be asked about: its params in the sample mailbox and
@@ -127,19 +136,28 @@ enum Setup {
 const ROWS: &[(&str, &str, Setup)] = &[
     // Send.
     ("compose.send", "{}", Setup::Writing),
+    ("compose.sendLater", r#"{"at": 1900000000}"#, Setup::Writing),
+    ("mail.setSendTime", r#"{"id": $message, "at": 1900000000}"#, Setup::None),
     ("account.setAutomaticReplies", r#"{"status": "disabled"}"#, Setup::None),
     ("mail.sendAgain", r#"{"id": $message}"#, Setup::None),
+    ("mail.react", r#"{"id": $message, "emoji": "👍"}"#, Setup::None),
     ("ui.downloadPictures", "{}", Setup::None),
+    ("ui.unsubscribe", "{}", Setup::None),
+    ("ui.unsubscribeMany", r#"{"ids": [$message]}"#, Setup::None),
+    ("mail.unsubscribe", r#"{"send": true}"#, Setup::None),
     ("ui.retryPictures", "{}", Setup::None),
     ("ui.joinMeeting", r#"{"event": $event}"#, Setup::None),
     ("ui.reportProblem", r#"{"what": "x"}"#, Setup::None),
+    ("category.addToOutlook", r#"{"name": "Purple category", "account": $account}"#, Setup::None),
     // Delete.
     ("mail.deletePermanently", r#"{"ids": [$message]}"#, Setup::None),
     ("mail.removeAttachment", r#"{"id": $message, "index": 0}"#, Setup::None),
     ("folder.delete", "{}", Setup::Folder),
     ("folder.empty", r#"{"id": $deleted}"#, Setup::None),
+    ("mail.removeImportedDuplicates", "{}", Setup::None),
     ("people.delete", "{}", Setup::None),
     ("people.merge", r#"{"keep": $contact, "others": [$contact2]}"#, Setup::None),
+    ("people.moveToFolder", r#"{"ids": [$contact], "folder": 0}"#, Setup::None),
     ("tasks.delete", "{}", Setup::None),
     ("category.remove", r#"{"name": "Purple category"}"#, Setup::None),
     ("compose.discard", "{}", Setup::Writing),
@@ -149,19 +167,25 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("account.edit", r#"{"id": $account, "name": "X"}"#, Setup::None),
     ("account.remove", r#"{"id": $account}"#, Setup::None),
     ("account.forgetEwsCertificate", r#"{"id": $account}"#, Setup::None),
+    ("account.davSet", r#"{"id": $account, "calendarHomes": ["https://dav.example.org/cal/"]}"#, Setup::None),
+    ("account.davOff", r#"{"id": $account}"#, Setup::None),
     ("account.graphSwitch", r#"{"account": $account}"#, Setup::None),
     ("account.addSharedMailbox", r#"{"address": "shared@example.org"}"#, Setup::None),
     ("account.removeSharedMailbox", r#"{"address": "shared@example.org"}"#, Setup::None),
+    ("account.setSenderAddresses", r#"{"id": $account, "addresses": [{"email": "help@example.org"}]}"#, Setup::None),
     ("account.thinOffline", r#"{"account": $account}"#, Setup::None),
+    ("account.deviceLimits", r#"{"storage": 1073741824}"#, Setup::None),
+    ("account.trimDevice", "{}", Setup::None),
     ("ui.keepOffline", "{}", Setup::None),
     ("ui.connectMicrosoft", "{}", Setup::None),
     ("ui.automaticRepliesSignIn", r#"{"account": $account}"#, Setup::None),
     ("ui.connectFavorites", "{}", Setup::None),
-    ("ui.allowSharedSend", r#"{"account": $account}"#, Setup::None),
+    ("ui.allowSharedSend", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowSharedCalendars", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowTasks", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowRules", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.allowAutomaticReplies", r#"{"account": $account, "confirmed": true}"#, Setup::None),
+    ("ui.allowSync", r#"{"account": $account, "confirmed": true}"#, Setup::None),
     ("ui.adminConsent", "{}", Setup::None),
     ("ui.signInAgain", "{}", Setup::None),
     ("ui.microsoftClientId", r#"{"value": "x"}"#, Setup::None),
@@ -174,6 +198,9 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("calendar.removeCalendar", r#"{"id": $calendar}"#, Setup::None),
     ("calendar.openShared", r#"{"address": "x@example.org"}"#, Setup::None),
     ("calendar.removeShared", r#"{"address": "x@example.org"}"#, Setup::None),
+    ("calendar.subscribe", r#"{"address": "https://cal.example.org/private/token/x.ics"}"#, Setup::None),
+    ("calendar.unsubscribe", r#"{"id": $calendar}"#, Setup::None),
+    ("calendar.subscriptionSettings", r#"{"id": $calendar, "intervalMinutes": 30}"#, Setup::None),
     ("calendar.hideListedCopy", r#"{"address": "x@example.org"}"#, Setup::None),
     ("calendar.moveToAccount", "{}", Setup::None),
     ("ui.checkCalendar", "{}", Setup::None),
@@ -181,6 +208,8 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("calendar.propose", "{}", Setup::None),
     ("calendar.delete", "{}", Setup::None),
     ("calendar.deleteAnsweredRequests", "{}", Setup::None),
+    // Unlike the older calendar commands, paste never borrows its source or time from focus.
+    ("calendar.paste", r#"{"items": [{"id": $pasteEvent}], "start": "2026-12-02T09:00", "send": true}"#, Setup::None),
     ("people.meeting", r#"{"send": true}"#, Setup::None),
     // The mailbox file.
     ("file.new", "{}", Setup::None),
@@ -191,6 +220,7 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("mail.dismissWarnings", r#"{"ids": [$message]}"#, Setup::None),
     ("file.options", "{}", Setup::None),
     ("sync.offline", "{}", Setup::None),
+    ("sync.waitBeforeSending", r#"{"seconds": 10}"#, Setup::None),
     ("rules.add", r#"{"name": "x"}"#, Setup::None),
     ("rules.remove", r#"{"id": $rule}"#, Setup::None),
     ("rules.enable", r#"{"id": $rule}"#, Setup::None),
@@ -224,7 +254,10 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("ui.downloadPicturesAutomatically", "{}", Setup::None),
     ("ui.senderImages", "{}", Setup::None),
     ("ui.desktopAlerts", r#"{"newMail": true}"#, Setup::None),
+    ("ui.closeToTray", r#"{"value": true}"#, Setup::None),
     ("ui.repliesInWindow", "{}", Setup::None),
+    ("ui.attachmentPictures", "{}", Setup::None),
+    ("ui.swipeAction", r#"{"direction": "left", "action": "archive"}"#, Setup::None),
     ("ui.updateCheck", "{}", Setup::None),
     ("ui.updateInstall", "{}", Setup::None),
     ("ui.dismissUpdateNotice", "{}", Setup::None),
@@ -247,6 +280,11 @@ const ROWS: &[(&str, &str, Setup)] = &[
     ("tasks.new", r#"{"title": "x", "account": $account}"#, Setup::Shared),
     ("tasks.fromMessage", "{}", Setup::Shared),
     ("category.rename", r#"{"from": "Shared", "to": "y"}"#, Setup::Shared),
+    ("view.timeZone", r#"{"zone": "Asia/Tokyo"}"#, Setup::Days),
+    // A category made in Outlook (#661).
+    ("category.set", r##"{"name": "Travel", "color": "#2E8B57", "account": $account}"##, Setup::Synced),
+    ("mail.categorize", r#"{"ids": [$message], "category": "Travel"}"#, Setup::Synced),
+    ("people.categorize", r#"{"id": $contact, "category": "Travel"}"#, Setup::Synced),
 ];
 
 /// Asked about only for a dialog with changes the owner hasn't saved, which a test can't fill in
@@ -326,6 +364,27 @@ fn set_up(a: &mut MailApp, setup: Setup, i: &Ids) {
             t.list = "L1".to_string();
             t.categories = vec!["Shared".to_string()];
         }
+        Setup::Days => {
+            a.session.clock.offset = None;
+            a.session.clock.zone = mailcraft_time::Zone::named("Europe/London");
+            a.execute("view.timeZone", json!({"zone": "Europe/London"})).unwrap();
+            let other = a.execute("account.add", json!({"email": "elsewhere@example.org", "kind": "microsoft"})).unwrap()["id"].as_u64().unwrap();
+            let there = a.session.mailbox.folder_of_kind(other, FolderKind::Inbox).unwrap();
+            let rule = json!({"name": "Old news", "account": i.account, "server": false,
+                "conditions": [{"type": "receivedBetween", "value": {"to": "2026-01-01"}}], "actions": [{"type": "moveTo", "value": there}]});
+            a.execute("rules.add", rule).unwrap();
+        }
+        Setup::Synced => {
+            let mb = &mut a.session.mailbox;
+            mb.accounts[0].kind = mailcraft_model::AccountKind::Microsoft;
+            mb.accounts[0].oauth = Some(mailcraft_model::OAuth { provider: mailcraft_model::OAuthProvider::Microsoft, ..Default::default() });
+            mb.contact_mut(i.contact).unwrap().origin.account = i.account;
+            let red = mailcraft_model::Category { name: "Red category".into(), color: mailcraft_model::outlook_colors::OUTLOOK_COLORS[0] };
+            let email = mb.accounts[0].email.clone();
+            let download = mailcraft_model::remote::CategoriesDownload { account: i.account, email, categories: vec![red], complete: true };
+            a.session.run("sync.applyCategories", &json!({"download": download})).unwrap();
+            a.session.run("sync.categoryWrites", &json!({"account": i.account, "allowed": true})).unwrap();
+        }
         Setup::Step(redo) => {
             a.execute("junk.add", json!({"list": "safe", "entry": "z@example.org"})).unwrap();
             if redo {
@@ -371,7 +430,16 @@ fn a_yes_reaches_nothing_but_what_the_question_showed_for_every_command() {
             not_asked.push(format!("{id}: {now:?}"));
             continue;
         }
-        meanwhile(&mut a, &i);
+        // (The paste is pinned to the item it names: only that item is changed meanwhile, so that a
+        // refusal can't come from the window's other state instead.)
+        if id != "calendar.paste" {
+            meanwhile(&mut a, &i);
+        }
+        if id == "calendar.paste" {
+            // An explicitly pinned paste intentionally survives unrelated selection changes.
+            // Change its actual named source instead; retain the same all-or-nothing assertion.
+            a.execute("calendar.edit", json!({"id": i.paste_event, "title": "Changed while awaiting consent"})).unwrap();
+        }
         let before = a.session.mailbox.clone();
         // The question the agent asked first is the one on screen.
         answer(&mut a, true);
@@ -383,6 +451,23 @@ fn a_yes_reaches_nothing_but_what_the_question_showed_for_every_command() {
     }
     assert!(not_asked.is_empty(), "these weren't asked about in the sample (give them params or a setup): {not_asked:#?}");
     assert!(reached.is_empty(), "a yes reached what the question didn't show: {reached:#?}");
+}
+
+/// The control for the paste row above: the same question, nothing changed meanwhile, and the
+/// owner's yes makes the copy (CodeRabbit on #1665, agent_gate_binding_tests.rs:418).
+#[test]
+fn an_agents_paste_whose_source_nobody_changed_goes_through_on_the_owners_yes() {
+    let mut a = app();
+    let i = ids(&a);
+    let title = a.session.mailbox.event(i.paste_event).map(|event| event.title.clone()).unwrap();
+    let copies = |a: &MailApp| a.session.mailbox.events.values().filter(|event| event.title == title).count();
+    let before = copies(&a);
+    let (now, rx) = agent(&mut a, "calendar.paste", json!({"items": [{"id": i.paste_event}], "start": "2026-12-02T09:00", "send": true}));
+    assert!(now.is_none() && !a.asking.is_empty(), "the paste is asked about: {now:?}");
+    answer(&mut a, true);
+    let r = rx.try_recv().unwrap();
+    assert_eq!(r["ok"], true, "{r}");
+    assert_eq!(copies(&a), before + 1, "the copy was made");
 }
 
 #[test]
@@ -572,4 +657,63 @@ fn a_meeting_sent_is_the_one_in_the_window_the_question_named() {
     answer(&mut a, true);
     assert_eq!(rx.try_recv().unwrap()["ok"], true);
     assert!(crate::windows::told(&a, second));
+}
+
+#[test]
+fn a_yes_to_a_server_change_does_not_reach_a_server_changed_since_it_was_asked() {
+    // Two questions queued: the first moves the home, the second only pins a certificate. The
+    // second's text names none of what the first changed, and the pin must not go onto the other
+    // server.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"]})).unwrap();
+    let (now, first) = agent(&mut a, "account.davSet", json!({"id": account, "calendarHomes": ["https://other.example.org/cal/"]}));
+    assert!(now.is_none());
+    let (now, second) = agent(&mut a, "account.davSet", json!({"id": account, "trusted": "ab".repeat(32)}));
+    assert!(now.is_none());
+    answer(&mut a, true);
+    assert_eq!(first.try_recv().unwrap()["ok"], true);
+    answer(&mut a, true);
+    let r = second.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    let dav = a.session.mailbox.account(account).unwrap().dav.clone().unwrap();
+    assert_eq!((dav.trusted.as_str(), dav.calendar_homes[0].as_str()), ("", "https://other.example.org/cal/"));
+}
+
+#[test]
+fn a_yes_to_a_server_change_does_not_reach_another_login_when_none_is_named() {
+    // With no user name of its own the server is signed in to as the account's address: changing
+    // that address while a question is up changes who the pin and homes are for.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"]})).unwrap();
+    let (now, rx) = agent(&mut a, "account.davSet", json!({"id": account, "trusted": "ab".repeat(32)}));
+    assert!(now.is_none());
+    a.execute("account.edit", json!({"id": account, "email": "other@example.org"})).unwrap();
+    answer(&mut a, true);
+    let r = rx.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    assert_eq!(a.session.mailbox.account(account).unwrap().dav.as_ref().unwrap().trusted, "");
+}
+
+#[test]
+fn a_yes_that_clears_the_user_name_does_not_reach_another_address() {
+    // The request asks for no user name, so it would sign in as the account's address: an address
+    // changed while the question is up changes what was approved, though the stored name didn't.
+    let mut a = app();
+    a.session.dav_enabled = true;
+    let account =
+        a.execute("account.add", json!({"email": "bo@example.org", "incoming": {"host": "imap.example.org"}})).unwrap()["id"].as_u64().unwrap();
+    a.execute("account.davSet", json!({"id": account, "calendarHomes": ["https://dav.example.org/cal/"], "username": "bo"})).unwrap();
+    let (now, rx) = agent(&mut a, "account.davSet", json!({"id": account, "username": ""}));
+    assert!(now.is_none());
+    a.execute("account.edit", json!({"id": account, "email": "other@example.org"})).unwrap();
+    answer(&mut a, true);
+    let r = rx.try_recv().unwrap();
+    assert!(r["ok"] == false && r["error"].as_str().is_some_and(|e| e.contains("changed since the owner was asked")), "{r}");
+    assert_eq!(a.session.mailbox.account(account).unwrap().dav.as_ref().unwrap().username, "bo");
 }

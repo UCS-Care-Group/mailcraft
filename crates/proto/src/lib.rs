@@ -17,6 +17,7 @@ use mailcraft_i18n::{Arg, Text, said};
 
 pub mod imap;
 mod line;
+pub use line::DamagedStream;
 pub mod smtp;
 
 #[cfg(test)]

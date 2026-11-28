@@ -12,23 +12,28 @@
 //! | Read | From |
 //! |---|---|
 //! | text colour | `color` |
-//! | background colour | `background-color`, the colour in `background` (a `url()` there is never used) |
-//! | bold, italic | `font-weight`, `font-style`, the same words in `font` |
+//! | background colour | `background-color`, the colour in `background` (also in one too long for the picture written into it) |
+//! | a picture behind a box | `background-image`, `background-repeat`, `background-position`, `background-size` and the picture in `background` (`bg.rs`): only one that is attached to the message or written into it, never one on the web |
+//! | weight, italic | `font-weight` (1 to 1000, `lighter`, `bolder`), `font-style`, the same words in `font` |
 //! | underline, strike | `text-decoration`, `text-decoration-line` |
-//! | alignment | `text-align` |
+//! | alignment | `text-align`; `start`, `end` and `justify` follow the paragraph's direction, the sides don't |
+//! | direction | `direction` (`ltr`, `rtl`) and the `dir` attribute (`ltr`, `rtl`, `auto`): a paragraph that reads from the right stands at the right; one with none reads left to right, as in a browser, and only `dir=auto` takes it from its first letter that has a direction (`bidi.rs`) |
 //! | font size | `font-size`, the size in `font` |
 //! | font family | `font-family`, `<font face>`, the families after the size in `font`: the list of names (at most [`MAX_FAMILIES`]), for the reading pane to draw in the first that is installed on this computer and for pasting into the composer; a font is never fetched (`@font-face` is ignored) |
 //! | hidden | `display:none`, `visibility:hidden`, `opacity:0`, `max-height:0`, `max-width:0`, a zero `height` or `width` with `overflow:hidden` |
 //! | text too small to read | a font size of 2 pixels or less: the text at that size is not shown; what is inside at a size of its own is, and so are pictures, and so is the text of an element with a `class` or an `id` (or inside one that asks for the size and has one) when the message has no style sheet to say otherwise |
 //! | margins | `margin` and its sides: a size in `px`, `pt`, `em` or `%` (of 600 px), 0 to 64 pixels a side, negative is 0; `auto` is read for centring only |
-//! | padding | `padding` and its sides: the same units, 0 to 64 pixels a side |
+//! | padding | `padding` and its sides: the same units, 0 to 64 pixels a side; a table's `cellpadding` in every one of its cells on the sides the cell gives none of (`blocks.rs`) |
+//! | Outlook's own spacing | `mso-padding-alt` (as `padding`), `mso-margin-top-alt` and `mso-margin-bottom-alt` (as `margin-top` and `margin-bottom`): read only for a side the plain property leaves unsaid, with the same caps |
+//! | a bar of colour | `height` (or a cell's `height` attribute) on a block or cell with a background and nothing in it: a bar that tall, 1 to 64 pixels (`blocks.rs`); without a background it makes no room |
 //! | lines round a box | `border` and its sides, `border-width`, `border-style`, `border-color`: a width of 1 to 4 pixels (`thin`, `medium` and `thick` too), solid, dashed or dotted (every other style is drawn solid), and a colour a UI adjusts to its paper |
 //! | rounded corners | `border-radius`: its first length, 0 to 24 pixels |
 //! | line height | `line-height`: a number, a percentage, `em` or a length, 1 to 2.5 times the font size; also the part after the `/` of `font` |
 //! | Outlook's lists | `mso-list` (the level, and the marker text to replace) |
 //! | a table's or cell's width | `width` (pixels or a percentage, clamped like the attribute, which it beats), `max-width` (clamped; a zero one hides) |
 //! | centring | `margin: auto`, `margin: 0 auto`, or `margin-left` and `margin-right` both `auto`: like `align=center` on a table, or on a block with a `max-width` |
-//! | boxes on a line | `display: inline-block` |
+//! | boxes on a line | `display: inline-block`, and `display: table` (a box as wide as what is in it; centred by automatic margins) read as it on anything but a `<table>`, whose display that is anyway |
+//! | a link or a span as a box of its own | `display: block` on an `<a>` or a `<span>` that has a background, a frame, padding or a width: a block as wide as its line, as a button written so is (no other `display` value says anything but `none` and the table parts below) |
 //! | table parts | `display: table-row` and `display: table-cell` on ordinary blocks and spans |
 //! | where a cell's content sits | `vertical-align`: `top`, `middle`, `bottom` (`text-top` and `baseline` as `top`, `text-bottom` as `bottom`) |
 //! | gaps between cells | `border-spacing`: its first length, 0 to 16 pixels |
@@ -50,6 +55,8 @@
 //! none, or none that could be read), an element with a `class` or an `id` is not held to the
 //! nothing around it (without that, such a message showed no text at all).
 
+use crate::bg::{BgCss, is_bg_property, without_urls};
+use crate::bidi::{AlignFrom, Dir};
 use crate::{
     Align, Insets, Length, Line, LineHeight, LineStyle, MAX_BOX_PX, MAX_LINE_HEIGHT, MAX_LINE_PX, MAX_RADIUS_PX, MAX_SPACING_PX, MIN_FONT_PX,
     MIN_LINE_HEIGHT, Rgb, VAlign, truncate,
@@ -123,14 +130,23 @@ pub(crate) struct Css {
     pub color: Option<Rgb>,
     pub background: Option<Rgb>,
     pub bold: Option<bool>,
+    /// The weight `font-weight` gives, which `bold` rounds to bold or not.
+    pub weight: Option<Weight>,
     pub italic: Option<bool>,
     pub underline: Option<bool>,
     pub strike: Option<bool>,
     pub align: Option<Align>,
+    /// Whether that alignment names a side or follows the direction.
+    pub align_from: AlignFrom,
+    /// `direction`, and the `dir` attribute where it gives none ([`crate::blocks::css_of`]).
+    pub direction: Option<Dir>,
     pub size: Option<Size>,
     /// The families of `font-family`, as [`family`] gives them.
     pub font: Option<String>,
     pub hidden: bool,
+    /// Hidden by `display: none` in particular: the element is not there at all, where the other
+    /// ways of hiding keep its room (a table cell its place in its row).
+    pub display_none: bool,
     /// Whether the margin above (below) is given, and given as none to speak of: zero, or a
     /// few pixels (a line's own leading is more than that).
     pub margin_top_zero: Option<bool>,
@@ -149,8 +165,9 @@ pub(crate) struct Css {
     /// `Some(None)` is `normal`, which asks for nothing of its own.
     pub line_height: Option<Option<LineHeight>>,
     pub mso_list: Option<MsoList>,
-    /// The width and height when given in absolute units, in CSS pixels (for telling a tracking
-    /// pixel; never used to size anything).
+    /// The width and height when given in absolute units, in CSS pixels: for telling a tracking
+    /// pixel, sizing a picture that gives no size of its own, and the height of a bar of colour
+    /// that holds nothing (`blocks.rs`); nothing else is sized by them.
     pub width: Option<f32>,
     pub height: Option<f32>,
     /// The `width` a table or cell asks for, like its `width` attribute ([`Length`], clamped).
@@ -163,10 +180,17 @@ pub(crate) struct Css {
     pub valign: Option<VAlign>,
     /// `display: inline-block`.
     pub inline_block: bool,
+    /// `display: table`: a box as wide as what is in it on anything but a `<table>`, whose display
+    /// that is anyway ([`crate::blocks::asks_box`]).
+    pub table: bool,
+    /// `display: block`: read for a link or a span with a look of its own alone.
+    pub block: bool,
     /// A row or cell role on an ordinary element in a block context.
     pub table_display: Option<TableDisplay>,
     /// `border-spacing`, in pixels.
     pub spacing: Option<u8>,
+    /// A picture behind the box (`bg.rs`, #601).
+    pub bg: BgCss,
 }
 
 impl Css {
@@ -187,11 +211,33 @@ impl Css {
         // Clipped on the way across and on the way down: it takes both to unclip.
         let (mut clip_x, mut clip_y) = (false, false);
         let mut raw = [RawLine::default(); 4];
+        // Outlook's own spacing, for where the plain property says nothing (after the loop).
+        let mut mso_padding = [None; 4];
+        let (mut mso_top, mut mso_bottom) = (None, None);
+        // Whether a plain margin above (below) is written, `auto` too: Outlook's then says nothing.
+        let mut plain_margin = [false; 2];
         for (property, value) in declarations(truncate(style, max_bytes)).take(max_declarations) {
-            if value.len() > MAX_VALUE || property.len() > 32 {
+            if property.len() > 32 {
                 continue;
             }
             let property = property.to_ascii_lowercase();
+            // (A picture behind a box may be written into the value: it is as long as the caps
+            // on the whole text allow, and keeps its letter case.)
+            if is_bg_property(&property) {
+                css.bg.read(&property, strip_important(value).0);
+            }
+            // (A `background` that is long for the picture written into it keeps its colour: the
+            // pictures are taken out of it before its length is held to the cap.)
+            let shorn;
+            let value = if property == "background" && value.len() > MAX_VALUE {
+                shorn = without_urls(value);
+                shorn.as_str()
+            } else {
+                value
+            };
+            if value.len() > MAX_VALUE {
+                continue;
+            }
             let value = value.to_ascii_lowercase();
             let value = strip_important(&value).0;
             match property.as_str() {
@@ -202,12 +248,16 @@ impl Css {
                 }
                 "background-color" => css.background = color(value),
                 "background" => css.background = tokens(value).find_map(color),
-                "font-weight" => css.bold = weight(value).or(css.bold),
+                "font-weight" => {
+                    css.bold = weight(value).or(css.bold);
+                    css.weight = Weight::of(value).or(css.weight);
+                }
                 "font-style" => css.italic = slant(value).or(css.italic),
                 "font" => {
                     for token in tokens(value) {
                         if let Some(bold) = weight(token).filter(|_| token != "normal") {
                             css.bold = Some(bold);
+                            css.weight = Weight::of(token);
                         } else if let Some(italic) = slant(token).filter(|_| token != "normal") {
                             css.italic = Some(italic);
                         } else if let Some(size) = font_size(token.split('/').next().unwrap_or("")) {
@@ -234,12 +284,22 @@ impl Css {
                         css.strike = Some(true);
                     }
                 }
-                "text-align" => css.align = align(value).or(css.align),
+                "text-align" => {
+                    if let Some(side) = align(value) {
+                        css.align = Some(side);
+                        css.align_from = if matches!(value, "start" | "end" | "justify") { AlignFrom::Flow } else { AlignFrom::Side };
+                    }
+                }
+                "direction" => css.direction = Dir::css(value).or(css.direction),
                 "font-size" => css.size = font_size(value).or(css.size),
                 "font-family" => css.font = family(value).or(css.font.take()),
                 "display" => {
                     display_none = value == "none";
                     css.inline_block = value == "inline-block";
+                    // (`display: table` is a box as wide as what is in it, as a box on a line is:
+                    // a label or a badge written so. On a `<table>` it says nothing: `asks_box`.)
+                    css.table = value == "table";
+                    css.block = value == "block";
                     css.table_display = match value {
                         "table-row" => Some(TableDisplay::Row),
                         "table-cell" => Some(TableDisplay::Cell),
@@ -287,6 +347,7 @@ impl Css {
                     css.margin_top_zero = top.or(css.margin_top_zero);
                     css.margin_bottom_zero = bottom.or(css.margin_bottom_zero);
                     if let Some(sides) = sides4(value, margin_px) {
+                        plain_margin = [true; 2];
                         for (slot, side) in css.margin.iter_mut().zip(sides) {
                             *slot = side;
                         }
@@ -301,10 +362,12 @@ impl Css {
                     set_side(&mut css.margin, 1, margin_px(value));
                 }
                 "margin-top" | "margin-block-start" => {
+                    plain_margin[0] |= margin_px(value).is_some();
                     css.margin_top_zero = is_slight(value).or(css.margin_top_zero);
                     set_side(&mut css.margin, 0, margin_px(value));
                 }
                 "margin-bottom" | "margin-block-end" => {
+                    plain_margin[1] |= margin_px(value).is_some();
                     css.margin_bottom_zero = is_slight(value).or(css.margin_bottom_zero);
                     set_side(&mut css.margin, 2, margin_px(value));
                 }
@@ -319,6 +382,14 @@ impl Css {
                 "padding-right" => set_side(&mut css.padding, 1, padding_px(value).map(Some)),
                 "padding-bottom" | "padding-block-end" => set_side(&mut css.padding, 2, padding_px(value).map(Some)),
                 "padding-left" => set_side(&mut css.padding, 3, padding_px(value).map(Some)),
+                "mso-padding-alt" => {
+                    if let Some(sides) = sides4(value, padding_px) {
+                        mso_padding = sides.map(Some);
+                    }
+                }
+                // (`auto` takes back one before it; nonsense is ignored.)
+                "mso-margin-top-alt" => mso_top = if value == "auto" { None } else { mso_margin(value).or(mso_top) },
+                "mso-margin-bottom-alt" => mso_bottom = if value == "auto" { None } else { mso_margin(value).or(mso_bottom) },
                 "border" => {
                     if let Some(line) = line_shorthand(value) {
                         raw = [line; 4];
@@ -397,6 +468,20 @@ impl Css {
             || opacity_zero
             || display_none
             || visibility_hidden;
+        css.display_none = display_none;
+        for (side, alt) in css.padding.iter_mut().zip(mso_padding) {
+            *side = side.or(alt);
+        }
+        let sides = [(&mut css.margin_top_zero, 0), (&mut css.margin_bottom_zero, 2)];
+        for (((zero, px), alt), plain) in sides.into_iter().zip([mso_top, mso_bottom]).zip(plain_margin) {
+            // (A plain margin that could not be read says nothing, whatever it set aside.)
+            if let (false, Some((slight, alt))) = (plain, alt)
+                && css.margin.get(px).is_some_and(Option::is_none)
+            {
+                *zero = Some(slight);
+                set_side(&mut css.margin, px, Some(Some(alt)));
+            }
+        }
         for ((line, raw), border) in css.lines.iter_mut().zip(raw).zip(&mut css.borders) {
             *line = raw.finish();
             *border = line.is_set();
@@ -541,6 +626,12 @@ fn box_px(token: &str, negative: bool) -> Option<u8> {
 
 fn padding_px(token: &str) -> Option<u8> {
     box_px(token, false)
+}
+
+/// An Outlook margin (`mso-margin-top-alt`): whether it is slight ([`is_slight`]) and its pixels,
+/// as `margin-top` gives them; nothing for `auto` (Word's own paragraph spacing) or nonsense.
+fn mso_margin(value: &str) -> Option<(bool, u8)> {
+    Some((is_slight(value)?, margin_px(value)??))
 }
 
 /// A margin: `Some(None)` for `auto`, which centres and takes no room of its own.
@@ -768,7 +859,7 @@ fn number(text: &str) -> Option<f32> {
 }
 
 /// A number and its unit (lower case; empty when there is none).
-fn dimension(value: &str) -> Option<(f32, &str)> {
+pub(crate) fn dimension(value: &str) -> Option<(f32, &str)> {
     let value = value.trim();
     let split = value.find(|c: char| !(c.is_ascii_digit() || matches!(c, '.' | '-' | '+'))).unwrap_or(value.len());
     let n = number(value.get(..split)?)?;
@@ -776,7 +867,7 @@ fn dimension(value: &str) -> Option<(f32, &str)> {
 }
 
 /// A length in absolute units, in CSS pixels. Relative lengths (`em`, `%`) give nothing.
-fn length_px(value: &str) -> Option<f32> {
+pub(crate) fn length_px(value: &str) -> Option<f32> {
     let (n, unit) = dimension(value)?;
     let px = match unit {
         "px" => n,
@@ -866,6 +957,43 @@ fn weight(value: &str) -> Option<bool> {
         "bold" | "bolder" => Some(true),
         "normal" | "lighter" => Some(false),
         _ => value.parse::<u16>().ok().filter(|n| (1..=1000).contains(n)).map(|n| n >= 600),
+    }
+}
+
+/// A `font-weight`: a number from 1 to 1000 (`normal` is 400, `bold` 700), or a step from the
+/// weight of what the text is in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Weight {
+    Is(u16),
+    Lighter,
+    Bolder,
+}
+
+impl Weight {
+    fn of(value: &str) -> Option<Weight> {
+        Some(match value {
+            "normal" => Weight::Is(400),
+            "bold" => Weight::Is(700),
+            "lighter" => Weight::Lighter,
+            "bolder" => Weight::Bolder,
+            _ => Weight::Is(value.parse::<u16>().ok().filter(|n| (1..=1000).contains(n))?),
+        })
+    }
+
+    /// The weight inside text of weight `around`; the steps are CSS Fonts 4's.
+    pub(crate) fn within(self, around: u16) -> u16 {
+        match self {
+            Weight::Is(n) => n,
+            // Past the ends of the steps, a step changes nothing.
+            Weight::Lighter if around < 100 => around,
+            Weight::Bolder if around >= 900 => around,
+            Weight::Lighter if around < 550 => 100,
+            Weight::Lighter if around < 750 => 400,
+            Weight::Lighter => 700,
+            Weight::Bolder if around < 350 => 400,
+            Weight::Bolder if around < 550 => 700,
+            Weight::Bolder => 900,
+        }
     }
 }
 
@@ -1010,6 +1138,11 @@ pub(crate) fn attr_align(value: &str) -> Option<Align> {
         "middle" => Some(Align::Center),
         other => align(other),
     }
+}
+
+/// Whether an `align` attribute says `justify`, which names no side.
+pub(crate) fn attr_justify(value: &str) -> bool {
+    value.trim().eq_ignore_ascii_case("justify")
 }
 
 /// A `<font size>`: 1 to 7, or a step up or down from 3 (`+1`, `-2`).
@@ -1318,7 +1451,7 @@ mod tests {
     fn everything_else_is_ignored() {
         let css = Css::parse(
             "position:absolute; left:-9999px; float:left; line-height:0; \
-             background-image:url(https://tracker.example/p.gif); content:'x'; behavior:url(x.htc); min-width:50%; z-index:9; \
+             content:'x'; behavior:url(x.htc); min-width:50%; z-index:9; \
              transform:scale(9); animation:spin 1s; letter-spacing:4em; text-transform:uppercase",
         );
         assert_eq!(css, Css::default());

@@ -1,0 +1,1 @@
+| 2026-11-24 | MB3.x gap: Android Calendar hour rows 64 dp to 44 dp so 8:00 to 18:00 fits a phone screen without scrolling; blocks keep a 24 dp (or one text line) minimum height; blocks under 56 dp show title and time on one line. Day and Week screenshots redrawn. |

@@ -12,7 +12,11 @@ fn plain_uses_an_initial_response_only_when_advertised() {
     let payload = mailcraft_charset::base64::STANDARD.encode(b"\0user@example.org\0invented");
     for inline in [false, true] {
         let caps = if inline { "AUTH=PLAIN SASL-IR LOGINDISABLED" } else { "AUTH=PLAIN LOGINDISABLED" };
-        let replies = if inline { "A0001 OK welcome\r\n" } else { "+ continue\r\nA0001 OK welcome\r\n" };
+        let replies = if inline {
+            "A0001 OK [CAPABILITY IMAP4rev1 AUTH=PLAIN SASL-IR LOGINDISABLED] welcome\r\n"
+        } else {
+            "+ continue\r\nA0001 OK [CAPABILITY IMAP4rev1 AUTH=PLAIN SASL-IR LOGINDISABLED] welcome\r\n"
+        };
         let mut stream = Script::new(greeting(caps, replies));
         let mut imap = Imap::connect(&mut stream).unwrap();
         imap.authenticate_password("user@example.org", "invented").unwrap();
@@ -24,7 +28,7 @@ fn plain_uses_an_initial_response_only_when_advertised() {
 
 #[test]
 fn login_remains_available_when_plain_is_not_advertised() {
-    let mut stream = Script::new(greeting("SASL-IR", "A0001 OK welcome\r\n"));
+    let mut stream = Script::new(greeting("SASL-IR", "A0001 OK [CAPABILITY IMAP4rev1 SASL-IR] welcome\r\n"));
     Imap::connect(&mut stream).unwrap().authenticate_password("user@example.org", "invented").unwrap();
     assert_eq!(stream.sent(), "A0001 LOGIN \"user@example.org\" \"invented\"\r\n");
 }
@@ -76,7 +80,7 @@ fn premature_success_and_invalid_credentials_are_refused() {
 
 #[test]
 fn utf8_and_line_breaks_are_encoded_not_protocol_lines() {
-    let mut stream = Script::new(greeting("auth=plain sasl-ir", "A0001 OK welcome\r\n"));
+    let mut stream = Script::new(greeting("auth=plain sasl-ir", "A0001 OK [CAPABILITY IMAP4rev1 AUTH=PLAIN SASL-IR] welcome\r\n"));
     Imap::connect(&mut stream).unwrap().authenticate_password("user@example.org", "päss\r\nword").unwrap();
     assert_eq!(stream.sent().lines().count(), 1);
     assert!(stream.sent().contains(&mailcraft_charset::base64::STANDARD.encode("\0user@example.org\0päss\r\nword".as_bytes())));
@@ -84,7 +88,9 @@ fn utf8_and_line_breaks_are_encoded_not_protocol_lines() {
 
 #[test]
 fn unknown_capabilities_are_queried_once_by_password_authentication() {
-    let mut stream = Script::new("* OK ready\r\n* CAPABILITY IMAP4rev1 AUTH=PLAIN SASL-IR\r\nA0001 OK done\r\nA0002 OK welcome\r\n");
+    let mut stream = Script::new(
+        "* OK ready\r\n* CAPABILITY IMAP4rev1 AUTH=PLAIN SASL-IR\r\nA0001 OK done\r\nA0002 OK [CAPABILITY IMAP4rev1 AUTH=PLAIN SASL-IR] welcome\r\n",
+    );
     Imap::connect(&mut stream).unwrap().authenticate_password("user@example.org", "invented").unwrap();
     assert!(stream.sent().starts_with("A0001 CAPABILITY\r\nA0002 AUTHENTICATE PLAIN "));
     assert_eq!(stream.sent().matches(" CAPABILITY").count(), 1);
@@ -106,5 +112,98 @@ fn an_empty_user_name_is_explained_before_any_commands() {
         assert!(error.to_string().contains("enter a user name"));
         assert!(!error.to_string().contains("NUL"));
         assert!(stream.sent().is_empty());
+    }
+}
+
+/// #1147: the server that offers `ID` (RFC 2971) is told which client this is once the owner is
+/// signed in, as Coremail's servers need before they will open a mailbox.
+#[test]
+fn a_server_that_offers_id_is_told_which_client_this_is() {
+    let id = "(\"name\" \"MailCraft\")";
+    let payload = mailcraft_charset::base64::STANDARD.encode(b"\0user@example.org\0invented");
+    let mut stream =
+        Script::new(greeting("AUTH=PLAIN SASL-IR ID", "A0001 OK [CAPABILITY IMAP4rev1 AUTH=PLAIN SASL-IR ID] welcome\r\nA0002 OK ID done\r\n"));
+    let mut imap = Imap::connect(&mut stream).unwrap();
+    imap.authenticate_password("user@example.org", "invented").unwrap();
+    assert!(imap.is_authenticated());
+    assert_eq!(stream.sent(), format!("A0001 AUTHENTICATE PLAIN {payload}\r\nA0002 ID {id}\r\n"));
+    assert!(stream.finished());
+}
+
+#[test]
+fn login_falls_back_then_tells_the_server_which_client_this_is() {
+    let mut stream = Script::new(greeting("ID", "A0001 OK [CAPABILITY IMAP4rev1 ID] welcome\r\nA0002 OK ID done\r\n"));
+    Imap::connect(&mut stream).unwrap().authenticate_password("user@example.org", "invented").unwrap();
+    assert_eq!(stream.sent(), "A0001 LOGIN \"user@example.org\" \"invented\"\r\nA0002 ID (\"name\" \"MailCraft\")\r\n");
+}
+
+#[test]
+fn a_refused_id_command_still_leaves_the_owner_signed_in() {
+    for refusal in ["NO not now", "BAD what"] {
+        let mut stream = Script::new(greeting(
+            "AUTH=PLAIN SASL-IR ID",
+            &format!("A0001 OK [CAPABILITY IMAP4rev1 AUTH=PLAIN SASL-IR ID] welcome\r\nA0002 {refusal}\r\n"),
+        ));
+        let mut imap = Imap::connect(&mut stream).unwrap();
+        imap.authenticate_password("user@example.org", "invented").unwrap();
+        assert!(imap.is_authenticated(), "{refusal}");
+        assert!(stream.sent().contains("A0002 ID ("), "{refusal}");
+    }
+}
+
+/// #1147: `ID` is a courtesy, so a server that answers it with something that isn't an IMAP
+/// response leaves the owner signed in all the same, as one that refuses it does.
+#[test]
+fn an_id_exchange_that_fails_still_leaves_the_owner_signed_in() {
+    let payload = mailcraft_charset::base64::STANDARD.encode(b"\0user@example.org\0invented");
+    let mut stream = Script::new(greeting(
+        "AUTH=PLAIN SASL-IR ID",
+        "A0001 OK [CAPABILITY IMAP4rev1 AUTH=PLAIN SASL-IR ID] welcome\r\nthis is not an IMAP response\r\n",
+    ));
+    let mut imap = Imap::connect(&mut stream).unwrap();
+    imap.authenticate_password("user@example.org", "invented").unwrap();
+    assert!(imap.is_authenticated());
+    assert_eq!(stream.sent(), format!("A0001 AUTHENTICATE PLAIN {payload}\r\nA0002 ID (\"name\" \"MailCraft\")\r\n"));
+}
+
+/// #1147: the capabilities asked for after a sign-in that didn't restate them are a step towards
+/// `ID`, and a server that fails them still leaves the owner signed in.
+#[test]
+fn a_failed_capability_query_after_sign_in_still_leaves_the_owner_signed_in() {
+    let payload = mailcraft_charset::base64::STANDARD.encode(b"\0user@example.org\0invented");
+    let mut stream =
+        Script::new("* CAPABILITY IMAP4rev1 AUTH=PLAIN SASL-IR\r\nA0001 OK done\r\nA0002 OK welcome\r\nthis is not an IMAP response\r\n");
+    let mut imap = Imap::resume(&mut stream);
+    imap.authenticate_password("user@example.org", "invented").unwrap();
+    assert!(imap.is_authenticated());
+    assert_eq!(stream.sent(), format!("A0001 CAPABILITY\r\nA0002 AUTHENTICATE PLAIN {payload}\r\nA0003 CAPABILITY\r\n"));
+}
+
+/// #1147: a server that offers `ID` only once the owner is signed in is asked what it can do
+/// after the sign-in, even when the greeting had said already (RFC 3501 §6.2.1: the list can
+/// differ once signed in).
+#[test]
+fn a_server_that_offers_id_only_when_signed_in_is_asked_again_and_told_which_client_this_is() {
+    let payload = mailcraft_charset::base64::STANDARD.encode(b"\0user@example.org\0invented");
+    let mut stream =
+        Script::new(greeting("AUTH=PLAIN SASL-IR", "A0001 OK welcome\r\n* CAPABILITY IMAP4rev1 ID\r\nA0002 OK done\r\nA0003 OK ID done\r\n"));
+    let mut imap = Imap::connect(&mut stream).unwrap();
+    imap.authenticate_password("user@example.org", "invented").unwrap();
+    assert!(imap.is_authenticated());
+    assert_eq!(stream.sent(), format!("A0001 AUTHENTICATE PLAIN {payload}\r\nA0002 CAPABILITY\r\nA0003 ID (\"name\" \"MailCraft\")\r\n"));
+}
+
+#[test]
+fn a_server_without_id_is_sent_no_id_command() {
+    for caps in ["AUTH=PLAIN SASL-IR", "AUTH=PLAIN"] {
+        let replies = if caps.ends_with("SASL-IR") {
+            "A0001 OK [CAPABILITY IMAP4rev1 AUTH=PLAIN SASL-IR] welcome\r\n"
+        } else {
+            "+ continue\r\nA0001 OK [CAPABILITY IMAP4rev1 AUTH=PLAIN] welcome\r\n"
+        };
+        let mut stream = Script::new(greeting(caps, replies));
+        Imap::connect(&mut stream).unwrap().authenticate_password("user@example.org", "invented").unwrap();
+        assert!(!stream.sent().contains(" ID "), "{caps}: {}", stream.sent());
+        assert!(stream.finished());
     }
 }

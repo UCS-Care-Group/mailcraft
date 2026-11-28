@@ -6,7 +6,7 @@
 
 use mailcraft_engine::{Part, Session};
 use mailcraft_html::Env;
-use mailcraft_model::{Attachment, FlagStatus, Id, Message};
+use mailcraft_model::{Attachment, FlagStatus, Id, Importance, Message};
 
 use crate::blocks::{self, Pictures};
 use crate::records::{AttachmentRecord, MessageView, PictureBytes};
@@ -24,16 +24,14 @@ fn failed(message: &str) -> CoreError {
     CoreError::Failed { reason: message.to_string() }
 }
 
-/// The attachment a `cid:` address names: by its content id, as the reading pane finds it.
+/// The attachment a `cid:` address names: by its content id, as the reading pane finds it
+/// ([`mailcraft_model::shown::part_for`]).
 fn attachment_of<'a>(message: &'a Message, src: &str) -> Option<(usize, &'a Attachment)> {
-    let id = src.trim().get(4..).filter(|_| src.trim().get(..4).is_some_and(|s| s.eq_ignore_ascii_case("cid:")))?;
-    let id = id.trim().trim_start_matches('<').trim_end_matches('>');
-    let parts = || message.attachments.iter().enumerate().filter(|(_, a)| !a.content_id.is_empty());
-    parts().find(|(_, a)| a.content_id == id).or_else(|| parts().find(|(_, a)| a.content_id.eq_ignore_ascii_case(id)))
+    mailcraft_model::shown::part_for(&message.attachments, src)
 }
 
 /// A picture's kind, told from its own bytes.
-fn sniff(bytes: &[u8]) -> Option<&'static str> {
+pub(crate) fn sniff(bytes: &[u8]) -> Option<&'static str> {
     if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
         Some("image/png")
     } else if bytes.starts_with(&[0xFF, 0xD8, 0xFF]) {
@@ -47,14 +45,15 @@ fn sniff(bytes: &[u8]) -> Option<&'static str> {
     }
 }
 
-/// The message's blocks for a pane: its HTML when it reads to something, else its text.
-fn read(message: &Message, env: &Env) -> (Vec<mailcraft_html::Block>, bool) {
+/// The message's blocks for a pane: its HTML when it reads to something, else its text; and
+/// whether they are its text part's.
+fn read(message: &Message, env: &Env) -> (Vec<mailcraft_html::Block>, bool, bool) {
     let read = message.body.html.as_deref().map(|html| mailcraft_html::parse_in(html, env));
     match read {
         Some(r) if mailcraft_html::has_text(&r.blocks) || !mailcraft_html::images(&r.blocks).is_empty() || message.body.text.trim().is_empty() => {
-            (r.blocks, r.dark_design)
+            (r.blocks, r.dark_design, false)
         }
-        _ => (mailcraft_html::text_blocks(&message.body.text), false),
+        _ => (mailcraft_html::text_blocks(&message.body.text), false, true),
     }
 }
 
@@ -76,14 +75,30 @@ impl Core {
         let (env, width) = pane(width, dark);
         self.call(move |s| {
             let m = load(s, id)?;
-            let (blocks, dark_design) = read(&m, &env);
-            let has_part = |src: &str| attachment_of(&m, src).is_some();
+            let (blocks, dark_design, from_text) = read(&m, &env);
+            // A reply or forward of it quotes it as it is read here: at this width and in this
+            // theme, its HTML or its text part, as shown (a choice only beside HTML: one read
+            // before its body came is not quoted as text once the HTML is there).
+            s.read_at(m.id, mailcraft_engine::ReadIn::Pane, env, from_text && m.body.html.is_some());
+            // The pictures its body draws are the body's, not attachments, here and in the list.
+            s.note_drawn(m.id, &m);
+            let mut m = m;
+            if let Some(now) = s.mailbox.message(m.id).filter(|now| {
+                now.attachments.len() == m.attachments.len() && now.attachments.iter().zip(&m.attachments).any(|(x, y)| x.inline != y.inline)
+            }) {
+                for (a, marked) in std::sync::Arc::make_mut(&mut m).attachments.iter_mut().zip(&now.attachments) {
+                    a.inline = marked.inline;
+                }
+            }
+            let parts = mailcraft_model::shown::PartIndex::new(&m.attachments);
+            let has_part = |src: &str| parts.find(src).is_some();
             let views = blocks::views(&blocks, &Pictures { has_part: &has_part, width, dark });
             let remote_pictures = mailcraft_html::images(&blocks)
                 .into_iter()
                 .filter(|b| matches!(&b.kind, mailcraft_html::BlockKind::Image { src, .. } if !mailcraft_html::is_embedded(src)))
                 .count();
             let people = |a: &[mailcraft_model::Address]| text::first(a, MAX_PEOPLE_IN_ITEM, crate::queries::address);
+            let listed: std::collections::HashSet<usize> = m.listed_attachments().map(|(i, _)| i).collect();
             Ok(MessageView {
                 rev: s.rev(),
                 id: m.id,
@@ -96,17 +111,21 @@ impl Core {
                 when: mailcraft_engine::list::when(&m),
                 unread: !m.read,
                 flagged: m.flag == FlagStatus::Flagged,
+                important: m.importance == Importance::High,
+                low_importance: m.importance == Importance::Low,
                 categories: text::first(&m.categories, MAX_CATEGORIES, |c| text::clip(c, MAX_NAME)),
                 attachments: text::first(m.attachments.iter().enumerate(), MAX_LISTED, |(i, a)| AttachmentRecord {
                     index: text::count_of(i),
                     name: text::clip(&a.name, MAX_NAME),
                     mime: text::clip(&a.mime, MAX_NAME),
                     size: u64::try_from(a.size()).unwrap_or(u64::MAX),
-                    inline: a.inline,
+                    // The desktop's rule: a picture the HTML shows by `cid:` is the body's, however it was marked.
+                    inline: !listed.contains(&i),
                 }),
                 blocks: views,
                 dark_design,
                 remote_pictures: text::count_of(remote_pictures),
+                whole: !m.unfetched && !m.incomplete && m.not_downloaded == 0,
             })
         })
         .await
@@ -127,7 +146,7 @@ impl Core {
                 let width: f32 =
                     parts.next().and_then(|n| n.parse::<u16>().ok()).map(f32::from).ok_or_else(|| bad("that is not a picture of the message"))?;
                 let dark = parts.next() == Some("1");
-                let (blocks, _) = read(&m, &Env::for_pane(width, dark));
+                let (blocks, _, _) = read(&m, &Env::for_pane(width, dark));
                 let picture = mailcraft_html::images(&blocks)
                     .into_iter()
                     .filter_map(|b| match &b.kind {

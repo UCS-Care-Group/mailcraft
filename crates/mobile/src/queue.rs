@@ -21,7 +21,10 @@ pub(crate) enum Weight {
     Progress,
     /// A state that a later item of the same kind replaces (a revision): only the newest matters.
     Replaced,
-    /// Something the app has to act on (a question, a sign-in, a notification): shed last.
+    /// Something to show that, once past, is little loss (a notification, a change of the
+    /// reminders' schedule, which is asked for again): shed before anything the app must answer.
+    Notice,
+    /// Something the app has to act on (a sign-in, a question): shed last.
     Actionable,
 }
 
@@ -119,6 +122,15 @@ fn make_room<T: Shed>(items: &mut VecDeque<T>, incoming: &T) -> bool {
     {
         items.remove(at);
         return true;
+    }
+    // Notices go before what must be answered: a flood of notifications never costs a sign-in.
+    if let Some(at) = first(items, Weight::Notice) {
+        items.remove(at);
+        return true;
+    }
+    // A notice never costs what must be acted on: with no notice queued, it is the one shed.
+    if incoming.weight() == Weight::Notice {
+        return false;
     }
     // Only what must be acted on is left, more of it than anybody can have meant to leave
     // unread: the memory stays bounded and the oldest goes.

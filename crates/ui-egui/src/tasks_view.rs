@@ -119,8 +119,11 @@ fn due_text(task: &Task, today: Date) -> String {
         return String::new();
     }
     let label = task.due_label(today);
-    // Words (`Today`, `Friday`) are interface text; a date stays as it is.
-    if label.chars().any(|c| c.is_ascii_digit()) { label } else { tl!(&label).to_string() }
+    // Words (`Today`, `Friday`) are interface text; a date is written in the language's own way.
+    match task.due {
+        Some(due) if label.chars().any(|c| c.is_ascii_digit()) => crate::dates::medium(due),
+        _ => tl!(&label).to_string(),
+    }
 }
 
 /// The line under the title in the details pane, and whether it is a warning. `completed_on` is
@@ -281,6 +284,7 @@ fn filter_pane(app: &mut MailApp, ui: &mut Ui, counts: &[usize; 5]) {
     let t = Tokens::get(ui.ctx());
     let frame = egui::Frame::NONE.fill(t.panel).stroke(Stroke::new(1.0, t.border));
     egui::Panel::left("task_filters").default_size(200.0).size_range(160.0..=320.0).resizable(true).frame(frame).show(ui, |ui| {
+        crate::nav::module_foot(app, ui);
         ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
         ui.add_space(6.0);
         widgets::pane_heading(ui, tl!("My Tasks"));
@@ -366,7 +370,7 @@ fn list(app: &mut MailApp, ui: &mut Ui, lists: &Lists) {
         Heading::Category(i) => names.get(i as usize).map_or_else(String::new, |n| one_line(n, 200)),
         Heading::NoCategory => tl!("No category").to_string(),
     };
-    show_rows(ui, &lists.layout, reveal, label, |ui, id, copy, rect| task_row(app, ui, id, copy, rect, today, labelled));
+    show_rows(ui, &lists.layout, reveal, app.overlay_scroll_bars, label, |ui, id, copy, rect| task_row(app, ui, id, copy, rect, today, labelled));
 }
 
 /// The field above the list: type a title, press Enter, and the task exists.
@@ -604,12 +608,16 @@ fn task_menu(app: &mut MailApp, ui: &mut Ui, id: Id, done: bool, importance: Imp
             account.as_slice(),
             &carried,
             "tasks.categorize",
-            |app, name| app.session.mailbox.task(id).is_some_and(|x| x.categories.iter().any(|c| c.eq_ignore_ascii_case(name))),
+            |app, name| app.session.mailbox.task(id).is_some_and(|x| x.categories.iter().any(|c| mailcraft_model::sync::same_category(c, name))),
             None,
         );
     });
     ui.separator();
-    for (label, value) in [("High Importance", Importance::High), ("Normal Importance", Importance::Normal), ("Low Importance", Importance::Low)] {
+    for (label, value) in [
+        (tl_later!("High Importance"), Importance::High),
+        (tl_later!("Normal Importance"), Importance::Normal),
+        (tl_later!("Low Importance"), Importance::Low),
+    ] {
         mi_check(ui, app, label, importance == value, "tasks.edit", json!({"id": id, "importance": value.code()}));
     }
     ui.separator();

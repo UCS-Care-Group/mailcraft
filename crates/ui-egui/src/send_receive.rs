@@ -79,8 +79,8 @@ fn went_offline(app: &mut MailApp) {
     if app.syncing() {
         let _ = app.ui_command("ui.cancelSync", &json!({}));
     }
-    app.sync_queue.clear();
-    app.inbox_queue.clear();
+    app.session.driver.round.queue.clear();
+    app.session.driver.round.inbox_queue.clear();
     app.pause_fetch();
     // (A sender's image being looked up stops before its next request; none is kept.)
     app.sender_images = crate::sender_images::SenderImages::default();

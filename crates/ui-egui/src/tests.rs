@@ -155,6 +155,19 @@ fn window_commands_validate() {
     a.services.system_locale = Some("ro-RO".into());
     assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "ro");
     assert_eq!(a.session.interface_language, crate::i18n::Lang::Romanian);
+    // Polish too.
+    a.services.system_locale = Some("pl-PL".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "pl");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Polish);
+    // Czech too.
+    a.services.system_locale = Some("cs-CZ".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "cs");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Czech);
+    // Georgian too, and Automatic in Georgia follows it.
+    assert_eq!(a.execute("ui.language", json!({"language": "ka"})).unwrap()["inForce"], "ka");
+    a.services.system_locale = Some("ka-GE".into());
+    assert_eq!(a.execute("ui.language", json!({"language": "auto"})).unwrap()["inForce"], "ka");
+    assert_eq!(a.session.interface_language, crate::i18n::Lang::Georgian);
     assert_eq!(a.execute("ui.language", json!({"language": "en"})).unwrap()["inForce"], "en");
     assert_eq!(a.execute("ui.interfaceSize", json!({"value": 9000})).unwrap()["value"], 200);
     assert!(a.execute("ui.interfaceSize", json!({"value": "big"})).is_err());
@@ -282,9 +295,45 @@ fn saved_settings_come_back_and_bad_ones_are_tamed() {
     .unwrap_or_default();
     b.apply_prefs(odd);
     assert!((150.0..=500.0).contains(&b.ui.folder_pane_width) && (240.0..=900.0).contains(&b.ui.list_width));
-    let nan: UiState = UiState { folder_pane_width: f32::NAN, list_width: f32::INFINITY, ..Default::default() };
+    let nan: UiState = UiState { folder_pane_width: f32::NAN, list_width: f32::INFINITY, list_height: f32::NAN, ..Default::default() };
     b.apply_prefs(nan);
-    assert_eq!((b.ui.folder_pane_width, b.ui.list_width), (230.0, 380.0));
+    assert_eq!((b.ui.folder_pane_width, b.ui.list_width, b.ui.list_height), (230.0, 380.0, 0.0));
+    // A negative height is the share of the window again, as a new install has it (#1372).
+    b.apply_prefs(UiState { list_height: -40.0, ..Default::default() });
+    assert_eq!(b.ui.list_height, 0.0);
+    b.apply_prefs(UiState { list_height: 1e30, ..Default::default() });
+    assert_eq!(b.ui.list_height, 4000.0);
+    // A height the owner dragged comes back as it was.
+    b.apply_prefs(UiState { list_height: 610.0, ..Default::default() });
+    assert_eq!(b.ui.list_height, 610.0);
+}
+
+#[test]
+fn unknown_attachment_preview_formats_preserve_the_other_settings() {
+    use crate::attachment_preview::Format;
+
+    let saved = json!({
+        "theme": "dark",
+        "language": "nl",
+        "attachmentPreviews": true,
+        "attachmentPreviewWithoutWarning": ["pdf", "future-format", "png", "pdf", null, 7],
+    });
+    let settings: UiState = serde_json::from_value(saved).unwrap();
+    assert_eq!(settings.attachment_preview_without_warning, [Format::Pdf, Format::Png].into_iter().collect());
+    assert_eq!(settings.theme, crate::theme::Appearance::Dark);
+    assert_eq!(settings.language, "nl");
+    assert!(settings.attachment_previews);
+    let round_trip = serde_json::to_value(&settings).unwrap();
+    assert_eq!(round_trip["attachmentPreviewWithoutWarning"], json!(["pdf", "png"]));
+
+    for value in [json!(["future-format"]), json!("pdf"), json!(null), json!({"format": "png"})] {
+        let settings: UiState = serde_json::from_value(json!({"theme": "dark", "attachmentPreviewWithoutWarning": value})).unwrap();
+        assert!(settings.attachment_preview_without_warning.is_empty());
+        assert_eq!(settings.theme, crate::theme::Appearance::Dark);
+    }
+    let older: UiState = serde_json::from_value(json!({"theme": "dark"})).unwrap();
+    assert!(older.attachment_preview_without_warning.is_empty());
+    assert_eq!(older.theme, crate::theme::Appearance::Dark);
 }
 
 #[test]
@@ -419,7 +468,7 @@ fn about_credits_the_contributors() {
             );
         harness.run_steps(4);
         assert!(harness.query_by_label_contains("Made by its contributors").is_some(), "{id}");
-        assert!(harness.query_by_label_contains("github.com/UCS-Care-Group/mailcraft/graphs/contributors").is_some(), "{id}");
+        assert!(harness.query_by_label_contains("github.com/UCSLabs/mailcraft/graphs/contributors").is_some(), "{id}");
         assert!(harness.query_by_label_contains("Initial contributor").is_none(), "{id}");
     }
 }
@@ -1076,20 +1125,20 @@ fn send_receive_runs_by_itself_without_asking_anybody() {
 
     // The next round by itself: the two it can do quietly, and still no prompt for the third.
     synced.lock().unwrap().clear();
-    a.last_auto_sync = 0.0;
+    a.session.driver.round.last_auto = 0.0;
     settle(&mut a);
     assert_eq!(*synced.lock().unwrap(), [known, signed]);
     assert!(a.dialog.is_none());
     // A sign-in that has run out is renewed quietly: no page is put in front of the owner.
     a.tokens.get_mut(&signed).unwrap().expires_at = 0;
-    a.last_auto_sync = 0.0;
+    a.session.driver.round.last_auto = 0.0;
     settle(&mut a);
     assert_eq!(sign_ins.lock().unwrap().last(), Some(&(signed, true)));
 
     // Not before it is due, not when switched off, and not when the owner wants to ask.
     synced.lock().unwrap().clear();
     settle(&mut a);
-    a.last_auto_sync = 0.0;
+    a.session.driver.round.last_auto = 0.0;
     a.execute("file.options", json!({"syncMinutes": 0})).unwrap();
     settle(&mut a);
     a.execute("file.options", json!({"syncMinutes": 5})).unwrap();
@@ -1152,8 +1201,8 @@ fn a_change_made_here_goes_out_soon_and_a_refused_one_backs_off() {
     let ids: Vec<u64> = a.session.mailbox.messages_in(inbox).map(|m| m.id).collect();
     // A look that is due now, with the round that starts by itself not due.
     let look = |a: &mut MailApp| {
-        a.last_auto_sync = crate::now_ms();
-        a.push_checked = 0.0;
+        a.session.driver.round.last_auto = crate::now_ms();
+        a.session.driver.round.push_checked = 0.0;
         for _ in 0..6 {
             a.poll_sync();
             a.auto_sync();
@@ -1175,13 +1224,13 @@ fn a_change_made_here_goes_out_soon_and_a_refused_one_backs_off() {
     a.execute("mail.markRead", json!({"ids": [ids[1]]})).unwrap();
     look(&mut a);
     assert_eq!(runs.lock().unwrap().last(), Some(&(2, 0)));
-    a.push_seen.get_mut(&id).unwrap().1 = 0.0;
+    a.session.driver.round.push_seen.get_mut(&id).unwrap().1 = 0.0;
     look(&mut a);
     assert_eq!(runs.lock().unwrap().len(), 3);
 
     // The server takes them: nothing is left, so nothing more runs.
     accept.store(true, Ordering::Relaxed);
-    a.push_seen.get_mut(&id).unwrap().1 = 0.0;
+    a.session.driver.round.push_seen.get_mut(&id).unwrap().1 = 0.0;
     look(&mut a);
     assert_eq!(mailcraft_engine::cmd::account::unpushed(&a.session, id), 0);
     let done = runs.lock().unwrap().len();
@@ -1583,13 +1632,13 @@ fn recipients_are_suggested_as_they_are_typed() {
     assert_eq!(completed(true, &who("Nair, Priya", "priya@lumen.example")), "\"Nair, Priya\" <priya@lumen.example>; ");
     assert_eq!(completed(true, &who("Evil\" <evil@x.example>\r\n", "priya@lumen.example")), "Evil evil@x.example <priya@lumen.example>; ");
 
-    // The engine's answer: contacts by any word of the name or the address, then people mail was
-    // exchanged with, never the owner, never twice.
+    // The engine's answer: by any word of the name or the address, the owner's own addresses
+    // included, never twice.
     let a = app();
     let found = suggest(&a.session, "pri", 6);
     assert_eq!(found.first().map(|s| (s.name.as_str(), s.contact)), Some(("Priya Nair", true)));
     assert!(suggest(&a.session, "NAIR", 6).iter().any(|s| s.email == "priya@lumen.example"));
-    assert!(suggest(&a.session, "avery", 6).iter().all(|s| s.email != "avery@lumen.example"), "not the owner");
+    assert!(suggest(&a.session, "avery", 6).iter().any(|s| s.email == "avery@lumen.example"), "the owner is offered");
     let all = suggest(&a.session, "l", 20);
     let mut emails: Vec<String> = all.iter().map(|s| s.email.to_lowercase()).collect();
     emails.sort();
@@ -1915,9 +1964,9 @@ fn mail_arrives_in_pieces_and_a_run_can_be_called_off() {
     a.execute("ui.sync", json!({"account": id})).unwrap();
     send(piece(&[6], 5, true, "Inbox: 1 of 3"));
     a.poll_sync();
-    a.sync_queue.push_back((id, true));
+    a.session.driver.round.queue.push_back((id, true));
     a.execute("ui.cancelSync", json!({})).unwrap();
-    assert!(a.services.sync_cancel.load(Ordering::Relaxed) && a.sync_queue.is_empty());
+    assert!(a.services.sync_cancel.load(Ordering::Relaxed) && a.session.driver.round.queue.is_empty());
     assert!(a.syncing(), "until the host has said it stopped");
     send(SyncResult { account: id, stopped: true, ..Default::default() });
     a.poll_sync();
@@ -1979,8 +2028,8 @@ fn a_change_made_during_a_long_download_goes_out_without_waiting_for_it() {
     let send = |p: SyncResult| pipe.lock().unwrap().as_ref().unwrap().send(p).unwrap();
     // A look that is due, with no round of its own due.
     let look = |a: &mut MailApp| {
-        a.last_auto_sync = crate::now_ms();
-        a.push_checked = 0.0;
+        a.session.driver.round.last_auto = crate::now_ms();
+        a.session.driver.round.push_checked = 0.0;
         a.poll_sync();
         a.auto_sync();
     };
@@ -2428,8 +2477,8 @@ fn signature_picture_over_the_total_is_refused_on_the_page() {
     assert!(total(&a) <= MAX_PICTURES_BYTES);
 }
 
-/// File › Signatures › Rename: Enter keeps the new name, and a click elsewhere lets go of the
-/// field without renaming.
+/// File › Signatures › Rename: Enter keeps the new name, and so does a click elsewhere (#1651);
+/// either way the field lets go of the keyboard.
 #[test]
 fn renaming_a_signature_keeps_the_name_and_lets_go_of_the_keyboard() {
     use egui_kittest::kittest::Queryable as _;
@@ -2453,13 +2502,15 @@ fn renaming_a_signature_keeps_the_name_and_lets_go_of_the_keyboard() {
     assert!(m.signature("Mine at work").is_some() && m.signature("Mine").is_none(), "Enter didn't rename it");
     assert!(harness.ctx.memory(|m| m.focused()).is_none(), "the field kept the keyboard");
 
-    // Rename again, then click away: the name stays, and the field is gone.
+    // Rename again, type, then click away: the typed name is kept too, and the field is gone.
     harness.get_by_label("Rename").click();
     harness.run_steps(3);
+    key(&mut harness, egui::Key::End);
     harness.event(egui::Event::Text("x".into()));
     harness.run_steps(3);
     harness.get_by_label("New").click();
     harness.run_steps(3);
-    assert!(harness.state().session.mailbox.signature("Mine at work").is_some());
+    let m = &harness.state().session.mailbox;
+    assert!(m.signature("Mine at workx").is_some() && m.signature("Mine at work").is_none(), "the click away lost the name");
     assert!(harness.ctx.memory(|m| m.focused()).is_none(), "the field kept the keyboard after a click away");
 }

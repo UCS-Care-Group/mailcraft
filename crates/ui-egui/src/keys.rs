@@ -621,6 +621,23 @@ pub fn combo(m: Modifiers, key: &str) -> String {
 /// move to, and with Shift they extend the selection.
 pub const MOVES_IN_LIST: &[&str] = &["mail.next", "mail.previous", "mail.first", "mail.last", "mail.pageDown", "mail.pageUp"];
 
+/// The commands that change how the message list is ordered or laid out (#1511): its arrangement
+/// and direction, conversations, groups, single line, preview lines, the ready-made views, tighter
+/// spacing (and Reset View, which puts them back). The rows move or change their height, so the
+/// list scrolls to the selected message and puts it in the middle, instead of leaving it where it
+/// was. (The filter and the reading pane's place are not among them.)
+pub const REARRANGES_LIST: &[&str] = &[
+    "view.sort",
+    "view.reverseSort",
+    "view.conversations",
+    "view.groups",
+    "view.oneLine",
+    "view.previewLines",
+    "view.changeView",
+    "view.density",
+    "view.reset",
+];
+
 /// What a key gives the command it runs: with Shift, a move in the message list extends the
 /// selection, and a page is the rows that fit in the list.
 pub fn key_params(app: &MailApp, id: &str, m: Modifiers) -> serde_json::Value {
@@ -686,10 +703,11 @@ pub fn resolve(app: &MailApp, key: &str) -> Option<&'static str> {
     hits.into_iter().find(|c| (c.enabled)(&app.session).is_none()).map(|c| c.id)
 }
 
-/// The same key in the other modules: Delete on a selected event, contact or task.
+/// The same key in the other modules: Delete on a selected event (or a set of them), contact or
+/// task.
 fn module_delete(app: &MailApp) -> Option<&'static str> {
     match app.session.view.module {
-        Module::Calendar if app.session.sel.event.is_some() => Some("calendar.delete"),
+        Module::Calendar if app.session.sel.event.is_some() || !app.session.sel.events.is_empty() => Some("calendar.delete"),
         Module::People if app.session.sel.contact.is_some() => Some("people.delete"),
         Module::Tasks if app.session.sel.task.is_some() => Some("tasks.delete"),
         _ => None,
@@ -740,6 +758,19 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         if !takes_commands(app) {
             break;
         }
+        // On Windows the system's cut key is Shift+Delete (alongside Ctrl+X): the window layer
+        // turns the press into a cut instead of a key, so the permanent delete's shortcut
+        // arrives as a cut (#1438). Run it as the key would, when a widget isn't keeping the
+        // keyboard (a text field keeps its own cut) and the cut is the shift one (Ctrl+X stays
+        // the text fields' cut).
+        if matches!(e, egui::Event::Cut)
+            && !typing
+            && ctx.input(|i| i.modifiers.shift && !i.modifiers.ctrl && !i.modifiers.command && !i.modifiers.alt)
+            && let Some(id) = resolve(app, "Shift+Delete").and_then(|id| window_command(app, id))
+        {
+            let _ = app.run(id, json!({}));
+            continue;
+        }
         let egui::Event::Key { key, pressed: true, modifiers, .. } = e else { continue };
         // Escape alone is handed out above (an open menu keeps it, to close).
         if key == Key::Escape && modifiers.is_none() {
@@ -750,6 +781,17 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
             Key::ArrowLeft | Key::ArrowRight | Key::ArrowUp | Key::ArrowDown | Key::PageUp | Key::PageDown | Key::Home | Key::End | Key::Space
         );
         if list && moving {
+            continue;
+        }
+        // In a message the pointer last went down in, the keys that move scroll it instead of
+        // moving in the message list (#1739).
+        if moving
+            && !typing
+            && let Some(scroll) = crate::reading::scroll_of(key, modifiers)
+            && let Some(place) = app.text_selection.scroll_target(ctx.viewport_id(), crate::reading::images::frame(ctx))
+        {
+            app.text_selection.scroll(place, scroll);
+            ctx.request_repaint();
             continue;
         }
         let Some(name) = key_name(key) else { continue };
@@ -787,7 +829,10 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
         if k == "Delete"
             && let Some(id) = module_delete(app)
         {
-            let _ = app.run(id, json!({}));
+            // A typed set of more than one is deleted as that set, never as the one series its
+            // focus might name: the occurrence scope keeps its one accurate question.
+            let params = if id == "calendar.delete" && app.session.sel.events.len() > 1 { json!({ "scope": "occurrence" }) } else { json!({}) };
+            let _ = app.run(id, params);
             continue;
         }
         // In a message that is being read (the pointer last went down in it, or is over it),
@@ -799,6 +844,12 @@ pub fn global_shortcuts(app: &mut MailApp, ctx: &egui::Context) {
             continue;
         }
         if let Some(id) = resolve(app, &k).and_then(|id| window_command(app, id)) {
+            // With a message being written in the reading pane, the list's keys (Up, Page Down,
+            // Ctrl+A…) neither move a selection it hides nor take the message away (#727): a
+            // click on a row does that.
+            if (MOVES_IN_LIST.contains(&id) || id == "mail.selectAll") && crate::windows::compose_window::pane_compose(app).is_some() {
+                continue;
+            }
             let params = key_params(app, id, modifiers);
             let _ = app.run(id, params);
         }

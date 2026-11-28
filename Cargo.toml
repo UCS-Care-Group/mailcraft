@@ -7,7 +7,7 @@ exclude = ["apps/mailcraft-android"]
 default-members = ["crates/*", "apps/mailcraft", "apps/mailcraft-cli", "xtask"]
 
 [workspace.package]
-version = "0.12.0"
+version = "0.15.0"
 edition = "2024"
 license = "MIT OR Apache-2.0"
 rust-version = "1.95"
@@ -28,6 +28,7 @@ mailcraft-mime-model = { path = "crates/mime-model" }
 mailcraft-ical = { path = "crates/ical" }
 mailcraft-vcard = { path = "crates/vcard" }
 mailcraft-pst = { path = "crates/pst" }
+mailcraft-tnef = { path = "crates/tnef" }
 mailcraft-openpgp = { path = "crates/openpgp" }
 mailcraft-smime = { path = "crates/smime" }
 mailcraft-proto = { path = "crates/proto" }
@@ -66,6 +67,7 @@ jiff = { version = "0.2.38", default-features = false, features = ["std", "tz-sy
 # Unicode's word boundaries (UAX #29), for Review › Word Count (`mailcraft-engine`). MIT OR
 # Apache-2.0, Rust throughout, builds for the browser; already in the tree (egui runs on it).
 unicode-segmentation = "1.13"
+unicode-general-category = "1.1"
 
 # network (desktop and CLI only; the browser can't open sockets)
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12", "logging"] }
@@ -126,7 +128,7 @@ pkcs12 = { version = "=0.2.0-rc.0", default-features = false, features = ["kdf"]
 # (`wasm` there, for the random numbers its dependencies ask for). Pinned: a new version is read
 # and its fixed vectors run before it comes in. No default features: bzip2 compression isn't
 # needed to check a signature.
-pgp = { version = "=0.21.0", default-features = false }
+pgp = { version = "=0.21.1", default-features = false }
 # The hashes rPGP itself uses (RustCrypto, MIT OR Apache-2.0, in the tree through it), named so
 # that `mailcraft-openpgp` hashes what was signed once for all the keys it tries (`sha2` 0.10 and,
 # for a test, `rsa` 0.9 are declared in that crate: rPGP's generation, older than S/MIME's below). The test
@@ -150,8 +152,8 @@ eframe = { version = "0.37", default-features = false }
 egui_kittest = "0.37"
 # The font reader egui uses, at egui's version: a system font is opened with it before egui is
 # given it, so that egui never meets one it cannot open (#217). Already in the tree through epaint.
-skrifa = "0.49"
-rfd = "0.17"
+skrifa = "0.50"
+rfd = "0.18"
 arboard = { version = "3.7", default-features = false }
 
 [workspace.lints.rust]
@@ -184,4 +186,4 @@ debug = 0
 # names the latest click, which KWin needs before it brings the browser forward (#144); and
 # Wayland file drops plus the clipboard on winit's one data device (rust-windowing/winit#4729),
 # so that files dropped on a window are attached (#523); and reading HTML and pictures from it (#1217).
-winit = { git = "https://github.com/UCS-Care-Group/winit", rev = "1477b126a8c3d3d2add446c93492454ba833074d" }
+winit = { git = "https://github.com/UCSLabs/winit", rev = "1477b126a8c3d3d2add446c93492454ba833074d" }

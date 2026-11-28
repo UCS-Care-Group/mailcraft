@@ -3,7 +3,7 @@
 //! #308, part 2: the people the search box offers after `from:`, `to:` and `cc:`, from the
 //! contacts and the mail on this computer, and `view.searchSuggestions`.
 
-use mailcraft_model::{Contact, Labeled};
+use mailcraft_model::{Address, Contact, FolderKind, Labeled, Message};
 use mailcraft_time::{Date, DateTime};
 use serde_json::{Value, json};
 
@@ -32,8 +32,8 @@ fn people(s: &Session, q: &str) -> Vec<(String, String)> {
     search_suggestions(s, q, q.len()).into_iter().filter_map(|x| Some((x.label, x.address?))).collect()
 }
 
-/// After `from:`, the people a new message's recipients come from, contacts first; taken, the
-/// search finds that sender's mail and no other.
+/// After `from:`, the people a new message's recipients come from; taken, the search finds that
+/// sender's mail and no other.
 #[test]
 fn after_from_the_people_a_message_is_written_to() {
     let mut s = session();
@@ -106,23 +106,42 @@ fn the_command_answers_what_the_list_offers() {
     assert_eq!(crate::agent::access("view.searchSuggestions"), Some(crate::agent::Access::Safe));
 }
 
-/// The owner's own addresses are offered too, after everyone else: `from:` one finds what was sent
-/// from it. A new message's recipients still leave them out.
+/// The owner's own addresses are offered too, after everyone else and once each, even when mail
+/// was sent to them: `from:` one finds what was sent from it. A new message offers them with
+/// everyone else.
 #[test]
 fn the_owners_own_addresses_come_last() {
     let mut s = session();
     contact(&mut s, "Ava Stone", "ava@example.org");
+    // Sent to themselves, several times.
+    let account = s.mailbox.accounts[0].id;
+    let sent = s.mailbox.folder_of_kind(account, FolderKind::Sent).unwrap();
+    for n in 0..4 {
+        s.mailbox
+            .add_message(Message {
+                account,
+                folder: sent,
+                from: Address::new("Avery Quinn", "avery@lumen.example"),
+                to: vec![Address::new("Avery Quinn", "avery@lumen.example")],
+                date: now() - 4_000 + i64::from(n),
+                subject: "Note".into(),
+                ..Default::default()
+            })
+            .unwrap();
+    }
     let me = ("Avery Quinn".to_string(), "avery@lumen.example".to_string());
     let found = people(&s, "from:av");
     assert_eq!(found.first().map(|(_, a)| a.as_str()), Some("ava@example.org"), "{found:?}");
+    assert_eq!(found.iter().filter(|(_, a)| a == "avery@lumen.example").count(), 1, "{found:?}");
     assert_eq!(found.last(), Some(&me), "{found:?}");
     assert_eq!(people(&s, "to:quinn"), std::slice::from_ref(&me));
     assert_eq!(people(&s, "cc:AVERY@"), [me]);
-    assert!(suggest(&s, "av", 20).iter().chain(&suggest(&s, "quinn", 20)).all(|x| x.email != "avery@lumen.example"), "not in a new message");
     let q = "from:avery";
     let own = search_suggestions(&s, q, q.len()).pop().unwrap();
     assert_eq!(own.text, "from:avery@lumen.example ");
     run(&mut s, "view.search", json!({"query": own.text, "scope": "everywhere"}));
     let rows = s.rows();
     assert!(!rows.is_empty() && rows.iter().all(|row| s.mailbox.message(row.id).unwrap().from.email == "avery@lumen.example"));
+    assert!(suggest(&s, "av", 20).iter().any(|x| x.email == "avery@lumen.example"));
+    assert!(suggest(&s, "quinn", 20).iter().any(|x| x.email == "avery@lumen.example"));
 }

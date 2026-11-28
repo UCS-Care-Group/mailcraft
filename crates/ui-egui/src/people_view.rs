@@ -10,6 +10,7 @@ use std::sync::Arc;
 use egui::{Align2, Color32, FontId, Rect, RichText, Sense, Stroke, Ui, pos2, vec2};
 use mailcraft_engine::PeopleSort;
 use mailcraft_engine::cmd::people;
+use mailcraft_model::contact_sync::LocalOnly;
 use mailcraft_model::{AccountChoice, Address, Contact, Id, Mailbox};
 use mailcraft_time::Date;
 use serde_json::json;
@@ -30,18 +31,21 @@ const NOTES_MAX: usize = 20_000;
 const PLACE_W: f32 = 200.0;
 
 pub fn show(app: &mut MailApp, ui: &mut Ui) {
+    // The organisation's address list, chosen in place of the contacts (#1262).
+    if app.address_book_shown().is_some() {
+        crate::address_book::show(app, ui);
+        return;
+    }
     let t = Tokens::get(ui.ctx());
     let layout = list_layout(app, ui.ctx());
     keyboard(app, ui, &layout);
     keep_picked(app);
     let frame = egui::Frame::NONE.fill(t.surface).stroke(Stroke::new(1.0, t.border));
     let max = (ui.available_width() - 320.0).max(260.0);
-    egui::Panel::left("people_list")
-        .default_size(320.0f32.min(max))
-        .size_range(240.0..=max)
-        .resizable(true)
-        .frame(frame)
-        .show(ui, |ui| list(app, ui, &layout));
+    egui::Panel::left("people_list").default_size(320.0f32.min(max)).size_range(240.0..=max).resizable(true).frame(frame).show(ui, |ui| {
+        crate::nav::module_foot(app, ui);
+        list(app, ui, &layout);
+    });
     egui::CentralPanel::default().frame(egui::Frame::NONE.fill(t.surface)).show(ui, |ui| card(app, ui, layout.total));
 }
 
@@ -49,9 +53,8 @@ pub fn show(app: &mut MailApp, ui: &mut Ui) {
 /// selected contact is one of them: selecting another one alone (a click, the arrow keys, a
 /// command) ends the pick.
 pub(crate) fn keep_picked(app: &mut MailApp) {
-    let contacts = &app.session.mailbox.contacts;
-    let shown = people::shown_account(&app.session);
-    app.people_picked.retain(|id| contacts.get(id).is_some_and(|c| shown.shows(&c.origin)));
+    let s = &app.session;
+    app.people_picked.retain(|id| s.mailbox.contacts.get(id).is_some_and(|c| people::shows(s, c)));
     if app.people_picked.len() < 2 || app.session.sel.contact.is_none_or(|c| !app.people_picked.contains(&c)) {
         app.people_picked.clear();
     }
@@ -289,11 +292,17 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
     ui: &mut Ui,
     layout: &Layout<G>,
     reveal: Option<(Id, u16)>,
+    overlay_scroll_bars: bool,
     label: impl Fn(G) -> String,
     mut row: impl FnMut(&mut Ui, Id, u16, Rect),
 ) {
     let t = Tokens::get(ui.ctx());
+    let plain = ui.style().clone();
+    if overlay_scroll_bars {
+        crate::widgets::overlay_scroll_style(ui, &t);
+    }
     egui::ScrollArea::vertical().auto_shrink([false, false]).show_viewport(ui, |ui, viewport| {
+        ui.set_style(plain.clone());
         let (area, _) = ui.allocate_exact_size(vec2(ui.available_width(), layout.height), Sense::hover());
         let (origin, width) = (area.min, area.width());
         if let Some(r) = reveal.and_then(|row| layout.position(row)).and_then(|i| layout.rows.get(i)) {
@@ -309,6 +318,7 @@ pub(crate) fn show_rows<G: Copy + PartialEq>(
             row(ui, r.id, r.copy, Rect::from_min_size(pos2(origin.x, origin.y + r.top), vec2(width, layout.row_h)));
         }
     });
+    ui.set_style(plain);
 }
 
 /// The contact list as laid out, with the names of the categories its headings stand for when it
@@ -331,7 +341,7 @@ impl std::ops::Deref for PeopleList {
 /// The layout kept between frames, with what it was made from.
 #[derive(Clone)]
 struct CachedLayout {
-    key: (u64, usize, String, PeopleSort, AccountChoice),
+    key: (u64, usize, String, PeopleSort, AccountChoice, Option<Id>),
     list: Arc<PeopleList>,
 }
 
@@ -342,7 +352,7 @@ fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<PeopleList> {
     let s = &app.session;
     let query = &s.view.people_search;
     let shown = people::shown_account(s);
-    let key = (s.rev(), s.mailbox.contacts.len(), query.clone(), s.view.people_sort, shown);
+    let key = (s.rev(), s.mailbox.contacts.len(), query.clone(), s.view.people_sort, shown, people::shown_folder(s));
     if let Some(cached) = ctx.data(|d| d.get_temp::<CachedLayout>(slot)).filter(|c| c.key == key) {
         return cached.list;
     }
@@ -359,7 +369,7 @@ fn list_layout(app: &MailApp, ctx: &egui::Context) -> Arc<PeopleList> {
             Layout::new(ROW_H, rows.into_iter().map(|(id, i)| (id, i.map_or(Group::NoCategory, Group::Categories))))
         }
     };
-    let total = s.mailbox.contacts.values().filter(|c| shown.shows(&c.origin)).count();
+    let total = s.mailbox.contacts.values().filter(|c| people::shows(s, c)).count();
     let list = Arc::new(PeopleList { layout, names, total });
     ctx.data_mut(|d| d.insert_temp(slot, CachedLayout { key, list: list.clone() }));
     list
@@ -570,15 +580,8 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     if resp.on_hover_text(tl!("New Contact")).clicked() {
         let _ = app.run("people.new", json!({}));
     }
-    let accounts = people::contact_accounts(&app.session.mailbox);
-    let shown = people::shown_account(&app.session);
-    if !accounts.is_empty() {
-        ui.add_space(2.0);
-        if let Some(choice) = widgets::account_choice(ui, &app.session.mailbox, &accounts, shown) {
-            let _ = app.run("view.peopleAccount", json!({"value": choice.code()}));
-        }
-        ui.add_space(8.0);
-    }
+    // Whose contacts, or an organisation's address list.
+    crate::address_book::book_choice(app, ui);
     let line = ui.cursor().min.y;
     ui.painter().line_segment([pos2(header.min.x, line), pos2(header.max.x, line)], Stroke::new(1.0, t.border));
 
@@ -590,7 +593,14 @@ fn list(app: &mut MailApp, ui: &mut Ui, layout: &PeopleList) {
     let at = chosen_row(ui.ctx(), PEOPLE_ROW, &layout.layout, selected);
     let reveal = selection_changed(ui, "people_list_seen", at).then_some(at).flatten();
     let labelled = labelled(app);
-    show_rows(ui, layout, reveal, |g| group_label(g, &layout.names), |ui, id, copy, rect| contact_row(app, ui, id, copy, rect, labelled));
+    show_rows(
+        ui,
+        layout,
+        reveal,
+        app.overlay_scroll_bars,
+        |g| group_label(g, &layout.names),
+        |ui, id, copy, rect| contact_row(app, ui, id, copy, rect, labelled),
+    );
 }
 
 /// Whether each row says where its contact is: every account's contacts are in one list.
@@ -647,7 +657,7 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
         p.rect_filled(rect, 0.0, t.hover_subtle);
     }
     p.line_segment([pos2(rect.min.x + 54.0, rect.max.y), pos2(rect.max.x, rect.max.y)], Stroke::new(1.0, t.border.linear_multiply(0.7)));
-    widgets::avatar(ui, pos2(rect.min.x + 28.0, rect.center().y), 16.0, &avatar_address(&c));
+    crate::sender_images::contact_avatar(app, ui, pos2(rect.min.x + 28.0, rect.center().y), 16.0, &avatar_address(&c));
     let left = rect.min.x + 54.0;
     let mut right = rect.max.x - 12.0;
     if c.favorite {
@@ -710,20 +720,28 @@ fn contact_row(app: &mut MailApp, ui: &mut Ui, id: Id, copy: u16, rect: Rect, la
         mi(ui, app, "Edit", "people.edit", json!({}));
         ui.separator();
         mi(ui, app, if favorite { "Remove from Favorites" } else { "Add to Favorites" }, "people.favorite", json!({"id": id}));
-        ui.menu_button(tl!("Categorize"), |ui| {
-            let contact = app.session.mailbox.contact(id);
-            let (account, carried) = (contact.map(|c| c.origin.account), contact.map(|c| c.categories.clone()).unwrap_or_default());
-            crate::ribbon::category_menu(
-                ui,
-                app,
-                account.as_slice(),
-                &carried,
-                "people.categorize",
-                |app, name| app.session.mailbox.contact(id).is_some_and(|c| c.categories.iter().any(|x| x.eq_ignore_ascii_case(name))),
-                None,
-            );
+        // (Off with Edit and Delete for a contact of a folder that can only be read.)
+        let categorize = app.enabled("people.categorize");
+        ui.add_enabled_ui(categorize, |ui| {
+            ui.menu_button(tl!("Categorize"), |ui| {
+                let contact = app.session.mailbox.contact(id);
+                let (account, carried) = (contact.map(|c| c.origin.account), contact.map(|c| c.categories.clone()).unwrap_or_default());
+                crate::ribbon::category_menu(
+                    ui,
+                    app,
+                    account.as_slice(),
+                    &carried,
+                    "people.categorize",
+                    |app, name| {
+                        app.session.mailbox.contact(id).is_some_and(|c| c.categories.iter().any(|x| mailcraft_model::sync::same_category(x, name)))
+                    },
+                    None,
+                );
+            })
         });
         ui.separator();
+        let ids = if several { app.people_picked.clone() } else { vec![id] };
+        mi(ui, app, "Move to Contacts Folder…", "people.moveToFolder", json!({"ids": ids}));
         mi(ui, app, "Export…", "file.exportContacts", json!({"ids": [id]}));
         mi(ui, app, "Delete", "people.delete", json!({"id": id}));
     });
@@ -760,9 +778,9 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
             card_header(app, ui, &c);
             ui.add_space(12.0);
             card_actions(app, ui, &c);
+            card_kept_in(app, ui, &c);
             card_contact(app, ui, &c);
-            card_account(app, ui, &c);
-            card_places(ui, &c);
+            card_places(app, ui, &c);
             card_birthday(app, ui, &c);
             crate::security::card_section(app, ui, &c);
             if !c.notes.trim().is_empty() {
@@ -785,11 +803,11 @@ fn card(app: &mut MailApp, ui: &mut Ui, total: usize) {
 }
 
 /// The avatar, the name, what they do and where, and the categories.
-fn card_header(app: &MailApp, ui: &mut Ui, c: &Contact) {
+fn card_header(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
     let t = Tokens::get(ui.ctx());
     ui.horizontal(|ui| {
         let (r, _) = ui.allocate_exact_size(vec2(80.0, 80.0), Sense::hover());
-        widgets::avatar(ui, r.center(), 40.0, &avatar_address(c));
+        crate::sender_images::contact_avatar(app, ui, r.center(), 40.0, &avatar_address(c));
         ui.add_space(12.0);
         ui.vertical(|ui| {
             ui.spacing_mut().item_spacing = vec2(6.0, 3.0);
@@ -835,15 +853,22 @@ fn card_actions(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
         if c.address().is_some() && widgets::primary_button(ui, tl!("Email"), true).clicked() {
             let _ = app.run("people.email", json!({"id": id}));
         }
-        // The card shows the selected contact, so Edit opens its form.
-        if widgets::icon_text_button(ui, "edit", tl!("Edit"), true).clicked() {
+        // The card shows the selected contact, so Edit opens its form. Edit and Delete are off for
+        // a contact of a folder that can only be read (#1917).
+        if widgets::icon_text_button(ui, "edit", tl!("Edit"), app.enabled("people.edit")).clicked() {
             let _ = app.run("people.edit", json!({}));
         }
         let tip = if c.favorite { tl!("Remove from Favorites") } else { tl!("Add to Favorites") };
         if widgets::icon_text_button(ui, if c.favorite { "starOn" } else { "star" }, tl!("Favorite"), true).on_hover_text(tip).clicked() {
             let _ = app.run("people.favorite", json!({"id": id}));
         }
-        if widgets::icon_text_button(ui, "delete", tl!("Delete"), true).clicked() {
+        if widgets::icon_text_button(ui, "move", tl!("Move…"), app.enabled("people.moveToFolder"))
+            .on_hover_text(tl!("Move to Contacts Folder…"))
+            .clicked()
+        {
+            let _ = app.run("people.moveToFolder", json!({"ids": [id]}));
+        }
+        if widgets::icon_text_button(ui, "delete", tl!("Delete"), app.enabled("people.delete")).clicked() {
             let _ = app.run("people.delete", json!({"id": id}));
         }
     });
@@ -860,7 +885,7 @@ pub(crate) fn section(ui: &mut Ui, title: &str) {
 }
 
 /// One line of a section: an icon, a value and its label. A `link` is a button.
-fn field(ui: &mut Ui, icon: &str, value: &str, label: &str, link: bool) -> egui::Response {
+pub(crate) fn field(ui: &mut Ui, icon: &str, value: &str, label: &str, link: bool) -> egui::Response {
     let t = Tokens::get(ui.ctx());
     let (r, resp) = ui.allocate_exact_size(vec2(ui.available_width(), 26.0), if link { Sense::click() } else { Sense::hover() });
     if link && resp.hovered() {
@@ -883,77 +908,180 @@ fn field(ui: &mut Ui, icon: &str, value: &str, label: &str, link: bool) -> egui:
     resp
 }
 
-/// Where the contact is kept, where there is more than one place it could be.
+/// Where the contact is kept, where there is more than one place it could be: its contacts
+/// folder ([`folder_name`]).
 fn kept_in(app: &MailApp, c: &Contact) -> Option<String> {
     let mailbox = &app.session.mailbox;
-    (c.origin.is_remote() || !people::contact_accounts(mailbox).is_empty()).then(|| widgets::place_name(mailbox, c.origin.account))
+    let place = match mailbox.contact_folder(c.folder) {
+        Some(_) => folder_name(mailbox, c.folder),
+        None => widgets::place_name(mailbox, c.origin.account),
+    };
+    (c.origin.is_remote() || !people::contact_accounts(mailbox).is_empty()).then_some(place)
 }
 
-/// Whether the contact is a copy of what its account's server keeps, which can't be changed here
-/// (`remote::changeable`): the card says so beside whose it is, before Edit or Delete is tried.
+/// What a contacts folder is called where it is shown (#1917): "Contacts (ada@example.org)" for
+/// an account's own, "Contacts (Sales team)" for a shared mailbox's, "Ada's shared contacts" for
+/// one a person shared; On this computer for 0, or a folder no account keeps.
+pub(crate) fn folder_name(mailbox: &Mailbox, folder: Id) -> String {
+    use mailcraft_model::contact_sync::FolderOwner;
+    let Some(f) = mailcraft_engine::cmd::contacts_remote::home(mailbox, folder) else {
+        return tl!("On this computer").to_string();
+    };
+    let whose = match &f.owner {
+        FolderOwner::Person(address) if f.is_main() => {
+            return crate::i18n::fmt(tl!("{person}'s shared contacts"), &[("person", &who(mailbox, address))]);
+        }
+        FolderOwner::Own => widgets::place_name(mailbox, f.account),
+        FolderOwner::Mailbox(address) | FolderOwner::Person(address) => who(mailbox, address),
+    };
+    crate::i18n::fmt(tl!("{folder} ({owner})"), &[("folder", &one_line(&f.name, 80)), ("owner", &whose)])
+}
+
+/// Who `address` is, for a folder's name: the account (a shared mailbox) or the contact of that
+/// address by name, else the address.
+fn who(mailbox: &Mailbox, address: &str) -> String {
+    let named = |name: &str| Some(one_line(name, 80)).filter(|n| !n.is_empty());
+    mailbox
+        .accounts
+        .iter()
+        .find(|a| a.email.trim().eq_ignore_ascii_case(address.trim()))
+        .and_then(|a| named(&a.name))
+        .or_else(|| mailbox.contact_by_email(address).and_then(|c| named(&c.name())))
+        .unwrap_or_else(|| one_line(address, 200))
+}
+
+/// Whether the contact is in a folder its account may only read (`contacts_remote::changeable`):
+/// the card says so beside whose it is, before Edit or Delete is tried.
 fn read_only_here(app: &MailApp, c: &Contact) -> bool {
-    mailcraft_engine::cmd::remote::keeper(&app.session.mailbox, &c.origin).is_some()
+    mailcraft_engine::cmd::contacts_remote::read_only(&app.session.mailbox, c)
 }
 
-fn card_account(app: &MailApp, ui: &mut Ui, c: &Contact) {
-    if let Some(place) = kept_in(app, c) {
-        section(ui, tl!("Account"));
-        if read_only_here(app, c) {
-            field(ui, "account", &place, tl!("Read-only"), false).on_hover_text(tl!(
-                "This account's server keeps this contact. Changes made here aren't sent back yet, so it can't be edited or deleted here. Favorite and categories are kept on this computer."
-            ));
-        } else {
-            field(ui, "account", &place, "", false);
+/// Kept in: the contact's contacts folder, whether it can only be read, and whether a change to
+/// it waits to go to the server (#1917).
+fn card_kept_in(app: &MailApp, ui: &mut Ui, c: &Contact) {
+    let Some(place) = kept_in(app, c) else { return };
+    ui.add_space(10.0);
+    let line = crate::i18n::fmt(tl!("Kept in: {folder}"), &[("folder", &place)]);
+    if read_only_here(app, c) {
+        field(ui, "account", &line, tl!("(read only)"), false).on_hover_text(tl!(
+            "This contacts folder can only be read, so this contact can't be edited or deleted here. Favorite is kept on this computer."
+        ));
+    } else {
+        field(ui, "account", &line, "", false);
+    }
+    if let Some(change) = app.session.mailbox.contact_changes.iter().find(|change| change.contact == c.id) {
+        field(ui, "sync", tl!("Not sent yet"), "", false)
+            .on_hover_text(tl!("This change is on this computer and goes to the server at the next Send/Receive."));
+        // What the server last said, when it said no for now (it is tried again): a line of its
+        // own, wrapped, so a long one never hides "Not sent yet".
+        let why = one_line(&change.error, 300);
+        if !why.is_empty() {
+            let t = Tokens::get(ui.ctx());
+            ui.horizontal(|ui| {
+                ui.add_space(30.0);
+                ui.add(egui::Label::new(RichText::new(why).font(regular(11.5)).color(t.text_dim)).wrap());
+            });
+        }
+    }
+}
+
+/// What the contact's server has no place for (#1917): nothing On this computer, nor for a
+/// server that keeps every entry.
+fn local_only(app: &MailApp, c: &Contact) -> LocalOnly {
+    mailcraft_model::contact_sync::local_only(&app.session.mailbox, c)
+}
+
+/// An entry's label and tooltip, marked when the server has no place for it: the label says it
+/// stays here, the tooltip (`why`) says why.
+fn marked(label: &str, tip: &str, why: Option<&str>) -> (String, String) {
+    match why {
+        None => (label.to_string(), tip.to_string()),
+        Some(why) => {
+            let mark = tl!("On this computer only");
+            let label = if label.is_empty() { mark.to_string() } else { format!("{label} · {mark}") };
+            (label, if tip.is_empty() { why.to_string() } else { format!("{tip}\n{why}") })
         }
     }
 }
 
 /// E-mail addresses (a click writes to that address) and phone numbers.
 fn card_contact(app: &mut MailApp, ui: &mut Ui, c: &Contact) {
-    let emails: Vec<_> = c.emails.iter().filter(|e| !e.value.trim().is_empty()).take(100).collect();
-    let phones: Vec<_> = c.phones.iter().filter(|p| !p.value.trim().is_empty()).take(100).collect();
+    let emails: Vec<_> = c.emails.iter().enumerate().filter(|(_, e)| !e.value.trim().is_empty()).take(100).collect();
+    let phones: Vec<_> = c.phones.iter().enumerate().filter(|(_, p)| !p.value.trim().is_empty()).take(100).collect();
     if emails.is_empty() && phones.is_empty() {
         return;
     }
+    let local = local_only(app, c);
     section(ui, tl!("Contact"));
-    for e in emails {
+    for (at, e) in emails {
         let shown = one_line(&e.value, 300);
-        let tip = crate::i18n::fmt(tl!("Write to {address}"), &[("address", &shown)]);
-        if field(ui, "mail", &shown, &label_text(&e.label), true).on_hover_text(tip).clicked() {
+        let why = local
+            .emails
+            .binary_search(&at)
+            .is_ok()
+            .then(|| tl!("Microsoft keeps three email addresses for a contact; this one stays on this computer."));
+        let (label, tip) = marked(&label_text(&e.label), &crate::i18n::fmt(tl!("Write to {address}"), &[("address", &shown)]), why);
+        if field(ui, "mail", &shown, &label, true).on_hover_text(tip).clicked() {
             // The address as it is stored, not as it is shown.
             let _ = app.run("mail.new", json!({"to": recipient(c, &e.value)}));
         }
     }
-    for p in phones {
-        field(ui, "phone", &one_line(&p.value, 200), &label_text(&p.label), false);
+    for (at, p) in phones {
+        let why = local
+            .phones
+            .binary_search(&at)
+            .is_ok()
+            .then(|| tl!("Microsoft keeps one mobile, two home and two business numbers for a contact; this one stays on this computer."));
+        let (label, tip) = marked(&label_text(&p.label), "", why);
+        let line = field(ui, "phone", &one_line(&p.value, 200), &label, false);
+        if !tip.is_empty() {
+            line.on_hover_text(tip);
+        }
     }
 }
 
 /// Postal addresses and websites.
-fn card_places(ui: &mut Ui, c: &Contact) {
-    let addresses: Vec<_> = c.addresses.iter().filter(|a| !a.is_empty()).take(100).collect();
+fn card_places(app: &MailApp, ui: &mut Ui, c: &Contact) {
+    let local = local_only(app, c);
+    let addresses: Vec<_> = c.addresses.iter().enumerate().filter(|(_, a)| !a.is_empty()).take(100).collect();
     if !addresses.is_empty() {
         section(ui, tl!("Address"));
-        for a in addresses {
+        for (at, a) in addresses {
             let line = one_line(&a.one_line(), 500);
-            field(ui, "address", &line, &label_text(&a.label), false).on_hover_text(line.as_str());
+            let why = local
+                .addresses
+                .binary_search(&at)
+                .is_ok()
+                .then(|| tl!("Microsoft keeps one home, one business and one other address for a contact; this one stays on this computer."));
+            let (label, tip) = marked(&label_text(&a.label), &line, why);
+            field(ui, "address", &line, &label, false).on_hover_text(tip);
         }
     }
-    let sites: Vec<&str> = c.websites.iter().map(|w| w.trim()).filter(|w| !w.is_empty()).take(100).collect();
+    let sites: Vec<(usize, &str)> = c.websites.iter().map(|w| w.trim()).enumerate().filter(|(_, w)| !w.is_empty()).take(100).collect();
     if !sites.is_empty() {
         section(ui, tl!("Websites"));
-        for site in sites {
+        for (at, site) in sites {
             let shown = one_line(site, 300);
+            let why = local
+                .websites
+                .binary_search(&at)
+                .is_ok()
+                .then(|| tl!("Microsoft keeps one web page for a contact; this one stays on this computer."));
             // Only plain web addresses open; anything else is text. What opens is the address as
             // it is stored, not as it is shown.
             match web_target(site) {
                 Some(url) => {
-                    if field(ui, "web", &shown, "", true).on_hover_text(one_line(&url, 300)).clicked() {
+                    let (label, tip) = marked("", &one_line(&url, 300), why);
+                    if field(ui, "web", &shown, &label, true).on_hover_text(tip).clicked() {
                         ui.ctx().open_url(egui::OpenUrl::new_tab(url));
                     }
                 }
                 None => {
-                    field(ui, "web", &shown, "", false);
+                    let (label, tip) = marked("", "", why);
+                    let line = field(ui, "web", &shown, &label, false);
+                    if !tip.is_empty() {
+                        line.on_hover_text(tip);
+                    }
                 }
             }
         }
@@ -1116,6 +1244,8 @@ pub(crate) mod testing {
 mod account_tests;
 #[cfg(test)]
 mod arrange_tests;
+#[cfg(test)]
+mod folder_tests;
 
 #[cfg(test)]
 mod tests;

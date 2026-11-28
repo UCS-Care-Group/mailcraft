@@ -68,7 +68,7 @@ fn until(s: &Session, v: &Value) -> Result<i64, crate::CmdError> {
             }
             match offset {
                 Some(offset) => wall.to_timestamp(offset),
-                None => s.zone().instant(wall),
+                None => s.instant_of(wall),
             }
         }
         _ => return Err(wrong()),

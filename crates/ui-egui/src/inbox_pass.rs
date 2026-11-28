@@ -102,7 +102,10 @@ impl MailApp {
         if self.inbox_check.under_way() {
             return None;
         }
-        let round = self.job_busy().blocks(Start::InboxCheck);
+        // (Read once for the whole tick: right only while the loop below starts at most one pass,
+        // since a pass it started would make this `busy` stale.)
+        let busy = self.job_busy();
+        let round = busy.blocks_every(Start::InboxCheck);
         // (A clock put back starts the minute again.)
         if round || self.inbox_check.last == 0 || now < self.inbox_check.last {
             self.inbox_check.queue.clear();
@@ -124,8 +127,10 @@ impl MailApp {
                 .collect();
         }
         while let Some(account) = self.inbox_check.queue.pop_front() {
-            // (The calendar's job is at work for it: its check is left out of this tick.)
-            if !self.calendar_job_for(account) && self.start_inbox_pass(account, true, true).is_some() {
+            // (The calendar's job is at work for it, or it is signing in (or the account a shared
+            // mailbox is read through is): its check is left out of this tick, and the others go on.)
+            let signer = self.session.mailbox.owner_of(account).map_or(account, |owner| owner.id);
+            if !self.calendar_job_for(account) && !busy.blocks(Start::InboxCheck, signer) && self.start_inbox_pass(account, true, true).is_some() {
                 return Some(account);
             }
         }
@@ -138,9 +143,9 @@ impl MailApp {
     /// run then goes with it), else when the answer comes.
     pub(crate) fn give_up_inbox_check(&mut self) {
         self.inbox_check.queue.clear();
-        if self.inbox_check.running.take().is_none() {
-            return;
-        }
+        let Some(account) = self.inbox_check.running.take() else { return };
+        // (Its last piece never comes: the check ends here, a download of its own.)
+        self.session.end_run_unfinished(account);
         if let Some(cancel) = self.inbox_check.cancel.take() {
             cancel.store(true, Ordering::Relaxed);
         }
@@ -157,7 +162,7 @@ impl MailApp {
     /// A round of `accounts` is about to begin: those with an Inbox pass line up for it, in the
     /// round's order.
     pub(crate) fn queue_inbox_passes(&mut self, accounts: &[Id], quiet: bool) {
-        self.inbox_queue = accounts
+        self.session.driver.round.inbox_queue = accounts
             .iter()
             .copied()
             .filter(|account| mailcraft_engine::cmd::graph_mail::graph_inbox_request(&self.session, *account).is_some())
@@ -168,7 +173,7 @@ impl MailApp {
     /// Start the next Inbox pass in line; an account that can't have one now (it would have to
     /// sign in, or Microsoft won't open it) goes without. What was started, if anything.
     pub(crate) fn start_next_inbox_pass(&mut self) -> Option<Value> {
-        while let Some((account, quiet)) = self.inbox_queue.pop_front() {
+        while let Some((account, quiet)) = self.session.driver.round.inbox_queue.pop_front() {
             if let Some(started) = self.start_inbox_pass(account, quiet, false) {
                 return Some(started);
             }
@@ -225,6 +230,10 @@ impl MailApp {
             mail: Some(mail),
             mail_pieces: Some(pieces),
             cancel: cancel.clone(),
+            // A renewed sign-in that isn't the account's own (a shared mailbox's: its owner's)
+            // stops the run before anything is read.
+            signer: Some(owner.clone()),
+            contacts: None,
         };
         let graph = self.services.graph.as_ref()?;
         if !check {
@@ -294,6 +303,8 @@ impl MailApp {
     /// let the account wait for the rest of its run. Whatever went wrong is the run's to meet
     /// again, and to ask about.
     pub(crate) fn finish_inbox_pass(&mut self, account: Id, result: GraphResult) {
+        // (Its last piece let go of what the account had, unless the job ended without it.)
+        self.session.end_run_unfinished(account);
         let check = self.inbox_check.running.take() == Some(account);
         self.inbox_check.cancel = None;
         self.keep_inbox_tokens(account, &result);
@@ -315,7 +326,7 @@ impl MailApp {
             return;
         }
         // Stop ends the round: nothing is left in line.
-        if self.services.sync_cancel.load(Ordering::Relaxed) && self.sync_queue.is_empty() {
+        if self.services.sync_cancel.load(Ordering::Relaxed) && self.session.driver.round.queue.is_empty() {
             let now = self.session.now();
             self.session.sync_progress.count_full_if_due(&self.session.mailbox, account, now);
             self.session.sync_progress.end(account, true);

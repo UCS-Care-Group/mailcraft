@@ -247,10 +247,10 @@ BEGIN:VALARM\r\nTRIGGER:-PT15M\r\nACTION:DISPLAY\r\nEND:VALARM\r\nEND:VEVENT\r\n
         "",
     ]
     .join("\r\n");
-    let (mut app, account, _) = mail_app(Vec::new());
+    // Read as a message that came down from the server is (a file imported into the account's
+    // folder would stay on this computer, in Imported, #1401).
+    let (mut app, account, _) = mail_app(vec![mailcraft_mime_model::parse_fetched(eml.as_bytes())]);
     let inbox = app.session.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
-    let data = mailcraft_engine::cmd::base64_encode(eml.as_bytes());
-    app.execute("file.import", json!({"name": "request.eml", "data": data, "folder": inbox})).unwrap();
     app.session.view.folder = inbox;
     let request = app.session.mailbox.messages.values().find(|m| m.subject == "Design review").map(|m| m.id).unwrap();
     assert_eq!(super::super::invitation::list_marks(app.session.mailbox.message(request).unwrap()), (Some("meetingRequest"), false));
@@ -572,9 +572,9 @@ fn asking_the_calendar_about_a_meeting_sends_nothing_and_waits_its_turn() {
     assert!(app.session.calendar_changes(account).is_some() && app.calendar_job_around(account, day).is_err());
     app.session.mailbox.event_changes.clear();
     // Nor while a Send/Receive is about to ask, nor before the owner has allowed the calendar.
-    app.sync_queue.push_back((account, true));
+    app.session.driver.round.queue.push_back((account, true));
     assert!(app.calendar_job_around(account, day).is_err());
-    app.sync_queue.clear();
+    app.session.driver.round.queue.clear();
     app.session.driver.calendar.consent_needed.insert(account);
     assert!(app.calendar_job_around(account, day).is_err());
     app.session.driver.calendar.consent_needed.remove(&account);

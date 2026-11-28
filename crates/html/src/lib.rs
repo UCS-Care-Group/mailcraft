@@ -15,7 +15,8 @@
 //! There is no CSS engine here. A short whitelist of presentational facts is read from inline
 //! `style` attributes and old-style attributes (`style.rs`): text and background colour, bold,
 //! italic, underline, strike, alignment, font size, whether something is hidden, and whether a
-//! paragraph has a margin or a table cell a border at all. The message's `<style>` blocks are
+//! paragraph has a margin or a table cell a border at all, and the picture behind a table, a cell
+//! or a block (`bg.rs`), when it is attached to the message or written into it (never one on the web). The message's `<style>` blocks are
 //! read for the same whitelist and nothing else (`sheet.rs`: selectors, specificity, order,
 //! `!important`, within caps); they are never run and nothing in them is fetched.
 //!
@@ -24,11 +25,15 @@
 //! [`MAX_TABLE_DEPTH`], [`MAX_CELLS`]), and the work is linear in the input.
 #![deny(clippy::unwrap_used, clippy::expect_used, clippy::panic, clippy::unimplemented, clippy::todo, clippy::unreachable)]
 
+mod bg;
+mod bidi;
 mod blocks;
 #[doc(hidden)]
 pub mod corpus;
 mod data;
 mod entities;
+pub mod fonts;
+mod grid;
 mod look;
 mod media;
 mod preview;
@@ -41,9 +46,11 @@ mod tokenizer;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own};
+pub use bg::{BgOffset, BgPicture, BgRepeat, BgSize, MAX_BG_OFFSET_PX, MAX_BG_SIZE_PX};
+pub use blocks::{MAX_HIDDEN_TEXT, Read, parse, parse_in, parse_text, parse_text_own, parse_text_with_tables};
 pub use data::{MAX_DATA_PICTURE_BYTES, MAX_DATA_PICTURES, MAX_DATA_PICTURES_BYTES, Picture};
 pub use entities::{escape, unescape};
+pub use grid::{Grid, Place, grid};
 pub use media::{Env, MAX_ENVS as MAX_MEDIA_ENVS, envs as media_envs, verdicts as media_verdicts};
 
 /// The media lists of a message's style sheets and `<style media>` attributes, each once, in the
@@ -53,9 +60,9 @@ pub fn media_lists(html: &str) -> Vec<String> {
     sheet::media_lists(html)
 }
 pub use preview::{MAX_PREVIEW_CHARS, preview, text_preview};
-pub use quote::{WrittenPicture, quotable, quotable_with_pictures};
+pub use quote::{WrittenPicture, quotable, quotable_in, quotable_with_pictures};
 pub use style::{MAX_FAMILIES, MAX_FONT_PX};
-pub use text::{blocks_to_text, from_text, text_and_hidden, text_blocks, to_text};
+pub use text::{blocks_to_text, from_text, quote_to_text, text_and_hidden, text_blocks, to_text};
 
 /// How many rules a style sheet's text gives, as the reading of a message's `<style>` blocks reads
 /// it ([`MAX_SHEET_BYTES`] of it, [`MAX_SHEET_RULES`] rules). For the fuzz target.
@@ -91,8 +98,10 @@ pub const MAX_TABLE_ROWS: usize = 1_000;
 pub const MAX_TABLE_COLUMNS: usize = 64;
 
 /// Deepest tables (and blocks with a background of their own) may nest; a table nested deeper
-/// keeps its text and loses its grid.
-pub const MAX_TABLE_DEPTH: usize = 12;
+/// keeps its text and loses its grid. Templates built by column builders nest a button or a row
+/// of a product and its picture 14 to 18 deep (a wrapper, a centred column, a section, a column,
+/// a cell for each); the reading pane's own limit is above this (`reading::layout::MAX_NESTING`).
+pub const MAX_TABLE_DEPTH: usize = 20;
 
 /// Most table cells one document keeps.
 pub const MAX_CELLS: usize = 20_000;
@@ -243,6 +252,10 @@ impl Sides {
 pub struct Span {
     pub text: String,
     pub bold: bool,
+    /// The weight, from 1 to 1000, when the message asks for one that is neither 400 nor 700
+    /// (`bold` is set from 600); `None` is 700 for bold text and 400 for the rest.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub weight: Option<u16>,
     pub italic: bool,
     pub underline: bool,
     pub strike: bool,
@@ -250,6 +263,11 @@ pub struct Span {
     /// Where the text leads. Shared by every span of one link, so a link cut into many spans by
     /// the styles inside it is held once.
     pub link: Option<Arc<str>>,
+    /// A link drawn without its line: the link itself says so (`text-decoration: none` in its
+    /// style or a rule of the message's style sheet). A link is underlined otherwise, as in a
+    /// browser; `underline` is a line the message asks for whether or not it is a link.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub bare: bool,
     /// The text colour the message asks for. A UI checks it against the background it really
     /// paints on before using it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -284,11 +302,13 @@ impl Span {
     /// Whether two spans look the same, whatever their text.
     pub fn same_format(&self, other: &Span) -> bool {
         self.bold == other.bold
+            && self.weight == other.weight
             && self.italic == other.italic
             && self.underline == other.underline
             && self.strike == other.strike
             && self.code == other.code
             && self.link == other.link
+            && self.bare == other.bare
             && self.color == other.color
             && self.background == other.background
             && self.size == other.size
@@ -350,6 +370,10 @@ pub struct Block {
     pub quote: u8,
     #[serde(default)]
     pub align: Align,
+    /// The block reads from the right (its direction, not the side its text stands at): a list
+    /// item's marker hangs at the right then, whatever the alignment (#603).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub rtl: bool,
     /// Blank lines above the block: 0 when it follows the one before directly (the lines of an
     /// Outlook or Gmail message), 1 for an ordinary paragraph gap, up to 3. Always 0 for the first
     /// block of its container.
@@ -360,6 +384,11 @@ pub struct Block {
     /// container, nor where a line break or a block of its own came in between.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub beside: bool,
+    /// The block is part of a list item: the item itself, or a further paragraph, heading,
+    /// preformatted text, picture or table inside one, and the blocks of that table's cells. What
+    /// it looks like is its `kind`; a paste into the composer reads all of it as the item's.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub in_item: bool,
     /// Room above the block in pixels, from a margin of the block or the one above (the larger of
     /// the two), at most [`MAX_BOX_PX`]. When it is set it is the gap, instead of `space`'s.
     #[serde(default, skip_serializing_if = "is_zero_u8")]
@@ -399,8 +428,10 @@ impl Block {
             spans,
             quote: 0,
             align: Align::Left,
+            rtl: false,
             space: 0,
             beside: false,
+            in_item: false,
             gap: 0,
             line_height: None,
             inset: [0, 0],
@@ -420,6 +451,9 @@ impl Block {
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Table {
     pub rows: Vec<Row>,
+    /// The composer requested that empty rows and columns be preserved.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub compose_grid: bool,
     /// The widest row, in columns (at most [`MAX_TABLE_COLUMNS`]).
     pub columns: u16,
     pub layout: bool,
@@ -453,6 +487,9 @@ pub struct Table {
     /// A box on a line: the room its margins keep free left and right of it, in pixels.
     #[serde(default, skip_serializing_if = "is_no_inset")]
     pub box_margin: [u8; 2],
+    /// A picture behind the whole table, over its background colour (#601).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bg_picture: Option<Box<BgPicture>>,
     /// A box on a line that the source floats to a side: a table with `align="left"` or
     /// `"right"` among two or more such tables that are all its holder holds. Its block's `align`
     /// is the side. The boxes that float left stand from the left edge of the line in their order,
@@ -492,6 +529,13 @@ pub struct Cell {
     /// Where its content sits in the row, its own or its row's; `None` when the source says nothing.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub valign: Option<VAlign>,
+    /// A picture behind what it holds, over its background colour (#601).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub bg_picture: Option<Box<BgPicture>>,
+    /// Hidden in its place (`visibility: hidden` and the like): it keeps its slot in the grid and
+    /// shows nothing, not even its row's colour.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub held: bool,
 }
 
 impl Default for Cell {
@@ -508,6 +552,8 @@ impl Default for Cell {
             padding: None,
             radius: 0,
             valign: None,
+            bg_picture: None,
+            held: false,
         }
     }
 }
@@ -519,6 +565,25 @@ pub fn has_text(blocks: &[Block]) -> bool {
         BlockKind::Image { .. } | BlockKind::Rule => false,
         _ => b.spans.iter().any(|s| !s.text.trim().is_empty()),
     })
+}
+
+/// Every picture behind a table or a cell in `blocks` (#601), in reading order (a table's before
+/// its cells'), looking inside tables.
+pub fn bg_pictures(blocks: &[Block]) -> Vec<&BgPicture> {
+    fn walk<'a>(blocks: &'a [Block], out: &mut Vec<&'a BgPicture>) {
+        for b in blocks {
+            if let BlockKind::Table(table) = &b.kind {
+                out.extend(table.bg_picture.as_deref());
+                for cell in table.rows.iter().flat_map(|r| &r.cells) {
+                    out.extend(cell.bg_picture.as_deref());
+                    walk(&cell.blocks, out);
+                }
+            }
+        }
+    }
+    let mut out = Vec::new();
+    walk(blocks, &mut out);
+    out
 }
 
 /// Every picture block in `blocks`, in reading order, looking inside tables.
@@ -565,6 +630,23 @@ pub fn is_safe_url(url: &str) -> bool {
     true
 }
 
+/// How a reader lays out the blocks of this crate, in points (dp on a phone): one set of rules for
+/// the desktop and the phone, so that a message looks alike on both (#1966).
+pub mod reading {
+    use super::Table;
+
+    /// A layout table is stacked rather than given columns that hold something narrower than this.
+    pub const MIN_LAYOUT_COLUMN: u8 = 110;
+    /// The gap in front of a box on a line that the source parts from the box before it by white
+    /// space ([`Table::spaced`]), and the gap between the lines of such boxes.
+    pub const BOX_GAP: u8 = 4;
+
+    /// The gap in front of `table` when it is a box on a line after another.
+    pub fn box_gap(table: &Table) -> u8 {
+        if table.spaced { BOX_GAP } else { 0 }
+    }
+}
+
 /// Unicode's format characters (general category Cf): the one list, in `mailcraft-names` (#454).
 pub use mailcraft_names::is_format;
 
@@ -593,13 +675,21 @@ pub(crate) fn is_blank(c: char) -> bool {
 }
 
 #[cfg(test)]
+mod bg_tests;
+#[cfg(test)]
 mod data_tests;
 #[cfg(test)]
 mod float_tests;
 #[cfg(test)]
+mod grid_tests;
+#[cfg(test)]
 mod inline_tests;
 #[cfg(test)]
 mod nested_align_tests;
+#[cfg(test)]
+mod rtl_tests;
+#[cfg(test)]
+mod spacing_tests;
 #[cfg(test)]
 mod text_link_tests;
 

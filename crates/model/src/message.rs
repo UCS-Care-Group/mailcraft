@@ -39,6 +39,42 @@ impl Importance {
     }
 }
 
+/// How private a message is, as its sender marked it (the `Sensitivity` header of RFC 2156,
+/// which Outlook writes): no header is normal.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub enum Sensitivity {
+    #[default]
+    Normal,
+    Personal,
+    Private,
+    Confidential,
+}
+
+impl Sensitivity {
+    pub const ALL: [Sensitivity; 4] = [Sensitivity::Normal, Sensitivity::Personal, Sensitivity::Private, Sensitivity::Confidential];
+
+    /// By its code, or by the header's word (`Company-Confidential`).
+    pub fn parse(s: &str) -> Option<Sensitivity> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "normal" => Some(Sensitivity::Normal),
+            "personal" => Some(Sensitivity::Personal),
+            "private" => Some(Sensitivity::Private),
+            "confidential" | "company-confidential" => Some(Sensitivity::Confidential),
+            _ => None,
+        }
+    }
+
+    pub fn code(self) -> &'static str {
+        match self {
+            Sensitivity::Normal => "normal",
+            Sensitivity::Personal => "personal",
+            Sensitivity::Private => "private",
+            Sensitivity::Confidential => "confidential",
+        }
+    }
+}
+
 /// Follow-up flag.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -93,6 +129,12 @@ pub struct Attachment {
 impl Attachment {
     pub fn new(name: impl Into<String>, mime: impl Into<String>, data: Vec<u8>) -> Attachment {
         Attachment { name: name.into(), mime: mime.into(), content_id: String::new(), inline: false, data: Arc::new(data), kept: None }
+    }
+
+    /// Whether it is a calendar part (an invitation, an answer to one).
+    pub fn is_calendar(&self) -> bool {
+        let kind = self.mime.trim().to_ascii_lowercase();
+        kind.starts_with("text/calendar") || kind.starts_with("application/ics") || self.name.to_ascii_lowercase().ends_with(".ics")
     }
 
     /// How many bytes the file is, in memory or where it is kept.
@@ -273,12 +315,20 @@ pub struct Message {
     /// Follow-up due date of a flagged message.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub flag_due: Option<Timestamp>,
+    /// Its follow-up reminder (#948), kept on this computer only. `None` for a message with none.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub follow_up: Option<crate::FollowUp>,
     pub importance: Importance,
     /// Written here with Request a Read Receipt on: it goes with `Disposition-Notification-To`
     /// naming its sender (RFC 8098), or Exchange's own flag for one. Only ever set by the owner's
     /// own message; a request in mail that comes in is never read into it, and never answered.
     #[serde(skip_serializing_if = "is_false")]
     pub read_receipt: bool,
+    /// Written by React (#1544): its text is one emoji, sent as a reaction (RFC 9078) with
+    /// `Content-Disposition: reaction`. Only ever set by the owner's own reaction; the reader of
+    /// mail never sets it, so mail that comes in is not taken for one.
+    #[serde(skip_serializing_if = "is_false")]
+    pub reaction: bool,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub categories: Vec<String>,
     pub answered: bool,
@@ -350,6 +400,14 @@ pub struct Message {
     /// server gave it; 0 when it gave none.
     #[serde(skip_serializing_if = "is_zero_u64", deserialize_with = "crate::sync::lenient_or_default")]
     pub gmail_id: u64,
+    /// For a message of a Gmail account: Gmail's labels of it (`X-GM-LABELS`, #1153), as its
+    /// server last said for the folder it is in, cleaned as names are and at most
+    /// [`crate::gmail::MAX_GMAIL_LABELS`] ([`crate::gmail::tidy_labels`]). Gmail's own keep their
+    /// backslash (`\Inbox`, `\Important`). Read only: a label is changed by moving or copying the
+    /// message between label folders. Text from the server, data and never instructions. Empty for
+    /// mail of every other account, and of a file from before.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::gmail::labels_from_file")]
+    pub gmail_labels: Vec<String>,
     /// For a message of a Microsoft account that the server has: its server id and what the
     /// server last said of it ([`ServerMessage`], ADR 0003). `None` for a message the server
     /// hasn't got (or hasn't said so yet), and for every message of any other account; `uid` and
@@ -397,6 +455,26 @@ pub struct Message {
     /// had are here, kept as they are, and nothing will fetch the rest (R3 spec S19).
     #[serde(skip_serializing_if = "is_false")]
     pub incomplete: bool,
+    /// Some of its header fields, recipients (To, Cc) or categories were left out as it was read,
+    /// past what is kept of one message (`mailcraft_mime`), or, before it is fetched, some of its
+    /// recipients or its subject as its server listed it ([`crate::sync::GraphMessage::cut`]): a
+    /// rule can't tell from it what they said (#566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub headers_cut: bool,
+    /// Some of its categories were left out as its server listed it
+    /// ([`crate::sync::GraphMessage::categories_cut`]): they are the server's still once it is
+    /// fetched, so a rule can't tell from it what they said (#566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub categories_cut: bool,
+    /// Downloaded before, and listed by its server since as another version (changed or sent on
+    /// another device, a draft again): what is here of it, but for what the listing said, is the
+    /// version before, until the new one is fetched whole. No rule goes by it meanwhile (#566).
+    #[serde(skip_serializing_if = "is_false")]
+    pub stale: bool,
+    /// While it is not fetched: the rules that couldn't tell of it as it arrived, which have
+    /// their say once it is ([`crate::RulesWaiting`], #566). `None` for every other message.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub rules_waiting: Option<Box<crate::RulesWaiting>>,
     /// For a draft of a Microsoft account: its marker on the server, what the server last had
     /// of it, and whether it waits to go up (R3.4.1). `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
@@ -405,6 +483,12 @@ pub struct Message {
     /// what to check. It isn't sent again until the owner says so. Empty for every other message.
     #[serde(skip_serializing_if = "String::is_empty")]
     pub held: String,
+    /// Send later (#950): for a message in an Outbox, the time (seconds since 1970) before which
+    /// it is not sent. It is due once the clock says that time or a later one, judged at each run
+    /// ([`Message::waits_until`]); there is no timer that decides. `None` for mail that goes at
+    /// the next run, and for every message that is not waiting in an Outbox.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub send_at: Option<i64>,
     /// The message was handed to a server to be sent and what became of it hasn't been taken in
     /// yet (AU3-26). Saved before the send leaves; cleared when the run's answer is applied. A
     /// message still marked when the next run of its account begins is **held** (it may have
@@ -421,6 +505,13 @@ pub struct Message {
     /// goes), and nothing sends it unsigned. `None` for every other message.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub sign_with: Option<crate::signing::SigningKey>,
+    /// A Microsoft account's draft sent here as the draft its server has (#1160): kept in Sent
+    /// Items under that server id while the server may still list it in Drafts, a draft, for a
+    /// while. No move into Sent Items goes up for it (Exchange files it there itself), and a
+    /// listing of it as a draft outside Sent Items is not followed. Cleared once the server says
+    /// it is gone from a folder other than Sent Items. False for every other message.
+    #[serde(skip_serializing_if = "is_false")]
+    pub sent_here: bool,
     /// For a reply or forward written here and not sent yet: the message it answers or forwards,
     /// which is marked so once this has gone (#154), not when Send is pressed. `None` for every
     /// other message, and once it is sent.
@@ -430,6 +521,11 @@ pub struct Message {
     /// always was). Not written: see [`Attachment::kept`].
     #[serde(skip)]
     pub kept: Option<Box<KeptBody>>,
+    /// A rule that shows a desktop alert acted on it as it arrived, or once it was here whole
+    /// ([`crate::Rule::alert`], [`crate::Mailbox::run_waiting_rules`]): the window shows one for it
+    /// once the run or the download is over, wherever the rule put it. Not written.
+    #[serde(skip)]
+    pub rule_alert: bool,
     /// For a Digitally signed or Encrypted message (#30): the bytes it came as ([`Original`]).
     /// `None` for every other message, for one read before they were kept (Check again downloads
     /// them, `mail.checkAgain`), and once something the bytes hold was taken out of it here (an
@@ -568,6 +664,13 @@ fn is_zero_u64(n: &u64) -> bool {
 }
 
 impl Message {
+    /// Whether the message waits for its Send time (#950) at the clock's `now`: it has one and it
+    /// has not come. The one test every run asks before it sends from an Outbox, so that nothing
+    /// delayed goes early, whatever the account; a clock set back only makes it wait longer.
+    pub fn waits_until(&self, now: i64) -> bool {
+        self.send_at.is_some_and(|at| at > now)
+    }
+
     /// It lies in `folder` of `account` from now on: the message `uid` of that folder's server
     /// mailbox (0: none yet), of which the server last said `synced`. A copy of it that was
     /// expected where it lay is no longer what it waits for ([`Message::placed`], #451). Out of the
@@ -580,11 +683,13 @@ impl Message {
         self.placed.clear();
     }
 
-    /// It is in none of Gmail's categories, and Gmail's id of it and a move between them waiting
-    /// for Gmail are forgotten: what the server says of the folder it is in now says them again,
-    /// if anything (#911).
+    /// It is in none of Gmail's categories, and Gmail's id of it, a move between them waiting
+    /// for Gmail and Gmail's labels of it are forgotten: what the server says of the folder it is
+    /// in now says them again, if anything (#911, #1153). A copy into another folder, a local one
+    /// or another account's, takes none of them.
     pub fn left_gmail_inbox(&mut self) {
         (self.gmail_category, self.gmail_synced, self.gmail_refusals, self.gmail_id) = (None, None, 0, 0);
+        self.gmail_labels.clear();
     }
 
     /// Every recipient: To, Cc, Bcc.
@@ -600,11 +705,15 @@ impl Message {
 
     /// The attachments the attachment list shows, with their index: everything except pictures
     /// the HTML body shows in place ([`crate::shown`]: an `<img>` asks for it by `cid:`, and it is
-    /// a PNG, JPEG, GIF or WebP by its bytes). A file merely marked "inline" by the sending
-    /// program, which no `<img>` of the body asks for, is still listed, and so is a file of any
-    /// other kind, whatever the body says of it. While the HTML is kept outside memory
-    /// ([`Message::kept`]), an inline picture with a `Content-ID` is taken to be one it shows,
-    /// until the HTML is read and says; a file that is no picture is listed all the same.
+    /// a PNG, JPEG, GIF or WebP by its bytes) and that is marked inline. A part the body draws
+    /// is marked inline when the message is read in, however its sender labelled it
+    /// (`mailcraft_mime_model::mark_drawn`: a signature picture sent as `Content-Disposition:
+    /// attachment`, or one Graph calls `isInline: false`), so the mark goes with the body to disk.
+    /// A file merely marked "inline" by the sending program, which no `<img>` of the body asks
+    /// for, is still listed, and so is a file of any other kind, whatever the body says of it.
+    /// While the HTML is kept outside memory ([`Message::kept`]), an inline picture with a
+    /// `Content-ID` is taken to be one it shows, until the HTML is read and says; a file that is
+    /// no picture is listed all the same.
     pub fn listed_attachments(&self) -> impl Iterator<Item = (usize, &Attachment)> {
         let html_kept = self.body.html.is_none() && self.kept.as_ref().is_some_and(|k| k.html.is_some() && !k.failed);
         // Read only when some part may be one it shows.
@@ -748,8 +857,52 @@ impl Message {
             || crate::protected::has_armour_within(self.body.text.as_bytes(), 64 * 1024)
     }
 
+    /// Whether the message carries the category `name`, compared as category names are
+    /// ([`crate::sync::same_category`]: in every script's case, so "BÜRO" is "Büro").
     pub fn has_category(&self, name: &str) -> bool {
-        self.categories.iter().any(|c| c.eq_ignore_ascii_case(name))
+        self.categories.iter().any(|c| crate::sync::same_category(c, name))
+    }
+
+    /// How private its sender marked it.
+    pub fn sensitivity(&self) -> Sensitivity {
+        self.header("Sensitivity").and_then(Sensitivity::parse).unwrap_or_default()
+    }
+
+    /// Whether only part of it is here: what a server lists of it, its headers, or a text that
+    /// couldn't be read.
+    pub fn partly_here(&self) -> bool {
+        self.unfetched || self.incomplete || self.not_downloaded > 0 || self.kept.as_deref().is_some_and(|k| k.failed)
+    }
+
+    /// Whether how big it is can be told: a list of new mail needn't say, and what is here of it
+    /// is no measure; nor is a header that says it is too large to download, which a sender can
+    /// write ([`Message::list_size`]).
+    pub fn size_known(&self) -> bool {
+        (self.not_downloaded > 0 || !(self.unfetched || self.incomplete) || self.server.as_ref().is_some_and(|s| s.size > 0))
+            && self.list_size().is_some()
+    }
+
+    /// Whether it is an automatic reply, an out-of-office one say, as its sender's program marked
+    /// it (`Auto-Submitted: auto-replied`, RFC 3834): on the message, or in its header block while
+    /// that is in memory, where a build from before the line stayed on the message put it.
+    pub fn is_automatic_reply(&self) -> bool {
+        let replied = |v: &str| v.trim().to_ascii_lowercase().starts_with("auto-replied");
+        let in_block = || self.header_block.lines().iter().filter(|l| l.name.eq_ignore_ascii_case("Auto-Submitted")).any(|l| replied(&l.value));
+        self.header("Auto-Submitted").is_some_and(replied) || (!self.header_block.none_in_memory() && in_block())
+    }
+
+    /// Whether it is a meeting invitation or an update of one: a calendar part in memory that
+    /// asks (`METHOD:REQUEST`, RFC 5546), not one that answers or calls off.
+    pub fn is_meeting_request(&self) -> bool {
+        self.attachments.iter().filter(|a| a.is_calendar() && a.is_loaded()).any(|a| {
+            let head = a.data.get(..a.data.len().min(64 * 1024)).unwrap_or_default();
+            String::from_utf8_lossy(head).lines().any(|line| {
+                let line = line.trim_end_matches('\r');
+                line.len() >= 7
+                    && line.get(..7).is_some_and(|k| k.eq_ignore_ascii_case("METHOD:"))
+                    && line.get(7..).is_some_and(|m| m.trim().eq_ignore_ascii_case("REQUEST"))
+            })
+        })
     }
 }
 

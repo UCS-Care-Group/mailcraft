@@ -795,12 +795,22 @@ fn typing_goes_on_after_the_window_was_left_and_came_back_to() {
     assert_eq!(plain(&h), "Hello again!");
 }
 
-fn click(h: &mut Window, at: egui::Pos2) {
+pub(super) fn click(h: &mut Window, at: egui::Pos2) {
     h.event(Event::PointerMoved(at));
     h.event(Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: true, modifiers: Modifiers::NONE });
     h.step();
     h.event(Event::PointerButton { pos: at, button: egui::PointerButton::Primary, pressed: false, modifiers: Modifiers::NONE });
     h.run_steps(3);
+}
+
+#[test]
+fn the_recipient_field_cannot_extend_past_its_right_edge() {
+    let mut h = Harness::builder().with_accessibility_check(false).allow_missing_glyphs().with_size(egui::vec2(96.0, 72.0)).build_ui(|ui| {
+        let field = super::line(ui, "Titkos másolat", 120.0, 40.0);
+        assert!(field.width() >= 0.0, "{field:?}");
+        assert!(field.max.x <= ui.max_rect().max.x, "{field:?}");
+    });
+    h.run_steps(2);
 }
 
 /// A long To line (Reply All) takes a click at its right end, where its last address is: the

@@ -408,6 +408,25 @@ fn large_and_hostile_input_is_read_quickly() {
     let _ = parse(&m);
     let _ = parse_mbox(&b"From \r\n".repeat(100_000));
     let _ = parse_mbox(&b">From x 12:34\r\n\r\nFrom y 12:34\r\n".repeat(30_000));
+    let _ = crate::count_mbox(&b"From \r\n".repeat(100_000));
+}
+
+/// (#1401) The count asked about before an import is the count the import reads.
+#[test]
+fn an_mbox_is_counted_as_it_is_read() {
+    let messages: Vec<crate::Message> = (0..5)
+        .map(|i| {
+            let mut m = parse(format!("Subject: Plans {i}\r\nFrom: bo@example.org\r\n\r\nFrom the start\r\n").as_bytes());
+            m.message_id = format!("m{i}@example.org");
+            m
+        })
+        .collect();
+    let refs: Vec<&crate::Message> = messages.iter().collect();
+    let mbox = write_mbox(&refs, &WriteOptions::default());
+    assert_eq!(crate::count_mbox(&mbox), parse_mbox(&mbox).len());
+    assert_eq!(crate::count_mbox(&mbox), 5);
+    assert_eq!(crate::count_mbox(b""), 0);
+    assert_eq!(crate::count_mbox(b"Subject: no separator\r\n\r\nbody\r\n"), 1);
 }
 
 // ---- generators ----
@@ -512,11 +531,13 @@ fn message() -> impl Strategy<Value = Message> {
             flag,
             importance,
             read_receipt: false,
+            reaction: false,
             categories,
             answered,
             headers,
             fresh_stamps: false,
             draft: true,
+            headers_cut: false,
             original: None,
         },
     )
@@ -662,6 +683,35 @@ fn recipients_and_categories_are_capped_across_the_message() {
     assert_eq!(m.reply_to.len(), crate::MAX_RECIPIENTS);
 }
 
+/// What is left out past the caps is said on the message (`headers_cut`, #566), so that a rule
+/// doesn't read a field it never saw as not there; a message within them says nothing.
+#[test]
+fn a_message_says_when_header_fields_recipients_or_categories_were_left_out() {
+    let fields = |n: usize| (0..n).map(|i| format!("X-Trace-{i}: hop\r\n")).collect::<String>();
+    let message = |head: String| parse(format!("From: a@example.org\r\nSubject: s\r\n{head}\r\nbody\r\n").as_bytes());
+    assert!(!message(fields(200)).headers_cut);
+    assert!(message(fields(201)).headers_cut);
+    let to = |n: usize| format!("To: {}\r\n", (0..n).map(|i| format!("u{i}@example.org")).collect::<Vec<_>>().join(", "));
+    assert!(!message(to(crate::MAX_RECIPIENTS)).headers_cut);
+    assert!(message(to(crate::MAX_RECIPIENTS + 1)).headers_cut);
+    let keywords = |n: usize| format!("Keywords: {}\r\n", (0..n).map(|i| format!("k{i}")).collect::<Vec<_>>().join(","));
+    assert!(!message(keywords(crate::MAX_CATEGORIES)).headers_cut);
+    assert!(message(keywords(crate::MAX_CATEGORIES + 1)).headers_cut);
+}
+
+/// A Cc past the recipients kept after the To: the message says its header was cut, so that a
+/// rule that reads them can't tell, as for a To or a field count past what is kept (#566).
+#[test]
+fn a_cc_past_the_room_left_is_said_cut() {
+    let list = |n: usize| (0..n).map(|i| format!("c{i}@example.org")).collect::<Vec<_>>().join(", ");
+    let with_cc = |n: usize| parse(format!("From: a@example.org\r\nTo: b@example.org\r\nCc: {}\r\nSubject: s\r\n\r\nbody\r\n", list(n)).as_bytes());
+    // One in To leaves room for all but one in Cc.
+    let whole = with_cc(crate::MAX_RECIPIENTS - 1);
+    assert_eq!((whole.cc.len(), whole.headers_cut), (crate::MAX_RECIPIENTS - 1, false));
+    let cut = with_cc(crate::MAX_RECIPIENTS);
+    assert_eq!((cut.cc.len(), cut.headers_cut), (crate::MAX_RECIPIENTS - 1, true));
+}
+
 #[test]
 fn a_header_block_keeps_a_bounded_number_of_bytes() {
     let mut raw = Vec::new();
@@ -688,6 +738,20 @@ fn an_mbox_is_read_one_message_at_a_time() {
 }
 
 proptest! {
+    /// (#1401) Any bytes: the count never panics, and is never fewer than the messages read.
+    #[test]
+    fn an_mbox_count_is_never_short_of_what_is_read(bytes in proptest::collection::vec(any::<u8>(), 0..4096)) {
+        prop_assert!(crate::count_mbox(&bytes) >= parse_mbox(&bytes).len());
+    }
+
+    /// (#1401) Messages written as an mbox are counted as many as they are.
+    #[test]
+    fn a_written_mbox_is_counted_whole(ms in proptest::collection::vec(message(), 0..8), opts in options()) {
+        let refs: Vec<&crate::Message> = ms.iter().collect();
+        let mbox = write_mbox(&refs, &opts);
+        prop_assert_eq!(crate::count_mbox(&mbox), parse_mbox(&mbox).len());
+    }
+
     #[test]
     fn list_headers_stay_under_the_caps(lines in proptest::collection::vec(("(To|Cc|Bcc|Reply-To|Keywords)", "[a-z@.,; <>]{0,3000}"), 0..60)) {
         let mut raw = String::new();

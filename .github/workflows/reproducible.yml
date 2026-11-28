@@ -23,11 +23,11 @@ jobs:
         with:
           persist-credentials: false
           path: elsewhere/second
-      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master (no releases; pinned by hash) # zizmor: ignore[ref-version-mismatch]
         with:
           toolchain: 1.98.1
       - name: Linux build dependencies
-        run: .github/scripts/apt-mirrors.sh && sudo apt-get install -y libxkbcommon-dev libwayland-dev libgtk-3-dev
+        run: first/.github/scripts/apt-mirrors.sh && sudo apt-get install -y libxkbcommon-dev libwayland-dev libgtk-3-dev
       # The folder a build runs in, and Cargo's own, are written into the binaries (panic
       # locations); both are mapped to fixed names so where it was built doesn't show.
       - name: Build twice

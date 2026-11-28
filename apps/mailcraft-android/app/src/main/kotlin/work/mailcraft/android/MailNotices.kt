@@ -1,0 +1,183 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+package work.mailcraft.android
+
+import android.Manifest
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.ComponentName
+import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import androidx.core.content.ContextCompat
+import androidx.core.content.edit
+import uniffi.mailcraft_mobile.Event
+import uniffi.mailcraft_mobile.NotificationRecord
+import uniffi.mailcraft_mobile.NotificationTopic
+
+/** The tag every new-mail notification carries, so that its number never meets another kind's. */
+internal const val MAIL_NOTIFICATION_TAG = "mail"
+
+/** The tag every calendar-reminder notification carries. */
+internal const val REMINDER_NOTIFICATION_TAG = "reminder"
+
+/** The system's number for the core's notification [key]: both halves folded in, so nearby keys stay apart. */
+internal fun notificationId(key: ULong): Int = (key xor (key shr Int.SIZE_BITS)).toInt()
+
+/**
+ * Whether to ask for the right to notify now: only on Android 13 and later (before, it is given at
+ * install), only once there is an account to bring mail (never at a first start, before the owner
+ * has signed in and the question means anything), only when it isn't given already, and only once
+ * ever: a no is the owner's answer, and the system's settings are where it is changed.
+ */
+internal fun shouldAskForNotifications(sdk: Int, hasAccount: Boolean, askedBefore: Boolean, granted: Boolean): Boolean =
+    sdk >= Build.VERSION_CODES.TIRAMISU && hasAccount && !askedBefore && !granted
+
+/** Whether the app may post a new-mail notification: the right given, notifications on, the channel not off. */
+internal fun mailNotificationsAllowed(context: Context, channelId: String = CHANNEL_MAIL): Boolean {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) !=
+        PackageManager.PERMISSION_GRANTED
+    ) {
+        return false
+    }
+    val manager = NotificationManagerCompat.from(context)
+    if (!manager.areNotificationsEnabled()) return false
+    val channel = manager.getNotificationChannel(channelId)
+    return channel == null || channel.importance != NotificationManager.IMPORTANCE_NONE
+}
+
+/** Remembers that the owner was asked for the right to notify, so that it is asked once. */
+internal class NotificationQuestion(context: Context) {
+    private val prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    val askedBefore: Boolean get() = prefs.getBoolean(ASKED, false)
+
+    fun markAsked() {
+        prefs.edit { putBoolean(ASKED, true) }
+    }
+
+    private companion object {
+        const val PREFS = "notices"
+        const val ASKED = "askedForNotifications"
+    }
+}
+
+/**
+ * Asks for the right to notify once [hasAccount] is true (the first account signed in), when
+ * [shouldAskForNotifications] says so; [answered] hears the owner's answer.
+ */
+@Composable
+internal fun AskForNotificationsOnce(hasAccount: Boolean, answered: () -> Unit) {
+    val context = LocalContext.current
+    val ask = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { answered() }
+    LaunchedEffect(hasAccount) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@LaunchedEffect
+        val question = NotificationQuestion(context)
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (shouldAskForNotifications(Build.VERSION.SDK_INT, hasAccount, question.askedBefore, granted)) {
+            question.markAsked()
+            ask.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+}
+
+/**
+ * Shows the core's new-mail notifications. What one says is the core's own (a sender and subject
+ * when it gives them, made plain and short there, else a count), and the core sends none when the
+ * owner turned new-mail notifications off (`Core.setNotifyNewMail`, which follows the system's
+ * switch for the app and for the channel). The notification is private: where the system hides
+ * private content on the lock screen (its sensitive-content setting), only "New mail" shows there
+ * and what the message says waits until the phone is unlocked; where the owner lets the lock
+ * screen show all of it, the sender and subject show there too. Tapping one opens the app; a
+ * notification about one message has the buttons the owner chose ([NoticeButtons]), which Android
+ * 12 and later let be used only once the phone is unlocked.
+ */
+internal class MailNotifier(
+    private val context: Context,
+    private val t: (String) -> String,
+    /** The owner's privacy switch, read as each one is shown. */
+    private val onlyNewMail: () -> Boolean = { false },
+    /** The owner's Reminders switch, read as each one is shown: off, no calendar reminder is posted. */
+    private val remindersOn: () -> Boolean = { true },
+    /** The buttons the owner chose for new mail, read as each one is shown. */
+    private val buttons: () -> NoticeButtons = { NoticeButtons(emptyList()) },
+) {
+    fun handle(event: Event) {
+        if (event !is Event.Notification) return
+        val sent = event.notification
+        if (!postsNotification(sent.topic, remindersOn())) return
+        show(sent)
+    }
+
+    private fun show(sent: NotificationRecord) {
+        val reminder = sent.topic == NotificationTopic.REMINDER
+        val channel = if (reminder) CHANNEL_REMINDERS else CHANNEL_MAIL
+        // Checked again here: the owner may have turned them off since the core was told.
+        if (!mailNotificationsAllowed(context, channel)) return
+        // The "New mail only" privacy switch is about mail; a reminder says what the core says.
+        val record = if (reminder) sent else privateRecord(sent, onlyNewMail(), t("New mail"))
+        val open = PendingIntent.getActivity(
+            context,
+            0,
+            Intent.makeMainActivity(ComponentName(context, MainActivity::class.java)),
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+        )
+        val hidden = NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(if (reminder) t("Reminders") else t("New mail"))
+            .build()
+        val builder = NotificationCompat.Builder(context, channel)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(record.title)
+            .setContentText(record.body)
+            .setCategory(if (reminder) NotificationCompat.CATEGORY_REMINDER else NotificationCompat.CATEGORY_EMAIL)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setPublicVersion(hidden)
+            .setContentIntent(open)
+            .setAutoCancel(true)
+        // A notification about one message has the owner's buttons; they carry its number alone, and
+        // the version a locked screen shows (the hidden one) has none.
+        val about = record.message.takeIf { !reminder }
+        if (about != null) {
+            buttons().chosen.forEach { button ->
+                val press = noticePendingIntent(context, button, about)
+                val action = NotificationCompat.Action.Builder(0, button.label(t), press)
+                    // Nothing is done from a locked phone (Android 12 and later ask for it to be unlocked first).
+                    .setAuthenticationRequired(true)
+                    .build()
+                builder.addAction(action)
+            }
+        }
+        val notification = builder.build()
+        try {
+            val tag = if (reminder) REMINDER_NOTIFICATION_TAG else MAIL_NOTIFICATION_TAG
+            NotificationManagerCompat.from(context).notify(tag, notificationId(record.key), notification)
+        } catch (_: SecurityException) {
+            // The right was taken away between the check and the post: nothing is shown.
+        }
+    }
+}
+
+/**
+ * Whether a notification of [topic] is posted at all: new mail always (its own switches are the
+ * system's and the core's), a calendar reminder only while the owner's Reminders switch is [remindersOn].
+ */
+internal fun postsNotification(topic: NotificationTopic, remindersOn: Boolean): Boolean =
+    topic != NotificationTopic.REMINDER || remindersOn
+
+/**
+ * What a notification says: the core's words, or with the owner's privacy switch on only
+ * [newMail] and nothing of the message, whatever the lock screen shows.
+ */
+internal fun privateRecord(record: NotificationRecord, onlyNewMail: Boolean, newMail: String): NotificationRecord =
+    if (onlyNewMail) record.copy(title = newMail, body = "", message = null) else record

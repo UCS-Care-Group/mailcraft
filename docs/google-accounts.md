@@ -1,6 +1,6 @@
 # Gmail and Google Workspace on the desktop
 
-> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-09 · **Change:** minor
+> **Status:** desktop implementation; official MailCraft registration and public Google verification remain release requirements · **Written:** 2026-11-03 · **Last updated:** 2026-11-14 · **Change:** minor
 
 MailCraft offers **Sign in with Google** first for new Google accounts when its Desktop OAuth
 registration is configured. **Use an app password instead** is a separate alternative. An
@@ -9,7 +9,7 @@ existing account keeps its current sign-in method until you explicitly change it
 This guide describes the desktop implementation in this contribution, not a promise that an
 older downloaded release includes it. It covers Gmail and Google Workspace mail over IMAP and
 SMTP. It does not add Google Calendar or Contacts, nor Gmail access in the browser build;
-[browser Gmail #233](https://github.com/UCS-Care-Group/mailcraft/issues/233) is separate.
+[browser Gmail #233](https://github.com/UCSLabs/mailcraft/issues/233) is separate.
 
 ## Add a Google account
 
@@ -117,7 +117,8 @@ In **Account Settings**, under **Gmail categories**:
 
 - **Show Gmail's categories under the Inbox** (on by default) hides the five when it is off.
 - **Desktop alerts only for mail in Primary** (off by default) keeps new mail that Gmail puts in
-  the other four categories from raising a desktop alert.
+  the other four categories from raising a desktop alert. A rule of yours with **Show a desktop
+  alert** still shows its alert for the mail it acts on, in any category.
 
 ### As tabs above the Inbox
 
@@ -168,6 +169,31 @@ Once moving is switched on, an account that signs in with an **app password** wi
 the categories: Gmail's API takes no app password, so its Move to Category will be greyed, with a
 note that it needs Google sign-in, and switching the account to Google sign-in will let it move.
 The browser build won't move them either.
+
+## Gmail's labels
+
+Gmail keeps mail under labels, and MailCraft shows each label as a folder, as Gmail's IMAP
+does. A message also shows its labels, read only: as grey tags, pointed at one end, under the
+categories in the reading pane, and the first two at the right of its row in the message list
+(with how many more). A nested label (`Work/Clients`) shows its last part, `Clients`; in the
+reading pane its tooltip gives the whole path. The tags are not MailCraft's own categories, which
+are rounded and in their colour, nor Gmail's inbox categories.
+
+Not shown, because the window already says them: Gmail's own labels (Inbox, Sent, Drafts, Starred,
+which is the flag, Spam, Trash) and the label of the folder you are looking at. Gmail's
+**Important** isn't shown either: it is Gmail's guess, not the sender's importance nor yours, and
+it would mark most mail; search for it with `label:important`.
+
+To change a message's labels, move or copy it between label folders, as before: MailCraft doesn't
+change labels any other way, and it uses no Gmail API for them. Labels are read over the same IMAP
+connection as the mail (Gmail's `X-GM-LABELS`, with each folder's flags), so nothing else is
+sent; a change made on another device shows at the next Send/Receive that reads that folder, which
+is within the hour (a folder whose counts haven't changed is passed over meanwhile). A copy of a
+message into another folder takes no labels until that folder's own listing says them.
+
+`label:` searches them, anywhere in the label's path and ignoring case: `label:clients`,
+`label:"work/clients"`, `label:important`. Agents see a message's `gmailLabels`, as message data:
+a label can be written by anyone who shares it with you, or by a filter.
 
 ## Google restrictions and useful error distinctions
 
@@ -310,6 +336,9 @@ sign-in is not public-app approval. See [release readiness](releasing.md#google-
 
 | Date | Change | Summary |
 |---|---|---|
+| 2026-11-14 | minor | #1153: Gmail's labels: what shows on a message and what doesn't, how they are read and searched, and that they change only by moving or copying |
+| 2026-11-13 | patch | Testers-only note no longer asks people to email for access |
+| 2026-11-11 | patch | #566: Desktop alerts only for mail in Primary: a rule's own desktop alert still comes, in any category |
 | 2026-11-09 | patch | #911: how a refused request is split, the cap a Send/Receive, and a move Gmail refuses three times given up |
 | 2026-11-09 | patch | #911: named messages move with their copies of the same Gmail message; a move given up once Gmail has refused it three times |
 | 2026-11-08 | minor | #911: Gmail's inbox categories shown as five folders under a Gmail account's Inbox, read with Gmail's own search; the two account settings, the `gmail:` search and what agents see |

@@ -1,0 +1,1175 @@
+// SPDX-FileCopyrightText: MailCraft contributors
+// SPDX-License-Identifier: MIT OR Apache-2.0
+//! Send/Receive for the phone: the host's [`SendReceive`] (what is due, which run, what it
+//! brought) driven on the session's thread, with the answers turned into the events the app
+//! pulls and the summaries it asks for.
+//!
+//! One [`SyncHost`] belongs to a [`crate::Core`]. A small thread of the core wakes it (a
+//! [`Pacer`]: quickly while a round is under way, now and then otherwise), the wake is a job on
+//! the session's thread like any other call, and every result is applied there, so the mailbox
+//! has one writer. The foreign side sees `RevChanged` (the session thread's own), `SyncProgress`,
+//! `SignInNeeded`, `Notification` for new mail and `SyncFinished`.
+//!
+//! Secrets: a refresh token lives in memory for the session and, when the owner lets it be, in
+//! the platform's credential store (through the host), and nowhere else; none is in a `Debug`
+//! output, an event, an error or a log line. The names of the entries written are kept in an
+//! index entry of that same store, so that "remove all my data" can find every one.
+
+use std::collections::{BTreeMap, BTreeSet};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError};
+use std::time::{Duration, Instant};
+
+use mailcraft_engine::Session;
+use mailcraft_engine::arrivals::{self, Arrival, InboxMark};
+use mailcraft_engine::sync_driver::{ClientIds, server_accounts};
+use mailcraft_host::sync::{Adopted, Context, Left, SendReceive, Step, Taken};
+use mailcraft_host::{Host, NetworkState, SecretStore as HostSecretStore, secrets::secret_key};
+use mailcraft_model::AccountKind;
+use mailcraft_model::sync::Tokens;
+use mailcraft_time::Zone;
+
+use crate::events::{Event, EventSink};
+use crate::keep::Keep;
+use crate::platform::Platform;
+use crate::queue::{Queue, Shed, Weight};
+use crate::{CoreError, NotificationRecord, NotificationTopic, NotifiedMessage};
+
+/// The application id the build was made with (`MAILCRAFT_MS_CLIENT_ID`): an identifier, not a secret.
+pub(crate) const MS_CLIENT_ID: &str = match option_env!("MAILCRAFT_MS_CLIENT_ID") {
+    Some(id) => id,
+    None => "",
+};
+
+/// The credential-store entry that lists the names of the others the core wrote.
+const INDEX_KEY: &str = "mailcraft:index";
+/// The credential-store entry that says a removal found the index damaged and the owner hasn't
+/// been told yet that sign-ins it alone named may remain: kept there so that a restart between a
+/// removal that failed and its retry doesn't lose the notice. Removed once it has been given.
+const NOTICE_KEY: &str = "mailcraft:notice-sign-ins-may-remain";
+
+/// Whether `name` is gone from `store`: removed without a failure, and read back as absent. A
+/// read that fails counts as "still there".
+fn removed(store: &dyn HostSecretStore, name: &str) -> bool {
+    store.remove(name).is_ok() && matches!(store.read(name), Ok(None))
+}
+
+/// What a removal of the sign-ins came to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct Forgotten {
+    /// How many entries were looked for.
+    pub(crate) count: usize,
+    /// The index of names didn't parse: it was set aside (or kept) and the sign-ins it alone
+    /// named couldn't be found, so some may still be in the store.
+    pub(crate) some_may_remain: bool,
+}
+
+/// Whether the index of names is in the store but doesn't parse (`None` when it is absent,
+/// parses, or can't be read), and then whether it was set aside under a name of its own
+/// (`mailcraft:index.unreadable-<ms>`) and read back as it was. It is set aside only once the
+/// notice that sign-ins may remain is kept in the store (`NOTICE_KEY`), so that a restart can't
+/// lose both; a store that can't hold either leaves the index where it is, and the next removal
+/// finds it damaged again.
+fn set_aside_index(store: &dyn HostSecretStore, now_s: i64) -> Option<bool> {
+    let old = store.read(INDEX_KEY).ok().flatten()?;
+    if serde_json::from_str::<Vec<String>>(&old).is_ok() {
+        return None;
+    }
+    let noted = store.set(NOTICE_KEY, "1").is_ok() && store.read(NOTICE_KEY).is_ok_and(|v| v.is_some());
+    if !noted {
+        log::warn!("send/receive: the notice that sign-ins may remain couldn't be kept, so the damaged index is kept instead");
+        return Some(false);
+    }
+    let aside = format!("{INDEX_KEY}.unreadable-{}", now_s.saturating_mul(1000));
+    let kept = store.set(&aside, &old).is_ok() && store.read(&aside).is_ok_and(|v| v.as_deref() == Some(old.as_str()));
+    if !kept {
+        log::warn!("send/receive: an index of credential-store entries that doesn't parse couldn't be set aside; it is kept");
+    }
+    Some(kept)
+}
+
+/// The most names kept in the index (the host's own cap is the same).
+const MOST_KEYS: usize = 1000;
+/// How long the driver waits between wakes while a round is under way, and while none is.
+const BUSY_WAIT: Duration = Duration::from_millis(250);
+pub(crate) const IDLE_WAIT: Duration = Duration::from_secs(30);
+/// The first wake after the core starts.
+pub(crate) const FIRST_WAIT: Duration = Duration::from_secs(1);
+/// The most lines a round keeps to tell the owner, and the longest one.
+const MOST_ERRORS: usize = 20;
+/// The most calendar and to-do jobs the end of a round starts and waits for (one account's
+/// calendar, then its to-dos, a few accounts over): more go on between rounds.
+const MOST_TAIL_STARTS: u32 = 8;
+const LONGEST_ERROR: usize = 200;
+/// How many new messages get a notification each; beyond that, one notification counts them.
+const AT_ONCE: usize = 3;
+const NAME_CHARS: usize = 64;
+const SUBJECT_CHARS: usize = 120;
+/// The most pulls to refresh that wait for their mail at once; one past it is answered at once.
+const MOST_MAIL_WAITERS: usize = 16;
+
+/// Where a pull to refresh is told that the mail it asked for is in ([`crate::Core::mail_in`]).
+pub(crate) type MailReply = Arc<Queue<Result<(), CoreError>>>;
+
+/// A pull to refresh that waits for the mail runs of `accounts`.
+struct MailWaiter {
+    accounts: Vec<u64>,
+    since: Instant,
+    reply: MailReply,
+}
+
+/// What `sync_now` says: whether a round is under way, and if not, why, for the owner.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct SyncAnswer {
+    pub started: bool,
+    /// Empty when `started`; else the reason, in the interface language.
+    pub message: String,
+}
+
+/// What a round came to.
+#[derive(Clone, Debug, Default, PartialEq, Eq, uniffi::Record)]
+pub struct SyncSummary {
+    /// An account was run (a round that found nothing to run, or was refused, says `false`).
+    pub ran: bool,
+    /// The round reached its end; `false` when it was called off for its time running out.
+    pub finished: bool,
+    /// New mail in the Inboxes of the owner's own accounts, as notifications count it (never an
+    /// account's first download).
+    pub new_mail: u64,
+    /// What went wrong, in the interface language, for the owner. Never a secret or message text.
+    pub errors: Vec<String>,
+    /// Some account has to be signed in again.
+    pub sign_in_needed: bool,
+}
+
+/// An account that is not sent and received here, and why.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct UnsupportedAccount {
+    pub account: u64,
+    pub message: String,
+}
+
+/// Where Send/Receive stands, for the screen that says so.
+#[derive(Clone, Debug, Default, PartialEq, Eq, uniffi::Record)]
+pub struct SyncStatus {
+    pub running: bool,
+    /// What the last round said went wrong, in the interface language.
+    pub messages: Vec<String>,
+    /// Accounts whose sign-in has to be done again ([`crate::Core::sign_in`]).
+    pub needs_sign_in: Vec<u64>,
+    /// Accounts of a kind this version doesn't send and receive on the phone.
+    pub unsupported: Vec<UnsupportedAccount>,
+}
+
+/// What wakes a `background_sync` that waits.
+pub(crate) enum Wake {
+    Done(SyncSummary),
+    /// Its time is up.
+    Budget,
+}
+
+impl Shed for Wake {
+    fn weight(&self) -> Weight {
+        Weight::Actionable
+    }
+}
+
+/// A wake-up call for the driver thread: wait for a time, or until poked.
+#[derive(Default)]
+pub(crate) struct Pacer {
+    poked: Mutex<bool>,
+    cv: Condvar,
+}
+
+impl Pacer {
+    pub(crate) fn poke(&self) {
+        *self.poked.lock().unwrap_or_else(PoisonError::into_inner) = true;
+        self.cv.notify_all();
+    }
+
+    pub(crate) fn wait(&self, at_most: Duration) {
+        let guard = self.poked.lock().unwrap_or_else(PoisonError::into_inner);
+        let (mut guard, _) = self.cv.wait_timeout_while(guard, at_most, |poked| !*poked).unwrap_or_else(PoisonError::into_inner);
+        *guard = false;
+    }
+}
+
+#[derive(Default)]
+pub(crate) struct Inner {
+    pub(crate) sr: SendReceive,
+    /// The mailbox as it was while nothing ran, and as the run under way found it.
+    idle_mark: Option<InboxMark>,
+    run_mark: Option<InboxMark>,
+    /// A round is under way (the owner's, or one the clock started).
+    pub(crate) active: bool,
+    /// An account was run in it.
+    ran: bool,
+    pub(crate) errors: Vec<String>,
+    pub(crate) last_errors: Vec<String>,
+    last_summary: Option<SyncSummary>,
+    pub(crate) needs_sign_in: BTreeSet<u64>,
+    unsupported: BTreeMap<u64, AccountKind>,
+    last_progress: Option<(u64, String, u64, u64)>,
+    waiters: Vec<Arc<Queue<Wake>>>,
+    /// The names of the credential-store entries written, once read from the store.
+    keys: Option<BTreeSet<String>>,
+    /// Names written while the index couldn't be read (the store unreachable or failing): they
+    /// join it once it is read, and are never written over it unread.
+    unindexed: BTreeSet<String>,
+    /// The last write of the index of names failed: it is written again at the next wake.
+    index_pending: bool,
+    /// An index that didn't parse was set aside (or kept) by a removal of the sign-ins, so some
+    /// it named may still be in the store: removals say so until one that succeeds has.
+    index_garbled: bool,
+    /// The store's word on a notice still to give (`NOTICE_KEY`) has been read, or written, in
+    /// this run: it isn't read again.
+    notice_checked: bool,
+    /// The app's own number for the next notification that counts mail.
+    next_key: u64,
+    /// Keeping the mailbox within the phone's limits (MB3.16).
+    pub(crate) trim: crate::limits::Trimming,
+    /// Messages fetched whole, searches on the server (MB3.17).
+    pub(crate) fetch: crate::fetch::Fetching,
+    /// How many rounds have ended: the round under way is known by the count before it ends.
+    finished_rounds: u64,
+    /// The calendar's and the to-dos' jobs (MB3.18).
+    pub(crate) jobs: crate::jobs::Jobs,
+    /// How many of those jobs the end of the round under way has started: it waits for them, up
+    /// to [`MOST_TAIL_STARTS`], before it is over.
+    tail_starts: u32,
+    /// A background run waits for the round: its end also brings the messages within Mail to
+    /// keep offline whole (on a connection that isn't paid by the byte), within its time.
+    tail_fetch: bool,
+    /// Pulls to refresh waiting for their mail, not for the round's end.
+    mail_waiters: Vec<MailWaiter>,
+    /// The core is closing: no pull to refresh waits any more.
+    closed: bool,
+    /// For the device's log: the run under way (its account, when it began, whether it reads every
+    /// folder), when the round under way began and how many runs it started.
+    run_began: Option<(u64, Instant, bool)>,
+    round_began: Option<Instant>,
+    runs: u32,
+    /// When the owner last asked (a pull to refresh), for the log of its wait.
+    pull_began: Option<Instant>,
+    /// The accounts a pull asked for whose mail is still to come (in line or running), from the
+    /// moment it was asked: a stop keeps them in line whether or not the pull waits for them yet.
+    pulled: BTreeSet<u64>,
+}
+
+/// Milliseconds since `since`, for the device's log.
+fn ms(since: Instant) -> u128 {
+    since.elapsed().as_millis()
+}
+
+/// Whether `account`'s mail is still to come in the round: its run is under way or it waits in
+/// line, and something can start (not Work Offline).
+fn mail_pending(session: &Session, running: Option<u64>, account: u64) -> bool {
+    !session.prefs.offline && (running == Some(account) || session.driver.round.is_queued(account))
+}
+
+/// The account a pull for `only` brings: that account; a shared mailbox's owner (the phone reads
+/// no shared mailbox of its own); every account (`None`) for one that is gone or of a kind the
+/// phone doesn't run, as a pull did before it could bring one account alone.
+fn pull_scope(session: &Session, only: Option<u64>) -> Option<u64> {
+    let account = session.mailbox.account(only?)?;
+    let own = session.mailbox.account(account.shared_of.unwrap_or(account.id))?;
+    (own.kind == AccountKind::Microsoft && !own.is_shared()).then_some(own.id)
+}
+
+/// The device's log line for a pull to refresh whose mail is in: the time since the owner asked.
+fn pull_line(since: Instant, accounts: usize) -> String {
+    format!("pull to refresh: mail in after {} ms, {accounts} accounts", ms(since))
+}
+
+/// The device's log line for an account's mail run: numbers, the account's number and fixed words
+/// only (the phases by their names in the code), never anything of the account's mail.
+pub(crate) fn run_line(account: u64, millis: u128, outcome: &str, full: bool, timings: &mailcraft_model::sync::Timings) -> String {
+    let phases: Vec<String> = timings.phases.iter().map(|p| format!("{:?} {} ms {} requests", p.phase, p.millis, p.requests)).collect();
+    format!(
+        "mail run: account {account}, {millis} ms, {outcome}, full sweep {}, phases [{}], {} folders unchanged",
+        if full { "yes" } else { "no" },
+        phases.join("; "),
+        timings.skipped
+    )
+}
+
+pub(crate) struct SyncHost {
+    persist: Option<Persist>,
+    pub(crate) host: Host,
+    platform: Arc<dyn Platform>,
+    pub(crate) sink: EventSink,
+    started: Instant,
+    inner: Mutex<Inner>,
+    /// A round is under way (read by the driver thread to choose how long to wait).
+    busy: AtomicBool,
+    remember: AtomicBool,
+    notify_mail: AtomicBool,
+    /// A notification for new mail says "New mail" and nothing of the message (the owner's switch).
+    notify_new_mail_only: AtomicBool,
+    notify_primary_only: AtomicBool,
+    pub(crate) tick_queued: AtomicBool,
+    pub(crate) pacer: Arc<Pacer>,
+    /// A fetch is under way or waiting (read by the driver thread, as `busy` is).
+    pub(crate) fetch_busy: AtomicBool,
+    /// How fetch jobs are run (the tests swap theirs in).
+    pub(crate) fetch_runner: crate::fetch::RunnerSlot,
+    /// How calendar and to-do jobs are run (the tests swap theirs in).
+    pub(crate) job_runners: Mutex<crate::jobs::Runners>,
+    /// A calendar or to-do job is under way (read by the driver thread, as `busy` is).
+    jobs_busy: AtomicBool,
+    /// A round to call off at the next wake (its `finished_rounds` plus one; 0 for none): a
+    /// `background_sync` dropped while it waits asks for it, never blocking where it is dropped.
+    stop_asked: AtomicU64,
+    /// The tests' own refusal of every sign-in handed over (never set outside a test: nothing does).
+    #[cfg(test)]
+    pub(crate) refuse_adopt: AtomicBool,
+}
+
+/// Writes the mailbox before a send goes out.
+type Persist = Box<dyn Fn(&Session, u64) -> Result<(), String> + Send + Sync>;
+
+impl SyncHost {
+    pub(crate) fn new(host: Host, platform: Arc<dyn Platform>, sink: EventSink, sr: SendReceive, keep: Option<Arc<Keep>>) -> SyncHost {
+        let persist: Option<Persist> = keep.map(|keep| Box::new(move |session: &Session, _rev: u64| keep.save(session)) as Persist);
+        SyncHost {
+            persist,
+            host,
+            platform,
+            sink,
+            started: Instant::now(),
+            inner: Mutex::new(Inner { sr, ..Default::default() }),
+            busy: AtomicBool::new(false),
+            remember: AtomicBool::new(true),
+            notify_mail: AtomicBool::new(true),
+            notify_new_mail_only: AtomicBool::new(false),
+            notify_primary_only: AtomicBool::new(false),
+            tick_queued: AtomicBool::new(false),
+            pacer: Arc::default(),
+            fetch_busy: AtomicBool::new(false),
+            fetch_runner: std::sync::Mutex::new(crate::fetch::default_runner()),
+            job_runners: Mutex::new(crate::jobs::default_runners()),
+            jobs_busy: AtomicBool::new(false),
+            stop_asked: AtomicU64::new(0),
+            #[cfg(test)]
+            refuse_adopt: AtomicBool::new(false),
+        }
+    }
+
+    pub(crate) fn lock(&self) -> MutexGuard<'_, Inner> {
+        self.inner.lock().unwrap_or_else(PoisonError::into_inner)
+    }
+
+    /// How long the driver waits before the next wake.
+    pub(crate) fn next_wait(&self) -> Duration {
+        let busy = self.busy.load(Ordering::Relaxed) || self.fetch_busy.load(Ordering::Relaxed) || self.jobs_busy.load(Ordering::Relaxed);
+        if busy { BUSY_WAIT } else { IDLE_WAIT }
+    }
+
+    /// The clock of the round's and the background's timers, in milliseconds since the core began.
+    pub(crate) fn now_ms(&self) -> f64 {
+        self.started.elapsed().as_secs_f64() * 1000.0
+    }
+
+    /// Run fetch jobs as `runner` says (the tests': nothing leaves the machine).
+    #[cfg(test)]
+    pub(crate) fn set_fetch_runner(&self, runner: crate::fetch::FetchRunner) {
+        *self.fetch_runner.lock().unwrap_or_else(PoisonError::into_inner) = runner;
+    }
+
+    pub(crate) fn set_remember(&self, on: bool) {
+        self.remember.store(on, Ordering::Relaxed);
+    }
+
+    /// Whether sign-ins are kept in the credential store (the owner's choice).
+    pub(crate) fn remembers(&self) -> bool {
+        self.remember.load(Ordering::Relaxed)
+    }
+
+    pub(crate) fn set_notify_mail(&self, on: bool) {
+        self.notify_mail.store(on, Ordering::Relaxed);
+    }
+
+    pub(crate) fn set_notify_new_mail_only(&self, on: bool) {
+        self.notify_new_mail_only.store(on, Ordering::Relaxed);
+    }
+
+    pub(crate) fn set_notify_primary_only(&self, on: bool) {
+        self.notify_primary_only.store(on, Ordering::Relaxed);
+    }
+
+    pub(crate) fn context<'a>(&'a self, session: &Session, secrets: Option<&'a dyn HostSecretStore>) -> Context<'a> {
+        Context {
+            secrets,
+            remember: self.remember.load(Ordering::Relaxed),
+            ids: ClientIds { microsoft_built_in: MS_CLIENT_ID, ..Default::default() },
+            now_ms: self.now_ms(),
+            now_s: self.host.platform().now(),
+            minutes: f64::from(session.prefs.sync_minutes),
+            // What a send marks as sending is on disk before the send goes out (AU3-26).
+            persist: self.persist.as_ref().map(|p| p as &dyn Fn(&Session, u64) -> Result<(), String>),
+            unconfirmed: false,
+            data_removed: false,
+            job_busy: None,
+        }
+    }
+
+    /// The tokens of a sign-in the app made, taken in: refused when they are somebody else's.
+    pub(crate) fn adopt(&self, session: &mut Session, account: u64, tokens: Tokens) -> Adopted {
+        #[cfg(test)]
+        if self.refuse_adopt.load(Ordering::Relaxed) {
+            return Adopted::Refused;
+        }
+        let mut inner = self.lock();
+        let secrets = self.host.platform().secrets();
+        let ctx = self.context(session, secrets.as_deref());
+        let adopted = inner.sr.adopt_tokens(session, &ctx, account, tokens);
+        if adopted == Adopted::Kept {
+            inner.needs_sign_in.remove(&account);
+        }
+        self.note_keys(&mut inner);
+        drop(inner);
+        self.pacer.poke();
+        adopted
+    }
+
+    /// The refresh token a sign-in for a permission brought, taken in as the account's newest
+    /// (only the refresh token: the access token it came with is not the mail's).
+    pub(crate) fn adopt_refresh(&self, session: &Session, account: u64, tokens: &Tokens) -> Adopted {
+        let mut inner = self.lock();
+        let secrets = self.host.platform().secrets();
+        let ctx = self.context(session, secrets.as_deref());
+        let adopted = inner.sr.adopt_refresh(session, &ctx, account, tokens);
+        self.note_keys(&mut inner);
+        adopted
+    }
+
+    /// The account's refresh token as Send/Receive finds it: this session's first, then the
+    /// credential store's when the owner lets sign-ins be remembered.
+    pub(crate) fn refresh_for(&self, session: &Session, account: u64) -> Option<String> {
+        let inner = self.lock();
+        let secrets = self.host.platform().secrets();
+        let ctx = self.context(session, secrets.as_deref());
+        inner.sr.refresh_for(session, &ctx, account)
+    }
+
+    /// A refresh token a check of a permission was renewed to, for the session's sign-in of
+    /// `account` (only in place of the one the check began with).
+    pub(crate) fn take_renewed(&self, session: &Session, account: u64, renewed: &mailcraft_host::signin::Renewed) {
+        self.lock().sr.take_renewed(session, account, renewed);
+    }
+
+    /// Put what the host wrote to the credential store into the index of names.
+    pub(crate) fn note_keys(&self, inner: &mut Inner) {
+        let written = inner.sr.take_written_keys();
+        if written.is_empty() && !inner.index_pending {
+            return;
+        }
+        let secrets = self.host.platform().secrets();
+        let Some(keys) = self.keys_of(inner, secrets.as_deref()) else {
+            // The index can't be read now: what was written waits beside it for a later wake.
+            for key in written {
+                if inner.unindexed.len() < MOST_KEYS {
+                    inner.unindexed.insert(key);
+                } else {
+                    log::warn!("send/receive: too many credential-store entries to index");
+                }
+            }
+            inner.index_pending = true;
+            return;
+        };
+        for key in written {
+            if keys.len() < MOST_KEYS {
+                keys.insert(key);
+            } else {
+                log::warn!("send/receive: too many credential-store entries to index");
+            }
+        }
+        // Every batch that named a credential writes the index, and so does a wake after a write
+        // that failed, so that "remove my data" can find every name after a restart.
+        if let Some(store) = secrets.as_deref() {
+            let list: Vec<&String> = keys.iter().collect();
+            let kept = serde_json::to_string(&list).is_ok_and(|json| store.set(INDEX_KEY, &json).is_ok());
+            if !kept {
+                log::warn!("send/receive: the index of credential-store entries couldn't be kept");
+            }
+            inner.index_pending = !kept;
+        }
+    }
+
+    /// The index of names, read from the store the first time it can be. `None` while the store
+    /// can't be reached or read, or what it holds as the index doesn't parse: an index nobody could read is never taken for an empty one (and
+    /// written over). Names noted meanwhile join it once it is read.
+    fn keys_of<'a>(&self, inner: &'a mut Inner, store: Option<&dyn HostSecretStore>) -> Option<&'a mut BTreeSet<String>> {
+        if inner.keys.is_none() {
+            let found = store?.read(INDEX_KEY).ok()?;
+            // An absent index is an empty one; one that is there but doesn't parse is as unread.
+            let mut keys: BTreeSet<String> = match found {
+                None => BTreeSet::new(),
+                Some(json) => serde_json::from_str::<Vec<String>>(&json).ok()?.into_iter().take(MOST_KEYS).collect(),
+            };
+            let waiting = std::mem::take(&mut inner.unindexed);
+            if !waiting.is_empty() {
+                inner.index_pending = true;
+            }
+            for name in waiting {
+                if keys.len() < MOST_KEYS {
+                    keys.insert(name);
+                }
+            }
+            inner.keys = Some(keys);
+        }
+        inner.keys.as_mut()
+    }
+
+    /// Remove every sign-in this core kept: the entries it wrote (by the index), and those of the
+    /// mailbox's accounts by their names. Forgets the session's too. An error says that some are
+    /// still in the credential store, or may be (it can't be reached, or a removal or a read
+    /// failed): their names are kept, and an index that couldn't be read is left as it is, so
+    /// that calling it again tries again. An index that is read but doesn't parse is set aside
+    /// instead (kept as it is when it can't be), and the answer says that sign-ins only it
+    /// named may still be in the store.
+    pub(crate) fn forget_sign_ins(&self, session: &Session) -> Result<Forgotten, String> {
+        let mut inner = self.lock();
+        let store = self.platform.secrets();
+        let secrets = self.host.platform().secrets();
+        let mut indexed = self.keys_of(&mut inner, secrets.as_deref()).map(|keys| keys.clone());
+        // A notice an earlier run couldn't give (its removal failed, then the app ended) is still
+        // due. When the store can't say whether one is, the removal isn't taken for complete.
+        let mut notice_unread = false;
+        if !inner.notice_checked
+            && let Some(store) = secrets.as_deref()
+        {
+            match store.read(NOTICE_KEY) {
+                Ok(found) => {
+                    inner.notice_checked = true;
+                    inner.index_garbled |= found.is_some();
+                }
+                Err(_) => notice_unread = true,
+            }
+        }
+        // An index that is there but doesn't parse would make every removal refuse for ever: it is
+        // set aside under a name of its own and a fresh one starts from the names known now. When
+        // it can't be set aside it stays as it is, and nothing is written over it.
+        let mut garbled_kept = false;
+        if indexed.is_none()
+            && let Some(store) = secrets.as_deref()
+            && let Some(set_aside) = set_aside_index(store, self.host.platform().now())
+        {
+            inner.index_garbled = true;
+            if set_aside {
+                let mut fresh: BTreeSet<String> = std::mem::take(&mut inner.unindexed).into_iter().take(MOST_KEYS).collect();
+                for a in &session.mailbox.accounts {
+                    if fresh.len() < MOST_KEYS {
+                        fresh.insert(secret_key("refresh", a));
+                    }
+                }
+                let kept = serde_json::to_string(&fresh.iter().collect::<Vec<_>>()).is_ok_and(|json| store.set(INDEX_KEY, &json).is_ok());
+                inner.index_pending = !kept;
+                inner.keys = Some(fresh.clone());
+                indexed = Some(fresh);
+            } else {
+                garbled_kept = true;
+            }
+        }
+        let index_read = indexed.is_some();
+        let mut names: BTreeSet<String> = indexed.unwrap_or_default();
+        names.extend(inner.unindexed.iter().cloned());
+        for a in &session.mailbox.accounts {
+            names.insert(secret_key("refresh", a));
+        }
+        inner.sr.forget();
+        // Nor is anything the calendar's and the to-dos' jobs bring: their tokens are let go of with them.
+        inner.jobs = crate::jobs::Jobs::default();
+        self.jobs_busy.store(false, Ordering::Relaxed);
+        // What was being fetched with them is called off, and nothing it brings is taken in.
+        self.cancel_locked(&mut inner, None);
+        inner.needs_sign_in.clear();
+        let no_store = matches!(store, Ok(None));
+        let mut left: BTreeSet<String> = BTreeSet::new();
+        match (store, secrets.as_deref()) {
+            (Ok(Some(_)), Some(store)) => {
+                for name in &names {
+                    if !removed(store, name) {
+                        left.insert(name.clone());
+                    }
+                }
+                if left.is_empty() && index_read && !removed(store, INDEX_KEY) {
+                    left.insert(INDEX_KEY.to_string());
+                }
+            }
+            // No store was ever there: nothing was kept in it.
+            (Ok(None), _) => {}
+            // The store can't be reached now: what it holds can't be removed.
+            _ => left.extend(names.iter().cloned()),
+        }
+        if left.is_empty() && notice_unread {
+            // Everything named is gone, but sign-ins a damaged index named in an earlier run may
+            // not be: the retry reads the notice again.
+            return Err("the credential store couldn't be read, so sign-ins may still be in it".to_string());
+        }
+        if left.is_empty() && (index_read || no_store || garbled_kept) {
+            // An index kept as it was, unparsed, stays unread: names written later wait beside it.
+            inner.keys = if garbled_kept { None } else { Some(BTreeSet::new()) };
+            inner.unindexed.clear();
+            inner.index_pending = false;
+            // The notice stays until the caller has given it (`notice_given`).
+            return Ok(Forgotten { count: names.len(), some_may_remain: inner.index_garbled });
+        }
+        // What is left stays in the index, so that the next call finds it.
+        left.remove(INDEX_KEY);
+        let count = left.len();
+        if !index_read {
+            // The index couldn't be read: it stays in the store as it is, unread names and all,
+            // and what is known to be left waits beside it.
+            inner.unindexed = left.into_iter().take(MOST_KEYS).collect();
+            inner.index_pending = !inner.unindexed.is_empty();
+            return Err("the credential store couldn't be read, so sign-ins may still be in it".to_string());
+        }
+        let rewrite = !left.is_empty();
+        inner.keys = Some(left.clone());
+        inner.unindexed.clear();
+        inner.index_pending = rewrite;
+        if rewrite
+            && let Some(store) = secrets.as_deref()
+            && serde_json::to_string(&left.iter().collect::<Vec<_>>()).is_ok_and(|json| store.set(INDEX_KEY, &json).is_ok())
+        {
+            inner.index_pending = false;
+        }
+        Err(format!("{} sign-ins couldn't be removed from the credential store", count.max(1)))
+    }
+
+    /// The owner was told that sign-ins only a damaged index named may still be in the store:
+    /// the next removal doesn't say it again.
+    pub(crate) fn notice_given(&self) {
+        let mut inner = self.lock();
+        inner.index_garbled = false;
+        inner.notice_checked = true;
+        if let Some(store) = self.host.platform().secrets().as_deref()
+            && !removed(store, NOTICE_KEY)
+        {
+            // It is given again after a restart, never lost.
+            log::warn!("send/receive: the notice that sign-ins may remain couldn't be taken back from the store");
+        }
+    }
+
+    pub(crate) fn status(&self, session: &Session) -> SyncStatus {
+        let inner = self.lock();
+        let lang = session.interface_language;
+        let message = lang.t("This kind of account can't be sent and received on the phone yet.").to_string();
+        SyncStatus {
+            running: inner.active || inner.sr.busy() || !session.driver.round.queue.is_empty(),
+            messages: inner.last_errors.clone(),
+            needs_sign_in: inner.needs_sign_in.iter().copied().collect(),
+            unsupported: inner.unsupported.keys().map(|account| UnsupportedAccount { account: *account, message: message.clone() }).collect(),
+        }
+    }
+
+    /// The owner asked for a Send/Receive (or a background one does, or the app for a new
+    /// account's first one): start a round unless one is under way, and say so. `waiter`, when
+    /// given, is woken with the round's summary. `release`: the owner asked (a pull to refresh),
+    /// which lets go of every account held back first; any other round leaves them out.
+    ///
+    /// `only`: the round is that account's alone (a pull to refresh in one of its folders; a shared
+    /// mailbox's owner, every account for one the phone doesn't run), and only its hold is let go
+    /// of. An ask while a round is under way puts what the round doesn't have yet in its line: the
+    /// owner's first, the rest at its end; the run under way isn't started twice.
+    pub(crate) fn ask(&self, session: &mut Session, waiter: Option<Arc<Queue<Wake>>>, release: bool, only: Option<u64>) -> SyncAnswer {
+        let mut inner = self.lock();
+        let lang = session.interface_language;
+        let refused = |message: &str| SyncAnswer { started: false, message: lang.t(message).to_string() };
+        if session.prefs.offline {
+            return refused("Work Offline is on. Turn it off to send and receive.");
+        }
+        if matches!(self.host.platform().network(), NetworkState::Offline) {
+            return refused("There is no network connection.");
+        }
+        let only = pull_scope(session, only);
+        let accounts: Vec<u64> = server_accounts(session).into_iter().filter(|id| only.is_none_or(|a| a == *id)).collect();
+        if accounts.is_empty() {
+            return refused("There is no account to send and receive.");
+        }
+        // The owner asking (a pull to refresh) lets go of the accounts held back that it asks
+        // for; a background run, and a round the app starts by itself, leave them out.
+        if release {
+            inner.pull_began = Some(Instant::now());
+            match only {
+                Some(account) => inner.sr.hold(account, false),
+                None => inner.sr.release_all(),
+            }
+        }
+        let mut supported = Vec::new();
+        let mut held = false;
+        for id in accounts {
+            if inner.sr.held(id) {
+                held = true;
+                continue;
+            }
+            if inner.sr.eligible(session, id) {
+                supported.push(id);
+            } else if let Some(a) = session.mailbox.account(id) {
+                inner.unsupported.insert(id, a.kind);
+            }
+        }
+        if supported.is_empty() && held {
+            return refused("Send/Receive isn't available now.");
+        }
+        if supported.is_empty() {
+            return refused("This kind of account can't be sent and received on the phone yet.");
+        }
+        if !inner.sr.busy() && session.driver.round.queue.is_empty() {
+            let secrets = self.host.platform().secrets();
+            let ctx = self.context(session, secrets.as_deref());
+            if !inner.sr.start_round(session, &ctx, &supported) {
+                return refused("Send/Receive isn't available now.");
+            }
+            // A round still open (waiting for its calendar's or to-dos' job) keeps what it found:
+            // the new round goes on as part of it.
+            if !inner.active {
+                inner.ran = false;
+                inner.errors.clear();
+                inner.needs_sign_in.clear();
+                inner.round_began = Some(Instant::now());
+            }
+            inner.active = true;
+        } else {
+            // Asked while a round is under way: what the round doesn't have yet joins its line, so
+            // that a pull brings the mail asked for, a new account's first round isn't left for the
+            // next one and a background run covers what it would have alone. The owner's go first
+            // (and are asked as the owner asks: a sign-in that is needed is said); the rest go at
+            // the end, a background run's quietly. The run under way is never started twice.
+            let running = inner.sr.running_account();
+            let queue = &mut session.driver.round.queue;
+            if release {
+                queue.retain(|(a, _)| !supported.contains(a));
+                for id in supported.iter().rev().filter(|id| running != Some(**id)) {
+                    queue.push_front((*id, false));
+                }
+            } else {
+                for id in &supported {
+                    if running != Some(*id) && !queue.iter().any(|(a, _)| a == id) {
+                        queue.push_back((*id, waiter.is_some()));
+                    }
+                }
+            }
+        }
+        if release {
+            inner.pulled.extend(supported.iter().copied());
+        }
+        if let Some(waiter) = waiter {
+            inner.waiters.push(waiter);
+            // A background run: the round's end brings messages whole too, within its time.
+            inner.tail_fetch = true;
+        }
+        self.tick_locked(&mut inner, session);
+        drop(inner);
+        self.pacer.poke();
+        SyncAnswer { started: true, message: String::new() }
+    }
+
+    /// Call the round off (its time ran out): the run under way stops at its next safe place, and
+    /// the accounts still waiting are left for the next round.
+    pub(crate) fn stop(&self, session: &mut Session) -> SyncSummary {
+        let mut inner = self.lock();
+        if !inner.active && inner.run_mark.is_none() {
+            return inner.last_summary.clone().unwrap_or(SyncSummary { finished: true, ..Default::default() });
+        }
+        self.stop_locked(&mut inner, session)
+    }
+
+    fn stop_locked(&self, inner: &mut Inner, session: &mut Session) -> SyncSummary {
+        // A stop (a background run's time ran out, or its call was dropped): the accounts a pull
+        // asked for that still wait in line stay there, first, and go on after. The run under way
+        // is called off all the same, a pull's or not: a stop always ends it.
+        let round = &session.driver.round;
+        let kept: Vec<u64> = inner.pulled.iter().copied().filter(|a| round.is_queued(*a)).collect();
+        inner.sr.stop(session);
+        session.driver.round.queue.clear();
+        for a in kept.iter().rev() {
+            session.driver.round.queue.push_front((*a, false));
+        }
+        let summary = self.finish_round(inner, session, false);
+        // Pages the run brought before the stop stay: keep the mailbox within the limits.
+        inner.trim.due = true;
+        self.pacer.poke();
+        summary
+    }
+
+    /// The round under way (or the next, when none is): what [`SyncHost::stop_later`] is given.
+    pub(crate) fn round(&self) -> u64 {
+        self.lock().finished_rounds
+    }
+
+    /// Call `round` off at the next wake of the driver, if it is still under way then (a round
+    /// that has ended, and any after it, are left alone). Never waits: for a `Drop`. A request for
+    /// an older round never replaces one for a newer that is still waiting (the newer is the one
+    /// that may still be under way).
+    pub(crate) fn stop_later(&self, round: u64) {
+        self.stop_asked.fetch_max(round.saturating_add(1), Ordering::AcqRel);
+        self.pacer.poke();
+    }
+
+    /// One wake of the driver, on the session's thread.
+    pub(crate) fn tick(&self, session: &mut Session) {
+        let mut inner = self.lock();
+        if let Some(round) = self.stop_asked.swap(0, Ordering::AcqRel).checked_sub(1)
+            && round == inner.finished_rounds
+            && (inner.active || inner.run_mark.is_some())
+        {
+            self.stop_locked(&mut inner, session);
+            return;
+        }
+        self.tick_locked(&mut inner, session);
+    }
+
+    fn tick_locked(&self, inner: &mut Inner, session: &mut Session) {
+        follow_time_zone(session, self.platform.as_ref());
+        let platform_offline = matches!(self.host.platform().network(), NetworkState::Offline);
+        let secrets = self.host.platform().secrets();
+        let mut ctx = self.context(session, secrets.as_deref());
+        // An account's run waits while the calendar's job is at work for it (the desktop's rule).
+        let calendar_for = inner.jobs.calendar.account();
+        let calendar_busy = move |account: u64| calendar_for == Some(account);
+        ctx.job_busy = Some(&calendar_busy);
+        // What the phone can't run is told of as `ask` does, whoever starts the round; an account
+        // that went, or that the phone can now run, is no longer told of.
+        inner.unsupported = server_accounts(session)
+            .into_iter()
+            .filter(|id| !inner.sr.held(*id) && !inner.sr.eligible(session, *id))
+            .filter_map(|id| session.mailbox.account(id).map(|a| (id, a.kind)))
+            .collect();
+        if !inner.sr.busy() && inner.run_mark.is_none() {
+            inner.idle_mark = Some(arrivals::mark(&session.mailbox));
+        }
+        let (taken, step) = if platform_offline && !inner.sr.busy() {
+            // Nothing starts without a network; a round that was waiting for one is let go of.
+            session.driver.round.queue.clear();
+            (Taken::Nothing, Step::Idle)
+        } else if platform_offline {
+            (inner.sr.take_result(session, &ctx), Step::Waiting)
+        } else {
+            inner.sr.run_due(&self.host, session, &ctx)
+        };
+        self.took(inner, session, taken);
+        self.stepped(inner, session, step);
+        self.note_keys(inner);
+        // A pull to refresh is answered once none of its accounts runs or waits in line (or nothing
+        // can start: Work Offline), whatever the round's end still waits for.
+        let running = inner.sr.running_account();
+        self.answer_mail_waiters(inner, |account| mail_pending(session, running, account));
+        inner.pulled.retain(|account| mail_pending(session, running, *account));
+        let working = inner.sr.busy() || !session.driver.round.queue.is_empty();
+        self.busy.store(working, Ordering::Relaxed);
+        // The round's mail is in, and its end is still to come.
+        let ending = inner.active || inner.run_mark.is_some();
+        // What the owner opened goes at once; the background between rounds, and at the end of a
+        // background run's round.
+        self.fetch_step(inner, session, !working && (!ending || inner.tail_fetch));
+        // The calendar and the to-dos: their answers are taken in at every wake (a run waits while
+        // the calendar's job is at work for its account), and a job starts between rounds and at
+        // the end of each, which waits for them.
+        let may_start = !working && !platform_offline && (!ending || inner.tail_starts < MOST_TAIL_STARTS);
+        let started = self.jobs_step(inner, session, may_start);
+        if ending {
+            inner.tail_starts = inner.tail_starts.saturating_add(started);
+        }
+        let jobs_busy = inner.jobs.busy();
+        self.jobs_busy.store(jobs_busy, Ordering::Relaxed);
+        if working {
+            self.progress(inner, session);
+        } else {
+            if ending && (jobs_busy || (inner.tail_fetch && inner.fetch.background_running())) {
+                return;
+            }
+            if ending {
+                self.finish_round(inner, session, true);
+                // What a round brought may take the mailbox past the phone's limits.
+                inner.trim.due = true;
+            }
+            // Between runs, never during one: a run's pages name the messages they change.
+            if inner.trim.step(session) {
+                self.pacer.poke();
+            }
+        }
+    }
+
+    /// Hold `account` back from what starts by themselves, or let it go ([`crate::Core::hold_background_sync`]).
+    pub(crate) fn hold(&self, account: u64, held: bool) {
+        self.lock().sr.hold(account, held);
+        self.pacer.poke();
+    }
+
+    /// Let go of every account held back: the mailbox they were in is gone ([`crate::Core::delete_local_data`]).
+    pub(crate) fn release_holds(&self) {
+        self.lock().sr.release_all();
+    }
+
+    /// Keep the mailbox within the phone's limits at the next wake (they were changed).
+    pub(crate) fn trim_soon(&self) {
+        self.lock().trim.due = true;
+        self.pacer.poke();
+    }
+
+    /// Tell `reply` once the mail of `only` (every account's, for `None`) is in: none of those
+    /// accounts runs or waits in line (or nothing can start: Work Offline). At once when that is so
+    /// already, else at the wake that finds it, or the round's end; never later than the core's
+    /// closing, which says `Cancelled`.
+    pub(crate) fn wait_mail(&self, session: &Session, only: Option<u64>, reply: MailReply) {
+        let mut inner = self.lock();
+        if inner.closed {
+            reply.push(Err(CoreError::Cancelled));
+            return;
+        }
+        let accounts = pull_scope(session, only).map_or_else(|| server_accounts(session), |a| vec![a]);
+        let running = inner.sr.running_account();
+        let since = inner.pull_began.unwrap_or_else(Instant::now);
+        if session.prefs.offline {
+            reply.push(Ok(()));
+        } else if !accounts.iter().any(|a| mail_pending(session, running, *a)) {
+            // In already (the run ended before the wait was asked for).
+            self.log(pull_line(since, accounts.len()));
+            reply.push(Ok(()));
+        } else if inner.mail_waiters.len() >= MOST_MAIL_WAITERS {
+            // lean: past the cap a pull is answered at once (its spinner stops early); no app asks that often.
+            reply.push(Ok(()));
+        } else {
+            inner.mail_waiters.push(MailWaiter { accounts, since, reply });
+        }
+    }
+
+    /// Tell the pulls to refresh whose accounts are no longer `pending` that their mail is in.
+    fn answer_mail_waiters(&self, inner: &mut Inner, pending: impl Fn(u64) -> bool) {
+        let (done, waiting): (Vec<MailWaiter>, Vec<MailWaiter>) =
+            std::mem::take(&mut inner.mail_waiters).into_iter().partition(|w| !w.accounts.iter().any(|a| pending(*a)));
+        inner.mail_waiters = waiting;
+        for w in done {
+            self.log(pull_line(w.since, w.accounts.len()));
+            w.reply.push(Ok(()));
+        }
+    }
+
+    /// The core is closing: every pull to refresh that waits is let go of, and none waits after.
+    pub(crate) fn close_waiters(&self) {
+        let mut inner = self.lock();
+        inner.closed = true;
+        for w in inner.mail_waiters.drain(..) {
+            w.reply.push(Err(CoreError::Cancelled));
+        }
+    }
+
+    /// How many pulls wait for their mail (the tests').
+    #[cfg(test)]
+    pub(crate) fn mail_waiting(&self) -> usize {
+        self.lock().mail_waiters.len()
+    }
+
+    /// A line for the device's log ([`Event::SyncLog`]).
+    pub(crate) fn log(&self, line: String) {
+        self.sink.push(Event::SyncLog { line });
+    }
+
+    /// The device's log line for the run of `account` that just ended.
+    fn log_run(&self, inner: &mut Inner, session: &Session, account: u64, outcome: &str) {
+        let Some((began_for, since, full)) = inner.run_began.take() else { return };
+        if began_for != account {
+            return;
+        }
+        let timings = session.sync_progress.accounts.iter().find(|r| r.account == account).map(|r| r.timings.clone()).unwrap_or_default();
+        self.log(run_line(account, ms(since), outcome, full, &timings));
+    }
+
+    fn took(&self, inner: &mut Inner, session: &Session, taken: Taken) {
+        match taken {
+            Taken::Done { account, errors } => {
+                self.log_run(inner, session, account, if errors.is_empty() { "done" } else { "done with problems" });
+                for line in errors {
+                    add_error(&mut inner.errors, line);
+                }
+            }
+            Taken::SignInAgain { account, .. } => {
+                self.log_run(inner, session, account, "sign-in needed");
+                inner.needs_sign_in.insert(account);
+                self.sink.push(Event::SignInNeeded { account });
+            }
+            Taken::WrongPerson { account } => {
+                self.log_run(inner, session, account, "somebody else's sign-in");
+                inner.needs_sign_in.insert(account);
+                add_error(&mut inner.errors, words("That sign-in is for somebody else's mailbox, not this account's. Nothing was kept.").to_string());
+                self.sink.push(Event::SignInNeeded { account });
+            }
+            Taken::Nothing | Taken::Piece | Taken::Pending => {}
+        }
+    }
+
+    fn stepped(&self, inner: &mut Inner, session: &mut Session, step: Step) {
+        match step {
+            Step::Started { account } => {
+                let full = inner.sr.running_full_sweep();
+                inner.run_began = Some((account, Instant::now(), full));
+                inner.runs = inner.runs.saturating_add(1);
+                inner.round_began.get_or_insert_with(Instant::now);
+                inner.ran = true;
+                inner.active = true;
+                if inner.run_mark.is_none() {
+                    inner.run_mark = inner.idle_mark.take();
+                }
+            }
+            Step::SignIn { account, .. } => {
+                inner.needs_sign_in.insert(account);
+                self.sink.push(Event::SignInNeeded { account });
+            }
+            Step::Unsupported { account, kind } => {
+                session.sync_progress.leave_out(account);
+                inner.unsupported.insert(account, kind);
+            }
+            Step::LeftOut { account, why } => match why {
+                Left::NoSignIn => {
+                    inner.needs_sign_in.insert(account);
+                }
+                Left::Gone | Left::Held => {}
+                Left::Refused => add_error(&mut inner.errors, words("An account couldn't be sent and received.").to_string()),
+                Left::NotSaved => add_error(&mut inner.errors, words("Your mail couldn't be saved first, so nothing was sent.").to_string()),
+            },
+            Step::Idle | Step::Waiting => {}
+        }
+    }
+
+    /// Tell the app how far the round has got, when that changed.
+    fn progress(&self, inner: &mut Inner, session: &Session) {
+        let lang = session.interface_language;
+        let now = session.sync_progress.current().map(|run| {
+            let phase = run.phase.map(|p| lang.t(p.label()).to_string()).unwrap_or_default();
+            (run.account, phase, u64::from(run.done), u64::from(run.total))
+        });
+        if now != inner.last_progress {
+            if let Some((account, phase, done, total)) = &now {
+                self.sink.push(Event::SyncProgress { account: *account, phase: phase.clone(), done: *done, total: *total });
+            }
+            inner.last_progress = now;
+        }
+    }
+
+    /// The round is over (or was called off): notifications for what arrived, the summary, and
+    /// whoever waits for it.
+    fn finish_round(&self, inner: &mut Inner, session: &Session, finished: bool) -> SyncSummary {
+        let lang = session.interface_language;
+        let found = inner.run_mark.take().map(|mark| arrivals::arrivals(&session.mailbox, &mark)).unwrap_or_default();
+        if self.notify_mail.load(Ordering::Relaxed) {
+            let told = if self.notify_primary_only.load(Ordering::Relaxed) { primary_only(&session.mailbox, &found) } else { found.clone() };
+            for n in plan_notifications(session, &told, &mut inner.next_key, self.notify_new_mail_only.load(Ordering::Relaxed)) {
+                self.sink.push(Event::Notification { notification: n });
+            }
+        }
+        let errors: Vec<String> = std::mem::take(&mut inner.errors).iter().map(|e| lang.t(e).to_string()).collect();
+        inner.last_errors = errors.clone();
+        let summary = SyncSummary {
+            ran: inner.ran,
+            finished,
+            new_mail: u64::try_from(found.len()).unwrap_or(u64::MAX),
+            errors,
+            sign_in_needed: !inner.needs_sign_in.is_empty(),
+        };
+        if let Some(since) = inner.round_began.take() {
+            self.log(format!("round: {} ms, {} mail runs, {}", ms(since), inner.runs, if finished { "finished" } else { "called off" }));
+        }
+        inner.runs = 0;
+        // The round is over: a pull is answered unless what it waits for is still in line (kept
+        // there by a stop, [`Self::stop_locked`]).
+        let running = inner.sr.running_account();
+        self.answer_mail_waiters(inner, |account| mail_pending(session, running, account));
+        inner.active = false;
+        inner.ran = false;
+        inner.tail_starts = 0;
+        inner.tail_fetch = false;
+        inner.finished_rounds = inner.finished_rounds.wrapping_add(1);
+        inner.idle_mark = None;
+        inner.last_progress = None;
+        inner.last_summary = Some(summary.clone());
+        for waiter in inner.waiters.drain(..) {
+            waiter.push(Wake::Done(summary.clone()));
+        }
+        self.sink.push(Event::SyncFinished { new_mail: summary.new_mail, finished });
+        summary
+    }
+}
+
+/// Marks a sentence for the catalogue (`cargo xtask i18n` gathers what is passed to it); it is put
+/// through the interface language when the round's summary is made.
+fn words(text: &'static str) -> &'static str {
+    text
+}
+
+pub(crate) fn add_error(errors: &mut Vec<String>, line: String) {
+    if errors.len() < MOST_ERRORS {
+        errors.push(line.chars().take(LONGEST_ERROR).collect());
+    }
+}
+
+/// The arrivals that are not in a Gmail category other than Primary (the owner's "Primary only"
+/// switch for this phone). Mail whose category is not known yet is kept: better told once too
+/// often than not at all. Microsoft's Focused and Other are not kept by the mailbox, so mail of
+/// those accounts is always kept.
+pub(crate) fn primary_only(mailbox: &mailcraft_model::Mailbox, found: &[Arrival]) -> Vec<Arrival> {
+    found
+        .iter()
+        .filter(|a| mailbox.message(a.message).is_none_or(|m| m.gmail_category.is_none_or(|c| c == mailcraft_model::GmailCategory::Primary)))
+        .cloned()
+        .collect()
+}
+
+/// The notifications for new mail: one each for up to [`AT_ONCE`], else one that counts them. What
+/// they say of a message is its own text, hostile, made plain and short as a name is shown. With
+/// `only_new_mail` (the owner's privacy switch) one notification says "New mail" and nothing else:
+/// no sender, no subject, no count, whatever the lock screen shows.
+fn plan_notifications(session: &Session, found: &[Arrival], next_key: &mut u64, only_new_mail: bool) -> Vec<NotificationRecord> {
+    let lang = session.interface_language;
+    if found.is_empty() {
+        return Vec::new();
+    }
+    if only_new_mail {
+        *next_key = next_key.wrapping_add(1);
+        return vec![NotificationRecord {
+            key: *next_key,
+            topic: NotificationTopic::Mail,
+            title: lang.t("New mail").to_string(),
+            body: String::new(),
+            message: None,
+        }];
+    }
+    if found.len() > AT_ONCE {
+        *next_key = next_key.wrapping_add(1);
+        let body = mailcraft_i18n::fmt(lang.tn(found.len() as u64, "{n} new message", "{n} new messages"), &[("n", &found.len().to_string())]);
+        return vec![NotificationRecord {
+            key: *next_key,
+            topic: NotificationTopic::Mail,
+            title: lang.t("New mail").to_string(),
+            body,
+            message: None,
+        }];
+    }
+    found
+        .iter()
+        .map(|a| {
+            let sender = mailcraft_names::shown(&a.sender, NAME_CHARS);
+            let subject = mailcraft_names::shown(&a.subject, SUBJECT_CHARS);
+            NotificationRecord {
+                key: a.message,
+                topic: NotificationTopic::Mail,
+                title: if sender.is_empty() { lang.t("New message").to_string() } else { sender },
+                body: if subject.is_empty() { lang.t("(no subject)").to_string() } else { subject },
+                message: Some(NotifiedMessage { id: a.message, folder: a.folder }),
+            }
+        })
+        .collect()
+}
+
+/// The phone's time zone by its IANA name, when it names one this program knows: the calendar is
+/// then shown in it, and a mailbox stamped with another zone is rebased. A missing or unknown name
+/// leaves the phone's own offset (`fallback_offset`) in charge.
+pub(crate) fn follow_time_zone(session: &mut Session, platform: &dyn Platform) {
+    let Ok(name) = platform.time_zone_name() else { return };
+    let Some(zone) = Zone::named(&name).filter(|zone| !zone.is_local()) else { return };
+    if session.clock.zone != Some(zone) {
+        session.clock.zone = Some(zone);
+    }
+    session.settle_zone();
+}
