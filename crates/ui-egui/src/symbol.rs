@@ -16,6 +16,17 @@ use crate::widgets::primary_button;
 
 pub const WIDTH: f32 = 380.0;
 
+/// Place dialog captions at the locale's reading edge; keep the Unicode code field LTR.
+fn reading_edge_label(ui: &mut Ui, rtl: bool, text: RichText) {
+    if rtl {
+        ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+            ui.label(text);
+        });
+    } else {
+        ui.label(text);
+    }
+}
+
 /// What a symbol's cell is called in the hit map: its code point.
 pub fn cell_id(c: char) -> u64 {
     u64::from(u32::from(c))
@@ -41,6 +52,7 @@ impl Symbol {
     /// The dialog's contents; whether it is done.
     pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui, enter: bool) -> bool {
         let t = Tokens::get(ui.ctx());
+        let rtl = crate::i18n::current() == crate::i18n::Lang::Hebrew;
         let mut done = false;
         let mut asked: Option<Value> = None;
         egui::Grid::new("symbols").spacing(vec2(2.0, 2.0)).show(ui, |ui| {
@@ -62,12 +74,12 @@ impl Symbol {
                 }
             }
         });
-        ui.label(tl!("Character code"));
+        reading_edge_label(ui, rtl, RichText::new(tl!("Character code")));
         let resp = ui.add(egui::TextEdit::singleline(&mut self.code).hint_text("U+2192").char_limit(10).desired_width(f32::INFINITY));
         app.hit.add("symbolCode", 0, crate::text_menu::field(resp).rect);
-        ui.label(RichText::new(tl!("A code point written U+2192 or 2192, or a decimal number after #.")).color(t.text_dim).size(11.0));
+        reading_edge_label(ui, rtl, RichText::new(tl!("A code point written U+2192 or 2192, or a decimal number after #.")).color(t.text_dim).size(11.0));
         if !self.error.is_empty() {
-            ui.label(RichText::new(self.error.as_str()).color(t.red));
+            reading_edge_label(ui, rtl, RichText::new(self.error.as_str()).color(t.red));
         }
         ui.add_space(4.0);
         let typed = self.params();
