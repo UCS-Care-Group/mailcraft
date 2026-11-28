@@ -789,11 +789,17 @@ impl<E: HttpExchange> Run<'_, E> {
     /// them to be here whole (#566).
     async fn recipients(&mut self, messages: &mut [GraphMessage]) -> Result<(), Asked> {
         let without = |m: &&GraphMessage| m.to.is_empty() && m.cc.is_empty();
-        let ids: Vec<String> = messages.iter().filter(without).map(|m| m.server.id.clone()).collect();
+        // Each id asked once; a page that names an item more than once (two changes to it since the
+        // last read) has every copy of it take the answer.
+        let mut asked = HashSet::new();
+        let ids: Vec<String> = messages.iter().filter(without).map(|m| m.server.id.clone()).filter(|id| asked.insert(id.clone())).collect();
         if ids.is_empty() {
             return Ok(());
         }
-        let at: HashMap<String, usize> = messages.iter().enumerate().map(|(n, m)| (m.server.id.clone(), n)).collect();
+        let mut at: HashMap<String, Vec<usize>> = HashMap::new();
+        for (n, m) in messages.iter().enumerate() {
+            at.entry(m.server.id.clone()).or_default().push(n);
+        }
         // A message that came with its recipients needs no answer.
         let mut answered: Vec<bool> = messages.iter().map(|m| !without(&m)).collect();
         for some in ids.chunks(MAX_RECIPIENTS_ASKED).take(MAX_RECIPIENT_ASKS) {
@@ -804,13 +810,14 @@ impl<E: HttpExchange> Run<'_, E> {
             match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(found) => {
                     for one in found {
-                        let Some(&n) = at.get(&one.id) else { continue };
-                        if let Some(message) = messages.get_mut(n) {
-                            (message.to, message.cc) = (one.to, one.cc);
-                            message.cut |= one.cut;
-                        }
-                        if let Some(answer) = answered.get_mut(n) {
-                            *answer = true;
+                        for &n in at.get(&one.id).map_or(&[][..], Vec::as_slice) {
+                            if let Some(message) = messages.get_mut(n) {
+                                (message.to, message.cc) = (one.to.clone(), one.cc.clone());
+                                message.cut |= one.cut;
+                            }
+                            if let Some(answer) = answered.get_mut(n) {
+                                *answer = true;
+                            }
                         }
                     }
                 }

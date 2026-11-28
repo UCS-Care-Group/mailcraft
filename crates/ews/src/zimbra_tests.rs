@@ -179,6 +179,30 @@ fn an_item_changed_twice_since_the_last_read_is_asked_once_and_taken_in() {
     assert!(listed.iter().all(|r| r.body.matches("<t:ItemId ").count() == 1), "asked once");
 }
 
+/// The same from a server whose listing gives no recipients (Exchange 2010's, which `GetItem`
+/// is asked for them): every copy of an item named twice in one page takes them, not the last
+/// copy alone, and none is left marked as cut.
+#[test]
+fn an_item_named_twice_has_its_recipients_on_every_copy() {
+    let standin = StandIn::new();
+    let id = {
+        let mut s = standin.state();
+        s.exchange2010 = true;
+        s.deliver("inbox", "Plan", false)
+    };
+    let first = pieces(&standin, &request());
+    {
+        let mut s = standin.state();
+        s.edit_subject(&id, "Plan, again");
+        s.edit_subject(&id, "Plan, at last");
+    }
+    let again = whole(pieces(&standin, &from(&first)));
+    assert!(again.whole, "{:?}", again.errors);
+    let changed: Vec<_> = again.pages.iter().flat_map(|p| &p.messages).filter(|m| m.server.id == id).collect();
+    assert!(changed.len() > 1, "the page names the item twice");
+    assert!(changed.iter().all(|m| m.to.iter().any(|a| a.email == "ada@example.org") && !m.cut));
+}
+
 #[test]
 fn the_list_fields_are_asked_without_the_body_and_read_by_the_id_asked() {
     let op = GetItemListed::new(&["A1".to_owned(), "\u{1}bad".to_owned(), "A2".to_owned()]);
