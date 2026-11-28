@@ -988,3 +988,21 @@ fn an_html_signature_is_shown_as_it_goes_out_until_edited_as_text() {
     // Edited, it is the copy that goes out: there is no way back to the HTML.
     assert!(h.state().hit.rect("composeSignatureAsHtml", 0).is_none());
 }
+
+/// An HTML signature that comes from a linked file has no "Edit signature as text" link: the
+/// file is read again for each message, so what was edited here would be lost (#1878).
+#[test]
+fn a_signature_from_a_linked_file_has_no_edit_as_text_link() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("signature.html");
+    std::fs::write(&path, HTML_SIGNATURE).unwrap();
+    let mut a = app();
+    a.execute("signature.html", json!({"name": "Standard", "html": HTML_SIGNATURE})).unwrap();
+    a.execute("ui.signatureFile", json!({"name": "Standard", "path": path, "enabled": true})).unwrap();
+    a.execute("mail.new", json!({"to": "maya@lumen.example", "body": "Hello"})).unwrap();
+    a.execute("compose.formatHtml", json!({})).unwrap();
+    let mut h = window(a);
+    h.run_steps(2);
+    assert!(h.state().hit.rect("composeSignature", 0).is_some(), "the file signature is not shown");
+    assert!(h.state().hit.rect("composeSignatureAsText", 0).is_none());
+}

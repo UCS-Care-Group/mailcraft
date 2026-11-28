@@ -241,6 +241,18 @@ pub(crate) fn show_in(app: &mut MailApp, ui: &mut Ui, window: Option<u64>, keybo
     let Some(c) = Shown::of(app) else { return };
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
 
+    if let Some(warning) = app.session.compose.as_ref().map(|c| c.signature_file_warning.clone()).filter(|w| !w.is_empty()) {
+        ui.colored_label(t.orange, warning);
+    }
+    if app.session.compose.as_ref().is_some_and(|c| c.format == mailcraft_engine::BodyFormat::Plain && c.has_pictures()) {
+        ui.horizontal_wrapped(|ui| {
+            ui.colored_label(t.orange, tl!("Pictures are not included in plain-text messages. Switch to HTML to include them."));
+            if ui.button(tl!("Switch to HTML")).clicked() {
+                let _ = app.run("compose.formatHtml", json!({}));
+            }
+        });
+    }
+
     // In the reading pane, what this is and the actions; a window of its own has them in its
     // ribbon, and Send beside the lines, as a message's window has it (#286).
     if window.is_none() {
@@ -620,6 +632,13 @@ fn signature(app: &mut MailApp, ui: &mut Ui) {
     });
     let shown = Rect::from_min_max(pos2(ui.min_rect().min.x, top), pos2(ui.min_rect().max.x, ui.cursor().min.y));
     app.hit.add("composeSignature", 0, shown);
+    // From a linked file it is read again for each message: edits made here would be lost.
+    let from_file = app.session.compose.as_ref().is_some_and(|c| {
+        c.signature_file_warning.is_empty() && c.signature.as_ref().is_some_and(|s| crate::signature_files::setting_for_name(app, &s.name).enabled)
+    });
+    if from_file {
+        return;
+    }
     let edit = ui
         .link(tl!("Edit signature as text"))
         .on_hover_text(tl!("The signature is then sent as the simpler text shown here, not as it was designed"));
