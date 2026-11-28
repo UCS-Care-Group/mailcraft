@@ -12059,7 +12059,7 @@ msgid "Save Message File As"
 msgstr ""
 
 #. command label
-#: crates/engine/src/cmd/save_picture.rs
+#: crates/engine/src/cmd/save_picture.rs crates/ui-egui/src/lib.rs
 msgid "Save Picture As…"
 msgstr ""
 
@@ -14442,7 +14442,7 @@ msgid "That paste was just made, so nothing was pasted again"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/reading/select.rs
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
 msgid "That picture can't be copied"
 msgstr ""
 
@@ -16226,7 +16226,7 @@ msgid "This build can't connect to mail servers. Use the desktop app, or bring m
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/reading/select.rs
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
 msgid "This build can't copy a picture"
 msgstr ""
 

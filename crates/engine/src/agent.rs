@@ -697,6 +697,9 @@ const NEVER: &[&str] = &[
     // A message file the owner opened, kept or written out: the owner's own doing (#515).
     "ui.moveWindowMessage",
     "ui.saveWindowMessage",
+    // A picture in that window: the owner's, as saving or copying one from a filed message is.
+    "ui.saveFilePicture",
+    "ui.copyFilePicture",
     // Anything an agent chooses onto the owner's clipboard.
     "ui.copyLinkAddress",
     // A picture from a message onto the clipboard: the owner's, as the selected text is (#1420).

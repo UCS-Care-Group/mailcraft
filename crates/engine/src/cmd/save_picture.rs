@@ -13,7 +13,7 @@ use std::io::Cursor;
 
 use image::ImageFormat;
 use mailcraft_html::{Block, BlockKind};
-use mailcraft_model::{Attachment, Id, Message};
+use mailcraft_model::{Attachment, Message};
 use serde_json::Value;
 
 use super::{bad, base64_decode, deliver, fail, needs_message};
@@ -58,22 +58,63 @@ fn save_picture(s: &mut Session, v: &Value) -> CmdResult {
 /// bytes, so the two never disagree.
 pub fn load(s: &Session, v: &Value) -> Result<(String, Vec<u8>), CmdError> {
     let id = p::message_strict(v)?.or(s.sel.focus()).ok_or_else(|| fail("select a message first"))?;
-    let src = p::str(v, "src").map(str::trim).filter(|src| !src.is_empty()).ok_or_else(|| bad("`src` (string) is required"))?;
-    if src.len() > MAX_SRC {
-        return Err(bad("`src` is a picture of the message"));
-    }
+    let src = src_of(v)?;
     let env = env_of(v)?;
     let html = s.content(id, Part::Html)?;
     let html = String::from_utf8_lossy(&html);
     let blocks = mailcraft_html::parse_in(html.as_ref(), &env).blocks;
+    resolve(&blocks, src, v, |src| {
+        let message = s.mailbox.message(id).ok_or_else(|| fail("the message has no such picture"))?;
+        let (index, part) = attachment_of(message, src).ok_or_else(|| fail("the message has no such picture"))?;
+        let hint = part.name.clone();
+        let bytes = s.content(id, Part::Attachment(index))?;
+        Ok((hint, bytes.as_ref().clone()))
+    })
+}
+
+/// The same as [`load`] for a message the window holds and the mailbox does not (a message file
+/// opened without being filed). Its pictures are the bytes it already has. Nothing is fetched.
+pub fn from_message(message: &Message, v: &Value) -> Result<(String, Vec<u8>), CmdError> {
+    let src = src_of(v)?;
+    let env = env_of(v)?;
+    let html = message.body.html.as_deref().unwrap_or("");
+    let blocks = mailcraft_html::parse_in(html, &env).blocks;
+    resolve(&blocks, src, v, |src| {
+        let (_, part) = attachment_of(message, src).ok_or_else(|| fail("the message has no such picture"))?;
+        if part.data.is_empty() {
+            return Err(fail("the message has no such picture"));
+        }
+        Ok((part.name.clone(), part.data.as_ref().clone()))
+    })
+}
+
+fn src_of(v: &Value) -> Result<&str, CmdError> {
+    let src = p::str(v, "src").map(str::trim).filter(|src| !src.is_empty()).ok_or_else(|| bad("`src` (string) is required"))?;
+    if src.len() > MAX_SRC {
+        return Err(bad("`src` is a picture of the message"));
+    }
+    Ok(src)
+}
+
+/// A picture `src` names, from `blocks`. `cid` supplies a part the HTML shows.
+fn resolve(
+    blocks: &[Block],
+    src: &str,
+    v: &Value,
+    cid: impl FnOnce(&str) -> Result<(String, Vec<u8>), CmdError>,
+) -> Result<(String, Vec<u8>), CmdError> {
     if let Some(n) = data_index(src) {
-        return load_data(&blocks, n);
+        return load_data(blocks, n);
     }
     if is_remote(src) {
-        return load_remote(&blocks, src, v);
+        return load_remote(blocks, src, v);
     }
     if is_cid(src) {
-        return load_cid(s, id, &blocks, src);
+        if !shown(blocks, src) {
+            return Err(fail("the message has no such picture"));
+        }
+        let (hint, bytes) = cid(src)?;
+        return named(&hint, bytes);
     }
     Err(fail("the message has no such picture"))
 }
@@ -128,19 +169,6 @@ fn load_data(blocks: &[Block], n: usize) -> Result<(String, Vec<u8>), CmdError> 
         .nth(n)
         .ok_or_else(|| fail("the message has no such picture"))?;
     named("", picture.as_ref().clone())
-}
-
-fn load_cid(s: &Session, id: Id, blocks: &[Block], src: &str) -> Result<(String, Vec<u8>), CmdError> {
-    if !shown(blocks, src) {
-        return Err(fail("the message has no such picture"));
-    }
-    let (index, hint) = {
-        let message = s.mailbox.message(id).ok_or_else(|| fail("the message has no such picture"))?;
-        let (index, part) = attachment_of(message, src).ok_or_else(|| fail("the message has no such picture"))?;
-        (index, part.name.clone())
-    };
-    let bytes = s.content(id, Part::Attachment(index))?;
-    named(&hint, bytes.as_ref().clone())
 }
 
 fn load_remote(blocks: &[Block], src: &str, v: &Value) -> Result<(String, Vec<u8>), CmdError> {

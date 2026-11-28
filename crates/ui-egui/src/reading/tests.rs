@@ -4949,6 +4949,58 @@ fn a_shown_picture_can_be_saved_or_copied_and_one_that_is_not_cannot() {
     assert_eq!((named(&harness, save), named(&harness, copy)), (1, 1));
 }
 
+/// A picture in a message file that is not in the mailbox can be copied from its window. The
+/// message's number is none, so the command reads the window's own message (#1420).
+#[test]
+fn a_picture_in_an_unfiled_message_can_be_copied_from_its_window() {
+    let shot = png(20, 12);
+    let message = Message {
+        id: 0,
+        from: Address::new("Lin", "lin@example.org"),
+        subject: "Handed over".into(),
+        read: true,
+        body: Body { html: Some(r#"<p>Hello</p><img src="cid:shot@example" alt="ridge">"#.into()), text: "Hello".into() },
+        attachments: vec![Attachment { content_id: "shot@example".into(), inline: true, ..Attachment::new("ridge.png", "image/png", shot.clone()) }],
+        ..Message::default()
+    };
+    let copied = Arc::new(Mutex::new(Vec::<Vec<u8>>::new()));
+    struct Board(Arc<Mutex<Vec<Vec<u8>>>>);
+    impl crate::RichClipboard for Board {
+        fn put(&self, _: &str, _: &str) -> Result<(), String> {
+            Ok(())
+        }
+        fn html(&self) -> Option<String> {
+            None
+        }
+        fn put_image(&self, bytes: &[u8]) -> Result<(), String> {
+            self.0.lock().unwrap().push(bytes.to_vec());
+            Ok(())
+        }
+    }
+    let mut app = MailApp::new(Session::at(Mailbox::with_local_account("Avery Quinn", "avery@lumen-works.example"), NOW, 0), Services::default());
+    app.autosave = false;
+    app.services.clipboard = Some(Box::new(Board(copied.clone())));
+    let window_id = app.windows.add_file(Arc::new(message), Arc::new(Vec::new())).unwrap();
+    let mut harness = window(app, (1100.0, 900.0));
+    let at = super::view::kept_at(&harness.ctx, Place::Window(window_id), 0, |laid, origin| {
+        laid.items
+            .iter()
+            .find(|item| matches!(&item.kind, ItemKind::Picture(p) if p.src.as_deref() == Some("cid:shot@example")))
+            .map(|item| item.rect.translate(origin.to_vec2()).center())
+    })
+    .flatten()
+    .expect("the unfiled message shows its picture");
+    menu_click(&mut harness, at);
+    let named = |harness: &Window, label: &str| harness.query_all_by_label(label).count();
+    assert_eq!((named(&harness, "Save Picture As…"), named(&harness, "Copy Picture")), (1, 1));
+    choose(&mut harness, "Copy Picture", at);
+    harness.run_steps(3);
+    assert_eq!(copied.lock().unwrap().as_slice(), std::slice::from_ref(&shot));
+    // The mailbox command will not read a message numbered 0, which an unfiled message is given.
+    let why = harness.state_mut().execute("mail.savePicture", json!({"id": 0, "src": "cid:shot@example"})).unwrap_err();
+    assert!(why.contains("above 0"), "{why}");
+}
+
 /// A picture still decoding can be the menu's target. When that decode then fails, Save Picture
 /// As… and Copy Picture leave the menu that is already open (#1420).
 #[test]

@@ -174,6 +174,43 @@ fn a_part_that_is_not_a_picture_is_refused() {
 }
 
 #[test]
+fn a_message_the_window_holds_and_the_mailbox_does_not_gives_up_its_picture() {
+    let shot = png(12, 8, [4, 5, 6]);
+    let chart = png(6, 6, [7, 8, 9]);
+    let html = format!(r#"<img src="cid:shot@example" alt="ridge"><img src="data:image/png;base64,{}">"#, b64(&chart));
+    let message = Message {
+        id: 0,
+        body: Body { html: Some(html), text: String::new() },
+        attachments: vec![part("ridge.png", "shot@example", shot.clone())],
+        ..Message::default()
+    };
+    let got = cmd::save_picture::from_message(&message, &json!({"src": "cid:shot@example"})).unwrap();
+    assert_eq!((got.0.as_str(), got.1.as_slice()), ("ridge.png", shot.as_slice()));
+    let got = cmd::save_picture::from_message(&message, &json!({"src": "data:0"})).unwrap();
+    assert_eq!(got.1, chart);
+    // A picture on the web is still not fetched, and one the message does not show is refused.
+    let shown = Message { body: Body { html: Some(r#"<img src="https://img.example/a.png">"#.into()), text: String::new() }, ..Message::default() };
+    let why = cmd::save_picture::from_message(&shown, &json!({"src": "https://img.example/a.png"})).unwrap_err().to_string();
+    assert!(why.contains("nothing is downloaded"), "{why}");
+    let why = cmd::save_picture::from_message(&message, &json!({"src": "https://img.example/a.png"})).unwrap_err().to_string();
+    assert!(why.contains("no such picture"), "{why}");
+    let why = cmd::save_picture::from_message(&message, &json!({"src": "cid:other@example"})).unwrap_err().to_string();
+    assert!(why.contains("no such picture"), "{why}");
+    // A part whose bytes are not in the message (they would be on disk, for a filed one) is refused.
+    let empty = Message {
+        body: Body { html: Some(r#"<img src="cid:shot@example">"#.into()), text: String::new() },
+        attachments: vec![Attachment {
+            content_id: "shot@example".into(),
+            data: std::sync::Arc::new(Vec::new()),
+            ..part("ridge.png", "shot@example", shot)
+        }],
+        ..Message::default()
+    };
+    let why = cmd::save_picture::from_message(&empty, &json!({"src": "cid:shot@example"})).unwrap_err().to_string();
+    assert!(why.contains("no such picture"), "{why}");
+}
+
+#[test]
 fn saving_writes_the_bytes_and_leaves_the_message() {
     let bytes = png(5, 5, [1, 1, 1]);
     let (mut session, id) = hold(r#"<img src="cid:shot@example">"#, vec![part("ridge.png", "shot@example", bytes.clone())]);

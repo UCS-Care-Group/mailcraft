@@ -89,6 +89,12 @@ fn export_name(app: &MailApp, id: &str, params: &Value) -> Option<String> {
         }
         // The name the picture would be saved as. A picture that isn't one opens no dialog.
         "mail.savePicture" => mailcraft_engine::cmd::save_picture::offered_name(s, params).ok()?,
+        // A picture in a message file that is not in the mailbox: the window holds the message.
+        "ui.saveFilePicture" => {
+            let id = params.get("window").and_then(Value::as_u64)?;
+            let message = app.windows.file_message(id)?;
+            mailcraft_engine::cmd::save_picture::from_message(message, params).ok()?.0
+        }
         _ => return None,
     })
 }

@@ -14484,7 +14484,7 @@ msgid "Save Message File As"
 msgstr "წერილის ფაილის შენახვა როგორც"
 
 #. command label
-#: crates/engine/src/cmd/save_picture.rs
+#: crates/engine/src/cmd/save_picture.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Save Picture As…"
 msgstr "სურათის შენახვა როგორც…"
@@ -17335,7 +17335,7 @@ msgid "That paste was just made, so nothing was pasted again"
 msgstr "ეს ჩასმა ახლახან შესრულდა, ამიტომ თავიდან არაფერი ჩასმულა"
 
 #. interface
-#: crates/ui-egui/src/reading/select.rs
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "That picture can't be copied"
 msgstr "ამ სურათის კოპირება შეუძლებელია"
@@ -19467,7 +19467,7 @@ msgid "This build can't connect to mail servers. Use the desktop app, or bring m
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/reading/select.rs
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
 msgid "This build can't copy a picture"
 msgstr ""
 

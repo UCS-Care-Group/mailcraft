@@ -14053,7 +14053,7 @@ msgid "Save Message File As"
 msgstr "Berichtbestand opslaan als"
 
 #. command label
-#: crates/engine/src/cmd/save_picture.rs
+#: crates/engine/src/cmd/save_picture.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Save Picture As…"
 msgstr "Afbeelding opslaan als…"
@@ -16846,7 +16846,7 @@ msgid "That paste was just made, so nothing was pasted again"
 msgstr "Dat plakken is net gebeurd, dus er is niets opnieuw geplakt"
 
 #. interface
-#: crates/ui-egui/src/reading/select.rs
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "That picture can't be copied"
 msgstr "Deze afbeelding kan niet worden gekopieerd"
@@ -18979,7 +18979,7 @@ msgid "This build can't connect to mail servers. Use the desktop app, or bring m
 msgstr "Deze build kan geen verbinding maken met mailservers. Gebruik de desktop-app, of haal mail binnen met Bestand › Importeren."
 
 #. interface
-#: crates/ui-egui/src/reading/select.rs
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
 msgid "This build can't copy a picture"
 msgstr ""
 

@@ -14537,7 +14537,7 @@ msgid "Save Message File As"
 msgstr "Üzenetfájl mentése"
 
 #. command label
-#: crates/engine/src/cmd/save_picture.rs
+#: crates/engine/src/cmd/save_picture.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Save Picture As…"
 msgstr "Kép mentése másként…"
@@ -17402,7 +17402,7 @@ msgid "That paste was just made, so nothing was pasted again"
 msgstr "Ez a beillesztés épp most történt meg, ezért semmi sem lett újra beillesztve"
 
 #. interface
-#: crates/ui-egui/src/reading/select.rs
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "That picture can't be copied"
 msgstr "Ezt a képet nem lehet másolni"
@@ -19543,7 +19543,7 @@ msgid "This build can't connect to mail servers. Use the desktop app, or bring m
 msgstr "Ez a build nem tud levelezőkiszolgálókhoz csatlakozni. Használja az asztali alkalmazást, vagy hozza be a leveleket a Fájl › Importálás menüvel."
 
 #. interface
-#: crates/ui-egui/src/reading/select.rs
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
 msgid "This build can't copy a picture"
 msgstr ""
 

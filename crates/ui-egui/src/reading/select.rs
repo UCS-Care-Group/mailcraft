@@ -916,9 +916,38 @@ pub(super) fn act(app: &mut MailApp, place: Place, action: Action) {
         Action::Copy => app.run("ui.copySelection", params(place)),
         Action::SelectAll => app.run("ui.selectAllInMessage", params(place)),
         Action::CopyLink(url) => app.run("ui.copyLinkAddress", json!({"url": &*url})),
-        Action::SavePicture(picture) => app.run("mail.savePicture", picture_params(&picture)),
-        Action::CopyPicture(picture) => app.run("ui.copyPicture", picture_params(&picture)),
+        Action::SavePicture(picture) => save_shown(app, place, &picture),
+        Action::CopyPicture(picture) => copy_shown(app, place, &picture),
     };
+}
+
+/// Save or copy a picture the menu was asked for on. A message file opened without being filed
+/// is not in the mailbox (its number is none), so its picture is taken from the window's own
+/// message. A filed message keeps the mailbox path.
+fn save_shown(app: &mut MailApp, place: Place, picture: &MenuPicture) -> Result<Value, String> {
+    match file_window(app, place) {
+        Some(window) => app.run("ui.saveFilePicture", file_picture_params(window, picture)),
+        None => app.run("mail.savePicture", picture_params(picture)),
+    }
+}
+
+fn copy_shown(app: &mut MailApp, place: Place, picture: &MenuPicture) -> Result<Value, String> {
+    match file_window(app, place) {
+        Some(window) => app.run("ui.copyFilePicture", file_picture_params(window, picture)),
+        None => app.run("ui.copyPicture", picture_params(picture)),
+    }
+}
+
+/// The message-file window `place` is, when it is one.
+fn file_window(app: &MailApp, place: Place) -> Option<u64> {
+    match place {
+        Place::Window(id) if app.windows.file_message(id).is_some() => Some(id),
+        _ => None,
+    }
+}
+
+fn file_picture_params(window: u64, picture: &MenuPicture) -> Value {
+    json!({"window": window, "src": picture.src, "width": picture.width, "dark": picture.dark})
 }
 
 /// What the commands take for a picture the menu was asked for on.

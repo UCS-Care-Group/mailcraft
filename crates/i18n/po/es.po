@@ -14543,7 +14543,7 @@ msgid "Save Message File As"
 msgstr "Guardar archivo de mensaje como"
 
 #. command label
-#: crates/engine/src/cmd/save_picture.rs
+#: crates/engine/src/cmd/save_picture.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Save Picture As…"
 msgstr "Guardar imagen como…"
@@ -17404,7 +17404,7 @@ msgid "That paste was just made, so nothing was pasted again"
 msgstr "Ese pegado se acaba de hacer, así que no se ha vuelto a pegar nada"
 
 #. interface
-#: crates/ui-egui/src/reading/select.rs
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "That picture can't be copied"
 msgstr "Esa imagen no se puede copiar"
@@ -19543,7 +19543,7 @@ msgid "This build can't connect to mail servers. Use the desktop app, or bring m
 msgstr "Esta compilación no puede conectarse a servidores de correo. Usa la aplicación de escritorio o trae el correo con Archivo › Importar."
 
 #. interface
-#: crates/ui-egui/src/reading/select.rs
+#: crates/ui-egui/src/reading/select.rs crates/ui-egui/src/windows.rs
 msgid "This build can't copy a picture"
 msgstr ""
 
