@@ -2209,6 +2209,12 @@ msgstr "请邮件列表停止向你发送邮件。MailCraft 会先询问你，�
 msgid "Ask to be told when the message is read"
 msgstr "请求在邮件被阅读时通知我"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Ask to be told when the message reaches the recipient's mailbox"
+msgstr "请求在邮件到达收件人的邮箱时通知我"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -14044,6 +14050,12 @@ msgstr "请求回复"
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
+msgid "Request a Delivery Receipt"
+msgstr "请求送达回执"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Request a Read Receipt"
 msgstr "请求已读回执"
 
@@ -15437,6 +15449,12 @@ msgstr "敏感度为"
 #, fuzzy
 msgid "Sent"
 msgstr "已发送"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Sent \"{subject}\" without a delivery receipt: the outgoing server doesn't offer them"
+msgstr "已发送“{subject}”，未请求送达回执：发件服务器不提供"
 
 #. name
 #: crates/model/src/mailbox.rs

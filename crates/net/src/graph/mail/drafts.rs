@@ -13,7 +13,8 @@
 //!   whose answer was lost is looked for again before anything else is done; not found, it waits
 //!   for the next run. A make is never asked twice in a run.
 //! - **Changed in place** (`PATCH /me/messages/{id}`) in the fields that differ from what the
-//!   server last had: subject, body, To, Cc, Bcc, Reply-To, importance.
+//!   server last had: subject, body, To, Cc, Bcc, Reply-To, importance, and whether it asks for a
+//!   read or a delivery receipt.
 //! - **Its attachments** brought in step with those here: the server's are listed, those it
 //!   should keep are matched by what was put there before (or, for those that came from
 //!   elsewhere, a copy of a forwarded message's, by name, type **and content**: a name alone
@@ -213,7 +214,7 @@ fn refused(graph: &Graph<'_>, reply: &Reply, what: &str) {
 }
 
 /// The draft in Drafts that carries `marker`, when there is one: its id and folder.
-fn look(graph: &Graph<'_>, marker: &str) -> Result<Option<(String, String)>, NetError> {
+pub(super) fn look(graph: &Graph<'_>, marker: &str) -> Result<Option<(String, String)>, NetError> {
     let filter = format!("singleValueExtendedProperties/any(ep: ep/id eq '{MARKER}' and ep/value eq '{marker}')");
     let query = http::form(&[("$filter", &filter), ("$select", "id,parentFolderId"), ("$top", "1")]);
     let reply = graph.call(
@@ -326,6 +327,9 @@ fn fields(d: &DraftUp) -> Map<String, Value> {
     }
     if let Some(read_receipt) = d.read_receipt {
         out.insert("isReadReceiptRequested".into(), json!(read_receipt));
+    }
+    if let Some(delivery_receipt) = d.delivery_receipt {
+        out.insert("isDeliveryReceiptRequested".into(), json!(delivery_receipt));
     }
     out
 }

@@ -2213,6 +2213,12 @@ msgstr "Cereți listei să nu vă mai trimită mesaje. MailCraft întreabă îna
 msgid "Ask to be told when the message is read"
 msgstr "Cereți să fiți anunțat când mesajul este citit"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Ask to be told when the message reaches the recipient's mailbox"
+msgstr "Cereți să fiți anunțat când mesajul ajunge în căsuța destinatarului"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -14089,6 +14095,12 @@ msgstr "Solicitare răspunsuri"
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
+msgid "Request a Delivery Receipt"
+msgstr "Solicitare confirmare de livrare"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Request a Read Receipt"
 msgstr "Solicitare confirmare de citire"
 
@@ -15490,6 +15502,12 @@ msgstr "Confidențialitatea este"
 #, fuzzy
 msgid "Sent"
 msgstr "Trimis"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Sent \"{subject}\" without a delivery receipt: the outgoing server doesn't offer them"
+msgstr "„{subject}” a fost trimis fără confirmare de livrare: serverul de ieșire nu le oferă"
 
 #. name
 #: crates/model/src/mailbox.rs

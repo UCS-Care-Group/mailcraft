@@ -48,6 +48,8 @@ mod dav_account_tests;
 pub mod dav_sync;
 #[cfg(test)]
 mod dav_sync_tests;
+#[cfg(test)]
+mod delivery_receipt_tests;
 pub mod device_limits;
 #[cfg(test)]
 mod device_limits_relist_tests;

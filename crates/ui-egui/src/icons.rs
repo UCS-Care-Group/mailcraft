@@ -492,6 +492,10 @@ pub fn paint(p: &Painter, r: Rect, name: &str, c: Color32, accent: Color32) {
             pen.rounded(&[(2.5, 8.5), (10.0, 3.5), (17.5, 8.5), (17.5, 16.5), (2.5, 16.5)], true, 1.0, c);
             pen.line(&[(2.5, 8.5), (10.0, 13.0), (17.5, 8.5)]);
         }
+        "delivery" => {
+            pen.envelope(2.5, 3.5, 15.5, 13.0, c);
+            pen.check(15.5, 15.5, 0.7, green);
+        }
         "markAllRead" => {
             pen.rounded(&[(2.5, 8.5), (10.0, 3.5), (17.5, 8.5), (17.5, 16.5), (2.5, 16.5)], true, 1.0, c);
             pen.check(10.0, 12.0, 0.9, green);
@@ -1309,6 +1313,7 @@ pub const NAMES: &[&str] = &[
     "new",
     "newMail",
     "read",
+    "delivery",
     "markRead",
     "toggleRead",
     "markAllRead",

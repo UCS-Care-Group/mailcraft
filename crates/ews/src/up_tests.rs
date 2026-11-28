@@ -777,3 +777,37 @@ fn a_draft_asks_for_a_read_receipt_where_the_schema_puts_it() {
     let xml = UpdateItem::draft("ID1", "CK", update).element().write();
     assert!(xml.contains("message:IsReadReceiptRequested") && xml.contains("<t:IsReadReceiptRequested>false<"), "{xml}");
 }
+
+#[test]
+fn a_draft_asks_for_a_delivery_receipt_beside_the_read_receipt() {
+    use crate::changes::{ItemUpdate, UpdateItem};
+    use crate::compose::{CreateDraft, DraftContent};
+    let who = Address::new("Zoe", "zoe@example.org");
+    let draft = DraftContent { to: vec![who.clone()], reply_to: vec![who], read_receipt: true, delivery_receipt: true, ..Default::default() };
+    let xml = CreateDraft::new(None, draft).element().write();
+    let (read, delivery, reply) = (
+        xml.find("<t:IsReadReceiptRequested>true<").unwrap(),
+        xml.find("<t:IsDeliveryReceiptRequested>true<").unwrap(),
+        xml.find("t:ReplyTo").unwrap(),
+    );
+    assert!(read < delivery && delivery < reply, "{xml}");
+    assert!(!CreateDraft::new(None, DraftContent::default()).element().write().contains("IsDeliveryReceiptRequested"));
+    let update = ItemUpdate { delivery_receipt: Some(false), ..ItemUpdate::default() };
+    let xml = UpdateItem::draft("ID1", "CK", update).element().write();
+    assert!(xml.contains("message:IsDeliveryReceiptRequested") && xml.contains("<t:IsDeliveryReceiptRequested>false<"), "{xml}");
+}
+
+#[test]
+fn a_message_sent_asks_for_a_delivery_receipt_on_the_item_that_goes() {
+    let standin = StandIn::new();
+    let mut going = message("zoe@example.org", "");
+    going.delivery_receipt = true;
+    let send = SendUp { message: 4, draft: None, mime: Some(going) };
+    let result = run(&standin, &EwsMailRequest { sends: vec![send], ..base() });
+    assert_eq!(result.sent[0].outcome, SendOutcome::Sent);
+    let state = standin.state();
+    let sent = state.folder_id("sentitems").unwrap();
+    let item = state.items.iter().find(|i| i.folder == sent && i.subject == "Quarterly").unwrap();
+    assert!(item.delivery_receipt);
+    assert!(!message("zoe@example.org", "").delivery_receipt);
+}

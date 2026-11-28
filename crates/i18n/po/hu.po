@@ -2212,6 +2212,12 @@ msgstr "Kérje meg a listát, hogy ne küldjön több levelet. A MailCraft előb
 msgid "Ask to be told when the message is read"
 msgstr "Olvasási visszaigazolás kérése"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Ask to be told when the message reaches the recipient's mailbox"
+msgstr "Értesítés kérése, amikor az üzenet megérkezik a címzett postafiókjába"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -14048,6 +14054,12 @@ msgstr "Válaszok kérése"
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
+msgid "Request a Delivery Receipt"
+msgstr "Kézbesítési visszaigazolás kérése"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid "Request a Read Receipt"
 msgstr "Olvasási visszaigazolás kérése"
 
@@ -15443,6 +15455,12 @@ msgstr "A bizalmasság értéke"
 #, fuzzy
 msgid "Sent"
 msgstr "Elküldve"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Sent \"{subject}\" without a delivery receipt: the outgoing server doesn't offer them"
+msgstr "A(z) „{subject}” kézbesítési visszaigazolás nélkül lett elküldve: a kimenő kiszolgáló nem kínál ilyet"
 
 #. name
 #: crates/model/src/mailbox.rs

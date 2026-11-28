@@ -753,6 +753,10 @@ pub struct Compose {
     /// Request a Read Receipt: the message asks for one, to its sender (`compose.readReceipt`).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub read_receipt: bool,
+    /// Request a Delivery Receipt: the message asks to be told when it reaches the recipient's
+    /// mailbox (`compose.deliveryReceipt`). Off until the owner asks.
+    #[serde(skip_serializing_if = "std::ops::Not::not")]
+    pub delivery_receipt: bool,
     /// Delay Delivery (#950, `compose.delay`): the message is not sent before this time (seconds
     /// since 1970). A time that has passed by the time of Send is no delay.
     #[serde(skip_serializing_if = "Option::is_none")]

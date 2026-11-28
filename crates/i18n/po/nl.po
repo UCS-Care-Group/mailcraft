@@ -2143,6 +2143,12 @@ msgstr "De lijst vragen u geen e-mail meer te sturen. MailCraft vraagt het eerst
 msgid "Ask to be told when the message is read"
 msgstr "Laten weten wanneer het bericht is gelezen"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Ask to be told when the message reaches the recipient's mailbox"
+msgstr "Laten weten wanneer het bericht de postbus van de ontvanger bereikt"
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesSettings.kt
 #, fuzzy
@@ -13593,6 +13599,12 @@ msgstr "Antwoorden vragen"
 
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
+#, fuzzy
+msgid "Request a Delivery Receipt"
+msgstr "Ontvangstbevestiging aanvragen"
+
+#. command label, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 msgid "Request a Read Receipt"
 msgstr "Leesbevestiging aanvragen"
 
@@ -14933,6 +14945,12 @@ msgstr "Gevoeligheid is"
 #, fuzzy
 msgid "Sent"
 msgstr "Verzonden"
+
+#. why a mail server couldn't be used
+#: crates/net/src/sync.rs
+#, fuzzy
+msgid "Sent \"{subject}\" without a delivery receipt: the outgoing server doesn't offer them"
+msgstr "\"{subject}\" is verzonden zonder ontvangstbevestiging: de uitgaande server biedt die niet"
 
 #. name
 #: crates/model/src/mailbox.rs

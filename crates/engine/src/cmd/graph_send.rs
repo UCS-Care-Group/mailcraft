@@ -76,6 +76,8 @@ pub fn sends(s: &Session, account: Id) -> Vec<SendUp> {
             Some(draft) if !jmap => {
                 SendUp { message: m.id, draft: Some(mailcraft_model::sync::DraftUp { change_key: String::new(), ..draft }), mime: None }
             }
+            // No draft on the server. A delivery receipt is not a header: the network side makes
+            // this MIME into a draft, sets the flag, and sends that, instead of `sendMail`.
             _ => SendUp { message: m.id, draft: None, mime: Some(Box::new(m.as_ref().clone())) },
         })
         .collect()

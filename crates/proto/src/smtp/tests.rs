@@ -26,7 +26,15 @@ fn a_whole_session() {
     let ext = smtp.hello("[127.0.0.1]").unwrap();
     assert_eq!(
         ext,
-        Extensions { starttls: true, auth_plain: true, auth_login: true, auth_xoauth2: true, size: Some(35_882_577), eight_bit_mime: true }
+        Extensions {
+            starttls: true,
+            auth_plain: true,
+            auth_login: true,
+            auth_xoauth2: true,
+            size: Some(35_882_577),
+            eight_bit_mime: true,
+            dsn: false
+        }
     );
     assert_eq!(smtp.extensions(), &ext);
     smtp.auth("ada@example.org", "hunter2").unwrap();
@@ -263,7 +271,10 @@ fn a_client_name_that_could_break_the_line_is_replaced() {
 fn extensions_are_read_whatever_their_case() {
     let mut s = Script::new("250-x\r\n250-starttls\r\n250-Size\r\n250-auth plain\r\n250 8bitmime\r\n");
     let ext = Smtp::resume(&mut s).hello("localhost").unwrap();
-    assert_eq!(ext, Extensions { starttls: true, auth_plain: true, auth_login: false, auth_xoauth2: false, size: Some(0), eight_bit_mime: true });
+    assert_eq!(
+        ext,
+        Extensions { starttls: true, auth_plain: true, auth_login: false, auth_xoauth2: false, size: Some(0), eight_bit_mime: true, dsn: false }
+    );
     let mut s = Script::new("250-x\r\n250 auth=login xoauth2 OAUTHBEARER\r\n");
     let ext = Smtp::resume(&mut s).hello("localhost").unwrap();
     assert_eq!(ext, Extensions { auth_login: true, auth_xoauth2: true, ..Default::default() });

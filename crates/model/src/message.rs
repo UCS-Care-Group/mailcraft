@@ -328,6 +328,13 @@ pub struct Message {
     /// own message; a request in mail that comes in is never read into it, and never answered.
     #[serde(skip_serializing_if = "is_false")]
     pub read_receipt: bool,
+    /// Written here with Request a Delivery Receipt on (`compose.deliveryReceipt`). A Microsoft
+    /// account sets `isDeliveryReceiptRequested`, an Exchange server account sets
+    /// `IsDeliveryReceiptRequested`, and an IMAP account asks with SMTP delivery status
+    /// notifications (RFC 3461) when the server offers them. It is not a header, and only ever
+    /// set by the owner's own message; a request in mail that comes in is never read into it.
+    #[serde(skip_serializing_if = "is_false")]
+    pub delivery_receipt: bool,
     /// Written by React (#1544): its text is one emoji, sent as a reaction (RFC 9078) with
     /// `Content-Disposition: reaction`. Only ever set by the owner's own reaction; the reader of
     /// mail never sets it, so mail that comes in is not taken for one.

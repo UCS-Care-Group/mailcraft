@@ -106,6 +106,8 @@ pub struct Message {
     pub reply_to: Vec<String>,
     /// It asks for a read receipt (`isReadReceiptRequested`).
     pub read_receipt: bool,
+    /// It asks for a delivery receipt (`isDeliveryReceiptRequested`).
+    pub delivery_receipt: bool,
     /// Its body, and whether that is HTML (else text). Empty: the preview is its text.
     pub body: String,
     pub html: bool,

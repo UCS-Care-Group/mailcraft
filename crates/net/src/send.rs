@@ -161,15 +161,15 @@ pub(crate) fn relay_hint(account: &Account, e: NetError) -> NetError {
     }
 }
 
-/// Hand one message to an open session.
-pub(crate) fn deliver(smtp: &mut Smtp<Stream<'_>>, envelope: &Envelope, message: &Message) -> Result<(), NetError> {
+/// Hand one message to an open session. When the message asks for a delivery receipt and the
+/// server offered DSN, the request goes with it (RFC 3461). Returns whether it did.
+pub(crate) fn deliver(smtp: &mut Smtp<Stream<'_>>, envelope: &Envelope, message: &Message) -> Result<bool, NetError> {
     let message = dated(message);
     // Bcc recipients are in the envelope only.
     let options = WriteOptions { include_bcc: false, offset_minutes: mailcraft_time::local_offset_minutes(message.date) };
     let bytes = mailcraft_mime_model::write(&message, &options);
     let recipients: Vec<&str> = envelope.recipients.iter().map(String::as_str).collect();
-    smtp.send(&envelope.from, &recipients, &bytes)?;
-    Ok(())
+    Ok(smtp.send_with(&envelope.from, &recipients, &bytes, message.delivery_receipt)?)
 }
 
 /// Send one message through the account's outgoing server.
@@ -180,7 +180,7 @@ pub fn send(account: &Account, secret: &str, message: &Message) -> Result<(), Ne
     // A message that can't be sent is found out before any connection is made.
     let envelope = Envelope::of(account, message)?;
     let mut smtp = open_smtp(account, secret).map_err(|e| e.without(secret))?;
-    let sent = deliver(&mut smtp, &envelope, message).map_err(|e| relay_hint(account, e).without(secret));
+    let sent = deliver(&mut smtp, &envelope, message).map(|_| ()).map_err(|e| relay_hint(account, e).without(secret));
     let _ = smtp.quit();
     sent
 }

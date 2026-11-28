@@ -90,6 +90,8 @@ pub struct DraftContent {
     pub importance: Importance,
     /// It asks for a read receipt (`IsReadReceiptRequested`).
     pub read_receipt: bool,
+    /// It asks for a delivery receipt (`IsDeliveryReceiptRequested`).
+    pub delivery_receipt: bool,
     /// The files.
     pub attachments: Vec<AttachmentUp>,
     /// MailCraft's marker, a value used once.
@@ -144,9 +146,13 @@ impl CreateDraft {
                 message = message.child(recipients(name, list));
             }
         }
-        // (`IsReadReceiptRequested` comes after the recipients, `ReplyTo` after that.)
+        // (`IsReadReceiptRequested` comes after the recipients, `IsDeliveryReceiptRequested`
+        // beside it, `ReplyTo` after that.)
         if c.read_receipt {
             message = message.child(Element::new("t:IsReadReceiptRequested").text("true"));
+        }
+        if c.delivery_receipt {
+            message = message.child(Element::new("t:IsDeliveryReceiptRequested").text("true"));
         }
         if c.reply_to.iter().any(|a| !a.email.trim().is_empty()) {
             message = message.child(recipients("t:ReplyTo", &c.reply_to));
@@ -342,6 +348,8 @@ impl RemoveAttachments {
 #[derive(Clone, PartialEq, Eq)]
 pub struct SendMessage {
     mime: Vec<u8>,
+    /// The message asks for a delivery receipt (`IsDeliveryReceiptRequested` on the item that goes).
+    delivery_receipt: bool,
 }
 
 impl std::fmt::Debug for SendMessage {
@@ -377,12 +385,15 @@ impl SendMessage {
         if mime.len() > MAX_MIME {
             return Err(Unsendable::TooLarge);
         }
-        Ok(Self { mime })
+        Ok(Self { mime, delivery_receipt: message.delivery_receipt })
     }
 
     /// The operation: `SavedItemFolderId` and `Items` with the MIME content.
     pub fn element(&self) -> Element {
-        let message = Element::new("t:Message").child(Element::new("t:MimeContent").attr("CharacterSet", "UTF-8").text(&base64(&self.mime)));
+        let mut message = Element::new("t:Message").child(Element::new("t:MimeContent").attr("CharacterSet", "UTF-8").text(&base64(&self.mime)));
+        if self.delivery_receipt {
+            message = message.child(Element::new("t:IsDeliveryReceiptRequested").text("true"));
+        }
         Element::new("m:CreateItem")
             .attr("MessageDisposition", "SendAndSaveCopy")
             .child(folder_ref("m:SavedItemFolderId", "sentitems", None))

@@ -156,6 +156,8 @@ pub struct ItemUpdate {
     pub reply_to: Option<Vec<Address>>,
     /// `message:IsReadReceiptRequested` (a draft).
     pub read_receipt: Option<bool>,
+    /// `message:IsDeliveryReceiptRequested` (a draft).
+    pub delivery_receipt: Option<bool>,
 }
 
 impl ItemUpdate {
@@ -202,6 +204,10 @@ impl ItemUpdate {
         if let Some(asked) = self.read_receipt {
             let value = Element::new("t:IsReadReceiptRequested").text(if asked { "true" } else { "false" });
             put(Self::set("message:IsReadReceiptRequested", "t:Message", value));
+        }
+        if let Some(asked) = self.delivery_receipt {
+            let value = Element::new("t:IsDeliveryReceiptRequested").text(if asked { "true" } else { "false" });
+            put(Self::set("message:IsDeliveryReceiptRequested", "t:Message", value));
         }
         if let Some(read) = self.read {
             put(Self::set("message:IsRead", "t:Message", Element::new("t:IsRead").text(if read { "true" } else { "false" })));
