@@ -28,7 +28,6 @@ const ROW_H: f32 = 36.0;
 const ADD_H: f32 = 44.0;
 /// Where a row's title starts, right of the check box.
 const TITLE_X: f32 = 44.0;
-/// Where the values start in the details pane's field list.
 /// The least width of the details' name column; it grows to the widest name (and no further than 2/5 of the pane).
 const LABEL_W: f32 = 112.0;
 /// Characters of notes the details pane lays out; longer notes end with an ellipsis.

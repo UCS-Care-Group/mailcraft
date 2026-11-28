@@ -344,16 +344,37 @@ pub(crate) mod kit {
         ui.data_mut(|d| d.insert_temp(key, (pass, now, before)));
         // The pass's widest is known only once it ends: then ask for one more pass if it differs from the
         // pass before's, so the column settles after growing and after shrinking (another language).
-        let hooked = key.with("end of pass");
+        // One callback per Context serves every form; it drains the hosts measured in the pass.
+        let (list, hooked) = (
+            egui::Id::NULL.with_salt(egui::IdSalt::new("form label columns measured")),
+            egui::Id::NULL.with_salt(egui::IdSalt::new("form label columns hooked")),
+        );
+        ui.data_mut(|d| {
+            let (at, mut keys) = d.get_temp::<(u64, Vec<egui::Id>)>(list).unwrap_or_default();
+            if at != pass {
+                keys.clear();
+            }
+            if !keys.contains(&key) {
+                keys.push(key);
+            }
+            d.insert_temp(list, (pass, keys));
+        });
         if !ui.data(|d| d.get_temp::<bool>(hooked).unwrap_or(false)) {
             ui.data_mut(|d| d.insert_temp(hooked, true));
             ui.ctx().on_end_pass(
                 "form label column",
                 std::sync::Arc::new(move |ui: &mut Ui| {
                     let ctx = ui.ctx().clone();
-                    let (at, now, before) = ctx.data(|d| d.get_temp::<(u64, f32, f32)>(key)).unwrap_or_default();
-                    if at == ctx.cumulative_pass_nr() && now != before {
-                        ctx.request_repaint();
+                    let (at, keys) = ctx.data_mut(|d| d.remove_temp::<(u64, Vec<egui::Id>)>(list)).unwrap_or_default();
+                    if at != ctx.cumulative_pass_nr() {
+                        return;
+                    }
+                    let pass_nr = ctx.cumulative_pass_nr();
+                    for key in keys {
+                        let (at, now, before) = ctx.data(|d| d.get_temp::<(u64, f32, f32)>(key)).unwrap_or_default();
+                        if at == pass_nr && now != before {
+                            ctx.request_repaint();
+                        }
                     }
                 }),
             );
