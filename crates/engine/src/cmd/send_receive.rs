@@ -29,6 +29,8 @@ pub const ASKS_A_SERVER: &[&str] = &[
     "sync.jmapFetchRequest",
     "sync.ewsRequest",
     "sync.ewsFetchRequest",
+    "sync.zimbraRequest",
+    "sync.zimbraFetchRequest",
     "sync.eventChanges",
     "sync.taskChanges",
 ];

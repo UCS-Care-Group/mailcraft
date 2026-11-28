@@ -1554,7 +1554,7 @@ msgid "Allowed"
 msgstr "Dovoljeno"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Already in your contacts"
 msgstr "Že med vašimi stiki"
@@ -1928,6 +1928,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "Uporabi prenesena opravila"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Downloaded Zimbra Messages"
+msgstr "Uporabi prenesena sporočila Zimbra"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 #, fuzzy
 msgid "Apply Results from the Server"
@@ -1956,6 +1962,12 @@ msgstr "Uporabi Pošlji/prejmi prek JMAP"
 #, fuzzy
 msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "Uporabi Pošlji/prejmi prek Microsoft Graph"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Send/Receive with Zimbra"
+msgstr "Uporabi Pošlji/prejmi prek Zimbra"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -3210,7 +3222,7 @@ msgid "Celebrate"
 msgstr "Praznuj"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Certificates"
 msgstr "Potrdila"
@@ -5187,6 +5199,12 @@ msgstr "Prenašaj slike v vsej pošti"
 msgid "Download Pictures in Mail Automatically"
 msgstr "Samodejno prenašaj slike v pošti"
 
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Download Zimbra Messages in Full"
+msgstr "Prenesi sporočila Zimbra v celoti"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -5264,6 +5282,11 @@ msgid "Downloading pictures…"
 msgstr "Prenašanje slik…"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the address book stopped unexpectedly"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "Downloading the message first…"
@@ -5274,6 +5297,11 @@ msgstr "Najprej prenašanje sporočila…"
 #, fuzzy
 msgid "Downloading the messages first…"
 msgstr "Najprej prenašanje sporočil…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Downloading the organisation's address book…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6647,6 +6675,11 @@ msgstr "Zunaj vaše organizacije."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
 #, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
 msgstr "Iz seznama naslovov organizacije računa {account}. Prikazano, dokler gledate, in se ne hrani: Dodaj med stike obdrži kopijo na tem računalniku."
@@ -7774,6 +7807,11 @@ msgstr "V izboru"
 #, fuzzy
 msgid "In this calendar:"
 msgstr "V tem koledarju:"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "In your contacts"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -11293,6 +11331,11 @@ msgstr "Drug termin ni bil predlagan."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+msgid "Nobody in the address book matches"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
 #, fuzzy
 msgid "Nobody in the address list matches"
 msgstr "Nihče na seznamu naslovov ne ustreza"
@@ -11470,6 +11513,11 @@ msgstr "Vsi strežniki niso bili najdeni: preostanek je samo ugibanje na podlagi
 #, fuzzy
 msgid "Not everything could be removed. Some of it is still here. Try again."
 msgstr "Vsega ni bilo mogoče odstraniti. Nekaj je še vedno tukaj. Poskusite znova."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12170,6 +12218,11 @@ msgstr "Odpri prilogo"
 #, fuzzy
 msgid "Open Calendar"
 msgstr "Odpri koledar"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "Open Contact"
+msgstr ""
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -15110,7 +15163,7 @@ msgid "Send & Receive"
 msgstr "Pošlji/&prejmi"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zimbra_mail.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Send / Receive"
 msgstr "Pošlji/prejmi"
@@ -15432,6 +15485,12 @@ msgstr "Pošlji/prejmi z JMAP"
 #, fuzzy
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Pošlji/prejmi z Microsoft Graph"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Send/Receive with Zimbra"
+msgstr "Pošlji/prejmi z Zimbra"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -16812,7 +16871,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "Ustavljeno pred koncem. Datoteko znova uvozite, da prenesete preostanek."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "Ustavljeno; naslednjič se nadaljuje od tukaj"
@@ -18534,6 +18593,11 @@ msgid "The one this build came with"
 msgstr "Tisti, ki je priložen tej gradnji"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The organisation's address book is empty"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18918,6 +18982,11 @@ msgid "The server or the organisation wouldn't give its settings. Ask your admin
 msgstr "Strežnik ali organizacija ni dala svojih nastavitev. Prosite skrbnika za naslov strežnika in ga vnesite v nastavitve strežnika."
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+msgid "The server sent no address book"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "The server sent the setup somewhere that isn't encrypted, which MailCraft never follows. Type the server's address in Server settings."
@@ -18936,7 +19005,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "Strežnik je zavrnil prijavo za ta račun. Za ponovno prijavo uporabite Pošlji/prejmi."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "Strežnik je zavrnil prijavo za {name}: prijavite se znova"
@@ -21110,7 +21179,7 @@ msgid "Up to 50 MB"
 msgstr "Do 50 MB"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "Posodobljeno"
@@ -22319,6 +22388,42 @@ msgstr "Vaše lastno ime."
 msgid "Z on top"
 msgstr "Ž na vrhu"
 
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
+msgstr "Računi Zimbra so v preizkušanju: zaženite MailCraft z MAILCRAFT_ZIMBRA=1, da jih preizkusite"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr "Računi Zimbra pošiljajo in prejemajo prek spletne storitve Zimbra, ne tako kot račun IMAP"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr "Računi Zimbra še ne morejo pošiljati pošte: ta del še ni izdelan"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step yet: this part is not built"
+msgstr "Zimbra {host} · še ni sinhronizirano: ta del še ni izdelan"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
+msgstr "Zimbra {host} · ni sinhronizirano: računi Zimbra so izklopljeni (zaženite MailCraft z MAILCRAFT_ZIMBRA=1, da jih preizkusite)"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra · no usable server address"
+msgstr "Zimbra · ni uporabnega naslova strežnika"
+
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -22444,6 +22549,12 @@ msgstr "račun Microsoft ali Exchange pošilja z drugih naslovov samo tako, kot 
 #, fuzzy
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr "prijava z Microsoftom se uporablja samo z Microsoftovimi poštnimi strežniki: ta račun imenuje drug strežnik"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr "strežnika, naslova in uporabniškega imena računa Zimbra ni mogoče spremeniti, ko je njegova pošta že tukaj: odstranite ga in dodajte drugega"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22762,6 +22873,12 @@ msgstr "potrdilu S/MIME se zaupa prek overitelja potrdil in ni označeno kot Pre
 #, fuzzy
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
 msgstr "račun postane račun JMAP ali preneha biti tak samo tako, da ga odstranite in znova dodate"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
+msgstr "račun postane račun Zimbra ali preneha biti tak samo tako, da ga odstranite in znova dodate"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -23589,6 +23706,12 @@ msgid "no account here keeps its rules on its server"
 msgstr "noben račun tukaj ne hrani svojih pravil na strežniku"
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "no account is a Zimbra account"
+msgstr "noben račun ni račun Zimbra"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
@@ -23625,7 +23748,7 @@ msgid "no account with id {account}"
 msgstr "ni računa z identifikatorjem {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "ni računa z identifikatorjem {id}"
@@ -23733,7 +23856,7 @@ msgid "no message with id {id}"
 msgstr "ni sporočila z identifikatorjem {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "ni sporočila z identifikatorjem {id} v {name}"
@@ -24943,7 +25066,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "rezultat bi povzročil, da ta račun hrani več stanja sinhronizacije, kot se ga sprejme"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "rezultat {why}"
@@ -25573,16 +25696,22 @@ msgid "this Exchange server account has no server settings"
 msgstr "ta račun strežnika Exchange nima nastavitev strežnika"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "to Pošlji/prejmi je bilo za drug račun, ne za {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "to Pošlji/prejmi je bilo za prej navedeni strežnik {name}"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr "to Pošlji/prejmi se je nadaljevalo od mesta, kjer račun ni več: naslednje bo bralo znova"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -26471,6 +26600,12 @@ msgid "{name} has no JMAP server address that can be used"
 msgstr "{name} nima naslova strežnika JMAP, ki bi ga bilo mogoče uporabiti"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} has no Zimbra server address that can be used"
+msgstr "{name} nima naslova strežnika Zimbra, ki bi ga bilo mogoče uporabiti"
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -26565,6 +26700,12 @@ msgstr "{name} ni račun Microsoft, usklajen prek IMAP"
 #, fuzzy
 msgid "{name} isn't a Microsoft or Exchange server account"
 msgstr "{name} ni račun Microsoft ali račun strežnika Exchange"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} isn't a Zimbra account"
+msgstr "{name} ni račun Zimbra"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -28258,6 +28399,12 @@ msgstr "{why}, zato se prijave ne zapomnijo: MailCraft vpraša znova ob vsakem z
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} sprememb, narejenih tukaj v njem, čaka na tem računalniku."
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{why}: send this message from another account, or save it as a draft"
+msgstr "{why}: to sporočilo pošljite z drugega računa ali ga shranite kot osnutek"
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -28327,6 +28474,18 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Vrstice"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Za račune Zimbra pošiljanje in prejemanje še ni mogoče: ta del še ni izdelan"
+
+#, fuzzy
+#~ msgid "the result is for another Zimbra server"
+#~ msgstr "rezultat je za drug strežnik Zimbra"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "rezultat je za drug račun"
 
 #, fuzzy
 #~ msgid "Calendars and contacts on a server are not read or written yet in this version."

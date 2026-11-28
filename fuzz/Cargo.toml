@@ -36,6 +36,7 @@ mailcraft-oab = { path = "../crates/oab" }
 mailcraft-smime = { path = "../crates/smime" }
 mailcraft-tnef = { path = "../crates/tnef" }
 mailcraft-vcard = { path = "../crates/vcard" }
+mailcraft-zimbra = { path = "../crates/zimbra" }
 
 # Its own workspace, so the main one's builds, lints and cargo-deny leave it alone.
 [workspace]
@@ -260,6 +261,13 @@ bench = false
 [[bin]]
 name = "header_block"
 path = "fuzz_targets/header_block.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "zimbra"
+path = "fuzz_targets/zimbra.rs"
 test = false
 doc = false
 bench = false

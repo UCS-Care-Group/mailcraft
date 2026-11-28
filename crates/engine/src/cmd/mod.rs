@@ -218,6 +218,8 @@ pub mod writing_tools;
 mod writing_tools_tests;
 #[cfg(test)]
 mod written_quote_tests;
+mod zimbra_down;
+pub mod zimbra_mail;
 #[cfg(test)]
 mod zone_tests;
 pub mod zones;
@@ -279,6 +281,7 @@ pub fn registry() -> Registry {
     v.extend(ews_mail::specs());
     v.extend(dav_account::specs());
     v.extend(dav_sync::specs());
+    v.extend(zimbra_mail::specs());
     v.extend(shared::specs());
     v.extend(graph_switch::specs());
     v.extend(graph_send::specs());

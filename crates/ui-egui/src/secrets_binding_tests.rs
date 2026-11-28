@@ -352,7 +352,7 @@ fn the_certificate_look_waits_for_the_servers_to_be_confirmed() {
 fn the_secret_cache_and_the_old_names_are_used_only_where_they_are_listed() {
     let allowed: &[(&str, &str, usize)] = &[
         ("lib.rs", "legacy_secret_key(", 2),
-        ("secret_read.rs", "legacy_secret_key(", 1),
+        ("secret_read.rs", "legacy_secret_key_for(", 1),
         ("lib.rs", "secret_cache.get(", 2),
         ("secret_read.rs", "secret_cache.contains_key(", 2),
         // A subscribed calendar's address is kept like a password (#209): found again by the name
@@ -378,7 +378,7 @@ fn the_secret_cache_and_the_old_names_are_used_only_where_they_are_listed() {
                 continue;
             }
             let text = std::fs::read_to_string(&path).unwrap();
-            for needle in ["legacy_secret_key(", "secret_cache.get(", "secret_cache.contains_key("] {
+            for needle in ["legacy_secret_key(", "legacy_secret_key_for(", "secret_cache.get(", "secret_cache.contains_key("] {
                 let n = text.matches(needle).count();
                 if n > 0 {
                     found.push((name.clone(), needle, n));

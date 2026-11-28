@@ -1,0 +1,1 @@
+| 2026-11-20 | patch | Zimbra Z3: clarify the host-owned switch, pure request/apply commands, result login binding, final-list reconciliation and the still-separate desktop/CLI Send/Receive runner wiring |

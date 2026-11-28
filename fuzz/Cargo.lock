@@ -1382,6 +1382,7 @@ dependencies = [
  "mailcraft-smime",
  "mailcraft-tnef",
  "mailcraft-vcard",
+ "mailcraft-zimbra",
  "serde_json",
 ]
 
@@ -1558,6 +1559,15 @@ dependencies = [
  "mailcraft-model",
  "mailcraft-names",
  "mailcraft-time",
+]
+
+[[package]]
+name = "mailcraft-zimbra"
+version = "0.15.0"
+dependencies = [
+ "mailcraft-ews",
+ "mailcraft-model",
+ "serde_json",
 ]
 
 [[package]]

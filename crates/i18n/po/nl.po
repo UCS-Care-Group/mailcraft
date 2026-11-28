@@ -1882,6 +1882,12 @@ msgid "Apply Downloaded To-dos"
 msgstr "Gedownloade to-do's toepassen"
 
 #. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Downloaded Zimbra Messages"
+msgstr "Gedownloade Zimbra-berichten toepassen"
+
+#. command label
 #: crates/engine/src/cmd/search_server.rs
 msgid "Apply Results from the Server"
 msgstr "Resultaten van de server toepassen"
@@ -1905,6 +1911,12 @@ msgstr "Verzenden/ontvangen met JMAP toepassen"
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Apply Send/Receive with Microsoft Graph"
 msgstr "Verzenden/ontvangen met Microsoft Graph toepassen"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Apply Send/Receive with Zimbra"
+msgstr "Verzenden/ontvangen met Zimbra toepassen"
 
 #. command label
 #: crates/engine/src/cmd/remote.rs
@@ -5035,6 +5047,12 @@ msgstr "Afbeeldingen in alle e-mail downloaden"
 #: crates/ui-egui/src/lib.rs
 msgid "Download Pictures in Mail Automatically"
 msgstr "Afbeeldingen in e-mail automatisch downloaden"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Download Zimbra Messages in Full"
+msgstr "Zimbra-berichten volledig downloaden"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -14634,7 +14652,7 @@ msgid "Send & Receive"
 msgstr "Verzenden & ontvangen"
 
 #. ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/lib.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/categories_remote.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_sync.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules_remote.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/send_receive.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/sync_progress.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zimbra_mail.rs crates/ui-egui/src/lib.rs
 msgid "Send / Receive"
 msgstr "Verzenden/ontvangen"
 
@@ -14943,6 +14961,12 @@ msgstr "Verzenden/ontvangen met JMAP"
 #: crates/engine/src/cmd/graph_mail.rs
 msgid "Send/Receive with Microsoft Graph"
 msgstr "Verzenden/ontvangen met Microsoft Graph"
+
+#. command label
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Send/Receive with Zimbra"
+msgstr "Verzenden/ontvangen met Zimbra"
 
 #. command label
 #: crates/engine/src/cmd/senders.rs
@@ -16300,7 +16324,7 @@ msgid "Stopped before the end. Import the file again to bring the rest."
 msgstr "Gestopt vóór het einde. Importeer het bestand opnieuw om de rest binnen te halen."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "Stopped; carries on from here next time"
 msgstr "Gestopt; gaat de volgende keer vanaf hier verder"
@@ -18409,7 +18433,7 @@ msgid "The server turned down the sign-in for this account. Use Send/Receive to 
 msgstr "De server heeft de aanmelding voor dit account geweigerd. Gebruik Verzenden/ontvangen om opnieuw aan te melden."
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
 msgstr "De server heeft de aanmelding voor {name} geweigerd: meld u opnieuw aan"
@@ -20562,7 +20586,7 @@ msgid "Up to 50 MB"
 msgstr "Tot 50 MB"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/model/src/sync.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs crates/model/src/sync.rs
 #, fuzzy
 msgid "Up to date"
 msgstr "Actueel"
@@ -21739,6 +21763,42 @@ msgstr "Uw eigen naam."
 msgid "Z on top"
 msgstr "Z bovenaan"
 
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts are being tested: start MailCraft with MAILCRAFT_ZIMBRA=1 to try them"
+msgstr "Zimbra-accounts worden getest: start MailCraft met MAILCRAFT_ZIMBRA=1 om ze te proberen"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "Zimbra accounts are sent and received through Zimbra's web service, not as an IMAP account is"
+msgstr "Zimbra-accounts verzenden en ontvangen via de webservice van Zimbra, niet zoals een IMAP-account"
+
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "Zimbra accounts can't send mail yet: that part is not built"
+msgstr "Zimbra-accounts kunnen nog geen e-mail verzenden: dat deel is nog niet gebouwd"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step yet: this part is not built"
+msgstr "Zimbra {host} · nog niet gesynchroniseerd: dit deel is nog niet gebouwd"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra {host} · not kept in step: Zimbra accounts are switched off (start MailCraft with MAILCRAFT_ZIMBRA=1 to try them)"
+msgstr "Zimbra {host} · niet gesynchroniseerd: Zimbra-accounts zijn uitgeschakeld (start MailCraft met MAILCRAFT_ZIMBRA=1 om ze te proberen)"
+
+#. interface
+#: crates/ui-egui/src/backstage.rs
+#, fuzzy
+msgid "Zimbra · no usable server address"
+msgstr "Zimbra · geen bruikbaar serveradres"
+
 #. command label, interface, ribbon, ribbon location
 #: crates/engine/src/cmd/view/display.rs crates/ui-egui/src/attachment_preview.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
 msgid "Zoom"
@@ -21860,6 +21920,12 @@ msgstr "een Microsoft- of Exchange-account verzendt alleen vanaf andere adressen
 #, fuzzy
 msgid "a Microsoft sign-in is only used with Microsoft's own mail servers: this account names another server"
 msgstr "een aanmelding bij Microsoft wordt alleen gebruikt met de eigen mailservers van Microsoft: dit account noemt een andere server"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "a Zimbra account's server, address and user name can't be changed once its mail is here: remove it and add the other one"
+msgstr "de server, het adres en de gebruikersnaam van een Zimbra-account kunnen niet worden gewijzigd zodra de e-mail hier is: verwijder het en voeg het andere toe"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar.rs
@@ -22178,6 +22244,12 @@ msgstr "een S/MIME-certificaat wordt vertrouwd via de certificeringsinstantie en
 #, fuzzy
 msgid "an account becomes a JMAP account, or stops being one, only by being removed and added again"
 msgstr "een account wordt een JMAP-account, of houdt op dat te zijn, alleen door het te verwijderen en opnieuw toe te voegen"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "an account becomes a Zimbra account, or stops being one, only by being removed and added again"
+msgstr "een account wordt alleen een Zimbra-account, of stopt ermee een te zijn, door het te verwijderen en opnieuw toe te voegen"
 
 #. what a command says
 #: crates/engine/src/cmd/account.rs
@@ -22997,6 +23069,12 @@ msgid "no account here keeps its rules on its server"
 msgstr "geen account hier bewaart zijn regels op zijn server"
 
 #. what a command says, why a command can't run
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "no account is a Zimbra account"
+msgstr "geen account is een Zimbra-account"
+
+#. what a command says, why a command can't run
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
 msgid "no account is an Exchange server account"
@@ -23033,7 +23111,7 @@ msgid "no account with id {account}"
 msgstr "geen account met id {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "geen account met id {id}"
@@ -23141,7 +23219,7 @@ msgid "no message with id {id}"
 msgstr "geen bericht met id {id}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "no message with id {id} in {name}"
 msgstr "geen bericht met id {id} in {name}"
@@ -24345,7 +24423,7 @@ msgid "the result would make this account keep more sync state than is taken in"
 msgstr "het resultaat zou dit account meer status om bij te houden laten bewaren dan wordt opgenomen"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "the result {why}"
 msgstr "het resultaat {why}"
@@ -24974,16 +25052,22 @@ msgid "this Exchange server account has no server settings"
 msgstr "dit Exchange-serveraccount heeft geen serverinstellingen"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for another account, not for {name}"
 msgstr "deze Verzenden/ontvangen was voor een ander account, niet voor {name}"
 
 #. what a command says
-#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
+#: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/zimbra_mail.rs
 #, fuzzy
 msgid "this Send/Receive was for the server {name} named before"
 msgstr "deze Verzenden/ontvangen was voor de eerder genoemde server {name}"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "this Send/Receive went on from where the account no longer is: the next one reads again"
+msgstr "deze Verzenden/ontvangen ging verder vanaf waar het account niet meer is: de volgende leest opnieuw"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
@@ -25863,6 +25947,12 @@ msgid "{name} has no JMAP server address that can be used"
 msgstr "{name} heeft geen JMAP-serveradres dat kan worden gebruikt"
 
 #. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} has no Zimbra server address that can be used"
+msgstr "{name} heeft geen bruikbaar Zimbra-serveradres"
+
+#. what a command says
 #: crates/engine/src/io.rs
 #, fuzzy
 msgid "{name} has no contacts"
@@ -25957,6 +26047,12 @@ msgstr "{name} is geen Microsoft-account dat via IMAP wordt bijgehouden"
 #, fuzzy
 msgid "{name} isn't a Microsoft or Exchange server account"
 msgstr "{name} is geen Microsoft- of Exchange-serveraccount"
+
+#. what a command says
+#: crates/engine/src/cmd/zimbra_mail.rs
+#, fuzzy
+msgid "{name} isn't a Zimbra account"
+msgstr "{name} is geen Zimbra-account"
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs
@@ -27397,6 +27493,12 @@ msgstr "{why}, waardoor aanmeldingen niet worden onthouden: MailCraft vraagt het
 msgid "{why}. {n} changes made in it here wait on this computer."
 msgstr "{why}. {n} wijzigingen die hierin zijn gemaakt, wachten op deze computer."
 
+#. what a command says
+#: crates/engine/src/cmd/compose.rs
+#, fuzzy
+msgid "{why}: send this message from another account, or save it as a draft"
+msgstr "{why}: verzend dit bericht vanuit een ander account of sla het op als concept"
+
 #. interface
 #: crates/ui-egui/src/credits.rs
 #, fuzzy
@@ -27464,6 +27566,18 @@ msgstr "−Bin"
 #, fuzzy
 msgid "−Lines"
 msgstr "−Regels"
+
+#, fuzzy
+#~ msgid "Zimbra accounts can't be sent and received yet: that part is not built"
+#~ msgstr "Zimbra-accounts kunnen nog niet verzenden en ontvangen: dat deel is nog niet gebouwd"
+
+#, fuzzy
+#~ msgid "the result is for another Zimbra server"
+#~ msgstr "het resultaat is voor een andere Zimbra-server"
+
+#, fuzzy
+#~ msgid "the result is for another account"
+#~ msgstr "het resultaat is voor een ander account"
 
 #, fuzzy
 #~ msgid "Read-only"
@@ -27944,10 +28058,6 @@ msgstr "−Regels"
 #, fuzzy
 #~ msgid "a link goes to an http, https, mailto or tel address"
 #~ msgstr "een koppeling gaat naar een http-, https-, mailto- of tel-adres"
-
-#, fuzzy
-#~ msgid "the result is for another account"
-#~ msgstr "het resultaat is voor een ander account"
 
 #, fuzzy
 #~ msgid "MailCraft doesn't send mail from a JMAP account yet"
