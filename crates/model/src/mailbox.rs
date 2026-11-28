@@ -579,6 +579,9 @@ pub struct Account {
     /// Inbox is told of, as for any account.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub alert_primary_only: bool,
+    /// Suppress desktop new-mail alerts for this account, including alerts requested by rules.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub mute_desktop_mail: bool,
     /// For an account of a kind this version doesn't know ([`AccountKind::Unknown`]): the account
     /// as its file had it, every field but its id, which is what a mailbox file gets in its place
     /// ([`Mailbox::accounts`]). `None` for every other account.

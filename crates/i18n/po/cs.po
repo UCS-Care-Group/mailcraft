@@ -15836,7 +15836,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "Zobrazovat upozornění na ploše pro připomenutí"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Zobrazovat upozornění na ploše při příchodu nové pošty"

@@ -15816,7 +15816,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "Mostrar una alerta de escritorio para los avisos"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Mostrar una alerta de escritorio cuando llegue correo nuevo"
