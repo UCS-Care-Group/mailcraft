@@ -105,6 +105,7 @@ internal fun uniffi.mailcraft_mobile.MessageRow.toRow() = InboxRow(
     flagged = flagged,
     hasAttachments = hasAttachments,
     important = important,
+    lowImportance = lowImportance,
     members = members.toInt(),
     memberIds = memberIds,
     group = group,

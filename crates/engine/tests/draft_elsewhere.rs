@@ -209,3 +209,25 @@ fn a_leftover_held_after_its_draft_went_up_goes_with_send_again() {
         }
     }
 }
+
+const SIGNED: &[u8] = b"From: Ada <ada@example.org>\r\nTo: Alice <alice@example.org>\r\nSubject: Plan\r\nMessage-ID: <d1@example.org>\r\n\
+MIME-Version: 1.0\r\nContent-Type: multipart/mixed; boundary=\"B\"\r\n\r\n--B\r\nContent-Type: text/html; charset=utf-8\r\n\r\n\
+<p>Regards <img src=\"cid:logo@example.org\"></p>\r\n--B\r\nContent-Type: image/png\r\nContent-Disposition: attachment; filename=\"logo.png\"\r\n\
+Content-ID: <logo@example.org>\r\nContent-Transfer-Encoding: base64\r\n\r\niVBORw0KGgoAAAANSUhEUg==\r\n--B--\r\n";
+
+/// #1970: a draft's parts are kept as its server has them (they go up again as they are): a
+/// picture its body draws is not marked inline, as it is in a message that is no draft.
+#[test]
+fn a_drafts_picture_is_left_as_the_server_has_it() {
+    for kind in [Kind::Ews, Kind::Graph] {
+        for draft in [true, false] {
+            let (mut s, account) = account(kind);
+            let m = by_server(&s, "D1").unwrap();
+            // (The same message, as one that is no draft.)
+            s.mailbox.message_mut(m).unwrap().draft = draft;
+            fetched(&mut s, kind, account, "D1", SIGNED);
+            let m = s.mailbox.message(m).unwrap();
+            assert_eq!(m.attachments[0].inline, !draft, "{kind:?} draft {draft}");
+        }
+    }
+}

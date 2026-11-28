@@ -8,9 +8,9 @@ body:
       value: |
         Thank you. This issue is **public**: don't write your email address, your organisation's name or anything from your mail here. Your GitHub name is enough; we'll reach you here.
 
-        **The public beta** is now: the builds on the [Releases page](https://github.com/UCS-Care-Group/mailcraft/releases), not yet signed, and they can still get things wrong. What you do in MailCraft (moves, deletions, read marks) reaches your server. Keep Outlook or Outlook on the web to hand, and don't test on a mailbox you can't afford to have disturbed.
+        **The public beta** is now: the builds on the [Releases page](https://github.com/UCSLabs/mailcraft/releases), not yet signed, and they can still get things wrong. What you do in MailCraft (moves, deletions, read marks) reaches your server. Keep Outlook or Outlook on the web to hand, and don't test on a mailbox you can't afford to have disturbed.
 
-        **Leaving beta** takes at least 5 testers, each on a Microsoft account, using MailCraft on 14 working days (Monday to Friday) on at least 2 devices with nothing lost, and signed builds. See [ROADMAP.md](https://github.com/UCS-Care-Group/mailcraft/blob/main/ROADMAP.md).
+        **Leaving beta** takes at least 5 testers, each on a Microsoft account, using MailCraft on 14 working days (Monday to Friday) on at least 2 devices with nothing lost, and signed builds. See [ROADMAP.md](https://github.com/UCSLabs/mailcraft/blob/main/ROADMAP.md).
   - type: checkboxes
     id: phase
     attributes:

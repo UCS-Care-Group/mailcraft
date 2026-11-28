@@ -9,6 +9,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Semaphore
 import kotlinx.coroutines.sync.withPermit
@@ -30,6 +31,8 @@ internal class ReadingController(
     private val scope: CoroutineScope,
     /** Where the picture cache's files are read and written: never the main thread. */
     private val io: CoroutineDispatcher = Dispatchers.IO,
+    /** Waits [it] milliseconds (swapped for a gate in tests). */
+    private val wait: suspend (Long) -> Unit = { delay(it) },
 ) {
     private val state = MutableStateFlow(ReadingUi())
 
@@ -40,6 +43,11 @@ internal class ReadingController(
 
     /** Given when the generation moves on: a download already on its way ends, and nothing more is begun. */
     private var stop = Stop()
+    private var nearKey = 0 to false
+    private var wanted = emptySet<ULong>()
+    /** Messages whose read state the owner set by hand since they were opened: a timer does not undo that. */
+    private val decided = LinkedHashSet<ULong>()
+    private var waitingFor: ULong? = null
     private val asked = LinkedHashSet<ULong>()
     private val tapped = LinkedHashSet<ULong>()
     private val marked = LinkedHashSet<ULong>()
@@ -50,19 +58,29 @@ internal class ReadingController(
     @Synchronized
     fun isAsked(id: ULong): Boolean = id in asked
 
-    /** Opens message [id] for a body [widthDp] wide in a dark or light window (again, when either changed). */
-    fun open(id: ULong, widthDp: Int, dark: Boolean) {
+    /**
+     * Opens message [id] for a body [widthDp] wide in a dark or light window (again, when either changed).
+     * [markAfterMs] holds the mark as read back that long (null: never marked).
+     */
+    fun open(id: ULong, widthDp: Int, dark: Boolean, markAfterMs: Long? = 0) {
         val mine = advance()
         // (Pictures that were on their way for an earlier look are asked for again by this one.)
+        val key = widthDp to dark
+        // (A redraw of the message while its mark waits keeps what the owner set by hand meanwhile.)
+        if (waitingFor != id) undecide(id)
+        waitingFor = null
         state.update {
+            // (What was read ahead for another width or theme is not the message as it would be drawn now.)
+            val near = if (key == nearKey) it.near else emptyMap()
             if (it.id != id) {
-                ReadingUi(id = id)
+                ReadingUi(id = id, near = near)
             } else {
-                it.copy(pictures = it.pictures.filterValues { p -> p !is PictureState.Pending })
+                it.copy(pictures = it.pictures.filterValues { p -> p !is PictureState.Pending }, near = near)
             }
         }
+        nearKey = key
         scope.launch {
-            val opened = source.open(id, widthDp, dark)
+            val opened = state.value.near[id] ?: source.open(id, widthDp, dark)
             if (mine != generation.get()) return@launch
             if (opened == null) {
                 state.update { it.copy(load = LoadState.Failed) }
@@ -70,9 +88,60 @@ internal class ReadingController(
             }
             val prefs = prefsStore.load()
             val access = PicturePolicy.access(prefs, opened.facts, isAsked(id))
-            state.update { it.copy(load = LoadState.Ready, opened = opened, access = access, prefs = prefs) }
-            if (opened.view.unread && remember(marked, id) && !source.markRead(id)) forget(id)
-            loadPictures(mine, id, opened)
+            state.update {
+                it.copy(load = LoadState.Ready, opened = opened, access = access, prefs = prefs, near = it.near - id)
+            }
+            // (Pictures do not wait for the mark.)
+            scope.launch { loadPictures(mine, id, opened) }
+            if (markAfterMs != null && opened.view.unread) markWhenStayed(mine, id, markAfterMs)
+        }
+    }
+
+    /** Marks [id] read once it has stayed open [afterMs]: passing by quickly (a swipe) leaves it unread. */
+    private suspend fun markWhenStayed(mine: Int, id: ULong, afterMs: Long) {
+        if (afterMs > 0) {
+            waitingFor = id
+            wait(afterMs)
+        }
+        if (mine != generation.get()) return
+        val unread = state.value.let { it.id == id && it.opened?.view?.unread == true }
+        if (unread && !isDecided(id) && remember(marked, id)) {
+            if (source.markRead(id)) triaged(id, unread = false) else forget(id)
+        }
+    }
+
+    /**
+     * Reads [ids] (the messages either side of the open one) ahead, for a body [widthDp] wide in a dark or
+     * light window, and lets go of any other read ahead. Reading ahead is only reading: no mark as read, no
+     * pictures, nothing a message does when it is opened. It is dropped when another message is opened.
+     */
+    fun preload(ids: List<ULong>, widthDp: Int, dark: Boolean) {
+        val key = widthDp to dark
+        val mine = generation.get()
+        wanted = ids.take(MAX_NEAR).toSet()
+        state.update { u -> u.copy(near = (if (key == nearKey) u.near else emptyMap()).filterKeys { it in wanted }) }
+        nearKey = key
+        for (id in wanted) {
+            val now = state.value
+            if (id in now.near || id == now.id) continue
+            scope.launch {
+                val opened = source.open(id, widthDp, dark) ?: return@launch
+                if (mine != generation.get() || key != nearKey || id !in wanted) return@launch
+                state.update { if (it.id == id) it else it.copy(near = it.near + (id to opened)) }
+            }
+        }
+    }
+
+    /** The open message [id] was flagged or unflagged (null: unchanged) or marked read or unread, by the toolbar. */
+    fun triaged(id: ULong, unread: Boolean? = null, flagged: Boolean? = null) {
+        // Marked unread on purpose: the next open reads it again.
+        if (unread == true) forget(id)
+        if (unread != null) decide(id)
+        state.update {
+            val opened = it.opened
+            if (it.id != id || opened == null) return@update it
+            val view = opened.view.copy(unread = unread ?: opened.view.unread, flagged = flagged ?: opened.view.flagged)
+            it.copy(opened = OpenedMessage(view, opened.facts, opened.links, opened.attachments))
         }
     }
 
@@ -88,10 +157,11 @@ internal class ReadingController(
      * on its way is not asked for any more, and what arrives is dropped and not kept. When another message
      * has been opened since, nothing changes.
      */
-    fun close(id: ULong) {
+    fun close(id: ULong, onward: Boolean = false) {
         if (state.value.id != id) return
         advance()
-        state.value = ReadingUi()
+        // (Going on to a neighbour by a swipe: what was read ahead is the next message.)
+        state.value = ReadingUi(near = if (onward) state.value.near else emptyMap())
     }
 
     /** The owner said Download pictures, for this message alone, its sender, or its sender's domain. */
@@ -246,6 +316,19 @@ internal class ReadingController(
         if (set.size > MAX_REMEMBERED_MESSAGES) set.remove(set.first())
         return added
     }
+
+    @Synchronized
+    private fun decide(id: ULong) {
+        remember(decided, id)
+    }
+
+    @Synchronized
+    private fun undecide(id: ULong) {
+        decided.remove(id)
+    }
+
+    @Synchronized
+    private fun isDecided(id: ULong) = id in decided
 
     /** A mark that failed is tried again when the message is opened again. */
     @Synchronized

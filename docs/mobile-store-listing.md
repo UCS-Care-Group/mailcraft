@@ -60,7 +60,7 @@ are shown and can be changed on the phone.
 and dark, with large text and a screen reader in mind.
 
 MailCraft is open source under the MIT or Apache 2.0 licence, written in Rust from public
-specifications. The source and the privacy statement are at github.com/UCS-Care-Group/mailcraft.
+specifications. The source and the privacy statement are at github.com/UCSLabs/mailcraft.
 
 ## To check before the first release
 

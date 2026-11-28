@@ -1,0 +1,1 @@
+| 2026-11-26 | MR5: Android reading view: a picture that was not downloaded is a box of its own size, at most 120 dp tall, and no longer leaves an empty space screens tall in a coloured table row (#1966) |
