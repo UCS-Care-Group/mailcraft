@@ -391,6 +391,56 @@ fn what_writes_a_message_whole_writes_every_header_line_kept_beside_the_mailbox_
     assert!(s.run("mail.viewSource", &json!({"id": id})).unwrap()["source"].as_str().unwrap().contains("List-Id: <news.example.org>"));
 }
 
+/// Run Rules Now with a rule that looks for words in the header finds them in the lines kept
+/// beside the mailbox file, which it brings in for the rule and lets go of again; with those
+/// lines gone from the disk, the rule can't tell and leaves the mail alone (#566).
+#[test]
+fn run_rules_now_reads_the_header_lines_kept_beside_the_mailbox_file() {
+    use mailcraft_model::{Action, Condition, Rule};
+    let mut mb = with_exchange_headers(3);
+    let account = mb.accounts[0].id;
+    let inbox = mb.inbox().unwrap();
+    let reports = mb.add_folder(account, None, "Reports").unwrap();
+    let ids: Vec<Id> = mb.messages.keys().copied().collect();
+    for id in &ids {
+        // As a message read from its bytes keeps the lines it reads into itself.
+        mb.message_mut(*id).unwrap().read_header = "From: Ada Aldrin <ada@example.org>\n".into();
+    }
+    let header = Condition::HeaderContains(vec!["x-ms-exchange-antispam-messagedata-0".into()]);
+    let rule =
+        Rule { id: 1, name: "Reports".into(), enabled: true, conditions: vec![header], actions: vec![Action::MoveTo(reports)], ..Default::default() };
+    mb.rules.push(rule);
+    let tmp = Temp::new("headers-rules");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+
+    // The lines gone from the disk: nothing moves.
+    let (mut s, _) = session_on(&path, &mb, 3);
+    assert!(ids.iter().all(|id| !s.mailbox.message(*id).unwrap().header_block.is_loaded()), "kept beside the file");
+    let saved = packs(&path).into_iter().map(|f| (f.clone(), fs::read(&f).unwrap())).collect::<Vec<_>>();
+    saved.iter().for_each(|(f, _)| fs::remove_file(f).unwrap());
+    clear_cache();
+    assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], json!(0));
+    assert!(ids.iter().all(|id| s.mailbox.message(*id).unwrap().folder == inbox));
+
+    // There: every message is moved, and its block is let go of again.
+    saved.iter().for_each(|(f, bytes)| fs::write(f, bytes).unwrap());
+    clear_cache();
+    assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], json!(3));
+    for id in &ids {
+        let m = s.mailbox.message(*id).unwrap();
+        assert_eq!(m.folder, reports);
+        assert!(!m.header_block.is_loaded(), "the block of message {id} stays beside the file");
+    }
+    // A word in no line: each message is brought in, read and put back as it was.
+    let (mut s, _) = session_on(&path, &mb, 3);
+    s.mailbox.rules[0].conditions = vec![Condition::HeaderContains(vec!["no-such-line".into()])];
+    let before: Vec<Arc<Message>> = ids.iter().map(|id| s.mailbox.messages.get(id).unwrap().clone()).collect();
+    assert_eq!(s.run("rules.run", &json!({"folder": inbox})).unwrap()["matched"], json!(0));
+    assert!(ids.iter().zip(&before).all(|(id, was)| Arc::ptr_eq(s.mailbox.messages.get(id).unwrap(), was)), "the mail as it was");
+}
+
 /// Run Rules Now brings in the header block for "except if it is an automatic reply" too: a block
 /// kept as a build from before the mark stayed on the message kept it, with the mark among its
 /// lines, leaves the reply alone, the block there or gone (#566).

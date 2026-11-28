@@ -317,12 +317,56 @@ fn auto_capitalization_distinguishes_abbreviations_from_standalone_no() {
         ("A Sc.D. in biology ", "A Sc.D. in biology "),
         ("Her Ph.D. is complete. thanks ", "Her Ph.D. is complete. Thanks "),
         ("“no.” thanks ", "“No.” Thanks "),
+        ("Smith et al. showed the result. thanks ", "Smith et al. showed the result. Thanks "),
+        ("Smith ET AL. showed the result ", "Smith ET AL. showed the result "),
+        ("Read (et al. for details) ", "Read (et al. for details) "),
+        ("Ask Al. thanks ", "Ask Al. Thanks "),
     ] {
         let mut body = RichBody::default();
         for character in typed.chars() {
             body.type_with_auto_capitalization(&character.to_string(), "en").unwrap();
         }
         assert_eq!(body.plain(), expected, "{typed:?}");
+    }
+}
+
+#[test]
+fn auto_capitalization_preserves_georgian_script_independently_of_writing_language() {
+    for language in ["ka", "ka-GE", "ka_GE", "en", "tr", "nl"] {
+        let typed = "გამარჯობა. როგორ ხარ? ყველაფერი კარგადაა!\nნახვამდის ";
+        let mut body = RichBody::default();
+        for character in typed.chars() {
+            body.type_with_auto_capitalization(&character.to_string(), language).unwrap();
+        }
+        assert_eq!(body.plain(), typed, "{language}");
+    }
+    // Selecting Georgian does not suppress capitalization of another script.
+    let mut body = RichBody::default();
+    for character in "ქართული. hello world. thanks ".chars() {
+        body.type_with_auto_capitalization(&character.to_string(), "ka").unwrap();
+    }
+    assert_eq!(body.plain(), "ქართული. Hello world. Thanks ");
+}
+
+#[test]
+fn auto_capitalization_preserves_additional_ordinal_dates_in_typed_prose() {
+    for (language, typed) in [
+        ("da-DK", "Vi mødes den 18. november "),
+        ("nb-NO", "Vi møtes den 18. november "),
+        ("nn_NO", "Vi møtest den 18. november "),
+        ("no", "Vi møtes den 18. november "),
+        ("fi-FI", "Tapaamme 18. marraskuuta "),
+        ("sk-SK", "Stretneme sa 18. novembra "),
+    ] {
+        let mut body = RichBody::default();
+        for character in typed.chars() {
+            body.type_with_auto_capitalization(&character.to_string(), language).unwrap();
+        }
+        assert_eq!(body.plain(), typed, "{language}");
+        for character in "Done. thanks ".chars() {
+            body.type_with_auto_capitalization(&character.to_string(), language).unwrap();
+        }
+        assert!(body.plain().ends_with("Done. Thanks "), "{language}");
     }
 }
 

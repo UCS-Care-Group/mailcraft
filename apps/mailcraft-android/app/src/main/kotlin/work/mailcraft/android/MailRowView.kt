@@ -34,6 +34,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.CustomAccessibilityAction
@@ -52,6 +53,7 @@ private val Gutter = 16.dp
 private val RowGap = 0.dp
 private val MinRow = 48.dp
 private val SmallIcon = 16.dp
+private const val FLAG_TINT = 0.35f
 private val SwipeIcon = 24.dp
 private val Gap8 = Arrangement.spacedBy(space = 8.dp)
 private val Gap4 = Arrangement.spacedBy(space = 4.dp)
@@ -168,7 +170,7 @@ internal fun MailRowContent(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(rowFill(row))
             .combinedClickable(onClick = actions.onOpen, onLongClick = actions.onMenu)
             .semantics(mergeDescendants = true) {
                 stateDescription = description
@@ -197,8 +199,9 @@ internal fun MailRowContent(
             }
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Gap4) {
                 Line(row.subject, weight, Modifier.weight(1f), MaterialTheme.typography.bodyMedium)
+                ImportanceMark(row)
                 if (row.hasAttachments) MarkIcon(ListIcons.Attachment)
-                if (row.flagged) MarkIcon(ListIcons.Flag, MaterialTheme.colorScheme.error)
+                if (row.flagged) MarkIcon(ListIcons.FlagFilled, MaterialTheme.colorScheme.error)
             }
             Text(
                 row.preview,
@@ -237,7 +240,15 @@ private fun Line(text: String, weight: FontWeight, modifier: Modifier, style: Te
     )
 }
 
+/** A flagged row is tinted, so it is seen from across the list and not only by its small mark. */
 @Composable
-private fun MarkIcon(icon: ImageVector, tint: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
+private fun rowFill(row: InboxRow): Color {
+    val surface = MaterialTheme.colorScheme.surface
+    if (!row.flagged) return surface
+    return MaterialTheme.colorScheme.errorContainer.copy(alpha = FLAG_TINT).compositeOver(surface)
+}
+
+@Composable
+internal fun MarkIcon(icon: ImageVector, tint: Color = MaterialTheme.colorScheme.onSurfaceVariant) {
     Icon(icon, contentDescription = null, tint = tint, modifier = Modifier.size(SmallIcon))
 }

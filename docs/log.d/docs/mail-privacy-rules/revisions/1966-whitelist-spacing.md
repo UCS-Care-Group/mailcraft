@@ -1,0 +1,1 @@
+| 2026-11-27 | minor | The presentation whitelist adds a table's `cellpadding`, Outlook's `mso-padding-alt`, `mso-margin-top-alt` and `mso-margin-bottom-alt` (only where the plain property is missing), and a `height` on an empty block or cell with a background, drawn as a bar of at most 64 pixels (#1966) |

@@ -232,7 +232,12 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::
             for field in ContactField::ALL.into_iter().filter(|f| !fields.contains(f)) {
                 field.copy(cur, c);
             }
-            (c.origin, c.folder) = (cur.origin.clone(), cur.folder);
+            // One the step moved goes back where it was (no server had it:
+            // [`super::contacts_move`]). Any other stays where it is now, also when a refusal or
+            // a move back put it elsewhere since, outside any step.
+            if !touched.moved_contact(*id) {
+                (c.origin, c.folder, c.moved_from) = (cur.origin.clone(), cur.folder, cur.moved_from);
+            }
         }
         // In a folder that may only be read now, with nothing waiting for it (which would be
         // held, as any change there is): its server can't be told, so it stays as it is now.
@@ -251,16 +256,40 @@ pub(crate) fn after_undo(mailbox: &mut Mailbox, now: &Mailbox, touched: &crate::
             no_room += 1;
         }
     }
+    // A contact a move took away, back and to be made on its server again: the one the move made,
+    // taken away now, is deleted from its server only once that is done, as the move held its own
+    // deletion (#1144). So too when its deletion was waiting, and so may be on its way: an answer
+    // that it was deleted makes it again ([`apply_contact_outcomes`]), and the link holds this one's
+    // deletion till then.
+    // lean: this holds once the answer is in. Before it, the hold rests on the jobs' turns
+    // (`sync_driver::jobs::Busy`): a Graph calendar job doesn't start while an IMAP, Exchange or
+    // JMAP run is at work, but a JMAP run can start while a calendar job is in flight. So with the
+    // source's deletion on its way to Microsoft, a JMAP account's run can send this one's deletion
+    // first; should the source then not be made again, it is kept on this computer only (a refused
+    // Create keeps it there: [`give_up`]), never lost. Upgrade: hold this one's deletion until the
+    // source's account has answered once after the undo.
+    for id in touched.changed_contacts() {
+        let Some(from) = now.contact(*id).filter(|_| mailbox.contact(*id).is_none()).map(|c| c.moved_from).filter(|f| *f != 0) else { continue };
+        let creating = mailbox.contact_changes.iter().any(|n| n.contact == from && n.kind == ContactChangeKind::Create)
+            || now.contact_changes.iter().any(|n| n.contact == from && n.kind == ContactChangeKind::Delete);
+        if creating && let Ok(c) = mailbox.contact_mut(from) {
+            c.moved_from = *id;
+        }
+    }
     (no_room, read_only_kept)
 }
 
 /// The folder a new contact goes into when the command doesn't say (C8), without making
-/// anything: with one account that keeps contacts, its main folder; with more, the account the
-/// list shows (On this computer when it shows that), else the folder last used, else the first
-/// account's. `Err(account)` is that account's main folder, not made yet.
+/// anything: the folder the list shows alone, when a contact can go there; else with one account
+/// that keeps contacts, its main folder; with more, the account the list shows (On this computer
+/// when it shows that), else the folder last used, else the first account's. `Err(account)` is
+/// that account's main folder, not made yet.
 pub fn default_contact_folder(s: &Session) -> Result<Id, Id> {
-    let accounts = super::people::contact_accounts(&s.mailbox);
     let usable = |f: Id| f == 0 || home(&s.mailbox, f).is_some_and(|f| f.writable);
+    if let Some(folder) = super::people::shown_folder(s).filter(|f| usable(*f)) {
+        return Ok(folder);
+    }
+    let accounts = super::people::contact_accounts(&s.mailbox);
     let account = match accounts.as_slice() {
         [] => return Ok(0),
         [one] => *one,
@@ -309,6 +338,7 @@ fn keep_local(fresh: &mut Contact, old: &Contact, categories: bool) {
     fresh.uid.clone_from(&old.uid);
     fresh.imported.clone_from(&old.imported);
     fresh.imported_from.clone_from(&old.imported_from);
+    fresh.moved_from = old.moved_from;
     if categories {
         fresh.categories.clone_from(&old.categories);
     }
@@ -579,9 +609,14 @@ pub fn contact_upload(s: &Session, account: Id) -> Result<ContactsUpload, CmdErr
     let owner = s.mailbox.account(account).ok_or_else(|| failed!("no account with id {id}", id = account))?;
     let (mailbox, now) = (&s.mailbox, s.now());
     let mut ops = Vec::new();
+    // A deletion a move left waits until the contact moved is made ([`super::contacts_move`]).
+    let held = super::contacts_move::held_deletions(mailbox);
     for change in mailbox.contact_changes.iter().filter(|c| c.account == account && c.next_try <= now && c.unconfirmed == 0) {
         if ops.len() >= MAX_CONTACT_OPS {
             break;
+        }
+        if change.kind == ContactChangeKind::Delete && held.contains(&change.contact) {
+            continue;
         }
         let Some(folder) = mailbox.contact_folder(change.folder).filter(|f| f.account == account && f.writable) else { continue };
         let contact = mailbox.contact(change.contact);
@@ -680,7 +715,7 @@ impl ContactsApplied {
 }
 
 /// A name for a line about a contact: short, and never empty.
-fn called(c: Option<&Contact>) -> String {
+pub(crate) fn called(c: Option<&Contact>) -> String {
     let name: String = c.map(Contact::name).unwrap_or_default().chars().filter(|ch| !ch.is_control()).take(60).collect();
     if name.trim().is_empty() { "A contact".to_string() } else { format!("\"{}\"", name.trim()) }
 }
@@ -850,8 +885,13 @@ fn give_up(mailbox: &mut Mailbox, at: Option<usize>, outcome: &mailcraft_model::
     match change.kind {
         ContactChangeKind::Create => {
             let name = called(mailbox.contact(change.contact));
+            // Moved from a server's folder: back there rather than in neither.
+            if let Some(from) = super::contacts_move::moved_back(mailbox, change.contact) {
+                applied.say(said!("{name} couldn't be moved to {folder}{why}: it stays in {from}.", name, folder, why, from).to_string());
+                return;
+            }
             if let Ok(c) = mailbox.contact_mut(change.contact) {
-                (c.folder, c.origin) = (0, Origin::default());
+                (c.folder, c.origin, c.moved_from) = (0, Origin::default(), 0);
             }
             applied.say(said!("{name} couldn't be added to {folder}{why}: it is kept on this computer.", name, folder, why).to_string());
         }

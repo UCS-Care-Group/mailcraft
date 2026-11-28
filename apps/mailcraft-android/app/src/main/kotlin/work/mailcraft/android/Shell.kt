@@ -6,11 +6,26 @@
 package work.mailcraft.android
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBarDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.unit.DpSize
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.DrawerValue
@@ -19,8 +34,6 @@ import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.ModalNavigationDrawer
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
@@ -43,7 +56,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
@@ -80,6 +93,8 @@ internal class ShellData(
     val nowMillis: Long = 0L,
     /** The two swipes the owner chose on the mail list. */
     val swipe: SwipeConfig = SwipeConfig(),
+    /** The buttons the owner chose for new-mail notifications. */
+    val noticeButtons: NoticeButtons = NoticeButtons(),
     /** What the owner chose about reading: the light page in the dark theme, the header open or shut. */
     val readingPrefs: ReadingPrefs = ReadingPrefs(),
     /** The message being read, and how its pictures are coming. */
@@ -124,12 +139,13 @@ internal class ShellActions(
     val settings: SettingsActions = SettingsActions(),
     val mail: MailListActions = MailListActions.None,
     val onSwipe: (SwipeConfig) -> Unit = {},
-    val onReadingPrefs: (ReadingPrefs) -> Unit = {},
+    val onReadingPrefs: (ReadingEdit) -> Unit = {},
     val reading: ReadingActions = ReadingActions.None,
     val onPictures: (PicturePrefs) -> Unit = {},
     val onClearPictures: () -> Unit = {},
     val writing: WritingActions = WritingActions(),
     val organiser: OrganiserActions = OrganiserActions(),
+    val onNoticeButtons: (NoticeButtons) -> Unit = {},
 )
 
 /** What the People and Tasks tabs (and Today's cards that open them) ask of the app. */
@@ -147,9 +163,6 @@ internal class WritingActions(
 
 /** The window is "expanded" from this width: the rail and the tablet layout. */
 private val ExpandedWidth = 840.dp
-
-/** Above this font scale the bottom bar keeps a label only for the tab that is on. */
-private const val LARGE_TEXT = 1.3f
 
 /**
  * The app's frame. Phone: a top bar with the ☰ button, the bottom bar of five tabs. Tablet (an
@@ -425,7 +438,8 @@ private fun MainFrame(
     var searchOpen by rememberSaveable { mutableStateOf(false) }
     BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
         val expanded = maxWidth >= ExpandedWidth
-        val largeText = LocalDensity.current.fontScale > LARGE_TEXT
+        // A message open on a phone has the screen to itself: its own bar, no tabs.
+        val reading = readsFullScreen(onBack != null, expanded, tab)
         Row(modifier = Modifier.fillMaxSize()) {
             if (expanded) {
                 NavigationRail {
@@ -442,6 +456,7 @@ private fun MainFrame(
             Scaffold(
                 modifier = Modifier.weight(1f),
                 topBar = {
+                  if (!reading) {
                     // The list's search and funnel sit in the bar (not beside a message that is open on a phone).
                     val bar = mailBar?.takeIf { onBack == null || expanded }
                     val searching = bar != null && (searchOpen || bar.query.search.isNotBlank())
@@ -470,6 +485,7 @@ private fun MainFrame(
                             }
                         },
                     )
+                  }
                 },
                 snackbarHost = { SnackbarHost(snackbar) },
                 floatingActionButton = {
@@ -487,22 +503,53 @@ private fun MainFrame(
                     }
                 },
                 bottomBar = {
-                    if (!expanded) {
-                        NavigationBar {
-                            Tab.entries.forEach { entry ->
-                                NavigationBarItem(
-                                    selected = entry == tab,
-                                    onClick = { onTab(entry) },
-                                    icon = { Icon(entry.icon(), contentDescription = null) },
-                                    label = { TabLabel(entry.label(texts)) },
-                                    alwaysShowLabel = !largeText,
-                                )
-                            }
-                        }
-                    }
+                    if (showBottomBar(expanded, reading)) TabBar(texts, tab, onTab)
                 },
             ) { padding ->
                 Box(modifier = Modifier.padding(padding)) { content(Modifier, expanded) }
+            }
+        }
+    }
+}
+
+/** A message open on a phone, in the Mail tab, has the screen to itself. */
+internal fun readsFullScreen(open: Boolean, expanded: Boolean, tab: Tab) = open && !expanded && tab == Tab.Mail
+
+/** The tabs show unless the window is wide (a rail instead) or a message is open full screen. */
+internal fun showBottomBar(expanded: Boolean, reading: Boolean) = !expanded && !reading
+
+private val BarHeight = 64.dp
+private val PillSize = DpSize(56.dp, 28.dp)
+
+/**
+ * Icons for every tab and the name under the one on show; large text keeps that name and the bar grows
+ * to fit it. (Drawn here rather than by `NavigationBar`, whose items are never less than 80 dp high.)
+ */
+@Composable
+private fun TabBar(texts: Texts, tab: Tab, onTab: (Tab) -> Unit) {
+    Surface(color = NavigationBarDefaults.containerColor, tonalElevation = NavigationBarDefaults.Elevation) {
+        val insets = NavigationBarDefaults.windowInsets
+        Row(modifier = Modifier.fillMaxWidth().windowInsetsPadding(insets).selectableGroup()) {
+            Tab.entries.forEach { entry ->
+                val on = entry == tab
+                val label = entry.label(texts)
+                Column(
+                    modifier = Modifier.weight(1f).heightIn(min = BarHeight)
+                        .selectable(selected = on, role = Role.Tab, onClick = { onTab(entry) }),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    val pill = if (on) MaterialTheme.colorScheme.secondaryContainer else Color.Transparent
+                    Box(
+                        modifier = Modifier.size(PillSize).background(pill, CircleShape),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        // (The label names the tab on show; the others are named by their icon.)
+                        Icon(entry.icon(), contentDescription = if (on) null else label)
+                    }
+                    // (A long name wraps and the bar grows, at large text on a narrow phone.)
+                    if (on) Text(label, style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
+                }
             }
         }
     }
@@ -526,7 +573,18 @@ private fun MailTab(
     onLeave: () -> Unit,
 ) {
     val context = MailListContext(texts, data.nowMillis, data.swipe, data.accounts, data.categories, data.avatars)
-    val tools = ReadingTools(context, actions.mail.onTriage, onLeave, data.readingPrefs, actions.onReadingPrefs)
+    val prefs = data.readingPrefs
+    // (The place in the list is kept while a message is open; leaving to the list forgets it.)
+    val order = remember(messageId == null) { SwipeOrder() }
+    val around = messageId?.let { order.around(data.mail.snapshot, it) }
+    // The rows either side are read when they are not yet (a list on a phone isn't drawn to ask for them).
+    LaunchedEffect(around?.at) {
+        around?.takeIf { it.at >= 0 }?.let { actions.mail.onRange((it.at - 1).coerceAtLeast(0), it.at + 1) }
+    }
+    val swipe = around?.takeIf { it.at >= 0 }?.let { n ->
+        MessageSwipe(n.previous, n.next, actions.mail.onOpen)
+    }
+    val tools = ReadingTools(context, actions.mail.onTriage, onLeave, prefs, actions.onReadingPrefs, !expanded, swipe)
     if (expanded) {
         Row(modifier = modifier.fillMaxSize()) {
             MailListScreen(context, data.mail, actions.mail, Modifier.width(ListWidth))
@@ -557,7 +615,7 @@ private fun isDraft(data: ShellData): Boolean {
 private fun ShellActions.copy(mail: MailListActions) =
     ShellActions(
         onFolder, onLanguage, accounts, settings, mail, onSwipe, onReadingPrefs, reading, onPictures,
-        onClearPictures, writing, organiser,
+        onClearPictures, writing, organiser, onNoticeButtons,
     )
 
 @Composable

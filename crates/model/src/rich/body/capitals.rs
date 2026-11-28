@@ -4,8 +4,8 @@
 use super::RichText;
 use crate::ModelError;
 
-/// Only the end of the current paragraph is needed. Long words and long runs of
-/// whitespace can leave a sentence uncapitalized, so finishing a word stays cheap.
+/// Sentence detection keeps only this many trailing characters, though collecting
+/// them still walks the current paragraph. Longer words or whitespace can be skipped.
 const CONTEXT_CHARS: usize = 256;
 
 pub(super) struct Initial {
@@ -48,6 +48,11 @@ pub(super) fn find(text: &RichText, typed_from: usize, caret: usize, language: &
     let body = word.trim_end_matches(|c| closing(c) || sentence_punctuation(c) || matches!(c, ',' | ':' | ';' | '…'));
     let mut letters = body.chars();
     let first = letters.next().filter(|ch| ch.is_lowercase())?;
+    // Modern Georgian uses Mtavruli for all-caps text, not sentence initials,
+    // regardless of the selected writing language (W3C Georgian Gap Analysis).
+    if matches!(first, '\u{10d0}'..='\u{10ff}') {
+        return None;
+    }
     // A complete word can have apostrophes, hyphens and combining accents. URLs,
     // addresses, paths and dotted identifiers contain other punctuation. An
     // uppercase letter within a word is likely intentional (for example, iPhone).
@@ -108,10 +113,11 @@ fn sentence_ends(mut before: &str, starts_at_paragraph: bool, language: &str) ->
         {
             return false;
         }
-        // A bare number at the start of a paragraph can be a list marker. Czech,
-        // German, Hungarian and Polish also put a dot after ordinal numbers in prose.
+        // A bare number at the start of a paragraph can be a list marker. Several
+        // writing languages also put a dot after ordinal numbers in prose.
         if last.chars().all(|c| c.is_ascii_digit())
-            && ((starts_at_paragraph && stem.trim_start() == last) || ["cs", "de", "hu", "pl"].iter().any(|tag| language.eq_ignore_ascii_case(tag)))
+            && ((starts_at_paragraph && stem.trim_start() == last)
+                || ["cs", "da", "de", "fi", "hu", "nb", "nn", "no", "pl", "sk"].iter().any(|tag| language.eq_ignore_ascii_case(tag)))
         {
             return false;
         }
@@ -122,6 +128,14 @@ fn sentence_ends(mut before: &str, starts_at_paragraph: bool, language: &str) ->
             }
             before = previous;
             continue;
+        }
+        if last.eq_ignore_ascii_case("al")
+            && stem
+                .strip_suffix(last)
+                .and_then(|text| text.split_whitespace().next_back())
+                .is_some_and(|word| word.trim_start_matches(opening).eq_ignore_ascii_case("et"))
+        {
+            return false;
         }
         let abbreviations = [
             "approx", "art", "avv", "b.sc", "bijv", "bzw", "ca", "cf", "dept", "dhr", "dott", "dott.ssa", "dr", "dra", "ecc", "ej", "es", "etc",

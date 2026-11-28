@@ -68,6 +68,9 @@ pub struct MessageRow {
     pub group: Option<String>,
     /// Whether `group` is one of the owner's categories (shown as spelt, never translated).
     pub group_is_category: bool,
+    /// The sender marked it Low importance.
+    #[uniffi(default = false)]
+    pub low_importance: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -234,6 +237,12 @@ pub struct MessageView {
     /// The whole message is on the phone. When not, only its headers and preview are (the body
     /// shows the preview): `Core::open_message` fetches it.
     pub whole: bool,
+    /// The sender marked it High importance.
+    #[uniffi(default = false)]
+    pub important: bool,
+    /// The sender marked it Low importance.
+    #[uniffi(default = false)]
+    pub low_importance: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
@@ -493,6 +502,14 @@ pub struct ContactFolders {
     /// Where `people.new` puts a person when it isn't told: an index into `folders`, or
     /// `None` for this phone.
     pub default_index: Option<u32>,
+}
+
+/// Somebody a contacts folder has already, with an e-mail address of a person about to be moved
+/// there (#1144): the picker asks whether to open that one or move anyway.
+#[derive(Clone, Debug, PartialEq, Eq, uniffi::Record)]
+pub struct AlreadyThere {
+    pub id: u64,
+    pub name: String,
 }
 
 /// One task as the editor shows it.

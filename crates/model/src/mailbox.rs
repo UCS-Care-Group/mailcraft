@@ -24,7 +24,7 @@ use crate::{
     ThreadIndex, clean_name,
 };
 #[cfg(test)]
-pub(crate) use bulk::MOVE_EACH_CALLS;
+pub(crate) use bulk::{MOVE_EACH_CALLS, WAITING_SCANS};
 pub use followup::{FollowUp, FollowUpsSettled, MAX_FOLLOW_UP_AHEAD, PendingFollowUp};
 pub use snooze::{MAX_SNOOZE_AHEAD, MAX_SNOOZE_REFUSALS, Settled, Snooze};
 
@@ -579,6 +579,9 @@ pub struct Account {
     /// Inbox is told of, as for any account.
     #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
     pub alert_primary_only: bool,
+    /// Suppress desktop new-mail alerts for this account, including alerts requested by rules.
+    #[serde(skip_serializing_if = "is_false", deserialize_with = "crate::sync::lenient_or_default")]
+    pub mute_desktop_mail: bool,
     /// For an account of a kind this version doesn't know ([`AccountKind::Unknown`]): the account
     /// as its file had it, every field but its id, which is what a mailbox file gets in its place
     /// ([`Mailbox::accounts`]). `None` for every other account.
@@ -2376,6 +2379,9 @@ impl Mailbox {
     pub fn add_message(&mut self, mut m: Message) -> Result<Id, ModelError> {
         let folder = self.folder(m.folder).ok_or(not_found("folder", m.folder))?;
         m.account = folder.account;
+        if (!m.read_header.is_empty() || m.read_header_cut) && !self.keeps_header_as_it_came(m.account) {
+            (m.read_header, m.read_header_cut) = (String::new(), false);
+        }
         // Within what the mailbox keeps of originals in all (#30).
         if m.original.as_ref().is_some_and(|o| !self.room_for_original(o.size())) {
             m.original = None;
@@ -2459,13 +2465,19 @@ impl Mailbox {
 
     /// Where `id` has a move waiting to be pushed to the server.
     fn waiting_move(&self, id: Id) -> Option<usize> {
+        #[cfg(test)]
+        WAITING_SCANS.with(|c| c.set(c.get() + 1));
         self.pending.iter().position(|p| matches!(p, Pending::Move { message, .. } if *message == id))
     }
 
-    /// [`Mailbox::waiting_move`], not looked for when `fresh`: nothing waited for `id` when the
-    /// command that moves it started ([`Mailbox::move_messages`]).
-    fn waiting(&self, id: Id, fresh: bool) -> Option<usize> {
-        if fresh { None } else { self.waiting_move(id) }
+    /// [`Mailbox::waiting_move`], by what was known of it as the command that moves `id` started.
+    fn waiting(&self, id: Id, waits: Waits) -> Option<usize> {
+        match waits {
+            Waits::Nothing => None,
+            // (Where it lay then, if it lies there still: a move called off since shifts the ones after it.)
+            Waits::MoveAt(at) if matches!(self.pending.get(at), Some(Pending::Move { message, .. }) if *message == id) => Some(at),
+            Waits::MoveAt(_) | Waits::Unknown => self.waiting_move(id),
+        }
     }
 
     /// Move a message to another folder, but not one a JMAP account's server has into a folder
@@ -2577,12 +2589,12 @@ impl Mailbox {
     /// that account keeps it ([`Mailbox::takes_over`]): then the original goes from its own
     /// server once the message is safe there (#451).
     fn move_message_anyway(&mut self, id: Id, folder: Id) -> Result<(), ModelError> {
-        self.move_anyway(id, folder, false)
+        self.move_anyway(id, folder, Waits::Unknown)
     }
 
-    /// [`Mailbox::move_message_anyway`]; `fresh`: nothing waited for `id` when the command that
-    /// moves it started ([`Mailbox::move_messages`]).
-    fn move_anyway(&mut self, id: Id, folder: Id, fresh: bool) -> Result<(), ModelError> {
+    /// [`Mailbox::move_message_anyway`]; `waits`: what waited for `id` when the command that
+    /// moves it started ([`Mailbox::move_each`]).
+    fn move_anyway(&mut self, id: Id, folder: Id, waits: Waits) -> Result<(), ModelError> {
         let (account, remote) = {
             let f = self.folder(folder).ok_or(not_found("folder", folder))?;
             (f.account, f.remote.clone())
@@ -2616,11 +2628,11 @@ impl Mailbox {
             self.message_mut(id)?.rules_waiting = None;
         }
         let into_outbox = self.holds_what_is_moved_in(folder);
-        if self.move_between_accounts(id, folder, account, &remote, fresh)? {
+        if self.move_between_accounts(id, folder, account, &remote, waits)? {
             hold_if_put_in_outbox(self.message_mut(id)?, into_outbox);
             return Ok(());
         }
-        let (uid, synced) = self.imap_side(id, folder, account, &remote, fresh)?;
+        let (uid, synced) = self.imap_side(id, folder, account, &remote, waits)?;
         let m = self.message_mut(id)?;
         // (The UID belonged to the old folder.)
         m.lies_in(folder, account, uid, synced);
@@ -2639,13 +2651,13 @@ impl Mailbox {
     ///   [`Pending::Move`] out of its account, by which the original goes once it is safe there.
     ///   One waiting already goes on, also while the message moves on in the other account.
     /// - Anywhere else: none, and a move waiting is called off (the original stays where it is).
-    fn imap_side(&mut self, id: Id, folder: Id, account: Id, remote: &str, fresh: bool) -> Result<(u32, Option<RemoteFlags>), ModelError> {
+    fn imap_side(&mut self, id: Id, folder: Id, account: Id, remote: &str, waits: Waits) -> Result<(u32, Option<RemoteFlags>), ModelError> {
         let m = self.message(id).ok_or(not_found("message", id))?;
         let (from_account, was_in, uid, synced) = (m.account, m.folder, m.uid, m.synced);
         // Of one that isn't whole here, the server's is all there is.
         let whole = !m.unfetched && !m.incomplete && m.not_downloaded == 0;
         let awaiting = awaits_its_copy(m, synced);
-        let waiting = self.waiting(id, fresh);
+        let waiting = self.waiting(id, waits);
         let owner = waiting.and_then(|at| self.pending.get(at)).map(Pending::account);
         // A move under way goes on wherever the message goes next, whole here or not: it was whole
         // when it started, and its original goes only once the message is safe where it ends up,
@@ -2816,8 +2828,8 @@ impl Mailbox {
     /// Whether a server has the original of `id` elsewhere than where it lies here: it is being
     /// moved out of a Microsoft account ([`Message::moving_out`]), or a move of it waits to be
     /// made on an IMAP server ([`Pending::Move`]).
-    fn original_elsewhere(&self, id: Id, fresh: bool) -> bool {
-        self.message(id).is_some_and(|m| m.moving_out.is_some()) || self.waiting(id, fresh).is_some()
+    fn original_elsewhere(&self, id: Id, waits: Waits) -> bool {
+        self.message(id).is_some_and(|m| m.moving_out.is_some()) || self.waiting(id, waits).is_some()
     }
 
     /// Why `m` can't go to another mailbox (#70, #451), when it can't: what goes there is made of
@@ -2873,11 +2885,11 @@ impl Mailbox {
     /// copy is all there is of it on a server. The original, which the copy stands for from now
     /// on, goes at once. Back into the account where the original still is, the original is the
     /// message again and this copy goes at once.
-    fn place_called_off(&mut self, id: Id, to: Id, fresh: bool) {
-        if !fresh {
+    fn place_called_off(&mut self, id: Id, to: Id, waits: Waits) {
+        if waits.may() {
             self.queued.retain(|q| !matches!(q, Queued::PlaceMessage { message, .. } if *message == id));
         }
-        let elsewhere = self.original_elsewhere(id, fresh);
+        let elsewhere = self.original_elsewhere(id, waits);
         let Some(m) = self.message(id) else { return };
         if !elsewhere || !self.is_graph(m.account) {
             return;
@@ -2925,7 +2937,7 @@ impl Mailbox {
     ///   account's server wouldn't send ([`Mailbox::not_whole`]).
     /// - Back into the account it is being moved out of: it is that server message again.
     /// - Between a shared mailbox and a mailbox of another sign-in's: refused, with the reason.
-    fn move_between_accounts(&mut self, id: Id, folder: Id, to_account: Id, remote: &str, fresh: bool) -> Result<bool, ModelError> {
+    fn move_between_accounts(&mut self, id: Id, folder: Id, to_account: Id, remote: &str, waits: Waits) -> Result<bool, ModelError> {
         let m = self.message(id).ok_or(not_found("message", id))?;
         let from_account = m.account;
         if from_account == to_account {
@@ -2938,10 +2950,10 @@ impl Mailbox {
         }
         // Back into the IMAP account whose server still has the original: the move out of it
         // that waits goes on there, or is called off.
-        let owner = self.waiting(id, fresh).and_then(|at| self.pending.get(at)).map(Pending::account);
+        let owner = self.waiting(id, waits).and_then(|at| self.pending.get(at)).map(Pending::account);
         if owner == Some(to_account) {
-            self.place_called_off(id, to_account, fresh);
-            let (uid, synced) = self.imap_side(id, folder, to_account, remote, fresh)?;
+            self.place_called_off(id, to_account, waits);
+            let (uid, synced) = self.imap_side(id, folder, to_account, remote, waits)?;
             let m = self.message_mut(id)?;
             m.server = None;
             m.lies_in(folder, to_account, uid, synced);
@@ -2962,9 +2974,9 @@ impl Mailbox {
                 importance: m.importance,
                 ..Default::default()
             };
-            self.place_called_off(id, to_account, fresh);
+            self.place_called_off(id, to_account, waits);
             // A copy an IMAP server was given of it already goes from there again.
-            self.imap_side(id, folder, to_account, remote, fresh)?;
+            self.imap_side(id, folder, to_account, remote, waits)?;
             let m = self.message_mut(id)?;
             (m.server, m.moving_out) = (Some(server), None);
             m.lies_in(folder, to_account, 0, None);
@@ -2978,7 +2990,7 @@ impl Mailbox {
                 return Err(invalid(BETWEEN_MAILBOXES));
             }
             let source = m.server.clone().filter(|s| !s.gone && !s.id.is_empty());
-            let first = self.original_elsewhere(id, fresh);
+            let first = self.original_elsewhere(id, waits);
             // Not fetched yet out of a Microsoft account whose server has it, into an IMAP account:
             // that account's run fetches it whole before anything else, and its copy goes once it
             // is (S19). Into a Microsoft account it waits to be whole here first (#70).
@@ -2988,15 +3000,15 @@ impl Mailbox {
             }
             // Where it lay when no server had it: a refused one goes back there (to a folder on
             // this computer also while its first original's deletion is still on its way).
-            let waited = self.queued.iter().filter(|_| !fresh).find_map(|q| match q {
+            let waited = self.queued.iter().filter(|_| waits.may()).find_map(|q| match q {
                 Queued::PlaceMessage { message, from, .. } if *message == id => Some(*from),
                 _ => None,
             });
             let here_only = source.is_none() && m.uid == 0 && (!first || !self.puts_on_server(from_account));
             let from = waited.unwrap_or(here_only.then_some(m.folder));
-            self.place_called_off(id, to_account, fresh);
+            self.place_called_off(id, to_account, waits);
             let marker = self.place_marker(id, source.as_ref().map_or("", |s| s.id.as_str()));
-            let (uid, synced) = self.imap_side(id, folder, to_account, remote, fresh)?;
+            let (uid, synced) = self.imap_side(id, folder, to_account, remote, waits)?;
             let m = self.message_mut(id)?;
             // Being moved out of where it lay first, it goes on being moved out of there.
             if let (Some(server), false) = (source, first) {
@@ -3010,16 +3022,16 @@ impl Mailbox {
         }
         if !self.is_graph(from_account) {
             // Out of an IMAP account that was to be given it: it isn't now.
-            self.place_called_off(id, to_account, fresh);
+            self.place_called_off(id, to_account, waits);
             return Ok(false);
         }
-        let first = self.original_elsewhere(id, fresh);
+        let first = self.original_elsewhere(id, waits);
         let Some(server) = m.server.clone() else {
-            self.place_called_off(id, to_account, fresh);
+            self.place_called_off(id, to_account, waits);
             return Ok(false);
         };
-        self.place_called_off(id, to_account, fresh);
-        let (uid, synced) = self.imap_side(id, folder, to_account, remote, fresh)?;
+        self.place_called_off(id, to_account, waits);
+        let (uid, synced) = self.imap_side(id, folder, to_account, remote, waits)?;
         let m = self.message_mut(id)?;
         if !server.gone && !first {
             m.moving_out = Some(crate::sync::MovingOut { account: from_account, id: server.id, folder: server.folder, ..Default::default() });
@@ -3321,6 +3333,20 @@ impl Mailbox {
     /// through Graph, not a shared mailbox (whose mail the rules leave alone).
     pub fn keeps_rules(&self, account: Id) -> bool {
         self.account(account).is_some_and(|a| a.kind == AccountKind::Microsoft && !a.is_shared())
+    }
+
+    /// Whether a rule for `account`'s mail (its own or every account's, switched on or off, kept
+    /// here or on its server) looks for words in the header (#566): only then is a message's header
+    /// kept as it came ([`crate::Message::read_header`], up to 64 KB a message), so that the
+    /// mailbox doesn't grow with it for the mail of an account no such rule reads: never a shared
+    /// mailbox's, which the rules leave alone ([`Mailbox::rules_reach`]). Of mail that came before
+    /// such a rule, a word not found can't be told ([`crate::Condition::unread_in`]).
+    pub fn keeps_header_as_it_came(&self, account: Id) -> bool {
+        self.rules_reach(account)
+            && self
+                .rules
+                .iter()
+                .any(|r| r.is_for(account) && r.conditions.iter().chain(&r.exceptions).any(|c| matches!(c, crate::Condition::HeaderContains(_))))
     }
 
     /// Whether the rule reads the words of a sender or a recipient in their addresses alone: one
@@ -3835,8 +3861,28 @@ impl Mailbox {
             fixed.push(format!("{} contact change(s) that couldn't be sent dropped", before - self.contact_changes.len()));
         }
         if self.contact_changes.len() > MAX_CONTACT_CHANGES {
+            // A move's deletion waits for its new contact to be made (#1144): one whose Create is
+            // cut goes with it, never sent alone.
+            let contacts = &self.contacts;
+            let held: HashSet<Id> = self.contact_changes[MAX_CONTACT_CHANGES..]
+                .iter()
+                .filter(|c| c.kind == ContactChangeKind::Create)
+                .filter_map(|c| contacts.get(&c.contact))
+                .map(|c| c.moved_from)
+                .filter(|f| *f != 0)
+                .collect();
             self.contact_changes.truncate(MAX_CONTACT_CHANGES);
+            self.contact_changes.retain(|c| !(c.kind == ContactChangeKind::Delete && held.contains(&c.contact)));
             fixed.push(format!("contact changes waiting cut to {MAX_CONTACT_CHANGES}"));
+        }
+        // A move's link to the contact it came from means something only while that one's
+        // deletion waits (#1144).
+        let deleting: HashSet<Id> =
+            self.contact_changes.iter().filter(|c| c.kind == ContactChangeKind::Delete && c.base.is_some()).map(|c| c.contact).collect();
+        for c in self.contacts.values_mut() {
+            if c.moved_from != 0 && !deleting.contains(&c.moved_from) {
+                Arc::make_mut(c).moved_from = 0;
+            }
         }
         fixed
     }
@@ -5052,7 +5098,7 @@ impl Mailbox {
         // A contact given a new key keeps the change waiting for it (`rehome` gives the keys out
         // in order from `next`).
         let first = *next;
-        let moved: HashMap<Id, Id> =
+        let mut moved: HashMap<Id, Id> =
             self.contacts.range(MAX_ID + 1..).map(|(k, _)| *k).enumerate().map(|(n, k)| (k, first.saturating_add(n as Id))).collect();
         for change in self.contact_changes.iter_mut() {
             if let Some(new) = moved.get(&change.contact) {
@@ -5070,8 +5116,18 @@ impl Mailbox {
             c.contact > MAX_ID && !contacts.contains_key(&c.contact) && (c.kind == Delete || (c.kind == Create && c.sent))
         };
         for change in self.contact_changes.iter_mut().filter(|c| gone(c)) {
+            if change.kind == crate::contact_sync::ContactChangeKind::Delete {
+                moved.entry(change.contact).or_insert(*next);
+            }
             change.contact = *next;
             *next += 1;
+        }
+        // A move's link to the contact it came from follows that one's new key (#1144): the
+        // deletion it holds stays held.
+        for c in self.contacts.values_mut() {
+            if let Some(new) = moved.get(&c.moved_from) {
+                Arc::make_mut(c).moved_from = *new;
+            }
         }
         let misnamed: Vec<Id> = self.messages.iter().filter(|(k, m)| m.id != **k).map(|(k, _)| *k).collect();
         for k in &misnamed {
@@ -5357,6 +5413,7 @@ impl Mailbox {
         let mut on_server: HashSet<(Id, u32)> = HashSet::new();
         let mut untied = 0;
         let mut cut_hidden = 0;
+        let mut cut_lines = 0;
         for m in self.messages.values_mut() {
             // What the sender hid is kept to a few KB; a hostile file's is cut at a character.
             if m.hidden_text.len() > crate::MAX_HIDDEN_TEXT {
@@ -5367,6 +5424,20 @@ impl Mailbox {
                 }
                 m.hidden_text.truncate(end);
                 cut_hidden += 1;
+            }
+            // So are the header lines kept as they came, after the last whole line that fits; a
+            // hostile file's are said to be cut, as a message's are when they are read
+            // ([`crate::Message::read_header_cut`]), so a rule with words in the header can't tell.
+            if m.read_header.len() > crate::MAX_READ_HEADER {
+                let m = Arc::make_mut(m);
+                let mut end = crate::MAX_READ_HEADER;
+                while end > 0 && !m.read_header.is_char_boundary(end) {
+                    end -= 1;
+                }
+                let end = m.read_header.get(..end).and_then(|kept| kept.rfind('\n')).map_or(0, |n| n + 1);
+                m.read_header.truncate(end);
+                m.read_header_cut = true;
+                cut_lines += 1;
             }
             let twice = m.uid != 0 && !on_server.insert((m.folder, m.uid));
             if twice || m.synced.is_some_and(|s| s.uid != m.uid) {
@@ -5380,6 +5451,9 @@ impl Mailbox {
         }
         if cut_hidden > 0 {
             fixed.push(format!("{cut_hidden} message(s) with too much hidden text cut"));
+        }
+        if cut_lines > 0 {
+            fixed.push(format!("{cut_lines} message(s) with too many header lines kept cut"));
         }
         if untied > 0 {
             fixed.push(format!("{untied} message(s) untied from the mail server's copy"));
@@ -5483,4 +5557,23 @@ enum Ruling {
     Renumbered,
     /// Run Rules Now.
     Now,
+}
+
+/// What was known, as a command that moves messages started, of a move waiting for one of them
+/// to be pushed to its server ([`Mailbox::move_each`]).
+#[derive(Clone, Copy)]
+enum Waits {
+    /// Nothing waited for it (nor a copy of it to be put on a server).
+    Nothing,
+    /// Its move lay here in [`Mailbox::pending`].
+    MoveAt(usize),
+    /// Not looked for: it is looked for when needed.
+    Unknown,
+}
+
+impl Waits {
+    /// Whether something may wait for it.
+    fn may(self) -> bool {
+        !matches!(self, Waits::Nothing)
+    }
 }

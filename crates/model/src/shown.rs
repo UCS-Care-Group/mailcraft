@@ -13,6 +13,8 @@
 //! The HTML is the sender's: it is read once, to its end, with caps on the tags looked at and
 //! the ids kept.
 
+use std::collections::{HashMap, HashSet};
+
 use crate::Attachment;
 
 /// Most content ids kept from one body.
@@ -23,15 +25,15 @@ const MAX_TAGS: usize = 500_000;
 const MAX_ID_BYTES: usize = 998;
 
 /// The content ids the `<img>` elements of an HTML body ask for, each as written (without `cid:`
-/// and any angle brackets) and with `%xx` decoded.
+/// and any angle brackets) and with `%xx` decoded, in lower case.
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
-pub struct ShownIds(Vec<String>);
+pub struct ShownIds(HashSet<String>);
 
 impl ShownIds {
-    /// Whether `content_id` is one of them: as written, then without regard to letter case (as
-    /// the reading pane finds the part a `cid:` address names).
+    /// Whether `content_id` is one of them, without regard to letter case (as [`part_for`] finds
+    /// the part a `cid:` address names).
     pub fn shows(&self, content_id: &str) -> bool {
-        !content_id.is_empty() && self.0.iter().any(|id| id == content_id || id.eq_ignore_ascii_case(content_id))
+        !content_id.is_empty() && self.0.contains(&content_id.to_ascii_lowercase())
     }
 
     /// Whether any `<img>` asks for a part by `cid:`.
@@ -42,11 +44,22 @@ impl ShownIds {
 
 /// Whether `data` is a picture the reading pane draws, by its own bytes: a PNG, JPEG, GIF or WebP.
 pub fn is_picture(data: &[u8]) -> bool {
-    data.starts_with(b"\x89PNG\r\n\x1a\n")
-        || data.starts_with(&[0xFF, 0xD8, 0xFF])
-        || data.starts_with(b"GIF87a")
-        || data.starts_with(b"GIF89a")
-        || (data.get(..4) == Some(b"RIFF".as_slice()) && data.get(8..12) == Some(b"WEBP".as_slice()))
+    picture_kind(data).is_some()
+}
+
+/// The type of the picture `data` is, by its own bytes ([`is_picture`]).
+pub fn picture_kind(data: &[u8]) -> Option<&'static str> {
+    if data.starts_with(b"\x89PNG\r\n\x1a\n") {
+        Some("image/png")
+    } else if data.starts_with(&[0xFF, 0xD8, 0xFF]) {
+        Some("image/jpeg")
+    } else if data.starts_with(b"GIF87a") || data.starts_with(b"GIF89a") {
+        Some("image/gif")
+    } else if data.get(..4) == Some(b"RIFF".as_slice()) && data.get(8..12) == Some(b"WEBP".as_slice()) {
+        Some("image/webp")
+    } else {
+        None
+    }
 }
 
 /// Whether `a` is a picture: by its bytes when they are in memory, else by its declared type
@@ -62,13 +75,57 @@ pub fn is_picture_part(a: &Attachment) -> bool {
 /// Whether the HTML whose ids are `ids` shows `a` in place: an `<img>` asks for its `Content-ID`
 /// and it is a picture ([`is_picture_part`]).
 pub fn shown_in_place(ids: &ShownIds, a: &Attachment) -> bool {
-    !a.content_id.is_empty() && ids.shows(&a.content_id) && is_picture_part(a)
+    !a.content_id.is_empty() && is_picture_part(a) && ids.shows(&a.content_id)
+}
+
+/// The part a picture's address `src` names (`cid:…`, any letter case, angle brackets and
+/// `%xx` escapes allowed), with its index: the first whose `Content-ID` is the id as written,
+/// then as decoded, then either without regard to letter case. The one rule the reading pane,
+/// the phone and the attachment list find a part by; [`PartIndex`] for many addresses.
+pub fn part_for<'a>(attachments: &'a [Attachment], src: &str) -> Option<(usize, &'a Attachment)> {
+    PartIndex::new(attachments).find(src)
+}
+
+/// The parts of a message by `Content-ID`, for finding many pictures' parts ([`part_for`]) in
+/// one pass over the parts and one look-up per picture, however many of each a message has.
+pub struct PartIndex<'a> {
+    attachments: &'a [Attachment],
+    /// The first part of each `Content-ID`, as written.
+    exact: HashMap<&'a str, usize>,
+    /// The first part of each `Content-ID` in lower case.
+    folded: HashMap<String, usize>,
+}
+
+impl<'a> PartIndex<'a> {
+    pub fn new(attachments: &'a [Attachment]) -> Self {
+        let mut exact = HashMap::new();
+        let mut folded = HashMap::new();
+        for (i, a) in attachments.iter().enumerate().filter(|(_, a)| !a.content_id.is_empty()) {
+            exact.entry(a.content_id.as_str()).or_insert(i);
+            folded.entry(a.content_id.to_ascii_lowercase()).or_insert(i);
+        }
+        PartIndex { attachments, exact, folded }
+    }
+
+    /// The part `src` names, with its index ([`part_for`]).
+    pub fn find(&self, src: &str) -> Option<(usize, &'a Attachment)> {
+        if self.exact.is_empty() {
+            return None;
+        }
+        let id = content_id(src.as_bytes())?;
+        let decoded = percent_decode(&id);
+        let at = self.exact.get(id.as_str()).or_else(|| self.exact.get(decoded.as_str())).copied().or_else(|| {
+            let either = [self.folded.get(&id.to_ascii_lowercase()), self.folded.get(&decoded.to_ascii_lowercase())];
+            either.into_iter().flatten().min().copied()
+        })?;
+        self.attachments.get(at).map(|a| (at, a))
+    }
 }
 
 /// The content ids the `<img>` elements of `html` ask for (`src="cid:…"`), at most
 /// [`MAX_SHOWN_IDS`]. Comments are passed over; only the first `src` of an element counts.
 pub fn shown_ids(html: &str) -> ShownIds {
-    let mut out = Vec::new();
+    let mut out = HashSet::new();
     let bytes = html.as_bytes();
     let mut at = 0usize;
     let mut tags = 0usize;
@@ -97,10 +154,10 @@ pub fn shown_ids(html: &str) -> ShownIds {
         let Some(id) = src.and_then(content_id) else { continue };
         let decoded = percent_decode(&id);
         if decoded != id && out.len() < MAX_SHOWN_IDS {
-            out.push(decoded);
+            out.insert(decoded.to_ascii_lowercase());
         }
         if out.len() < MAX_SHOWN_IDS {
-            out.push(id);
+            out.insert(id.to_ascii_lowercase());
         }
     }
     ShownIds(out)
@@ -168,12 +225,23 @@ fn content_id(src: &[u8]) -> Option<String> {
         return None;
     }
     let id = src.get(4..)?.trim_ascii();
-    let id = id.strip_prefix(b"<").unwrap_or(id);
-    let id = id.strip_suffix(b">").unwrap_or(id);
+    // The angle brackets as written, or as an attribute escapes them (a quote carries `&lt;…&gt;`).
+    let id = id.strip_prefix(b"<").or_else(|| strip_prefix_ignore_case(id, b"&lt;")).unwrap_or(id);
+    let id = id.strip_suffix(b">").or_else(|| strip_suffix_ignore_case(id, b"&gt;")).unwrap_or(id);
     if id.is_empty() || id.len() > MAX_ID_BYTES {
         return None;
     }
     std::str::from_utf8(id).ok().map(str::to_string)
+}
+
+fn strip_prefix_ignore_case<'a>(bytes: &'a [u8], prefix: &[u8]) -> Option<&'a [u8]> {
+    let (head, rest) = bytes.split_at_checked(prefix.len())?;
+    head.eq_ignore_ascii_case(prefix).then_some(rest)
+}
+
+fn strip_suffix_ignore_case<'a>(bytes: &'a [u8], suffix: &[u8]) -> Option<&'a [u8]> {
+    let (rest, tail) = bytes.split_at_checked(bytes.len().checked_sub(suffix.len())?)?;
+    tail.eq_ignore_ascii_case(suffix).then_some(rest)
 }
 
 /// `%40` and the like decoded; anything that isn't a valid escape, or doesn't give UTF-8, is left.
