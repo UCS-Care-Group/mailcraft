@@ -821,8 +821,9 @@ msgstr "Kratka opomba s povezavo do te strani, za lepljenje v pošto ali klepet.
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "A text signature file is at most 10,000 characters."
-msgstr ""
+msgstr "Datoteka z besedilnim podpisom ima lahko največ 10.000 znakov."
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -1626,8 +1627,9 @@ msgstr "Strežnik Exchange ali IMAP?"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "An HTML signature file is at most 64 KB."
-msgstr ""
+msgstr "Datoteka s podpisom HTML je lahko velika največ 64 KB."
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -3547,8 +3549,9 @@ msgstr "Izberite prijavo z Google ali namesto tega izberite Uporabi geslo aplika
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Choose Signature File"
-msgstr ""
+msgstr "Izberi datoteko s podpisom"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -3576,18 +3579,21 @@ msgstr "Izberi mapo"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose a signature file"
-msgstr ""
+msgstr "Izberite datoteko s podpisom"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose a text, HTML, PNG, JPEG or GIF signature file."
-msgstr ""
+msgstr "Izberite besedilno datoteko, datoteko HTML, PNG, JPEG ali GIF s podpisom."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Choose an absolute local path for the signature file."
-msgstr ""
+msgstr "Za datoteko s podpisom izberite absolutno lokalno pot."
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -3621,8 +3627,9 @@ msgstr "Izberite, od koga se to pošlje"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Choose…"
-msgstr ""
+msgstr "Izberi…"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -5300,8 +5307,9 @@ msgstr "Prenašanje slik…"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Downloading the address book stopped unexpectedly"
-msgstr ""
+msgstr "Prenos adresnega imenika se je nepričakovano ustavil"
 
 #. interface
 #: crates/ui-egui/src/graph_fetch.rs
@@ -5317,8 +5325,9 @@ msgstr "Najprej prenašanje sporočil…"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Downloading the organisation's address book…"
-msgstr ""
+msgstr "Prenašanje adresnega imenika organizacije…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6094,8 +6103,9 @@ msgstr "Pogovorna okna datotek tukaj niso na voljo"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "File signature"
-msgstr ""
+msgstr "Podpis iz datoteke"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -6697,8 +6707,9 @@ msgstr "Zunaj vaše organizacije."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
-msgstr ""
+msgstr "Iz adresnega imenika organizacije računa {account}, ki je v pomnilniku, dokler MailCraft teče, in se nikoli ne shrani: Dodaj med stike obdrži kopijo v tem računalniku."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -7832,8 +7843,9 @@ msgstr "V tem koledarju:"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "In your contacts"
-msgstr ""
+msgstr "Med vašimi stiki"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -11353,8 +11365,9 @@ msgstr "Drug termin ni bil predlagan."
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Nobody in the address book matches"
-msgstr ""
+msgstr "V adresnem imeniku nihče ne ustreza"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
@@ -11538,8 +11551,9 @@ msgstr "Vsega ni bilo mogoče odstraniti. Nekaj je še vedno tukaj. Poskusite zn
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
-msgstr ""
+msgstr "Ni za pošto ali pa je organa: Dodaj med stike ga izpusti."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12243,8 +12257,9 @@ msgstr "Odpri koledar"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Open Contact"
-msgstr ""
+msgstr "Odpri stik"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -13004,8 +13019,9 @@ msgstr "Slike se vedno prenesejo od ({n}):"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Pictures are not included in plain-text messages. Switch to HTML to include them."
-msgstr ""
+msgstr "Slike niso vključene v sporočila z navadnim besedilom. Preklopite na HTML, da jih vključite."
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
@@ -13461,8 +13477,9 @@ msgstr "Preberi povabilo"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Read again for each new message. If unavailable, the usual signature is used."
-msgstr ""
+msgstr "Znova prebrano za vsako novo sporočilo. Če ni na voljo, se uporabi običajni podpis."
 
 #. interface
 #: crates/ui-egui/src/advanced_search.rs
@@ -13690,8 +13707,9 @@ msgstr "Osveži"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
+#, fuzzy
 msgid "Refresh Preview"
-msgstr ""
+msgstr "Osveži predogled"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -16429,13 +16447,15 @@ msgstr "Datoteka podpisa:"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "Signature files can only be configured by the owner in the desktop app."
-msgstr ""
+msgstr "Datoteke s podpisom lahko nastavi samo lastnik v namizni aplikaciji."
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Signature from File"
-msgstr ""
+msgstr "Podpis iz datoteke"
 
 #. android, command label, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Navigation.kt crates/engine/src/cmd/signature.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/signatures.rs
@@ -17093,8 +17113,9 @@ msgstr "Preklopi na prijavo z Googlom"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Switch to HTML"
-msgstr ""
+msgstr "Preklopi na HTML"
 
 #. command label, interface
 #: crates/engine/src/cmd/graph_switch.rs crates/ui-egui/src/graph_switch.rs crates/ui-egui/src/lib.rs
@@ -18640,8 +18661,9 @@ msgstr "Tisti, ki je priložen tej gradnji"
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "The organisation's address book is empty"
-msgstr ""
+msgstr "Adresni imenik organizacije je prazen"
 
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
@@ -19029,8 +19051,9 @@ msgstr "Strežnik ali organizacija ni dala svojih nastavitev. Prosite skrbnika z
 
 #. interface
 #: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "The server sent no address book"
-msgstr ""
+msgstr "Strežnik ni poslal adresnega imenika"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -19262,8 +19285,9 @@ msgstr "Prijava je bila zavrnjena."
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "The signature changed while the signature file picker was open."
-msgstr ""
+msgstr "Podpis se je spremenil, medtem ko je bil izbirnik datoteke s podpisom odprt."
 
 #. interface
 #: crates/ui-egui/src/lib.rs
@@ -19273,28 +19297,33 @@ msgstr "Podpisa ni bilo mogoče shraniti: {why}. Zaprite znova, da ostane neshra
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file could not be read."
-msgstr ""
+msgstr "Datoteke s podpisom ni bilo mogoče prebrati."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file is too large."
-msgstr ""
+msgstr "Datoteka s podpisom je prevelika."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must be a regular file of at most 256 KB."
-msgstr ""
+msgstr "Datoteka s podpisom mora biti navadna datoteka velika največ 256 KB."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature file must contain UTF-8 text."
-msgstr ""
+msgstr "Datoteka s podpisom mora vsebovati besedilo UTF-8."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "The signature image could not be decoded."
-msgstr ""
+msgstr "Slike podpisa ni bilo mogoče dekodirati."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -28253,8 +28282,9 @@ msgstr "{read} od {total} MB"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
+#, fuzzy
 msgid "{reason} Using the account's usual signature instead."
-msgstr ""
+msgstr "{reason} Namesto tega se uporabi običajni podpis računa."
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs

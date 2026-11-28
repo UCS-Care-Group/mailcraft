@@ -890,8 +890,9 @@ msgstr "Color de énfasis"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Accent colour as hex"
-msgstr ""
+msgstr "Color de énfasis en hexadecimal"
 
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
@@ -1385,8 +1386,9 @@ msgstr "Agenda"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
+#, fuzzy
 msgid "Align Text"
-msgstr ""
+msgstr "Alinear texto"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
@@ -2406,8 +2408,9 @@ msgstr "Datos adjuntos"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Attachments can't be opened here."
-msgstr ""
+msgstr "Los datos adjuntos no se pueden abrir aquí."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -3734,8 +3737,9 @@ msgstr "Portapapeles"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Clock"
-msgstr ""
+msgstr "Reloj"
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
@@ -4472,8 +4476,9 @@ msgstr "Vista actual"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
 msgid "Custom color"
-msgstr ""
+msgstr "Color personalizado"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -5159,13 +5164,15 @@ msgstr "Listo: {n} nuevos"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to download {name}"
-msgstr ""
+msgstr "Haga doble clic para descargar {name}"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to open {name}"
-msgstr ""
+msgstr "Haga doble clic para abrir {name}"
 
 #. android, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
@@ -9086,8 +9093,9 @@ msgstr "MailCraft no puede guardar las reglas de esta cuenta en su servidor"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "MailCraft can't open {name} because of its file type."
-msgstr ""
+msgstr "MailCraft no puede abrir {name} por su tipo de archivo."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -10802,8 +10810,9 @@ msgstr "Próximos eventos"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Next message"
-msgstr ""
+msgstr "Mensaje siguiente"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12215,8 +12224,9 @@ msgstr "Abrir borrador"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Open Draft Attachment"
-msgstr ""
+msgstr "Abrir datos adjuntos del borrador"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -13170,8 +13180,9 @@ msgstr "Página anterior"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Previous message"
-msgstr ""
+msgstr "Mensaje anterior"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -14722,8 +14733,9 @@ msgstr "Mensaje guardado en {name}"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"
-msgstr ""
+msgstr "El mensaje se guardó en {name}, escrito a partir de lo que este equipo conserva de él: no byte por byte como se recibió"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
@@ -15692,15 +15704,19 @@ msgstr "Varios textos: sepárelos con punto y coma (;). Basta con uno de ellos."
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Shade\n"
 "Rows"
 msgstr ""
+"Sombrear\n"
+"filas"
 
 #. command label
 #: crates/engine/src/cmd/view/display.rs
+#, fuzzy
 msgid "Shade Alternate Rows"
-msgstr ""
+msgstr "Sombrear filas alternas"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -18111,8 +18127,9 @@ msgstr "Se canceló la descarga."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "The draft isn't open any more"
-msgstr ""
+msgstr "El borrador ya no está abierto"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19179,8 +19196,9 @@ msgstr "La firma cambió mientras el selector de archivo de firma estaba abierto
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
-msgstr ""
+msgstr "No se pudo guardar la firma: {why}. Cierre de nuevo para dejarla sin guardar."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
@@ -23836,8 +23854,9 @@ msgstr "no existe ese párrafo"
 
 #. what a command says
 #: crates/model/src/rich.rs
+#, fuzzy
 msgid "no such signature"
-msgstr ""
+msgstr "no existe esa firma"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -24009,8 +24028,9 @@ msgstr "solo están aquí los encabezados de «{subject}», así que no se puede
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
-msgstr ""
+msgstr "solo están aquí los encabezados de «{subject}», así que no se puede guardar como mensaje"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
@@ -24360,8 +24380,9 @@ msgstr "ese buzón está abierto en otra ventana de MailCraft; ciérrelo primero
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "that message is a draft: open it and send it"
-msgstr ""
+msgstr "ese mensaje es un borrador: ábralo y envíelo"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25415,8 +25436,9 @@ msgstr "el texto de «{subject}» no se puede leer en este equipo, así que no s
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be saved as a message"
-msgstr ""
+msgstr "el texto de «{subject}» no se puede leer en este equipo, así que no se puede guardar como mensaje"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -28030,8 +28052,9 @@ msgstr "«{subject}» aún no se ha descargado: ábralo cuando esté en línea y
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "«{subject}» aún no está descargado: ábralo cuando esté en línea y luego guárdelo"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -28041,8 +28064,9 @@ msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
-msgstr ""
+msgstr "«{subject}» era demasiado grande para descargarlo: solo está aquí su encabezado, así que no se puede guardar como mensaje"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs

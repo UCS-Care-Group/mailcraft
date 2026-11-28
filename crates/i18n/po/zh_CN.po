@@ -891,8 +891,9 @@ msgstr "强调色"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Accent colour as hex"
-msgstr ""
+msgstr "强调色（十六进制）"
 
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
@@ -1384,8 +1385,9 @@ msgstr "日程"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
+#, fuzzy
 msgid "Align Text"
-msgstr ""
+msgstr "对齐文本"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
@@ -2402,8 +2404,9 @@ msgstr "附件"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Attachments can't be opened here."
-msgstr ""
+msgstr "此处无法打开附件。"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -3733,8 +3736,9 @@ msgstr "剪贴板"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Clock"
-msgstr ""
+msgstr "时钟"
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
@@ -4472,8 +4476,9 @@ msgstr "当前视图"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
 msgid "Custom color"
-msgstr ""
+msgstr "自定义颜色"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -5159,13 +5164,15 @@ msgstr "完成：{n} 项新增"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to download {name}"
-msgstr ""
+msgstr "双击以下载 {name}"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to open {name}"
-msgstr ""
+msgstr "双击以打开 {name}"
 
 #. android, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
@@ -9079,8 +9086,9 @@ msgstr "MailCraft 无法在服务器上保存此账户的规则"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "MailCraft can't open {name} because of its file type."
-msgstr ""
+msgstr "由于文件类型，MailCraft 无法打开 {name}。"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -10791,8 +10799,9 @@ msgstr "接下来的活动"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Next message"
-msgstr ""
+msgstr "下一封邮件"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12204,8 +12213,9 @@ msgstr "打开草稿"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Open Draft Attachment"
-msgstr ""
+msgstr "打开草稿附件"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -13157,8 +13167,9 @@ msgstr "上一页"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Previous message"
-msgstr ""
+msgstr "上一封邮件"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -14714,8 +14725,9 @@ msgstr "已将邮件保存到 {name}"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"
-msgstr ""
+msgstr "邮件已保存到 {name}，内容根据此计算机保存的部分生成：并非与接收时逐字节一致"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
@@ -15681,15 +15693,19 @@ msgstr "多个文本：请用分号（;）分隔。符合其中任意一个即�
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Shade\n"
 "Rows"
 msgstr ""
+"底纹\n"
+"行"
 
 #. command label
 #: crates/engine/src/cmd/view/display.rs
+#, fuzzy
 msgid "Shade Alternate Rows"
-msgstr ""
+msgstr "为交替行添加底纹"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -18099,8 +18115,9 @@ msgstr "下载已取消。"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "The draft isn't open any more"
-msgstr ""
+msgstr "草稿已不再打开"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19161,8 +19178,9 @@ msgstr "签名文件选择器打开期间,签名已更改。"
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
-msgstr ""
+msgstr "无法保存签名：{why}。再次关闭将不保存签名。"
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
@@ -23810,8 +23828,9 @@ msgstr "没有此段落"
 
 #. what a command says
 #: crates/model/src/rich.rs
+#, fuzzy
 msgid "no such signature"
-msgstr ""
+msgstr "没有这个签名"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -23983,8 +24002,9 @@ msgstr "此处只有“{subject}”的邮件头，因此无法将其作为附件
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
-msgstr ""
+msgstr "“{subject}”在此处只有邮件头，因此无法另存为邮件"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
@@ -24334,8 +24354,9 @@ msgstr "此邮箱已在另一个 MailCraft 窗口中打开；请先在该窗口�
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "that message is a draft: open it and send it"
-msgstr ""
+msgstr "该邮件是草稿：请打开并发送"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25389,8 +25410,9 @@ msgstr "“{subject}”的文本在此计算机上无法读取，因此无法作
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be saved as a message"
-msgstr ""
+msgstr "此计算机无法读取“{subject}”的正文，因此无法另存为邮件"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -27876,8 +27898,9 @@ msgstr "“{subject}”尚未下载：请联网后打开，再将其作为附件
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "“{subject}”尚未下载：请在联机后打开，然后保存"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -27887,8 +27910,9 @@ msgstr "“{subject}”太大，无法下载：此处只有邮件头，因此无
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
-msgstr ""
+msgstr "“{subject}”太大，无法下载：此处只有邮件头，因此无法另存为邮件"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs

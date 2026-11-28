@@ -891,8 +891,9 @@ msgstr "Culoare de accent"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Accent colour as hex"
-msgstr ""
+msgstr "Culoare de accent ca hex"
 
 #. android, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/ui-egui/src/ribbon.rs
@@ -1384,8 +1385,9 @@ msgstr "Agendă"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
+#, fuzzy
 msgid "Align Text"
-msgstr ""
+msgstr "Aliniere text"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListModel.kt crates/engine/src/session.rs crates/model/src/offline.rs crates/ui-egui/src/advanced_search.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/keep_offline.rs
@@ -2408,8 +2410,9 @@ msgstr "Atașamente"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Attachments can't be opened here."
-msgstr ""
+msgstr "Atașamentele nu pot fi deschise aici."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -3739,8 +3742,9 @@ msgstr "Clipboard"
 
 #. interface
 #: crates/ui-egui/src/backstage.rs
+#, fuzzy
 msgid "Clock"
-msgstr ""
+msgstr "Ceas"
 
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/IncomingLayers.kt crates/ui-egui/src/account_setup.rs crates/ui-egui/src/account_setup/exchange.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/find_replace.rs crates/ui-egui/src/folder_properties.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/import_pst.rs crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/meeting_dialogs/share.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/report_problem.rs crates/ui-egui/src/ribbon.rs crates/ui-egui/src/symbol.rs crates/ui-egui/src/sync_panel.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/view_source.rs
@@ -4478,8 +4482,9 @@ msgstr "Vizualizarea curentă"
 
 #. interface, name
 #: crates/ui-egui/src/backstage.rs crates/ui-egui/src/theme/accent.rs
+#, fuzzy
 msgid "Custom color"
-msgstr ""
+msgstr "Culoare particularizată"
 
 #. command label, interface, name, ribbon
 #: crates/engine/src/cmd/format.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs crates/ui-egui/src/ribbon.rs
@@ -5166,13 +5171,15 @@ msgstr "Gata: {n} noi"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to download {name}"
-msgstr ""
+msgstr "Faceți dublu clic pentru a descărca {name}"
 
 #. interface
 #: crates/ui-egui/src/compose.rs
+#, fuzzy
 msgid "Double-click to open {name}"
-msgstr ""
+msgstr "Faceți dublu clic pentru a deschide {name}"
 
 #. android, interface, ribbon location
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
@@ -9114,8 +9121,9 @@ msgstr "MailCraft nu poate păstra regulile acestui cont pe serverul lui"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "MailCraft can't open {name} because of its file type."
-msgstr ""
+msgstr "MailCraft nu poate deschide {name} din cauza tipului de fișier."
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -10834,8 +10842,9 @@ msgstr "Evenimente următoare"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Next message"
-msgstr ""
+msgstr "Mesajul următor"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12247,8 +12256,9 @@ msgstr "Deschidere ciornă"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "Open Draft Attachment"
-msgstr ""
+msgstr "Deschidere atașament ciornă"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -13202,8 +13212,9 @@ msgstr "Pagina anterioară"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageSwipe.kt
+#, fuzzy
 msgid "Previous message"
-msgstr ""
+msgstr "Mesajul anterior"
 
 #. interface
 #: crates/ui-egui/src/nav.rs
@@ -14759,8 +14770,9 @@ msgstr "Mesajul a fost salvat în {name}"
 
 #. interface
 #: crates/ui-egui/src/files.rs
+#, fuzzy
 msgid "Saved the message to {name}, written from what this computer keeps of it: not byte for byte as it was received"
-msgstr ""
+msgstr "Mesajul a fost salvat în {name}, scris din ceea ce păstrează acest computer din el: nu octet cu octet, așa cum a fost primit"
 
 #. android, interface
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/ui-egui/src/compose.rs
@@ -15734,15 +15746,19 @@ msgstr "Mai multe texte: separați-le cu punct și virgulă (;). Oricare dintre 
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
+#, fuzzy
 msgid ""
 "Shade\n"
 "Rows"
 msgstr ""
+"Umbrire\n"
+"rânduri"
 
 #. command label
 #: crates/engine/src/cmd/view/display.rs
+#, fuzzy
 msgid "Shade Alternate Rows"
-msgstr ""
+msgstr "Umbrire rânduri alternante"
 
 #. ribbon
 #: crates/ui-egui/src/ribbon.rs
@@ -18160,8 +18176,9 @@ msgstr "Descărcarea a fost anulată."
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
 msgid "The draft isn't open any more"
-msgstr ""
+msgstr "Ciorna nu mai este deschisă"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19236,8 +19253,9 @@ msgstr "Semnătura s-a schimbat cât timp selectorul fișierului de semnătură 
 
 #. interface
 #: crates/ui-egui/src/lib.rs
+#, fuzzy
 msgid "The signature couldn't be saved: {why}. Close again to leave it unsaved."
-msgstr ""
+msgstr "Semnătura nu a putut fi salvată: {why}. Închideți din nou pentru a o lăsa nesalvată."
 
 #. interface
 #: crates/ui-egui/src/signature_files.rs
@@ -23916,8 +23934,9 @@ msgstr "paragraful nu există"
 
 #. what a command says
 #: crates/model/src/rich.rs
+#, fuzzy
 msgid "no such signature"
-msgstr ""
+msgstr "nu există o astfel de semnătură"
 
 #. what a command says
 #: crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/tasks/status.rs
@@ -24089,8 +24108,9 @@ msgstr "aici sunt doar anteturile „{subject}”, deci nu poate fi redirecțion
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "only the headers of “{subject}” are here, so it can't be saved as a message"
-msgstr ""
+msgstr "din „{subject}” sunt aici doar antetele, deci nu poate fi salvat ca mesaj"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/share.rs
@@ -24440,8 +24460,9 @@ msgstr "acea cutie poștală este deschisă în altă fereastră MailCraft; înc
 
 #. what a command says
 #: crates/engine/src/cmd/graph_send.rs
+#, fuzzy
 msgid "that message is a draft: open it and send it"
-msgstr ""
+msgstr "acest mesaj este o ciornă: deschideți-l și trimiteți-l"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -25495,8 +25516,9 @@ msgstr "textul „{subject}” nu poate fi citit pe acest computer, deci nu poat
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "the text of “{subject}” can't be read on this computer, so it can't be saved as a message"
-msgstr ""
+msgstr "textul din „{subject}” nu poate fi citit pe acest computer, deci nu poate fi salvat ca mesaj"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -28246,8 +28268,9 @@ msgstr "„{subject}” nu este încă descărcat: deschideți-l când sunteți 
 
 #. what a command says
 #: crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” isn't downloaded yet: open it once you're online, then save it"
-msgstr ""
+msgstr "„{subject}” nu a fost încă descărcat: deschideți-l când sunteți online, apoi salvați-l"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -28257,8 +28280,9 @@ msgstr "„{subject}” era prea mare pentru descărcare: aici e doar antetul lu
 
 #. what a command says
 #: crates/engine/src/cmd/file.rs crates/engine/src/sync_driver/as_received.rs
+#, fuzzy
 msgid "“{subject}” was too large to download: only its header is here, so it can't be saved as a message"
-msgstr ""
+msgstr "„{subject}” a fost prea mare pentru a fi descărcat: este aici doar antetul său, deci nu poate fi salvat ca mesaj"
 
 #. what a command says
 #: crates/engine/src/cmd/compose.rs
@@ -28277,9 +28301,9 @@ msgstr "• către {to}, subiect „{subject}”"
 #, fuzzy
 msgid "…and {n} more — type to narrow it"
 msgid_plural "…and {n} more — type to narrow it"
-msgstr[0] "…and {n} more — type to narrow it"
-msgstr[1] "…and {n} more — type to narrow it"
-msgstr[2] ""
+msgstr[0] "…și încă {n} — tastați pentru a restrânge lista"
+msgstr[1] "…și încă {n} — tastați pentru a restrânge lista"
+msgstr[2] "…și încă {n} — tastați pentru a restrânge lista"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
