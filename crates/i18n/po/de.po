@@ -6816,7 +6816,7 @@ msgstr "Wenn Google meldet, dass sich die App im Testmodus befindet, bitten Sie 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "If Google's page says the setting isn't available, 2-Step Verification is off, or the account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection)."
+msgid "If Google's page says the setting isn't available, either 2-Step Verification is off or the account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection)."
 msgstr "Wenn Googles Seite meldet, dass die Einstellung nicht verfügbar ist, ist die Bestätigung in zwei Schritten aus oder das Konto erlaubt keine App-Passwörter (manche Arbeits- oder Schulkonten und Konten mit dem Erweiterten Sicherheitsprogramm)."
 
 #. interface

@@ -2801,7 +2801,7 @@ fn google_app_password_steps(ui: &mut Ui, t: &Tokens) {
     note(
         ui,
         tl!(
-            "If Google's page says the setting isn't available, 2-Step Verification is off, or the account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection)."
+            "If Google's page says the setting isn't available, either 2-Step Verification is off or the account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection)."
         ),
         t.text_dim,
     );

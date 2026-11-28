@@ -67,8 +67,8 @@ Under the password field, **How do I make an app password?** opens the steps:
 3. Copy the 16-letter password Google shows, which it shows only once, and paste it into
    MailCraft's password field.
 
-If Google's page says the setting isn't available, 2-Step Verification is off, or the account
-doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection).
+If Google's page says the setting isn't available, either 2-Step Verification is off or the
+account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection).
 
 Google recommends browser sign-in and requires 2-Step Verification for app passwords. Your
 account or organisation may not offer them. Check Google's [app-password help][app-passwords]

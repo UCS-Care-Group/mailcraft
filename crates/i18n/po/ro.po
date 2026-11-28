@@ -7250,7 +7250,7 @@ msgstr "Dacă Google spune că aplicația este în testare, cereți dezvoltatoru
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
-msgid "If Google's page says the setting isn't available, 2-Step Verification is off, or the account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection)."
+msgid "If Google's page says the setting isn't available, either 2-Step Verification is off or the account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection)."
 msgstr ""
 
 #. interface

@@ -7226,8 +7226,8 @@ msgstr "Se Google dice che l'app è in fase di test, chiedi allo sviluppatore di
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
-msgid "If Google's page says the setting isn't available, 2-Step Verification is off, or the account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection)."
-msgstr "Se la pagina di Google dice che l'impostazione non è disponibile, la verifica in due passaggi è disattivata oppure l'account non consente le password per le app (alcuni account di lavoro o della scuola e gli account con Protezione avanzata)."
+msgid "If Google's page says the setting isn't available, either 2-Step Verification is off or the account doesn't allow app passwords (some work or school accounts, and accounts with Advanced Protection)."
+msgstr "Se la pagina di Google dice che l'impostazione non è disponibile, vuol dire che la verifica in due passaggi è disattivata oppure che l'account non consente le password per le app (alcuni account di lavoro o della scuola e gli account con Protezione avanzata)."
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
