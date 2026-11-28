@@ -724,7 +724,7 @@ fn an_outbox_without_a_server_says_so() {
     assert!(result.sent.is_empty());
     // And with nothing to do, nothing is done.
     request.outbox.clear();
-    assert_eq!(sync(&request), SyncResult { account: 7, email: "ada@example.org".into(), ..Default::default() });
+    assert_eq!(sync(&request), SyncResult { account: 7, email: "ada@example.org".into(), auth_refused: Some(false), ..Default::default() });
 }
 
 #[test]

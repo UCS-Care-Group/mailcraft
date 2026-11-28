@@ -275,3 +275,6 @@ mod tests {
 }
 #[cfg(test)]
 mod address_tests;
+
+#[cfg(test)]
+mod auth_verdict_tests;

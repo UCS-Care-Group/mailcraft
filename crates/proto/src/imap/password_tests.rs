@@ -207,3 +207,43 @@ fn a_server_without_id_is_sent_no_id_command() {
         assert!(stream.finished());
     }
 }
+
+#[test]
+fn only_a_tagged_password_refusal_sets_the_retry_observation() {
+    for plain in [false, true] {
+        for (verdict, refused) in [
+            ("NO [AUTHENTICATIONFAILED] denied", true),
+            ("NO denied", true),
+            ("NO [UNAVAILABLE] sign-in service unavailable", false),
+            ("BAD invalid command", false),
+        ] {
+            let caps = if plain { "AUTH=PLAIN SASL-IR" } else { "" };
+            let mut stream = Script::new(greeting(caps, &format!("A0001 {verdict}\r\n")));
+            let mut imap = Imap::connect(&mut stream).unwrap();
+            let result = imap.authenticate_password("user@example.org", "invented");
+            assert!(result.is_err());
+            assert_eq!(imap.password_was_refused(), refused, "{verdict}");
+            if verdict.contains("UNAVAILABLE") {
+                assert!(matches!(result, Err(ProtoError::Rejected(_))));
+            }
+            assert!(imap.authenticate_password("user@example.org", "").is_err());
+            assert!(!imap.password_was_refused(), "a local error clears the previous observation");
+        }
+    }
+    let mut stream = Script::new(greeting("LOGINDISABLED", ""));
+    let mut imap = Imap::connect(&mut stream).unwrap();
+    assert!(imap.authenticate_password("user@example.org", "invented").is_err());
+    assert!(!imap.password_was_refused());
+    assert!(stream.sent().is_empty());
+}
+
+#[test]
+fn a_successful_password_authentication_clears_the_previous_refusal() {
+    let mut stream = Script::new(greeting("AUTH=PLAIN SASL-IR", "A0001 NO [AUTHENTICATIONFAILED] denied\r\nA0002 OK welcome\r\n"));
+    let mut imap = Imap::connect(&mut stream).unwrap();
+    assert!(imap.authenticate_password("user@example.org", "invented").is_err());
+    assert!(imap.password_was_refused());
+    imap.authenticate_password("user@example.org", "invented").unwrap();
+    assert!(!imap.password_was_refused());
+    assert!(imap.is_authenticated());
+}

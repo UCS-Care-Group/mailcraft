@@ -5005,10 +5005,14 @@ impl MailApp {
             let last = pieces.last().is_some_and(|piece| !piece.partial);
             let downloading = pieces.iter().any(|piece| !piece.folders.is_empty());
             let signed_in = pieces.iter().any(|piece| piece.step.as_ref().is_some_and(|step| step.stage.signed_in()));
-            let refused = pieces.iter().flat_map(|piece| &piece.errors).any(|e| {
-                let e = e.to_lowercase();
-                // Microsoft's word for a token that ran out during the run.
-                e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
+            let refused = pieces.iter().any(|piece| {
+                piece.auth_refused.unwrap_or_else(|| {
+                    piece.errors.iter().any(|e| {
+                        let e = e.to_lowercase();
+                        // Microsoft's word for a token that ran out during the run.
+                        e.contains("sign-in") || e.contains("sign in") || e.contains("accesstokenexpired")
+                    })
+                })
             });
             self.sync_refused |= refused;
             if signed_in {

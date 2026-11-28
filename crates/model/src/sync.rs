@@ -834,6 +834,11 @@ pub struct SyncResult {
     /// piece of an answer: the problems since the piece before. In English: what the CLI, MCP
     /// and the log read.
     pub errors: Vec<String>,
+    /// An authoritative authentication verdict from the host. `Some(false)` keeps a
+    /// service/transport failure from being mistaken for refusal by its wording.
+    /// `None` retains legacy host/provider token-expiry classification.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub auth_refused: Option<bool>,
     /// The same problems as texts the window says in its language, for those a host said that
     /// way ([`SyncResult::problem`]); [`SyncResult::problems`] pairs them with `errors`. Never
     /// sent anywhere: an answer that crosses as JSON has the English only.
@@ -933,6 +938,7 @@ impl SyncResult {
             gmail_refused: _,
             gmail_unsent: _,
             errors: _,
+            auth_refused: _,
             said: _,
             partial: _,
             progress: _,
@@ -940,6 +946,14 @@ impl SyncResult {
             stopped: _,
             timings: _,
         } = &later;
+        let unknown = (self.auth_refused.is_none() && !self.errors.is_empty()) || (later.auth_refused.is_none() && !later.errors.is_empty());
+        self.auth_refused = if self.auth_refused == Some(true) || later.auth_refused == Some(true) {
+            Some(true)
+        } else if unknown {
+            None
+        } else {
+            self.auth_refused.or(later.auth_refused)
+        };
         (self.account, self.email) = (later.account, later.email);
         (self.partial, self.progress, self.step, self.stopped) = (later.partial, later.progress, later.step, later.stopped);
         self.timings.absorb(&later.timings);

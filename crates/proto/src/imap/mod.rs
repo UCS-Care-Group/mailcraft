@@ -110,6 +110,8 @@ pub struct Imap<S> {
     /// What the server said it can do, upper-cased; `None` until it has.
     capabilities: Option<Vec<String>>,
     authenticated: bool,
+    /// An actual tagged NO to the last password authentication, excluding service outages.
+    password_refused: bool,
     /// What the mailbox being opened has said about itself so far.
     selected: Selected,
     /// Every `COPYUID` answer since the last copy or move was sent (`None` for one that couldn't
@@ -679,6 +681,7 @@ impl<S: Read + Write> Imap<S> {
             secrets: Secrets::default(),
             capabilities: None,
             authenticated: false,
+            password_refused: false,
             selected: Selected::default(),
             copied: Vec::new(),
             appended: Vec::new(),
@@ -726,8 +729,10 @@ impl<S: Read + Write> Imap<S> {
         Ok(self.wire.into_inner())
     }
 
-    /// LOGIN with properly quoted (or literal) strings. NO → `ProtoError::Auth`.
+    /// LOGIN with properly quoted (or literal) strings. A credential refusal becomes
+    /// `ProtoError::Auth`; temporary UNAVAILABLE remains a non-authentication rejection.
     pub fn login(&mut self, user: &str, password: &str) -> Result<(), ProtoError> {
+        self.password_refused = false;
         if user.contains('\0') || password.contains('\0') {
             return Err(ProtoError::Auth(said!("the user name or password has a character that can't be sent")));
         }
@@ -740,7 +745,7 @@ impl<S: Read + Write> Imap<S> {
         let line = self.exchange(command, &mut ignore)?;
         match line.status {
             Status::Ok => self.signed_in(&line),
-            Status::No => Err(ProtoError::Auth(self.refusal(&line))),
+            Status::No => Err(self.password_refusal(&line)),
             _ => Err(ProtoError::Rejected(self.refusal(&line))),
         }
     }
@@ -1415,8 +1420,24 @@ impl<S: Read + Write> Imap<S> {
         }
     }
 
+    /// Whether the last password authentication received a tagged refusal from the server.
+    /// Local validation, unsupported mechanisms, protocol errors and temporary service
+    /// unavailability do not count. No error text is inspected by the caller.
+    pub fn password_was_refused(&self) -> bool {
+        self.password_refused
+    }
+
+    fn password_refusal(&mut self, line: &StatusLine) -> ProtoError {
+        // RFC 9051 section 7.1: UNAVAILABLE is a temporary authentication backend outage,
+        // not evidence that the saved password is wrong.
+        if line.code == "UNAVAILABLE" {
+            return ProtoError::Rejected(self.refusal(line));
+        }
+        self.password_refused = true;
+        ProtoError::Auth(self.refusal(line))
+    }
+
     /// The server's own words for why it said no, fit to show.
-    /// What the server said for itself, as it said it; MailCraft's words when it said nothing.
     fn refusal(&self, line: &StatusLine) -> Text {
         // Hidden before it is shortened: a secret cut in half would no longer be recognised.
         let text = tidy(&self.secrets.hide(&line.text));

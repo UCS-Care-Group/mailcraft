@@ -53,6 +53,8 @@ const MAX_GMAIL_FOUND: usize = mailcraft_proto::imap::MAX_GMAIL_FOUND;
 const MAX_AGAIN: usize = 100;
 /// How many times a run replaces a broken connection to carry on with the next message (#1581).
 const MAX_RECONNECTS: usize = 5;
+/// One desktop-only authentication retry, with a bounded quiet interval.
+const PASSWORD_RETRY_DELAY: Duration = Duration::from_secs(2);
 /// Most new messages handed over in one piece, and most bytes of them...
 const BATCH_MESSAGES: usize = 50;
 const BATCH_BYTES: usize = 4 * 1024 * 1024;
@@ -79,6 +81,8 @@ pub(crate) struct Limits {
     pub(crate) batch_wait: Duration,
     /// How long the servers are waited for.
     pub(crate) patience: Patience,
+    /// Opt-in initial password authentication retry; never a replay of the run.
+    pub(crate) password_retry_delay: Option<Duration>,
 }
 
 impl Limits {
@@ -93,6 +97,7 @@ impl Limits {
             batch_bytes: BATCH_BYTES,
             batch_wait: BATCH_WAIT,
             patience: Patience::default(),
+            password_retry_delay: None,
         }
     }
 
@@ -143,6 +148,14 @@ pub fn sync_with(request: &SyncRequest, cancel: &AtomicBool, emit: &mut dyn FnMu
     sync_as(request, Limits::in_pieces(), Host::of(&request.account), cancel, emit);
 }
 
+/// Desktop Send/Receive: one fresh IMAP password connection after a first explicit
+/// authentication refusal, after a two-second cancellable delay. SMTP and all mailbox
+/// work are outside this retry. OAuth and mid-run reconnections retain their own policy.
+pub fn sync_with_password_retry(request: &SyncRequest, cancel: &AtomicBool, emit: &mut dyn FnMut(SyncResult)) {
+    let limits = Limits { password_retry_delay: Some(PASSWORD_RETRY_DELAY), ..Limits::in_pieces() };
+    sync_as(request, limits, Host::of(&request.account), cancel, emit);
+}
+
 /// [`sync`], going only as far as `limits` allow.
 pub(crate) fn sync_within(request: &SyncRequest, limits: Limits) -> SyncResult {
     let mut whole = SyncResult::default();
@@ -185,7 +198,12 @@ pub(crate) fn sync_as(request: &SyncRequest, limits: Limits, host: Host, cancel:
 
 /// A piece of the answer with nothing in it yet.
 fn blank(request: &SyncRequest) -> SyncResult {
-    SyncResult { account: request.account.id, email: request.account.email.clone(), ..Default::default() }
+    SyncResult {
+        account: request.account.id,
+        email: request.account.email.clone(),
+        auth_refused: request.account.oauth.is_none().then_some(false),
+        ..Default::default()
+    }
 }
 
 /// A run under way: what it was asked, how far it may go, and where its pieces go.
@@ -269,12 +287,21 @@ impl Run<'_> {
         self.handed_over = Instant::now();
     }
 
+    /// Definitive refusals are monotonic. OAuth otherwise keeps its existing provider
+    /// token-expiry classification; only password runs start with a known false verdict.
+    fn note_auth_error(&mut self, error: &NetError) {
+        if error.is_refused_sign_in() {
+            self.out.auth_refused = Some(true);
+        }
+    }
+
     /// Note that something went wrong: `what`, and why. A command cut short because the run was
     /// called off is nothing to tell. Returns whether the connection is still good.
     fn failed(&mut self, what: Text, error: &NetError) -> bool {
         if matches!(error, NetError::Proto(ProtoError::Io(why)) if why.to_string() == transport::STOPPED) {
             self.stopped = true;
         } else {
+            self.note_auth_error(error);
             self.out.problem(because(what, error));
         }
         !error.is_fatal()
@@ -371,6 +398,7 @@ fn send_outbox(run: &mut Run) -> Vec<Message> {
                 run.hand_over(SyncStep::new(SyncStage::Sending, "", at + 1, waiting));
             }
             Err(e) => {
+                run.note_auth_error(&e);
                 run.out.problem(said!("Couldn't send \"{subject}\": {error}", subject = subject_said(&message), error = Arg::said(e.said())));
                 // Cut off once it was handed over: whether it went is not known (AU3-26). A
                 // refusal the server answered with is known not to have gone.
@@ -496,6 +524,17 @@ pub(crate) fn open_imap_with<'a>(
     patience: &Patience,
     cancel: Option<&'a AtomicBool>,
 ) -> Result<Imap<Stream<'a>>, NetError> {
+    open_imap_attempt(account, secret, patience, cancel, None, &mut None)
+}
+
+fn open_imap_attempt<'a>(
+    account: &Account,
+    secret: &str,
+    patience: &Patience,
+    cancel: Option<&'a AtomicBool>,
+    expected_plain: Option<bool>,
+    password_refused: &mut Option<bool>,
+) -> Result<Imap<Stream<'a>>, NetError> {
     let server = account.incoming.as_ref().ok_or_else(|| NetError::Config(said!("the account has no incoming server")))?;
     token_may_go_to(account, server, "imap.gmail.com")?;
     let user = account.login();
@@ -526,9 +565,50 @@ pub(crate) fn open_imap_with<'a>(
     if account.oauth.is_some() {
         imap.authenticate_xoauth2(user, secret)?;
     } else {
-        imap.authenticate_password(user, secret)?;
+        let plain = imap.password_uses_plain()?;
+        if expected_plain.is_some_and(|expected| expected != plain) {
+            return Err(NetError::Config(said!("the server changed its password authentication methods; try again later")));
+        }
+        let result = imap.authenticate_password(user, secret);
+        *password_refused = imap.password_was_refused().then_some(plain);
+        result?;
     }
     Ok(imap)
+}
+
+/// Retry authentication only, never SMTP or a mailbox operation. The failed stream is
+/// dropped before waiting; the fresh stream repeats the same TLS and mechanism checks.
+fn open_initial_imap<'a>(
+    request: &SyncRequest,
+    limits: &Limits,
+    cancel: Option<&'a AtomicBool>,
+    stop_retry: &AtomicBool,
+) -> Result<Imap<Stream<'a>>, NetError> {
+    let mut refused = None;
+    match open_imap_attempt(&request.account, request.secret(), &limits.patience, cancel, None, &mut refused) {
+        Err(_) if refused.is_some() && request.account.oauth.is_none() && limits.password_retry_delay.is_some() => {
+            let start = Instant::now();
+            let delay = limits.password_retry_delay.unwrap_or_default().min(PASSWORD_RETRY_DELAY);
+            loop {
+                if stop_retry.load(Ordering::Relaxed) {
+                    return Err(NetError::Proto(ProtoError::Io(transport::STOPPED.into())));
+                }
+                let remaining = delay.saturating_sub(start.elapsed());
+                if remaining.is_zero() {
+                    break;
+                }
+                std::thread::sleep(remaining.min(Duration::from_millis(50)));
+            }
+            let mut final_refusal = None;
+            match open_imap_attempt(&request.account, request.secret(), &limits.patience, cancel, refused, &mut final_refusal) {
+                // A mechanism disappearing or a malformed challenge is not a second
+                // password refusal. Keep the saved credential and report the real problem.
+                Err(NetError::Proto(ProtoError::Auth(reason))) if final_refusal.is_none() => Err(NetError::Proto(ProtoError::Rejected(reason))),
+                result => result,
+            }
+        }
+        result => result,
+    }
 }
 
 /// What Exchange calls, in English, the folders of a mailbox that are no folders of mail to
@@ -656,7 +736,7 @@ fn exchange<'a>(run: &mut Run<'a>, sent: &[Message], host: Host) -> Option<Imap<
     }
     run.hand_over(SyncStep::new(SyncStage::Connecting, "", 0, 0));
     let watched = owed.is_empty().then_some(run.cancel);
-    let mut imap = match open_imap_with(&request.account, request.secret(), &run.limits.patience, watched) {
+    let mut imap = match open_initial_imap(request, &run.limits, watched, run.cancel) {
         Ok(imap) => imap,
         Err(e) => {
             run.failed(said!("Couldn't check for new mail"), &e);

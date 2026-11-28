@@ -293,6 +293,10 @@ type StartTls = Arc<dyn Fn(Box<dyn MailIo>) -> Box<dyn MailIo> + Send + Sync>;
 pub(crate) struct ImapWorld {
     pub(crate) user: String,
     pub(crate) password: String,
+    /// Scripted password-authentication verdicts; DROP closes the connection.
+    pub(crate) password_replies: Vec<String>,
+    /// PLAIN availability and LOGINDISABLED for the connection after a scripted password reply.
+    pub(crate) password_methods_after_reply: Option<(bool, bool)>,
     /// The access token that signs `user` in (XOAUTH2); empty for a server that takes none.
     pub(crate) token: String,
     /// Say the token may come with the command (SASL-IR).
@@ -641,6 +645,19 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 return;
             }
             "LOGIN" => {
+                if !world.password_replies.is_empty() {
+                    let answer = world.password_replies.remove(0);
+                    if let Some((plain, disabled)) = world.password_methods_after_reply.take() {
+                        (world.plain, world.login_disabled) = (plain, disabled);
+                    }
+                    if answer == "DROP" {
+                        return;
+                    }
+                    reply.extend(format!("{tag} {answer}\r\n").bytes());
+                    drop(world);
+                    let _ = reader.get_mut().write_all(&reply);
+                    continue;
+                }
                 let given = words(args);
                 if given == [world.user.clone(), world.password.clone()] {
                     signed_in = true;
@@ -657,6 +674,7 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                 let (mechanism, with_command) = args.split_once(' ').unwrap_or((args, ""));
                 if world.plain && mechanism.eq_ignore_ascii_case("PLAIN") {
                     let (user, password) = (world.user.clone(), world.password.clone());
+                    let scripted = (!world.password_replies.is_empty()).then(|| world.password_replies.remove(0));
                     let caps = world.capabilities(secured);
                     drop(world);
                     let payload = if with_command.is_empty() {
@@ -668,6 +686,19 @@ fn serve_imap(stream: TcpStream, shared: Arc<Mutex<ImapWorld>>) {
                         with_command.to_string()
                     };
                     let expected = mailcraft_charset::base64::STANDARD.encode(format!("\0{user}\0{password}").as_bytes());
+                    if let Some(answer) = scripted {
+                        {
+                            let mut world = shared.lock().unwrap();
+                            if let Some((plain, disabled)) = world.password_methods_after_reply.take() {
+                                (world.plain, world.login_disabled) = (plain, disabled);
+                            }
+                        }
+                        if answer == "DROP" {
+                            return;
+                        }
+                        let _ = reader.get_mut().write_all(format!("{tag} {answer}\r\n").as_bytes());
+                        continue;
+                    }
                     signed_in = payload == expected;
                     let verdict = if signed_in { format!("OK [CAPABILITY {caps}] welcome") } else { "NO [AUTHENTICATIONFAILED] refused".to_string() };
                     let _ = reader.get_mut().write_all(format!("{tag} {verdict}\r\n").as_bytes());
