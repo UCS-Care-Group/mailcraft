@@ -448,10 +448,13 @@ fn take_archive(s: &mut Session, owner: Id, seen: ArchiveSeen) -> bool {
         changed = true;
     }
     match (seen, have) {
-        (ArchiveSeen::Present, None) if !server.archive_hidden && !server.cloud_archive => {
-            changed |= s.mailbox.add_archive(owner).is_ok();
-            log::info!("ews: the mailbox has an online archive; it is shown");
-        }
+        (ArchiveSeen::Present, None) if !server.archive_hidden && !server.cloud_archive => match s.mailbox.add_archive(owner) {
+            Ok(_) => {
+                changed = true;
+                log::info!("ews: the mailbox has an online archive; it is shown");
+            }
+            Err(e) => log::warn!("ews: the mailbox has an online archive, but it can't be shown: {e}"),
+        },
         (ArchiveSeen::Absent, Some(archive)) if absent >= 2 => {
             // (Changes made in it that hadn't gone up have nowhere to go now: said once, #1834
             // review.)
