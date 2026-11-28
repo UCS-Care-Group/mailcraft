@@ -60,6 +60,7 @@ fn debug_output_shows_no_address_name_or_fingerprint() {
         trusted: "ab".repeat(32),
         hierarchy: "HIER-STATE".into(),
         parents: true,
+        ..Default::default()
     };
     let text = format!("{server:?}");
     assert!(!text.contains("secret") && !text.contains("ada") && !text.contains("abab") && !text.contains("HIER"), "{text}");
@@ -82,6 +83,7 @@ fn an_exchange_account_keeps_its_setting_and_a_damaged_one_costs_only_itself() {
         trusted: "ab".repeat(32),
         hierarchy: "HIER-STATE".into(),
         parents: true,
+        ..Default::default()
     };
     let account = Account { id: 4, email: "ada@example.org".into(), kind: AccountKind::Exchange, ews: Some(server), ..Default::default() };
     let json = serde_json::to_string(&account).unwrap();

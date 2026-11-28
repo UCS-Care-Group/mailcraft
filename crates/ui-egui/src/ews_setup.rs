@@ -38,6 +38,9 @@ pub struct EwsSetupJob {
     /// Only look at the certificate the server at `url` shows: nothing is signed in, so no
     /// password is sent ([`MailApp::review_ews_certificate`]).
     pub certificate_only: bool,
+    /// A search before this test (the one that stopped at the certificate) found the mailbox's
+    /// online archive kept in Exchange Online (#1818); false for an address the owner typed.
+    pub cloud_archive: bool,
     /// Set when the owner gives up: the host stops at the next safe place.
     pub cancel: Arc<AtomicBool>,
     /// The owner's answers to the questions the host asks ([`EwsSetupEvent::Consent`]): yes or no.
@@ -85,6 +88,9 @@ pub struct EwsCertificate {
     pub not_after: i64,
     /// It is not the first: the account trusted another one, and this is what the server shows now.
     pub changed: bool,
+    /// The search that found the server found the mailbox's online archive kept in Exchange
+    /// Online (#1818): the test made again once the certificate is trusted says so too.
+    pub cloud_archive: bool,
 }
 
 impl std::fmt::Debug for EwsCertificate {
@@ -153,6 +159,8 @@ pub enum EwsSetupEnd {
         url: String,
         /// How the sign-in went: `basic` or `ntlm`.
         signed_in_with: String,
+        /// The automatic setup found the mailbox's online archive kept in Exchange Online (#1818).
+        cloud_archive: bool,
     },
     /// The mailbox is in Microsoft 365. Nothing was sent there; it is a Microsoft account.
     ExchangeOnline,

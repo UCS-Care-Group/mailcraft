@@ -524,6 +524,14 @@ pub struct Account {
     /// in). `None` for every other account, and in a file from before there were any.
     #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
     pub shared_of: Option<Id>,
+    /// For the **online archive** of an Exchange server account (#1818): the account whose
+    /// mailbox it is the personal archive of. It is reached with that account's server address and
+    /// sign-in, never its own (it has none: its [`Account::ews`] keeps only where its folder list
+    /// goes on from), and it is read from the server while connected: nothing of its folders or
+    /// mail is written to the mailbox file ([`Mailbox::for_disk`]). `None` for every other account,
+    /// and in a file from before there were any.
+    #[serde(skip_serializing_if = "Option::is_none", deserialize_with = "crate::sync::lenient")]
+    pub archive_of: Option<Id>,
     /// For a Microsoft account: the calendars its owner opened by their owner's address (Open
     /// Shared Calendar), kept here only, at most [`crate::MAX_OPENED_CALENDARS`]. Empty for every
     /// other account, and in a file from before there were any.
@@ -684,7 +692,14 @@ struct Identity {
 fn read_accounts<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Vec<Account>, D::Error> {
     let written = crate::load_limit::capped_vec::<_, serde_json::Value>(deserializer)?;
     let mut accounts = Vec::with_capacity(written.len());
-    for value in written {
+    for mut value in written {
+        // (An online archive is written with a kind of its own, which versions without archives
+        // don't know and so keep whole: it is an Exchange server account's, #1818.)
+        if value.get("kind").and_then(serde_json::Value::as_str) == Some(crate::archive::ARCHIVE_KIND)
+            && let Some(fields) = value.as_object_mut()
+        {
+            fields.insert("kind".into(), serde_json::Value::String("exchange".into()));
+        }
         // (Only an object has a `kind`; one without says nothing, which is a local account.)
         let unknown = value.get("kind").is_some_and(|kind| AccountKind::deserialize(kind).unwrap_or(AccountKind::Unknown) == AccountKind::Unknown);
         if !unknown {
@@ -722,6 +737,13 @@ fn write_accounts<S: serde::Serializer>(accounts: &[Account], serializer: S) -> 
                 let mut fields = fields.clone();
                 fields.insert("id".into(), account.id.into());
                 list.serialize_element(&fields)?;
+            }
+            None if account.is_archive() => {
+                let mut value = serde_json::to_value(account).map_err(serde::ser::Error::custom)?;
+                if let Some(fields) = value.as_object_mut() {
+                    fields.insert("kind".into(), serde_json::Value::String(crate::archive::ARCHIVE_KIND.into()));
+                }
+                list.serialize_element(&value)?;
             }
             None => list.serialize_element(account)?,
         }
@@ -855,6 +877,11 @@ impl Account {
     /// Whether it is a shared mailbox opened through another account ([`Account::shared_of`]).
     pub fn is_shared(&self) -> bool {
         self.shared_of.is_some()
+    }
+
+    /// Whether it is the online archive of another account ([`Account::archive_of`]).
+    pub fn is_archive(&self) -> bool {
+        self.archive_of.is_some()
     }
 
     /// Whether Microsoft keeps its to-dos: it signs in with Microsoft and is not a shared mailbox.
@@ -1375,6 +1402,20 @@ pub struct Mailbox {
     /// What dates [`Mailbox::categories_found`]: it goes up with each name found.
     #[serde(skip)]
     pub category_stamp: u64,
+    /// The to-dos whose message was moved into another mailbox of the owner's whose server gave
+    /// it no new id (between a mailbox and its online archive, #1834 review), by the account it
+    /// went into and the message's Internet Message-ID: the copy a later read of that account
+    /// brings is linked to them again ([`Mailbox::forget_message_moved_away`]); a message of the
+    /// same Message-ID that another account receives is never taken for it. Not in the file.
+    #[serde(skip)]
+    pub tasks_awaiting_message: BTreeMap<(Id, String), Vec<Id>>,
+    /// The messages moved into another mailbox of the owner's whose server gave them no new id
+    /// (between a mailbox and its online archive, #1834 review), by the account each went into
+    /// and its Internet Message-ID: the id each had here. The copy a later read of that account
+    /// brings is the same message, not new mail: it takes that id back, and no rule or junk list
+    /// sorts it ([`Mailbox::take_moved_across`]). Not in the file.
+    #[serde(skip)]
+    pub moved_across: BTreeMap<(Id, String), Id>,
     /// The renames of each Microsoft account's list of categories that its server hasn't the new
     /// name of yet (#661): the old name, as the server has it, by [`category_key`] of the new one.
     /// When the server won't make the new name, its old one is kept there; any other deletion
@@ -1470,6 +1511,8 @@ impl Default for Mailbox {
             category_renames: BTreeMap::new(),
             category_sweeps: BTreeMap::new(),
             category_stamp: 0,
+            tasks_awaiting_message: BTreeMap::new(),
+            moved_across: BTreeMap::new(),
             own_lists_began: 0,
             zone: String::new(),
             redecoded: false,
@@ -1487,6 +1530,22 @@ impl Default for Mailbox {
 /// the same owner's, whose sign-in reaches both.
 pub const BETWEEN_MAILBOXES: &str =
     "Mail moves and copies between a shared mailbox and its own account's mailboxes only: move it there, or into a folder on this computer";
+
+/// Why mail from elsewhere doesn't go into an online archive (#1818): only the server moves mail
+/// into it, from the mailbox it is the archive of, and nothing of it is kept on this computer, so
+/// mail that no server would put there would be lost when MailCraft closes.
+pub const INTO_ARCHIVE: &str = "Mail goes into an online archive only from its own mailbox: move it into that mailbox first";
+
+/// Why a copy doesn't go into an online archive from elsewhere (#1818): the server makes no copy
+/// there, and nothing of the archive is kept on this computer.
+pub const COPY_INTO_ARCHIVE: &str = "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox";
+
+/// Most messages whose to-dos wait for their copy at once ([`Mailbox::tasks_awaiting_message`]).
+const MAX_TASKS_AWAITING: usize = 10_000;
+
+/// Why mail in an online archive isn't copied out of it (#1834 review): the server makes the copy
+/// in another mailbox without saying where, and it would come twice.
+pub const COPY_OUT_OF_ARCHIVE: &str = "Mail in an online archive is copied within the archive: move it out instead";
 
 /// Why mail from another mailbox doesn't go into an Outbox that sends what lies in it, as a
 /// Microsoft account's does (#451); an IMAP account's holds it ([`MOVED_INTO_OUTBOX`], #607).
@@ -1581,6 +1640,12 @@ impl Mailbox {
         self.next_id = self.next_id.max(other.next_id);
     }
 
+    /// The highest id handed out so far: one given to a message added from now on is higher
+    /// (also when the message that had this one is gone since).
+    pub fn last_id_handed_out(&self) -> Id {
+        self.next_id.saturating_sub(1)
+    }
+
     pub fn alloc_id(&mut self) -> Id {
         let id = self.next_id.max(1);
         self.next_id = id.saturating_add(1);
@@ -1639,13 +1704,19 @@ impl Mailbox {
     }
 
     /// Remove an account with its folders and messages, and the shared mailboxes opened through
-    /// it with theirs. Its server isn't told anything: what was still waiting to be pushed there
+    /// it and its online archive with theirs. Its server isn't told anything: what was still waiting to be pushed there
     /// is dropped.
     pub fn remove_account(&mut self, id: Id) -> Result<(), ModelError> {
         if self.account(id).is_none() {
             return Err(not_found("account", id));
         }
-        let going: HashSet<Id> = self.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id)).map(|a| a.id).collect();
+        // (An online archive taken away by itself: moves into it the server hasn't made go back
+        // first, as [`Mailbox::remove_archive`] does, #1834 review.)
+        if self.account(id).is_some_and(Account::is_archive) {
+            self.put_back_moves_into(Some(id));
+        }
+        let going: HashSet<Id> =
+            self.accounts.iter().filter(|a| a.id == id || a.shared_of == Some(id) || a.archive_of == Some(id)).map(|a| a.id).collect();
         // Its to-dos stay, and use the shared list from now on: what they carry comes across.
         let carried: Vec<Category> = self
             .tasks
@@ -1766,11 +1837,21 @@ impl Mailbox {
         self.account(owner).filter(|o| o.kind == AccountKind::Microsoft && !o.is_shared())
     }
 
+    /// The accounts in the order the folder pane lists them ([`Mailbox::pane_order`]) but for the
+    /// online archives: the accounts the owner sends from, sets up and picks from (the From list,
+    /// File › Info, Rules, Signatures, Junk E-mail Options…). An archive has no server or sign-in
+    /// of its own and no Drafts (#1818).
+    pub fn accounts_in_order(&self) -> Vec<&Account> {
+        let mut all = self.pane_order();
+        all.retain(|a| !a.is_archive());
+        all
+    }
+
     /// The accounts in the order the folder pane lists them: each account of its own, in the
     /// order the owner put them in ([`Mailbox::account_order`]; else as they were added),
-    /// followed by the shared mailboxes opened through it. A shared mailbox whose owner is gone
-    /// comes last, as it is (it can't be read, and says so when it is).
-    pub fn accounts_in_order(&self) -> Vec<&Account> {
+    /// followed by its online archive and the shared mailboxes opened through it. A shared mailbox
+    /// whose owner is gone comes last, as it is (it can't be read, and says so when it is).
+    pub fn pane_order(&self) -> Vec<&Account> {
         let mut shared: HashMap<Id, Vec<&Account>> = HashMap::new();
         for a in self.accounts.iter().filter(|a| a.shared_of.is_some_and(|o| o != a.id)) {
             if let Some(owner) = a.shared_of {
@@ -1782,12 +1863,14 @@ impl Mailbox {
         for (n, id) in self.account_order.iter().take(MAX_ACCOUNTS).enumerate() {
             place.entry(*id).or_insert(n);
         }
-        let mut own: Vec<&Account> = self.accounts.iter().filter(|a| !a.is_shared()).collect();
+        let mut own: Vec<&Account> = self.accounts.iter().filter(|a| !a.is_shared() && !a.is_archive()).collect();
         // (A stable sort: those not placed keep the order they were added in, after the others.)
         own.sort_by_key(|a| place.get(&a.id).copied().unwrap_or(usize::MAX));
         let mut out: Vec<&Account> = Vec::with_capacity(self.accounts.len());
         for a in own {
             out.push(a);
+            // (Its online archive right after it, as Outlook lists it, #1818.)
+            out.extend(self.archive_of(a.id).filter(|archive| self.archive_owner(archive.id).is_some()));
             out.extend(shared.get(&a.id).into_iter().flatten().filter(|s| self.owner_of(s.id).is_some()));
         }
         // (A shared mailbox whose owner is missing.)
@@ -1805,6 +1888,7 @@ impl Mailbox {
             match mb.account(id) {
                 None => Err(not_found("account", id)),
                 Some(a) if a.is_shared() => Err(invalid("a shared mailbox stays under the account it is opened through: move that account")),
+                Some(a) if a.is_archive() => Err(invalid("an online archive stays under its mailbox: move that account")),
                 Some(_) => Ok(()),
             }
         };
@@ -2392,7 +2476,18 @@ impl Mailbox {
         self.next_id = self.next_id.max(m.id.saturating_add(1));
         self.take_pending_follow_up(&mut m);
         let id = m.id;
+        // (A to-do whose message went into another mailbox comes back to its copy, #1834 review.)
+        let waiting = if m.message_id.is_empty() || self.tasks_awaiting_message.is_empty() {
+            None
+        } else {
+            self.tasks_awaiting_message.remove(&(m.account, m.message_id.clone()))
+        };
         self.messages.insert(id, Arc::new(m));
+        for task in waiting.into_iter().flatten() {
+            if let Some(t) = self.tasks.get_mut(&task).filter(|t| t.message.is_none()) {
+                Arc::make_mut(t).message = Some(id);
+            }
+        }
         Ok(id)
     }
 
@@ -2602,6 +2697,10 @@ impl Mailbox {
         let m = self.message(id).ok_or(not_found("message", id))?;
         if m.folder == folder {
             return Ok(());
+        }
+        // Into an online archive only what its server moves there (#1818).
+        if !self.moves_into(m, account) {
+            return Err(invalid(INTO_ARCHIVE));
         }
         // Moved in from another mailbox and not made on this account's server yet, it is mail from
         // elsewhere still: not into an Outbox that would send it, as straight from there (#704).
@@ -3084,6 +3183,14 @@ impl Mailbox {
         if from_account != to_account && self.sends_from(folder) {
             return Err(invalid(INTO_OUTBOX));
         }
+        // (A copy within an online archive is made there by its server; none comes in, #1818. Nor
+        // out of it: the server says no id for a copy into another mailbox, #1834 review.)
+        if !self.copies_into(m, to_account) {
+            if self.account(to_account).is_some_and(Account::is_archive) {
+                return Err(invalid(COPY_INTO_ARCHIVE));
+            }
+            return Err(invalid(COPY_OUT_OF_ARCHIVE));
+        }
         // A copy in a Microsoft or an Exchange server account's Outbox would be sent by the next
         // Send/Receive, and made on the server as well (#704): only Send sends. In a JMAP account's
         // too (#1074): the copy has no server's id, so it would go as mail queued with Send does.
@@ -3165,6 +3272,35 @@ impl Mailbox {
 
     /// Remove a message without a word to the server: for a synchronisation taking out what the
     /// server no longer has. A move still waiting for the message is forgotten with it.
+    /// [`Mailbox::forget_message`] for a message moved into another mailbox of the owner's whose
+    /// server gave it no new id (#1834 review): the to-dos linked to it are linked again to the
+    /// copy a later read brings, found by its Internet Message-ID
+    /// ([`Mailbox::tasks_awaiting_message`]).
+    pub fn forget_message_moved_away(&mut self, id: Id) -> Result<Message, ModelError> {
+        let tasks: Vec<Id> = self.tasks.values().filter(|t| t.message == Some(id)).map(|t| t.id).collect();
+        let m = self.forget_message(id)?;
+        // The account it went into: its folder's, where it was moved to.
+        let into = self.folder(m.folder).map_or(m.account, |f| f.account);
+        if !tasks.is_empty() && !m.message_id.is_empty() && self.tasks_awaiting_message.len() < MAX_TASKS_AWAITING {
+            self.tasks_awaiting_message.entry((into, m.message_id.clone())).or_default().extend(tasks);
+        }
+        if !m.message_id.is_empty() && self.moved_across.len() < MAX_TASKS_AWAITING {
+            self.moved_across.insert((into, m.message_id.clone()), m.id);
+        }
+        Ok(m)
+    }
+
+    /// Whether a message of `account` with the Internet Message-ID `message_id` that a read brings
+    /// as new is one moved into that account from another mailbox of the owner's
+    /// ([`Mailbox::moved_across`]): the id it had here, once (and only while no message has it).
+    pub fn take_moved_across(&mut self, account: Id, message_id: &str) -> Option<Id> {
+        if message_id.is_empty() || self.moved_across.is_empty() {
+            return None;
+        }
+        let id = self.moved_across.remove(&(account, message_id.to_owned()))?;
+        (!self.messages.contains_key(&id)).then_some(id)
+    }
+
     pub fn forget_message(&mut self, id: Id) -> Result<Message, ModelError> {
         let m = self.messages.remove(&id).ok_or(not_found("message", id))?;
         for t in self.tasks.values_mut().filter(|t| t.message == Some(id)) {
@@ -5012,6 +5148,10 @@ impl Mailbox {
     /// loop, every message is in a folder, every event in a calendar. Returns what was fixed.
     pub fn repair(&mut self) -> Vec<String> {
         let mut fixed = Vec::new();
+        // Nothing of an online archive is kept between runs of the program (#1818).
+        if self.forget_archive_mail() {
+            fixed.push("what was held of an online archive taken away; it is read from the server again".to_string());
+        }
         if self.rules.len() > MAX_RULES {
             self.rules.truncate(MAX_RULES);
             fixed.push(format!("rules cut to {MAX_RULES}"));
@@ -5324,7 +5464,9 @@ impl Mailbox {
                 f.kind = FolderKind::Custom;
             }
         }
-        for account in accounts {
+        // (An online archive has the folders its server gives, and none of its own, #1818.)
+        let archives: HashSet<Id> = self.accounts.iter().filter(|a| a.is_archive()).map(|a| a.id).collect();
+        for account in accounts.into_iter().filter(|a| !archives.contains(a)) {
             for kind in FolderKind::STANDARD {
                 if !has.contains(&(account, kind)) {
                     let id = self.alloc_id();

@@ -6252,7 +6252,7 @@ msgstr ""
 "složky"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Podokno složek"
@@ -7200,6 +7200,12 @@ msgstr "Skrýt podrobnosti"
 #, fuzzy
 msgid "Hide MailCraft"
 msgstr "Skrýt MailCraft"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Hide Online Archive"
+msgstr "Skrýt online archiv"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8737,8 +8743,8 @@ msgstr "Vypsat úkoly"
 msgid "List {n}"
 msgstr "Seznam {n}"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Loading…"
 msgstr "Načítám…"
@@ -8933,17 +8939,35 @@ msgstr "Poštovní složka: {folder} účtu"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "Pošta z jiné poštovní schránky nemůže jít do složky Pošta k odeslání: další Odeslat/přijmout by ji odeslalo"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "Pošta se do online archivu dostane jen z vlastní poštovní schránky: nejprve ji přesuňte do této schránky"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "U pošty v Nevyžádané poště se stále nejdřív ptá. Soubor › Možnosti to zase vypne."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "Pošta v online archivu se kopíruje v rámci archivu: místo toho ji přesuňte ven"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "Pošta ve složce Pošta k odeslání této sdílené poštovní schránky čeká: odesílání ze sdílených poštovních schránek vyžaduje vaše oprávnění. Použijte Odeslat/přijmout."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "Pošta se do online archivu nekopíruje odjinud: přesuňte ji tam z její vlastní schránky"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -11921,6 +11945,12 @@ msgid "Online"
 msgstr "Online"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Online Archive – {address}"
+msgstr "Online archiv – {address}"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Online meeting"
@@ -13544,7 +13574,7 @@ msgid "Redo {what}"
 msgstr "Znovu: {what}"
 
 #. interface
-#: crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Refresh"
 msgstr "Aktualizovat"
@@ -15353,6 +15383,12 @@ msgstr "Odeslat/přijmout se přihlásí k Microsoftu; pak lze prohledávat serv
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Odeslat/přijmout se nečekaně zastavilo"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "Spusťte Odeslat/přijmout pro schránku, abyste se přihlásili a načetli její online archiv"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -15769,6 +15805,12 @@ msgstr "Zobrazit MailCraft"
 #, fuzzy
 msgid "Show Message"
 msgstr "Zobrazit zprávu"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Show Online Archive"
+msgstr "Zobrazit online archiv"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -18461,6 +18503,18 @@ msgid "The one this build came with"
 msgstr "Ten, se kterým toto sestavení přišlo"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "Online archiv se nepodařilo načíst: zkuste to znovu pomocí Aktualizovat"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "The online archive needs a connection to the server"
+msgstr "Online archiv potřebuje připojení k serveru"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18807,6 +18861,12 @@ msgstr "Server má {total} složek: jeden běh přečte prvních {max} a ostatn�
 #, fuzzy
 msgid "The server is busy. Try again in a few minutes."
 msgstr "Server je zaneprázdněn. Zkuste to za několik minut znovu."
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr "Server už online archiv nemá: změny v něm, které nedorazily na server, jsou ztraceny"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19985,6 +20045,12 @@ msgstr "Tato poštovní schránka byla otevřena ze souboru. Její účty se př
 #, fuzzy
 msgid "This mailbox was opened from a file: confirm its servers first"
 msgstr "Tato poštovní schránka byla otevřena ze souboru: nejprve potvrďte její servery"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
+msgstr "Online archiv této schránky je uložen v Microsoft 365, což vyžaduje přihlášení Microsoft, proto se nezobrazuje"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -22689,6 +22755,12 @@ msgstr "účet může mít nejvýše {max} adres odesílatele"
 msgid "an event needs a title"
 msgstr "událost potřebuje název"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an online archive stays under its mailbox: move that account"
+msgstr "online archiv zůstává pod svou poštovní schránkou: přesuňte tento účet"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23865,6 +23937,12 @@ msgid "only a message you sent can be sent again"
 msgstr "znovu lze odeslat jen zprávu, kterou jste odeslali"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "only an Exchange server account has an online archive here"
+msgstr "online archiv tu má jen účet serveru Exchange"
+
+#. what a command says
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
 msgid "only an IMAP account sends from other addresses"
@@ -24186,6 +24264,12 @@ msgid "subject or body contains {words}"
 msgstr "předmět nebo tělo obsahuje {words}"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "that account isn't an online archive"
+msgstr "tento účet není online archiv"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -24369,6 +24453,12 @@ msgstr "účet nemá uživatelské jméno ani e-mailovou adresu k přihlášení
 #, fuzzy
 msgid "the account is gone"
 msgstr "účet už neexistuje"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the account {name} is the online archive of is gone"
+msgstr "účet {name}, jehož online archivem toto je, už neexistuje"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -24777,6 +24867,18 @@ msgstr "síť se tam nedostala"
 #, fuzzy
 msgid "the occurrence was not changed; nothing was moved"
 msgstr "výskyt nebyl změněn; nic se nepřesunulo"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
+msgstr "online archiv má změny, které ještě nedorazily na server: nejdřív spusťte Odeslat/přijmout, pak ho skryjte"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
+msgstr "online archiv má změny, které ještě nedorazily na server: nejdřív spusťte Odeslat/přijmout, pak uveďte, že je uložen v Exchange Online"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

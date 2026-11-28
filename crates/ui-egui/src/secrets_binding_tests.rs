@@ -67,7 +67,14 @@ fn exchange(id: u64, email: &str, trusted: &str) -> Account {
         kind: AccountKind::Exchange,
         email: email.into(),
         name: email.into(),
-        ews: Some(EwsServer { url: URL.into(), username: String::new(), trusted: trusted.into(), hierarchy: String::new(), parents: false }),
+        ews: Some(EwsServer {
+            url: URL.into(),
+            username: String::new(),
+            trusted: trusted.into(),
+            hierarchy: String::new(),
+            parents: false,
+            ..Default::default()
+        }),
         ..Default::default()
     }
 }

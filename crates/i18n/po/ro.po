@@ -6261,7 +6261,7 @@ msgstr ""
 "dosar"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Panou dosare"
@@ -7209,6 +7209,12 @@ msgstr "Ascundere detalii"
 #, fuzzy
 msgid "Hide MailCraft"
 msgstr "Ascundere MailCraft"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Hide Online Archive"
+msgstr "Ascundeți arhiva online"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8746,8 +8752,8 @@ msgstr "Listare sarcini"
 msgid "List {n}"
 msgstr "Lista {n}"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Loading…"
 msgstr "Se încarcă…"
@@ -8944,17 +8950,35 @@ msgstr "Dosar de e-mail: {folder} al contului"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "E-mailurile din altă cutie poștală nu pot intra în Mesaje de trimis: următoarea Trimitere/primire le-ar trimite"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "Mesajele intră într-o arhivă online doar din propria cutie poștală: mutați-le mai întâi în acea cutie"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "E-mailurile din E-mail nedorit tot cer întâi confirmarea. Fișier › Opțiuni oprește din nou această opțiune."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "Mesajele dintr-o arhivă online se copiază în interiorul arhivei: mutați-le în schimb în afară"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "E-mailurile din Mesaje de trimis ale acestei cutii poștale partajate așteaptă: trimiterea din cutii poștale partajate are nevoie de permisiunea dvs. Folosiți Trimitere/primire."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "Mesajele nu se copiază din altă parte într-o arhivă online: mutați-le acolo din propria cutie poștală"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -11936,6 +11960,12 @@ msgid "Online"
 msgstr "Online"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Online Archive – {address}"
+msgstr "Arhivă online – {address}"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Online meeting"
@@ -13562,7 +13592,7 @@ msgid "Redo {what}"
 msgstr "Refacere {what}"
 
 #. interface
-#: crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Refresh"
 msgstr "Reîmprospătare"
@@ -15375,6 +15405,12 @@ msgstr "Trimitere/primire se conectează la Microsoft; apoi se poate căuta pe s
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Trimitere/primire s-a oprit neașteptat"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "Trimiteți/primiți cutia poștală pentru a vă conecta și a citi arhiva online"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -15791,6 +15827,12 @@ msgstr "Afișare MailCraft"
 #, fuzzy
 msgid "Show Message"
 msgstr "Afișare mesaj"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Show Online Archive"
+msgstr "Afișați arhiva online"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -18485,6 +18527,18 @@ msgid "The one this build came with"
 msgstr "Cel cu care a venit această versiune"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "Arhiva online nu a putut fi citită: reîmprospătați pentru a încerca din nou"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "The online archive needs a connection to the server"
+msgstr "Arhiva online are nevoie de o conexiune la server"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18831,6 +18885,12 @@ msgstr "Serverul are {total} dosare: o rulare citește primele {max} și omite c
 #, fuzzy
 msgid "The server is busy. Try again in a few minutes."
 msgstr "Serverul este ocupat. Încercați din nou peste câteva minute."
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr "Serverul nu mai are arhiva online: modificările din ea care nu ajunseseră la server s-au pierdut"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -20009,6 +20069,12 @@ msgstr "Această cutie poștală a fost deschisă dintr-un fișier. Conturile ei
 #, fuzzy
 msgid "This mailbox was opened from a file: confirm its servers first"
 msgstr "Această cutie poștală a fost deschisă dintr-un fișier: confirmați întâi serverele ei"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
+msgstr "Arhiva online a acestei cutii poștale este păstrată în Microsoft 365, care necesită conectare Microsoft, deci nu este afișată"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -22715,6 +22781,12 @@ msgstr "un cont are cel mult {max} adrese de expeditor"
 msgid "an event needs a title"
 msgstr "un eveniment are nevoie de un titlu"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an online archive stays under its mailbox: move that account"
+msgstr "o arhivă online rămâne sub cutia sa poștală: mutați acel cont"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23890,6 +23962,12 @@ msgid "only a message you sent can be sent again"
 msgstr "doar un mesaj trimis de dvs. poate fi retrimis"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "only an Exchange server account has an online archive here"
+msgstr "aici doar un cont de server Exchange are arhivă online"
+
+#. what a command says
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
 msgid "only an IMAP account sends from other addresses"
@@ -24211,6 +24289,12 @@ msgid "subject or body contains {words}"
 msgstr "subiectul sau corpul conține {words}"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "that account isn't an online archive"
+msgstr "acel cont nu este o arhivă online"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -24394,6 +24478,12 @@ msgstr "contul nu are nume de utilizator sau adresă de e-mail cu care să se co
 #, fuzzy
 msgid "the account is gone"
 msgstr "contul nu mai există"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the account {name} is the online archive of is gone"
+msgstr "contul {name} a cărui arhivă online este aceasta nu mai există"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -24802,6 +24892,18 @@ msgstr "rețeaua nu a putut ajunge acolo"
 #, fuzzy
 msgid "the occurrence was not changed; nothing was moved"
 msgstr "apariția nu a fost modificată; nu s-a mutat nimic"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
+msgstr "arhiva online are modificări care nu au ajuns încă la server: mai întâi Trimiteți/primiți, apoi ascundeți-o"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
+msgstr "arhiva online are modificări care nu au ajuns încă la server: mai întâi Trimiteți/primiți, apoi indicați că este în Exchange Online"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

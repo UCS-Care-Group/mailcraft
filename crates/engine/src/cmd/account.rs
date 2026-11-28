@@ -48,7 +48,7 @@ pub fn specs() -> Vec<CommandSpec> {
     ]
 }
 
-const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "outgoingWithoutSignIn"?: bool (the outgoing server takes mail without a sign-in, a relay: it is never shown the password; not for an account that signs in on the provider's page), "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
+const ACCOUNT: &str = r##"{"email": string, "displayName"?: string, "name"?: string (what the folder pane calls the account; empty: its address), "username"?: string, "incoming"?: {"host": string, "port"?: number, "security"?: "tls"|"starttls"|"none"} | null, "outgoing"?: same | null, "outgoingWithoutSignIn"?: bool (the outgoing server takes mail without a sign-in, a relay: it is never shown the password; not for an account that signs in on the provider's page), "auth"?: "password"|"oauth2" (oauth2: sign in on the provider's page), "provider"?: "microsoft"|"google", "clientId"?: string, "tenant"?: string, "directory"?: "organisation"|"personal" (which kind of Microsoft account signs in, when the sign-in said), "kind"?: "imap"|"local"|"microsoft"|"jmap"|"exchange" (microsoft: kept in step through Microsoft Graph, no mail servers; jmap: kept in step over JMAP, no mail servers; exchange: an Exchange server account, kept in step through Exchange Web Services, no mail servers), "ews"?: {"url": string (the https:// address of the server's Exchange Web Services, `…/EWS/Exchange.asmx`), "username"?: string (DOMAIN\user or a UPN; default the e-mail address), "trusted"?: string (the SHA-256 fingerprint of the one certificate trusted for this account besides the system's), "cloudArchive"?: bool (the automatic setup found the mailbox's online archive kept in Exchange Online, which isn't shown)} (an Exchange server account's server; the password is never a setting), "jmap"?: {"session": string (the https:// address of the server's JMAP session resource), "bearer"?: bool (the secret is a bearer token, not the account's password)} (a JMAP account's server; the secret is never a setting), "color"?: "#RRGGBB" | null (the account's colour: a dot by its name in the folder pane and a stripe on its mail in a list of more than one account's; a new account is given one of the palette's that no other has unless this says, null for none)}"##;
 
 fn has_server(s: &Session) -> Option<&'static str> {
     if s.mailbox.accounts.iter().any(|a| a.kind.has_server()) {
@@ -396,6 +396,29 @@ fn apply_fields(a: &mut Account, v: &Value) -> Result<(), CmdError> {
     Ok(())
 }
 
+/// Whether a change made in the online archive `archive` waits to go up that taking it away would
+/// lose (#1834 review): of its folders, or of its mail; not a move into it of mail its owner's
+/// server still has, which is put back where the server has it ([`Mailbox::remove_archive`]),
+/// with what was changed in it.
+pub(crate) fn archive_changes_wait(s: &Session, archive: Id) -> bool {
+    use mailcraft_model::sync::MessageChange;
+    let mb = &s.mailbox;
+    let Some(owner) = mb.archive_owner(archive).map(|o| o.id) else { return false };
+    if !super::graph_mail::folder_changes(mb, archive, 1).0.is_empty() {
+        return true;
+    }
+    let put_back = |id: Id| {
+        mb.message(id).and_then(|m| m.server.as_ref()).is_some_and(|server| !server.gone && mb.folder_by_server(owner, &server.folder).is_some())
+    };
+    const MOST: usize = 10_000;
+    let (changes, count) = super::graph_up::message_changes(s, archive, MOST);
+    count > changes.len()
+        || changes.iter().any(|change| match change {
+            MessageChange::Update { message, .. } | MessageChange::Move { message, .. } => !put_back(*message),
+            _ => true,
+        })
+}
+
 /// A JMAP account's server from `jmap` in a command's params, over `before` (what it has, when it
 /// has a server): `session`, the address of the session resource, and `bearer`, whether the secret
 /// is a bearer token. An address that is given, or that a new server has, must be one the model
@@ -445,6 +468,11 @@ fn ews_server(v: &Value, before: Option<&EwsServer>) -> Result<EwsServer, CmdErr
                     Some(Value::String(text)) => (*field, given) = (text.trim().to_string(), true),
                     Some(_) => return Err(bad(format!("`ews.{key}` is a string"))),
                 }
+            }
+            match settings.get("cloudArchive") {
+                None => {}
+                Some(Value::Bool(cloud)) => server.cloud_archive = *cloud,
+                Some(_) => return Err(bad("`ews.cloudArchive` is true or false")),
             }
         }
         Some(_) => return Err(bad("`ews` is {\"url\": string, \"username\"?: string, \"trusted\"?: string}")),
@@ -608,6 +636,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     }
     let before = a.clone();
     let named_by_address = before.named_by_address();
+    let was_cloud = before.ews.as_ref().is_some_and(|e| e.cloud_archive);
     apply_fields(&mut a, v)?;
     check_address(&a, Some(&before))?;
     // An Exchange server account is the same: its ids are the server's.
@@ -674,8 +703,27 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     if a.name.trim().is_empty() || (p::str(v, "name").is_none() && named_by_address) {
         a.name = a.name_by_default();
     }
-    if s.mailbox.accounts.iter().any(|x| x.id != id && x.email.eq_ignore_ascii_case(&a.email)) {
+    // (Its own online archive has its address, and is no other account, #1834 review.)
+    if s.mailbox.accounts.iter().any(|x| x.id != id && x.archive_of != Some(id) && x.email.eq_ignore_ascii_case(&a.email)) {
         return Err(failed!("{address} is already set up", address = a.email));
+    }
+    // Its online archive said to be kept in Exchange Online (#1818): one shown here goes, as one
+    // the server says isn't there goes, its moves not made yet put back where the server has the
+    // mail. Not while a change made in it waits to go up, which would be lost (#1834 review).
+    let cloud = |x: &Account| x.ews.as_ref().is_some_and(|e| e.cloud_archive);
+    let archive_goes = (cloud(&a) && !was_cloud).then(|| s.mailbox.archive_of(id).map(|x| x.id)).flatten();
+    if let Some(archive) = archive_goes
+        && archive_changes_wait(s, archive)
+    {
+        return Err(fail(
+            "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online",
+        ));
+    }
+    if cloud(&a)
+        && !was_cloud
+        && let Some(server) = a.ews.as_mut()
+    {
+        (server.archive_hidden, server.cloud_recheck, server.archive_absent) = (false, false, 0);
     }
     // (Whatever its kind now: it may be a Microsoft account again later.)
     let readdressed = !was_address.eq_ignore_ascii_case(a.email.trim());
@@ -685,6 +733,15 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     // are listed afresh, to bring the older mail it now covers.
     let lengthened = a.keep_offline > before.keep_offline && s.mailbox.device_limits.is_some();
     *s.mailbox.account_mut(id)? = a;
+    // Its online archive goes by its address, name and colour (#1834 review).
+    s.mailbox.refresh_archive_of(id);
+    if let Some(archive) = archive_goes {
+        s.mailbox.remove_archive(archive).map_err(|e| fail(e.to_string()))?;
+        if s.mailbox.folder(s.view.folder).is_none() {
+            s.view.folder = s.mailbox.folder_of_kind(id, FolderKind::Inbox).unwrap_or(0);
+            s.sel.messages.clear();
+        }
+    }
     if shortened {
         s.driver.thinning.now = true;
     }
@@ -880,7 +937,7 @@ fn move_account(s: &mut Session, v: &Value) -> CmdResult {
         Some(_) => Some(p::req_id(v, "before")?),
     };
     let moved = s.mailbox.move_account(id, before)?;
-    let order: Vec<Id> = s.mailbox.accounts_in_order().iter().map(|a| a.id).collect();
+    let order: Vec<Id> = s.mailbox.pane_order().iter().map(|a| a.id).collect();
     Ok(json!({"moved": moved, "order": order}))
 }
 
@@ -888,10 +945,10 @@ fn move_account(s: &mut Session, v: &Value) -> CmdResult {
 fn list(s: &mut Session, _: &Value) -> CmdResult {
     let accounts: Vec<Value> = s
         .mailbox
-        .accounts_in_order()
+        .pane_order()
         .into_iter()
         .map(|a| {
-            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "outgoingWithoutSignIn": a.outgoing_without_sign_in, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "desktopMailAlerts": !a.mute_desktop_mail, "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
+            json!({"id": a.id, "name": a.name, "email": a.email, "displayName": a.display_name, "kind": a.kind, "username": a.username, "incoming": a.incoming, "outgoing": a.outgoing, "outgoingWithoutSignIn": a.outgoing_without_sign_in, "signature": a.signature, "replySignature": a.reply_signature(), "auth": if a.oauth.is_some() { "oauth2" } else { "password" }, "oauth": a.oauth, "downloadInFull": a.download_in_full, "keepOffline": s.mailbox.keep_offline_of(a.id), "askBeforeDeletingConversation": s.mailbox.asks_before_deleting_conversation(a.id), "desktopMailAlerts": !a.mute_desktop_mail, "gmail": a.is_gmail(), "showGmailCategories": a.shows_gmail_categories(), "alertPrimaryOnly": a.is_gmail() && a.alert_primary_only, "color": a.color.map(Rgb::hex), "sharedOf": a.shared_of, "archiveOf": a.archive_of, "jmap": jmap_shown(a), "ews": ews_shown(a)})
         })
         .collect();
     Ok(json!({"accounts": accounts, "signatures": s.mailbox.signatures}))

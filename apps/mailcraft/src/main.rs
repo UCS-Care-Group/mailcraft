@@ -47,6 +47,8 @@ mod diagnostics;
 #[cfg(test)]
 mod diagnostics_problem_tests;
 #[cfg(test)]
+mod ews_archive_flow;
+#[cfg(test)]
 mod ews_mail_flow;
 #[cfg(test)]
 mod ews_resolve_flow;

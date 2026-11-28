@@ -43,6 +43,15 @@ pub enum DistinguishedFolder {
     LocalFailures,
     /// Server Failures (`serverfailures`), in Sync Issues.
     ServerFailures,
+    /// The top of the personal archive (`archiveroot`), Exchange 2010 SP1 and later.
+    ArchiveRoot,
+    /// The top of the archive's mail folders (`archivemsgfolderroot`), Exchange 2010 SP1 and later.
+    ArchiveMessageRoot,
+    /// The archive's Deleted Items (`archivedeleteditems`), Exchange 2010 SP1 and later.
+    ArchiveDeletedItems,
+    /// The archive's Inbox (`archiveinbox`): a later schema's name, which an older server doesn't
+    /// know, so it is only ever asked for in a request of its own.
+    ArchiveInbox,
 }
 
 impl DistinguishedFolder {
@@ -62,6 +71,34 @@ impl DistinguishedFolder {
             Self::Conflicts => "conflicts",
             Self::LocalFailures => "localfailures",
             Self::ServerFailures => "serverfailures",
+            Self::ArchiveRoot => "archiveroot",
+            Self::ArchiveMessageRoot => "archivemsgfolderroot",
+            Self::ArchiveDeletedItems => "archivedeleteditems",
+            Self::ArchiveInbox => "archiveinbox",
+        }
+    }
+}
+
+/// Which of an account's two stores a request is about: the mailbox itself, or its personal
+/// archive (the "online archive", #1818). The same user, the same server and the same address
+/// reach both; only the folder at the top of the mail differs. Folder and item ids are the
+/// server's either way, so a request that names one by id needs no store.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum Store {
+    /// The mailbox.
+    #[default]
+    Primary,
+    /// The mailbox's personal archive.
+    Archive,
+}
+
+impl Store {
+    /// The folder at the top of its mail: what its folder list is read from, and where a folder
+    /// made or moved "to the top" goes.
+    pub fn message_root(self) -> DistinguishedFolder {
+        match self {
+            Self::Primary => DistinguishedFolder::MessageRoot,
+            Self::Archive => DistinguishedFolder::ArchiveMessageRoot,
         }
     }
 }

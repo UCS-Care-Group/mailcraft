@@ -191,6 +191,53 @@ pub struct Discovered {
     external: Option<String>,
     internal: Option<String>,
     server: Option<String>,
+    archive: Option<ArchiveMailbox>,
+}
+
+/// The longest name of an archive kept, in characters.
+const MAX_ARCHIVE_NAME: usize = 256;
+/// The longest e-mail address kept (RFC 5321's limit on a path).
+const MAX_ADDRESS: usize = 254;
+
+/// The personal archive an answer says the mailbox has (`AlternativeMailbox` of `Type`
+/// `Archive`, [MS-OXDSCLI]; #1818). Only its name and address are kept, and whether it is kept in
+/// Exchange Online. Nothing is ever sent to a host it names: the archive is reached through the
+/// account's own Exchange Web Services address, and one in Exchange Online not at all.
+#[derive(Clone, PartialEq, Eq)]
+pub struct ArchiveMailbox {
+    display_name: String,
+    address: Option<String>,
+    in_exchange_online: bool,
+}
+
+impl ArchiveMailbox {
+    /// The name the server gives it (no control characters, at most 256 characters); may be
+    /// empty.
+    pub fn display_name(&self) -> &str {
+        &self.display_name
+    }
+
+    /// Its e-mail address, when the answer gave one that is an address.
+    pub fn address(&self) -> Option<&str> {
+        self.address.as_deref()
+    }
+
+    /// Whether it is kept in Exchange Online while the mailbox isn't (a hybrid setup): it would
+    /// need a Microsoft sign-in, and is not shown.
+    pub fn in_exchange_online(&self) -> bool {
+        self.in_exchange_online
+    }
+}
+
+impl fmt::Debug for ArchiveMailbox {
+    /// Whether each is there: the name and the address are the owner's.
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ArchiveMailbox")
+            .field("display_name", &!self.display_name.is_empty())
+            .field("address", &self.address.is_some())
+            .field("in_exchange_online", &self.in_exchange_online)
+            .finish()
+    }
 }
 
 impl Discovered {
@@ -222,6 +269,13 @@ impl Discovered {
         self.server.as_deref()
     }
 
+    /// The mailbox's personal archive, when the answer says it has one (#1818).
+    pub fn archive(&self) -> Option<&ArchiveMailbox> {
+        self.archive.as_ref()
+    }
+
+    /// The hosts the answer names for the mailbox itself. (Not the archive's: an archive kept in
+    /// Exchange Online doesn't make the mailbox one of Exchange Online's.)
     fn hosts(&self) -> Vec<String> {
         self.urls().into_iter().filter_map(host_of).chain(self.server.iter().cloned()).collect()
     }
@@ -233,6 +287,7 @@ impl fmt::Debug for Discovered {
             .field("external", &self.external.is_some())
             .field("internal", &self.internal.is_some())
             .field("server", &self.server.is_some())
+            .field("archive", &self.archive)
             .finish()
     }
 }
@@ -646,7 +701,7 @@ impl Autodiscover {
                 // (An answer from a host the sign-in may go to vouches for the mail server's
                 // host in the domain; one from any other host doesn't, AU3-V1.)
                 let vouched = host_of(url).is_some_and(|host| self.sign_in_allowed(&host));
-                match read_answer(response.body()) {
+                match read_answer(response.body(), &self.email) {
                     Answer::Settings(found) => self.settings(found, vouched),
                     Answer::RedirectUrl(next) => self.follow(&next),
                     Answer::RedirectAddr(email) => self.restart(&email),
@@ -895,9 +950,51 @@ fn ews_address(text: &str) -> Option<String> {
     (secure && text.len() <= MAX_URL && check_endpoint(text).is_ok() && host_of(text).is_some()).then(|| text.to_owned())
 }
 
-/// Reads an answer body. Takes `Action`, `RedirectUrl`, `RedirectAddr`, and from `Protocol`
-/// elements of type `EXCH` (internal) and `EXPR` (external) `EwsUrl` and `Server`: nothing else.
-fn read_answer(body: &[u8]) -> Answer {
+/// An e-mail address as an answer may give it: one `@`, something before it, a host name after
+/// it, no control character or space, at most [`MAX_ADDRESS`]. The domain is kept in lower case.
+fn mail_address(text: &str) -> Option<String> {
+    let text = text.trim();
+    if text.len() > MAX_ADDRESS || text.chars().any(|c| c.is_control() || c.is_whitespace()) {
+        return None;
+    }
+    let (local, domain) = text.split_once('@')?;
+    let domain = domain.trim_end_matches('.').to_ascii_lowercase();
+    (!local.is_empty() && !local.contains('@') && is_name(&domain)).then(|| format!("{local}@{domain}"))
+}
+
+/// Whether an `AlternativeMailbox` is the mailbox's own, not another user's ([MS-OXDSCLI]
+/// 2.2.4.1.1.2.5.6: `OwnerSmtpAddress` is given for a mailbox owned by another user, a delegated
+/// one say): it names no owner, or names one of `own`, the addresses the mailbox was looked up
+/// by and the one the answer says is its own (case aside). An owner that isn't an address is
+/// nobody's own.
+fn is_own(mailbox: &Node, own: &[&str]) -> bool {
+    let owner = mailbox.text_of("OwnerSmtpAddress").trim();
+    if owner.is_empty() {
+        return true;
+    }
+    let Some(owner) = mail_address(owner) else { return false };
+    own.iter().filter_map(|a| mail_address(a)).any(|a| a.eq_ignore_ascii_case(&owner))
+}
+
+/// The first `AlternativeMailbox` of `Type` `Archive` in `account` that is the mailbox's own
+/// ([`is_own`]; another user's archive is passed over, #1834): its `DisplayName`, `SmtpAddress`
+/// and `Server`, each checked; nothing else of it is read.
+fn read_archive(account: &Node, own: &[&str]) -> Option<ArchiveMailbox> {
+    let archive =
+        account.all("AlternativeMailbox").find(|mailbox| mailbox.text_of("Type").eq_ignore_ascii_case("Archive") && is_own(mailbox, own))?;
+    let display_name: String = archive.text_of("DisplayName").chars().filter(|c| !c.is_control()).take(MAX_ARCHIVE_NAME).collect();
+    let address = mail_address(archive.text_of("SmtpAddress"));
+    let server = archive.text_of("Server").trim_end_matches('.').to_ascii_lowercase();
+    let in_cloud = address.as_deref().and_then(|a| a.split_once('@')).is_some_and(|(_, domain)| is_exchange_online(domain))
+        || (is_name(&server) && is_exchange_online(&server));
+    Some(ArchiveMailbox { display_name: display_name.trim().to_owned(), address, in_exchange_online: in_cloud })
+}
+
+/// Reads an answer body. Takes `Action`, `RedirectUrl`, `RedirectAddr`, from `Protocol`
+/// elements of type `EXCH` (internal) and `EXPR` (external) `EwsUrl` and `Server`, and the
+/// archive's name, address and server ([`read_archive`], the archive of `email`'s mailbox, and
+/// `User`'s `AutoDiscoverSMTPAddress` to know it by): nothing else.
+fn read_answer(body: &[u8], email: &str) -> Answer {
     let Ok(root) = xml::parse(body) else { return Answer::Unreadable };
     if root.name != "Autodiscover" || *root.namespace != *ANSWER_SCHEMA {
         return Answer::Unreadable;
@@ -935,7 +1032,9 @@ fn read_answer(body: &[u8]) -> Answer {
             server = is_name(&name).then_some(name);
         }
     }
-    Answer::Settings(Discovered { external, internal, server })
+    // (The mailbox's own addresses: the one it was looked up by, and the one the answer gives.)
+    let given = response.child("User").map_or("", |user| user.text_of("AutoDiscoverSMTPAddress"));
+    Answer::Settings(Discovered { external, internal, server, archive: read_archive(account, &[email, given]) })
 }
 
 #[cfg(test)]

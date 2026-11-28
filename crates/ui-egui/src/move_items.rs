@@ -55,7 +55,8 @@ impl MoveItems {
         }
         // (The mailbox in view's folders first, then those of every other account: a message
         // reaches another account too. Built in one pass, as the Move to Folder menu builds it.)
-        let (rows, _) = crate::ribbon::folder_rows(app, FolderScope::EveryAccount);
+        let scope = if copy { FolderScope::CopyTargets } else { FolderScope::EveryAccount };
+        let (rows, _) = crate::ribbon::folder_rows(app, scope);
         Some(MoveItems { copy, query: String::new(), rows, marked: None, error: String::new() })
     }
 

@@ -4,7 +4,10 @@
 //! takes in what it brings back, with results made by hand. (Against `mailcraft-ews`'s stand-in:
 //! `apps/mailcraft/src/ews_mail_flow.rs`.)
 
-use mailcraft_model::sync::{EwsFolderDeltas, EwsMessagePage, GraphFetched, GraphFolder, GraphMessage, ReadState, ServerMessage};
+use mailcraft_model::sync::{
+    EwsFolderDeltas, EwsMessagePage, GraphFetched, GraphFolder, GraphMessage, MessageChange, MessageChangeDone, MessageOutcome, ReadState,
+    ServerMessage,
+};
 use mailcraft_model::{Address, FlagStatus, Message};
 use serde_json::json;
 
@@ -728,4 +731,638 @@ fn a_folder_that_could_not_be_read_in_a_place_not_here_keeps_what_is_at_the_top(
     afresh_past(&mut s, account, part, &["ROOT"], false, "HIER-2");
     assert!(s.mailbox.folder_by_server(account, "F6").is_some(), "at the top: it may be that folder");
     assert!(s.mailbox.folder_by_server(account, "F3").is_none(), "in Projects, which was read: gone");
+}
+
+// ---- the online archive (#1818) ----
+
+fn probed(account: Id, seen: ArchiveSeen) -> EwsMailResult {
+    EwsMailResult { archive: Some(seen), partial: false, ..piece(account) }
+}
+
+#[test]
+fn a_run_that_lists_the_folders_asks_about_the_archive_and_a_light_one_doesnt() {
+    let (mut s, account) = session();
+    let full = ews_mail_request(&s, account, false).unwrap();
+    assert!(full.probe_archive && !full.archive);
+    list(&mut s, account);
+    assert!(!ews_mail_request(&s, account, true).unwrap().probe_archive);
+}
+
+#[test]
+fn an_archive_the_server_says_is_there_is_added_once_and_read_with_the_owners_server() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).map(|a| a.id).expect("added");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    assert_eq!(s.mailbox.accounts.iter().filter(|a| a.is_archive()).count(), 1);
+    let request = ews_mail_request(&s, archive, false).unwrap();
+    assert!(request.archive && !request.probe_archive, "an archive has no archive to ask about");
+    assert_eq!((request.account, request.url.as_str(), request.email.as_str()), (archive, URL, ME));
+    assert!(request.hierarchy.is_empty(), "its own folder list, read from its start");
+    // What its run brings is taken in by it, at its owner's server.
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    assert!(s.mailbox.folders.iter().any(|f| f.account == archive && f.name == "2019"));
+    assert!(!s.mailbox.folders.iter().any(|f| f.account == account && f.name == "2019"), "not the owner's");
+}
+
+#[test]
+fn one_absent_answer_keeps_the_archive_and_two_take_it_away() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Absent)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some(), "one odd answer");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Unknown)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some(), "an answer that says nothing changes nothing");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Absent)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some(), "a Present in between starts the count again");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Absent)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_none());
+}
+
+#[test]
+fn a_hidden_or_cloud_archive_is_not_added() {
+    for (hidden, cloud) in [(true, false), (false, true)] {
+        let (mut s, account) = session();
+        let server = s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap();
+        (server.archive_hidden, server.cloud_archive) = (hidden, cloud);
+        apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+        assert!(s.mailbox.archive_of(account).is_none(), "{hidden} {cloud}");
+    }
+}
+
+/// An archive the setup found kept in Exchange Online is never shown, so a run never asks the
+/// server about it (#1834 review); one with no such word is asked about.
+#[test]
+fn a_cloud_archive_is_not_asked_about() {
+    let (mut s, account) = session();
+    s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap().cloud_archive = true;
+    assert!(!ews_mail_request(&s, account, false).unwrap().probe_archive);
+    s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap().cloud_archive = false;
+    assert!(ews_mail_request(&s, account, false).unwrap().probe_archive);
+}
+
+#[test]
+fn an_archive_whose_owner_is_gone_has_no_request() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    s.mailbox.account_mut(archive).unwrap().archive_of = Some(9_999);
+    assert!(ews_mail_request(&s, archive, false).is_err());
+}
+
+#[test]
+fn a_saved_file_holds_nothing_of_the_archive() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "Taxes 2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let written = String::from_utf8(crate::io::write_mailbox(&s.mailbox).unwrap()).unwrap();
+    assert!(!written.contains("Taxes 2019") && !written.contains("AH-1"));
+    assert!(written.contains("archiveOf"));
+    // Nor does a copy saved elsewhere (Save As, a backup), #1818 review.
+    let dir = std::env::temp_dir().join(format!("mailcraft-archive-copy-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let path = dir.join("copy.mailcraft");
+    crate::store::save_single(&path, &s.mailbox).unwrap();
+    // (Read as written: opening it would take the archive's folders away by itself.)
+    let bytes = std::fs::read(&path).unwrap();
+    let text = String::from_utf8_lossy(&bytes);
+    assert!(text.contains("archiveOf") && !text.contains("Taxes 2019") && !text.contains("AH-1"), "the archive's folders stay out of a copy");
+    assert!(crate::store::open(&path).is_ok());
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
+fn a_hidden_archive_goes_and_stays_away_until_shown() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    // Named by the archive or by its owner, alike.
+    assert_eq!(s.run("account.archive.hide", &json!({"account": archive})).unwrap()["hidden"], account);
+    assert!(s.mailbox.archive_of(account).is_none());
+    assert!(s.mailbox.account(account).unwrap().ews.as_ref().unwrap().archive_hidden);
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_none(), "the server's yes doesn't bring a hidden one back");
+    // Nor is the server asked about it while it is hidden (#1818 review).
+    assert!(!ews_mail_request(&s, account, false).unwrap().probe_archive);
+    assert_eq!(s.run("account.archive.show", &json!({"account": account})).unwrap()["shown"], account);
+    assert!(ews_mail_request(&s, account, false).unwrap().probe_archive, "asked again once shown");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some());
+}
+
+/// Said to be kept in Exchange Online by an edit (`ews.cloudArchive`), an archive shown here goes
+/// at once, as one the server says isn't there goes, and isn't asked about again (#1834 review);
+/// not while a change made in it waits to go up, which would be lost.
+#[test]
+fn an_archive_said_to_be_in_exchange_online_goes() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.view.folder = year;
+    // A change made in it that hasn't gone up: refused, and nothing changes.
+    s.run("folder.rename", &json!({"id": year, "name": "2020"})).unwrap();
+    let edit = json!({"id": account, "ews": {"cloudArchive": true}});
+    let said = s.run("account.edit", &edit).unwrap_err().to_string();
+    assert!(said.contains("Send/Receive first"), "{said}");
+    assert!(s.mailbox.archive_of(account).is_some());
+    assert!(!s.mailbox.account(account).unwrap().ews.as_ref().unwrap().cloud_archive);
+    // Once it has gone up, the edit is taken and the archive goes.
+    let changes = ews_mail_request(&s, archive, false).unwrap().changes;
+    let done: Vec<mailcraft_model::sync::FolderChangeDone> = changes
+        .into_iter()
+        .map(|change| mailcraft_model::sync::FolderChangeDone {
+            change,
+            outcome: mailcraft_model::sync::ChangeOutcome::Done { folder: folder("A1", "", "2020", FolderKind::Custom) },
+        })
+        .collect();
+    apply_ews_mail(&mut s, EwsMailResult { changes: done, ..piece(archive) }).unwrap();
+    s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap().cloud_recheck = true;
+    s.run("account.edit", &edit).unwrap();
+    assert!(s.mailbox.archive_of(account).is_none(), "it goes at once");
+    assert!(s.mailbox.folder(s.view.folder).is_some_and(|f| f.account == account), "the view goes to a folder that is there");
+    let server = s.mailbox.account(account).unwrap().ews.clone().unwrap();
+    assert!(server.cloud_archive && !server.cloud_recheck && !server.archive_hidden);
+    assert!(!ews_mail_request(&s, account, false).unwrap().probe_archive, "not asked about again");
+    // Said again, nothing more happens.
+    s.run("account.edit", &edit).unwrap();
+}
+
+/// A run of the archive is judged a failed read by what failed the reading, as the window judges
+/// it (#1834 review): a folder that couldn't be read is one; a change of the owner's the server
+/// refused is said, but isn't.
+#[test]
+fn a_refused_change_is_said_but_is_no_failed_read() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.run("folder.rename", &json!({"id": year, "name": "2020"})).unwrap();
+    let changes = ews_mail_request(&s, archive, false).unwrap().changes;
+    assert!(!changes.is_empty());
+    let refused: Vec<mailcraft_model::sync::FolderChangeDone> = changes
+        .into_iter()
+        .map(|change| mailcraft_model::sync::FolderChangeDone {
+            change,
+            outcome: mailcraft_model::sync::ChangeOutcome::Refused { why: "a name that is taken".into() },
+        })
+        .collect();
+    let said = apply_ews_mail(&mut s, EwsMailResult { changes: refused, ..piece(archive) }).unwrap();
+    assert!(said["errors"].as_array().is_some_and(|e| !e.is_empty()), "the refusal is said: {said}");
+    assert_eq!(said["readFailed"], false, "{said}");
+    // A folder that couldn't be read is a failed read.
+    let said = apply_ews_mail(&mut s, EwsMailResult { blocked: vec!["A1".into()], ..piece(archive) }).unwrap();
+    assert_eq!(said["readFailed"], true, "{said}");
+    // So is an error of the server's.
+    let said = apply_ews_mail(&mut s, EwsMailResult { errors: vec!["Couldn't reach the server".into()], ..piece(archive) }).unwrap();
+    assert_eq!(said["readFailed"], true, "{said}");
+}
+
+/// Show Online Archive on an account whose setup found its archive in Exchange Online asks the
+/// account's own server once (#1834 review): an archive there is shown and the word is gone (it
+/// was stale); none, and it is in Exchange Online again, to be said once more.
+#[test]
+fn showing_a_cloud_archive_asks_the_own_server_once() {
+    let ews = |s: &Session, account: Id| s.mailbox.account(account).unwrap().ews.clone().unwrap();
+    // The archive isn't in Exchange Online after all (moved back, or the setup was wrong).
+    let (mut s, account) = session();
+    let server = s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap();
+    (server.cloud_archive, server.cloud_archive_told) = (true, true);
+    assert!(!ews_mail_request(&s, account, false).unwrap().probe_archive);
+    let shown = s.run("account.archive.show", &json!({"account": account})).unwrap();
+    assert_eq!(shown["askingAgain"], true);
+    assert!(ews_mail_request(&s, account, false).unwrap().probe_archive, "the own server is asked");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Unknown)).unwrap();
+    assert!(ews(&s, account).cloud_recheck, "an answer that says nothing settles nothing");
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some());
+    let server = ews(&s, account);
+    assert!(!server.cloud_archive && !server.cloud_recheck);
+    // It is in Exchange Online: back as it was, and the owner is told again why it isn't shown.
+    let (mut s, account) = session();
+    let server = s.mailbox.account_mut(account).unwrap().ews.as_mut().unwrap();
+    (server.cloud_archive, server.cloud_archive_told) = (true, true);
+    s.run("account.archive.show", &json!({"account": account})).unwrap();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Absent)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_none());
+    let server = ews(&s, account);
+    assert!(server.cloud_archive && !server.cloud_archive_told && !server.cloud_recheck);
+    assert!(!ews_mail_request(&s, account, false).unwrap().probe_archive, "not asked about again");
+    // An account with no such word: nothing to ask again.
+    let (mut s, account) = session();
+    assert_eq!(s.run("account.archive.show", &json!({"account": account})).unwrap()["askingAgain"], false);
+}
+
+/// The archive goes by its owner's colour and the name people see, edited after it was added; its
+/// address can't go stale, as an Exchange server account's address isn't changed once its mail is
+/// here, and an archive comes only with a run that read it (#1834 review).
+#[test]
+fn the_archive_follows_its_owners_edits() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    s.run("account.edit", &json!({"id": account, "color": "#336699", "displayName": "Ada L."})).unwrap();
+    let (owner, kept) = (s.mailbox.account(account).unwrap().clone(), s.mailbox.account(archive).unwrap().clone());
+    assert!(owner.color.is_some());
+    assert_eq!((kept.color, kept.display_name.as_str(), kept.email.as_str()), (owner.color, "Ada L.", owner.email.as_str()));
+    let said = s.run("account.edit", &json!({"id": account, "email": "ada.lovelace@example.org"})).unwrap_err().to_string();
+    assert!(said.contains("can't be changed once its mail is here"), "{said}");
+    assert_eq!(s.mailbox.account(archive).unwrap().email, owner.email, "the archive's address is its owner's still");
+}
+
+/// After Show Online Archive, a light run asks the server about the archive too (a host or an
+/// agent may only ever ask for light ones), until the server has answered (#1834 review).
+#[test]
+fn after_show_a_light_run_asks_about_the_archive_once_answered_it_doesnt() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    assert!(!ews_mail_request(&s, account, true).unwrap().probe_archive, "a light run of a listed account doesn't ask");
+    s.run("account.archive.hide", &json!({"account": account})).unwrap();
+    s.run("account.archive.show", &json!({"account": account})).unwrap();
+    assert!(ews_mail_request(&s, account, true).unwrap().probe_archive, "asked after Show");
+    // An answer that says nothing settles nothing.
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Unknown)).unwrap();
+    assert!(ews_mail_request(&s, account, true).unwrap().probe_archive);
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    assert!(s.mailbox.archive_of(account).is_some(), "it is back");
+    assert!(!ews_mail_request(&s, account, true).unwrap().probe_archive, "answered: light runs don't ask again");
+    // Answered no: settled the same way.
+    s.run("account.archive.hide", &json!({"account": account})).unwrap();
+    s.run("account.archive.show", &json!({"account": account})).unwrap();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Absent)).unwrap();
+    assert!(!ews_mail_request(&s, account, true).unwrap().probe_archive);
+    assert!(ews_mail_request(&s, account, false).unwrap().probe_archive, "a full run asks as ever");
+}
+
+/// A listing that names a folder as no special one (the run couldn't learn which is: a request
+/// for it by name met garbage or a dropped connection) takes away no kind the folder has here;
+/// one that names it later gives it its kind (#1834 review).
+#[test]
+fn a_listing_that_names_no_special_folder_takes_no_kind_away() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deleted = |kind| folder("AD", "", "Deleted Items", kind);
+    let kind = |s: &Session| s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "Deleted Items").unwrap().kind;
+    let list = |s: &mut Session, kind: FolderKind, state: &str| {
+        let deltas = EwsFolderDeltas { changed: vec![deleted(kind)], afresh: true, ..Default::default() };
+        apply_ews_mail(s, EwsMailResult { folders: Some(deltas), hierarchy: state.into(), ..piece(archive) }).unwrap();
+    };
+    // First listed when its kind couldn't be learned: a folder like any other, for now.
+    list(&mut s, FolderKind::Custom, "AH-1");
+    assert_eq!(kind(&s), FolderKind::Custom);
+    // The next run that learns it gives it its kind.
+    list(&mut s, FolderKind::Deleted, "AH-2");
+    assert_eq!(kind(&s), FolderKind::Deleted);
+    // A run after that which couldn't learn it takes nothing away.
+    list(&mut s, FolderKind::Custom, "AH-3");
+    assert_eq!(kind(&s), FolderKind::Deleted);
+}
+
+/// Hide Online Archive isn't taken while a change made in the archive waits to go up: nothing of
+/// it is kept here, so it would be lost; once it has gone up, it is (#1834 review).
+#[test]
+fn hiding_waits_for_the_archives_changes_to_go_up() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M9", "Budget 2019", 1_600_000_000)], true, true), "S1");
+    let m = here(&s, archive, "M9").unwrap().id;
+    s.run("mail.flag", &json!({"ids": [m]})).unwrap();
+    let said = s.run("account.archive.hide", &json!({"account": archive})).unwrap_err().to_string();
+    assert!(said.contains("Send/Receive first, then hide it"), "{said}");
+    assert!(s.mailbox.archive_of(account).is_some(), "nothing changed");
+    assert!(!s.mailbox.account(account).unwrap().ews.as_ref().unwrap().archive_hidden);
+    // The flag goes up; then it is hidden.
+    let request = ews_mail_request(&s, archive, false).unwrap();
+    let Some(change) = request.messages.iter().find(|c| matches!(c, MessageChange::Update { .. })).cloned() else { panic!("{:?}", request.messages) };
+    let done = MessageChangeDone {
+        change,
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: "A1".into(), id: "M9".into() },
+        there: None,
+    };
+    apply_ews_mail(&mut s, EwsMailResult { messages: vec![done], ..piece(archive) }).unwrap();
+    assert!(ews_mail_request(&s, archive, false).unwrap().messages.is_empty(), "nothing waits now");
+    s.run("account.archive.hide", &json!({"account": archive})).unwrap();
+    assert!(s.mailbox.archive_of(account).is_none());
+}
+
+/// A to-do made from a message moved into the archive, which the server moves without saying its
+/// new id, keeps its message: the copy the archive's next read brings, found by its Internet
+/// Message-ID, is linked to it again (#1834 review).
+#[test]
+fn a_todo_keeps_its_message_moved_into_the_archive() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let inbox_id = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().id.clone();
+    read(&mut s, account, page(&inbox_id, vec![mail("M1", "Kickoff", 1_700_000_000)], true, true), "S1");
+    let m = here(&s, account, "M1").unwrap().id;
+    let task = s.mailbox.add_task(mailcraft_model::Task { title: "Kickoff".into(), message: Some(m), ..Default::default() });
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.run("mail.move", &json!({"ids": [m], "folder": year})).unwrap();
+    // The move goes up from the archive's run; the server says no new id.
+    let request = ews_mail_request(&s, archive, false).unwrap();
+    let Some(change) = request.messages.iter().find(|c| matches!(c, MessageChange::Move { .. })).cloned() else { panic!("{:?}", request.messages) };
+    let done = MessageChangeDone {
+        change,
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: "A1".into(), id: String::new() },
+        there: None,
+    };
+    apply_ews_mail(&mut s, EwsMailResult { messages: vec![done], partial: true, ..piece(archive) }).unwrap();
+    assert!(s.mailbox.message(m).is_none(), "no copy with the old id is kept");
+    // The archive's read brings it under its new id: the to-do is its again.
+    let mut moved = mail("AM1", "Kickoff", 1_700_000_000);
+    moved.message_id = "M1@example.org".into();
+    read(&mut s, archive, page("A1", vec![moved], true, true), "AS1");
+    let copy = here(&s, archive, "AM1").unwrap().id;
+    assert_eq!(s.mailbox.tasks.get(&task).unwrap().message, Some(copy));
+    assert!(s.mailbox.tasks_awaiting_message.is_empty());
+}
+
+/// A move within the mailbox that the server makes without saying a new id keeps the message here,
+/// in its new folder: only a move between the mailbox and its archive takes it away until the
+/// other side's read brings it (#1834 review).
+#[test]
+fn a_move_within_the_mailbox_without_a_new_id_keeps_the_message() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    read(&mut s, account, page("F1", vec![mail("M1", "Kickoff", 1_700_000_000)], true, true), "S1");
+    let m = here(&s, account, "M1").unwrap().id;
+    let projects = s.mailbox.folder_by_server(account, "F5").unwrap();
+    s.run("mail.move", &json!({"ids": [m], "folder": projects})).unwrap();
+    let request = ews_mail_request(&s, account, false).unwrap();
+    let Some(change) = request.messages.iter().find(|c| matches!(c, MessageChange::Move { .. })).cloned() else { panic!("{:?}", request.messages) };
+    let done = MessageChangeDone {
+        change,
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: "F5".into(), id: String::new() },
+        there: None,
+    };
+    apply_ews_mail(&mut s, EwsMailResult { messages: vec![done], ..piece(account) }).unwrap();
+    let kept = s.mailbox.message(m).expect("kept");
+    assert_eq!(kept.folder, projects);
+    assert_eq!(kept.server.as_ref().unwrap().folder, "F5");
+}
+
+/// A message of the same Internet Message-ID that another account receives before the archive's
+/// copy comes isn't taken for it: the to-do waits for the copy in the account its message went
+/// into (#1834 review).
+#[test]
+fn a_todo_waiting_for_its_archived_message_isnt_taken_by_another_accounts_copy() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let inbox_id = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().id.clone();
+    read(&mut s, account, page(&inbox_id, vec![mail("M1", "Kickoff", 1_700_000_000)], true, true), "S1");
+    let m = here(&s, account, "M1").unwrap().id;
+    let task = s.mailbox.add_task(mailcraft_model::Task { title: "Kickoff".into(), message: Some(m), ..Default::default() });
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.run("mail.move", &json!({"ids": [m], "folder": year})).unwrap();
+    let request = ews_mail_request(&s, archive, false).unwrap();
+    let Some(change) = request.messages.iter().find(|c| matches!(c, MessageChange::Move { .. })).cloned() else { panic!("{:?}", request.messages) };
+    let done = MessageChangeDone {
+        change,
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: "A1".into(), id: String::new() },
+        there: None,
+    };
+    apply_ews_mail(&mut s, EwsMailResult { messages: vec![done], partial: true, ..piece(archive) }).unwrap();
+    assert!(s.mailbox.message(m).is_none());
+    // The other account (the mailbox itself) receives a message of the same Message-ID first.
+    let mut other = mail("M7", "Kickoff (again)", 1_700_000_100);
+    other.message_id = "M1@example.org".into();
+    read(&mut s, account, page(&inbox_id, vec![other], false, true), "S2");
+    let theirs = here(&s, account, "M7").unwrap().id;
+    assert_ne!(s.mailbox.tasks.get(&task).unwrap().message, Some(theirs), "not the other account's message");
+    assert_eq!(s.mailbox.tasks.get(&task).unwrap().message, None);
+    assert_eq!(s.mailbox.tasks_awaiting_message.len(), 1, "still waiting");
+    // The archive's own copy comes: the to-do is its.
+    let mut moved = mail("AM1", "Kickoff", 1_700_000_000);
+    moved.message_id = "M1@example.org".into();
+    read(&mut s, archive, page("A1", vec![moved], true, true), "AS1");
+    let copy = here(&s, archive, "AM1").unwrap().id;
+    assert_eq!(s.mailbox.tasks.get(&task).unwrap().message, Some(copy));
+    assert!(s.mailbox.tasks_awaiting_message.is_empty());
+}
+
+/// The server says twice there is no archive: it goes all the same (its changes have nowhere to
+/// go), and a change made in it that hadn't gone up is said to be lost, once (#1834 review).
+#[test]
+fn an_archive_the_server_no_longer_has_goes_saying_what_is_lost() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.run("folder.rename", &json!({"id": year, "name": "2020"})).unwrap();
+    let gone = |s: &mut Session| apply_ews_mail(s, EwsMailResult { archive: Some(ArchiveSeen::Absent), partial: false, ..piece(account) }).unwrap();
+    let said = gone(&mut s);
+    assert!(s.mailbox.archive_of(account).is_some(), "one answer isn't enough");
+    assert!(!said["errors"].to_string().contains("no longer has the online archive"), "{said}");
+    let said = gone(&mut s);
+    assert!(s.mailbox.archive_of(account).is_none(), "it goes");
+    assert!(said["errors"].to_string().contains("no longer has the online archive"), "{said}");
+    // An archive with nothing waiting goes without a word.
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    gone(&mut s);
+    let said = gone(&mut s);
+    assert!(s.mailbox.archive_of(account).is_none());
+    assert!(!said["errors"].to_string().contains("no longer has the online archive"), "{said}");
+}
+
+#[test]
+fn the_archive_commands_take_only_an_exchange_server_account() {
+    let (mut s, _) = session();
+    let local = s.run("account.add", &json!({"email": "ada@home.example", "kind": "local"})).unwrap()["id"].as_u64().unwrap();
+    assert!(s.run("account.archive.hide", &json!({"account": local})).is_err());
+    assert!(s.run("account.archive.show", &json!({})).is_err());
+    assert!(s.run("account.archive.show", &json!({"account": 9_999})).is_err());
+}
+
+/// An online archive is only ever read in part, so its runs are never `whole`: what a folder it
+/// read says is gone still goes when the run went well, and nothing of a folder not read does
+/// (#1834 review).
+#[test]
+fn mail_deleted_from_an_archive_folder_goes_after_a_clean_partial_run() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas {
+        changed: vec![folder("A1", "", "2019", FolderKind::Custom), folder("A2", "", "2020", FolderKind::Custom)],
+        afresh: true,
+        ..Default::default()
+    };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M1", "Budget 2019", 1_700_000_000)], true, true), "S1");
+    read(&mut s, archive, page("A2", vec![mail("M2", "Budget 2020", 1_700_000_100)], true, true), "S2");
+    // Another program deleted M1; only 2019 is read again, and the run ends well (not whole).
+    let gone = EwsMessagePage { folder: "A1".into(), removed: vec!["M1".into()], last: true, ..Default::default() };
+    read(&mut s, archive, gone, "S1b");
+    end(&mut s, archive, false);
+    assert!(here(&s, archive, "M1").is_none(), "gone from the folder read");
+    assert!(here(&s, archive, "M2").is_some(), "the folder not read keeps its mail");
+}
+
+/// A mark of gone left in a folder by a read cut short doesn't make a later clean run of other
+/// folders take that folder's mail (#1834 review).
+#[test]
+fn an_archive_run_sweeps_only_the_folders_it_read() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas {
+        changed: vec![folder("A1", "", "2019", FolderKind::Custom), folder("A2", "", "2020", FolderKind::Custom)],
+        afresh: true,
+        ..Default::default()
+    };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M1", "Budget 2019", 1_700_000_000)], true, true), "S1");
+    read(&mut s, archive, page("A2", vec![mail("M2", "Budget 2020", 1_700_000_100)], true, true), "S2");
+    end(&mut s, archive, false);
+    // A read of 2020 that marks M2 gone and is cut short (it fails).
+    let cut = EwsMessagePage { folder: "A2".into(), removed: vec!["M2".into()], last: true, ..Default::default() };
+    read(&mut s, archive, cut, "S2b");
+    apply_ews_mail(&mut s, EwsMailResult { errors: vec!["the connection dropped".into()], partial: false, ..piece(archive) }).unwrap();
+    assert!(here(&s, archive, "M2").is_some(), "a run that went wrong takes nothing");
+    // A clean run of 2019 alone: 2020's mark is not its to act on.
+    let ewsr = s.run("sync.ewsRequest", &json!({"account": archive}));
+    assert!(ewsr.is_ok());
+    read(&mut s, archive, page("A1", vec![], false, true), "S1c");
+    end(&mut s, archive, false);
+    assert!(here(&s, archive, "M2").is_some(), "a folder not read keeps its mail");
+}
+
+/// A folder whose listing a run didn't finish is no folder it read: a fresh listing marks the
+/// folder's mail gone until it reaches it, and the rest isn't taken away (#1834 review).
+#[test]
+fn an_archive_folder_listed_part_way_keeps_what_the_listing_didnt_reach() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M1", "One", 1_700_000_000), mail("M2", "Two", 1_700_000_100)], true, true), "S1");
+    end(&mut s, archive, false);
+    // Read afresh again; the first page has only M1, and the run ends before the rest.
+    s.run("sync.ewsRequest", &json!({"account": archive})).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M1", "One", 1_700_000_000)], true, false), "S1b");
+    end(&mut s, archive, false);
+    assert!(here(&s, archive, "M2").is_some(), "not reached by the listing, not taken away");
+}
+
+/// A change made to mail moved into the archive whose move hasn't gone up isn't lost when the
+/// archive is hidden: put back, the message is its owner's again with the server's record of it,
+/// and the owner's next run carries the change (it is worked out from the message, not queued
+/// with the archive, #1834 review).
+#[test]
+fn a_change_to_mail_moved_into_the_archive_goes_up_with_its_owner_once_hidden() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let inbox_id = s.mailbox.folder(inbox).unwrap().server.as_ref().unwrap().id.clone();
+    read(&mut s, account, page(&inbox_id, vec![mail("M1", "Kickoff", 1_700_000_000)], true, true), "S1");
+    let m = here(&s, account, "M1").unwrap().id;
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    let year = s.mailbox.folders.iter().find(|f| f.account == archive && f.name == "2019").unwrap().id;
+    s.run("mail.move", &json!({"ids": [m], "folder": year})).unwrap();
+    s.run("mail.flag", &json!({"ids": [m]})).unwrap();
+    // Hiding is taken: the move is put back, and the flag with it.
+    s.run("account.archive.hide", &json!({"account": archive})).unwrap();
+    let back = s.mailbox.message(m).unwrap();
+    assert_eq!((back.account, back.folder), (account, inbox));
+    let request = ews_mail_request(&s, account, false).unwrap();
+    assert!(
+        request.messages.iter().any(|c| matches!(c, MessageChange::Update { message, flag: Some(_), .. } if *message == m)),
+        "the flag goes up with the owner's next run: {:?}",
+        request.messages
+    );
+}
+
+/// Reply, Reply All, Forward and Forward as Attachment on mail in the online archive are written
+/// from its owner, whose Drafts and Outbox they go to: the archive has neither and sends nothing
+/// (#1834 review).
+#[test]
+fn mail_in_the_archive_is_answered_from_its_owner() {
+    let (mut s, account) = session();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("M9", "Budget 2019", 1_600_000_000)], true, true), "S1");
+    let m = here(&s, archive, "M9").unwrap().id;
+    // Here whole, as its first opening brings it.
+    let held = s.mailbox.message_mut(m).unwrap();
+    held.unfetched = false;
+    held.body = mailcraft_model::Body { text: "The figures.".into(), html: None };
+    for command in ["mail.reply", "mail.replyAll", "mail.forward", "mail.forwardAsAttachment"] {
+        s.run(command, &json!({"id": m})).unwrap();
+        let c = s.compose.as_ref().unwrap();
+        assert_eq!(c.account, account, "{command}");
+        s.run("compose.close", &json!({"discard": true})).unwrap();
+    }
+}
+
+/// Mail moved out of the archive into its owner's Inbox, which the server moves without saying
+/// its new id, is the same message when the owner's read brings it: it takes back the id it had,
+/// so it is no new mail to tell of, and no rule sorts it (#1834 review).
+#[test]
+fn mail_moved_back_from_the_archive_is_no_new_mail() {
+    let (mut s, account) = session();
+    list(&mut s, account);
+    read(&mut s, account, page("F1", vec![mail("M1", "Kickoff", 1_700_000_000)], true, true), "S1");
+    end(&mut s, account, true);
+    // A rule that would flag what arrives in the Inbox from that sender, kept here.
+    let rule = json!({"name": "Flag", "conditions": [{"type": "fromContains", "value": "zoe"}], "actions": [{"type": "flag"}], "account": account, "server": false});
+    s.run("rules.add", &rule).unwrap();
+    apply_ews_mail(&mut s, probed(account, ArchiveSeen::Present)).unwrap();
+    let archive = s.mailbox.archive_of(account).unwrap().id;
+    let deltas = EwsFolderDeltas { changed: vec![folder("A1", "", "2019", FolderKind::Custom)], afresh: true, ..Default::default() };
+    apply_ews_mail(&mut s, EwsMailResult { folders: Some(deltas), hierarchy: "AH-1".into(), ..piece(archive) }).unwrap();
+    read(&mut s, archive, page("A1", vec![mail("AM1", "Budget 2019", 1_600_000_000)], true, true), "AS1");
+    let m = here(&s, archive, "AM1").unwrap().id;
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.run("mail.move", &json!({"ids": [m], "folder": inbox})).unwrap();
+    // The move goes up from the owner's run, the account it is in now.
+    let request = ews_mail_request(&s, account, false).unwrap();
+    let Some(change) = request.messages.iter().find(|c| matches!(c, MessageChange::Move { .. })).cloned() else { panic!("{:?}", request.messages) };
+    let done = MessageChangeDone {
+        change,
+        outcome: MessageOutcome::Done { categories: None, flag: None, folder: "F1".into(), id: String::new() },
+        there: None,
+    };
+    apply_ews_mail(&mut s, EwsMailResult { messages: vec![done], partial: true, ..piece(account) }).unwrap();
+    assert!(s.mailbox.message(m).is_none(), "no copy with the old id is kept");
+    // The owner's next read lists it in the Inbox under its new id.
+    let mark = crate::arrivals::mark(&s.mailbox);
+    let mut back = mail("M5", "Budget 2019", 1_600_000_000);
+    back.message_id = "AM1@example.org".into();
+    read(&mut s, account, page("F1", vec![back], false, true), "S2");
+    let copy = here(&s, account, "M5").unwrap();
+    assert_eq!(copy.id, m, "the same message, under the id it had");
+    assert_eq!(copy.folder, inbox);
+    assert_eq!(copy.flag, FlagStatus::None, "no rule acted on it");
+    assert!(crate::arrivals::arrivals(&s.mailbox, &mark).is_empty(), "no new mail to tell of");
+    assert!(s.mailbox.moved_across.is_empty());
 }

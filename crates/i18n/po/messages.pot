@@ -5189,7 +5189,7 @@ msgid ""
 msgstr ""
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 msgid "Folder Pane"
 msgstr ""
 
@@ -5960,6 +5960,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/menubar.rs
 msgid "Hide MailCraft"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+msgid "Hide Online Archive"
 msgstr ""
 
 #. interface
@@ -7241,8 +7246,8 @@ msgstr ""
 msgid "List {n}"
 msgstr ""
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/nav.rs
 msgid "Loading…"
 msgstr ""
 
@@ -7406,14 +7411,29 @@ msgstr ""
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr ""
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
+msgstr ""
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
 msgstr ""
 
 #. what a command says
@@ -9881,6 +9901,11 @@ msgid "Online"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+msgid "Online Archive – {address}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 msgid "Online meeting"
 msgstr ""
@@ -11231,7 +11256,7 @@ msgid "Redo {what}"
 msgstr ""
 
 #. interface
-#: crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/security.rs
 msgid "Refresh"
 msgstr ""
 
@@ -12717,6 +12742,11 @@ msgstr ""
 msgid "Send/Receive stopped unexpectedly"
 msgstr ""
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "Send/Receive with Exchange Web Services"
@@ -13060,6 +13090,11 @@ msgstr ""
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Show Message"
+msgstr ""
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+msgid "Show Online Archive"
 msgstr ""
 
 #. command label, interface
@@ -15299,6 +15334,16 @@ msgid "The one this build came with"
 msgstr ""
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+msgid "The online archive needs a connection to the server"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 msgid "The organizer can't be written to from this account."
 msgstr ""
@@ -15586,6 +15631,11 @@ msgstr ""
 #. what a command says
 #: crates/mobile/src/fetch.rs
 msgid "The server is busy. Try again in a few minutes."
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
 msgstr ""
 
 #. interface
@@ -16562,6 +16612,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/lib.rs
 msgid "This mailbox was opened from a file: confirm its servers first"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
 msgstr ""
 
 #. interface
@@ -18795,6 +18850,11 @@ msgstr ""
 msgid "an event needs a title"
 msgstr ""
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+msgid "an online archive stays under its mailbox: move that account"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "and"
@@ -19776,6 +19836,11 @@ msgid "only a message you sent can be sent again"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/archive.rs
+msgid "only an Exchange server account has an online archive here"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/senders.rs
 msgid "only an IMAP account sends from other addresses"
 msgstr ""
@@ -20045,6 +20110,11 @@ msgid "subject or body contains {words}"
 msgstr ""
 
 #. what a command says
+#: crates/model/src/archive.rs
+msgid "that account isn't an online archive"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 msgid "that event doesn't repeat"
 msgstr ""
@@ -20197,6 +20267,11 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/unsubscribe.rs
 msgid "the account is gone"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "the account {name} is the online archive of is gone"
 msgstr ""
 
 #. why a mail server couldn't be used
@@ -20537,6 +20612,16 @@ msgstr ""
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
 msgid "the occurrence was not changed; nothing was moved"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
 msgstr ""
 
 #. what a command says

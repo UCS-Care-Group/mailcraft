@@ -156,7 +156,8 @@ const WEB_BYTES: u64 = 1 << 30;
 
 /// The mailbox as one self-contained file: everything in it, attachments as base64.
 pub fn write_mailbox(mb: &Mailbox) -> Result<Vec<u8>, String> {
-    serde_json::to_vec(mb).map_err(|e| e.to_string())
+    // (Without what is held of an online archive, #1818.)
+    serde_json::to_vec(&*mb.for_disk()).map_err(|e| e.to_string())
 }
 
 /// Open a mailbox file by path: one self-contained file, or a file with its content folder

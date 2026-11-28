@@ -264,6 +264,20 @@ impl State {
         Ok((200, first, response("UpdateItem", &messages)))
     }
 
+    /// Whether the folder `id` is in the mailbox's archive (#1818): under its `archiveroot`.
+    fn in_archive(&self, id: &str) -> bool {
+        let mut at = id.to_owned();
+        // (Bounded: a stand-in's folders could be made to loop.)
+        for _ in 0..64 {
+            let Some(folder) = self.folders.iter().find(|f| f.id == at) else { return false };
+            if folder.distinguished == "archiveroot" {
+                return true;
+            }
+            at.clone_from(&folder.parent);
+        }
+        false
+    }
+
     /// Moves the item at `at` into `folder` under a new id, as the service does.
     fn relocate(&mut self, at: usize, folder: &Folder, copy: bool) -> Option<Item> {
         let mut item = self.items.get(at)?.clone();
@@ -293,10 +307,14 @@ impl State {
             Check::is(r, MESSAGES, "ReturnNewItemIds", &[])?;
         }
         let Some(folder) = self.folder_of(to)? else { return no(name, "ErrorFolderNotFound") };
+        let into_archive = self.in_archive(&folder.id);
         let mut messages = String::new();
         let mut first = String::new();
         for (id, _) in ids {
+            // (Into another mailbox, between the mailbox and its archive, Exchange says no new id.)
+            let across = self.at(&id).and_then(|at| self.items.get(at)).is_some_and(|item| self.in_archive(&item.folder) != into_archive);
             let (code, inner) = match self.at(&id).and_then(|at| self.relocate(at, &folder, name == "CopyItem")) {
+                Some(_) if across => ("NoError", ok_message(name, "<m:Items/>")),
                 Some(item) => ("NoError", ok_message(name, &format!("<m:Items><t:Message>{}</t:Message></m:Items>", item_id_xml(&item)))),
                 None => ("ErrorItemNotFound", error_message(name, "ErrorItemNotFound")),
             };

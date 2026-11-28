@@ -43,13 +43,13 @@ use std::sync::atomic::{AtomicBool, Ordering};
 
 use mailcraft_model::FolderKind;
 use mailcraft_model::sync::{
-    EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, FolderChange, GraphFetchResult, GraphFetched,
-    GraphFolder, GraphMessage, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
+    ArchiveSeen, EwsFetchRequest, EwsFolderDeltas, EwsMailRequest, EwsMailResult, EwsMessagePage, EwsScope, FolderChange, GraphFetchResult,
+    GraphFetched, GraphFolder, GraphMessage, GraphProgress, MAX_THREAD_ASKS, ThreadOf,
 };
 
 use crate::client::Client;
 use crate::error::{Error, ResponseCode};
-use crate::folder::{DistinguishedFolder, FolderInfo, GetFolder};
+use crate::folder::{DistinguishedFolder, FolderInfo, GetFolder, Store};
 use crate::hierarchy::{MAX_NAME, SyncFolderHierarchy};
 use crate::http::{HttpExchange, TransportError};
 use crate::items::{GetItemConversations, GetItemMime, GetItemRecipients, MAX_CONVERSATIONS, MAX_RECIPIENTS_ASKED, Shape, SyncFolderItems};
@@ -157,6 +157,9 @@ pub(crate) struct Run<'a, E: HttpExchange> {
     pub(crate) needs_change_key: bool,
     /// The recipients of some messages couldn't be had with `GetItem`: said once a run.
     pub(crate) recipients_unsaid: bool,
+    /// Which store the run reads and writes the folders of (#1818): where its folder list is read
+    /// from and where a folder made at the top goes.
+    pub(crate) store: Store,
 }
 
 impl<'a, E: HttpExchange> Run<'a, E> {
@@ -173,6 +176,7 @@ impl<'a, E: HttpExchange> Run<'a, E> {
             reread_folders: false,
             needs_change_key: false,
             recipients_unsaid: false,
+            store: Store::Primary,
         }
     }
 }
@@ -246,6 +250,19 @@ const KNOWN: [(DistinguishedFolder, Option<FolderKind>); 7] = [
     (DistinguishedFolder::JunkEmail, Some(FolderKind::Junk)),
     (DistinguishedFolder::Outbox, None),
 ];
+
+/// The top of the archive's mail (#1818), asked for by itself: a run of the archive needs it. The
+/// others are asked for each in a request of its own ([`ARCHIVE_DELETED`], [`ARCHIVE_INBOX`]).
+const KNOWN_ARCHIVE: [(DistinguishedFolder, Option<FolderKind>); 1] = [(DistinguishedFolder::ArchiveMessageRoot, None)];
+
+/// The archive's Deleted Items, asked for by itself (#1834 review): a server whose schema hasn't
+/// the name (one that isn't Exchange, say) refuses the whole request, and the archive is read
+/// without it, its Deleted Items then a folder like any other.
+const ARCHIVE_DELETED: [DistinguishedFolder; 1] = [DistinguishedFolder::ArchiveDeletedItems];
+
+/// The archive's Inbox, asked for by itself: a server whose schema hasn't the name refuses the
+/// whole request, and an archive needn't have an Inbox at all.
+const ARCHIVE_INBOX: [DistinguishedFolder; 1] = [DistinguishedFolder::ArchiveInbox];
 
 /// The server's own folders that are no kind of MailCraft's (#779), and its Outbox, which isn't
 /// either (AU2-V2): asked for in a request of their own, so that a server that doesn't know one of
@@ -362,21 +379,44 @@ impl<E: HttpExchange> Run<'_, E> {
     }
 
     async fn specials(&mut self) -> Result<Specials, Asked> {
-        let get = GetFolder::new(&KNOWN.map(|(folder, _)| folder));
-        let found = self.ask(&get.element(), &|reply| get.answer(reply)).await?;
+        let known: &[(DistinguishedFolder, Option<FolderKind>)] = match self.store {
+            Store::Primary => &KNOWN,
+            Store::Archive => &KNOWN_ARCHIVE,
+        };
+        let get = GetFolder::new(&known.iter().map(|(folder, _)| *folder).collect::<Vec<_>>());
+        let mut found: Vec<(DistinguishedFolder, Option<FolderKind>, FolderInfo)> = Vec::new();
+        for ((folder, kind), info) in known.iter().zip(self.ask(&get.element(), &|reply| get.answer(reply)).await?) {
+            if let Ok(info) = info {
+                found.push((*folder, *kind, info));
+            }
+        }
+        if self.store == Store::Archive {
+            // (Each by itself, and anything but what ends the run is "not there": an archive
+            // needn't have an Inbox, and a server needn't know every name.)
+            for (names, folder, kind) in [
+                (&ARCHIVE_DELETED, DistinguishedFolder::ArchiveDeletedItems, FolderKind::Deleted),
+                (&ARCHIVE_INBOX, DistinguishedFolder::ArchiveInbox, FolderKind::Inbox),
+            ] {
+                let get = GetFolder::new(names);
+                match self.ask(&get.element(), &|reply| get.answer(reply)).await {
+                    Ok(answers) => found.extend(answers.into_iter().flatten().map(|info| (folder, Some(kind), info))),
+                    Err(stop) if ends_the_run(&stop) => return Err(stop),
+                    Err(_) => log::info!("ews folders: one of the archive's folders wasn't given by its name; its folders are read without it"),
+                }
+            }
+        }
         let mut out = Specials::default();
-        for ((folder, kind), info) in KNOWN.iter().zip(found) {
-            let Ok(info) = info else { continue };
+        for (folder, kind, info) in found {
             let id = info.id.as_str().to_owned();
             match (folder, kind) {
-                (DistinguishedFolder::MessageRoot, _) => out.root = Some(id),
+                (DistinguishedFolder::MessageRoot | DistinguishedFolder::ArchiveMessageRoot, _) => out.root = Some(id),
                 (DistinguishedFolder::Outbox, _) => out.outbox = Some(info),
-                (DistinguishedFolder::Inbox, Some(kind)) => {
+                (DistinguishedFolder::Inbox | DistinguishedFolder::ArchiveInbox, Some(kind)) => {
                     out.inbox = Some(id.clone());
-                    out.kinds.insert(id, *kind);
+                    out.kinds.insert(id, kind);
                 }
                 (_, Some(kind)) => {
-                    out.kinds.insert(id, *kind);
+                    out.kinds.insert(id, kind);
                 }
                 _ => {}
             }
@@ -394,7 +434,7 @@ impl<E: HttpExchange> Run<'_, E> {
         // (What is in `unreadable_in` already, looked up in one step: a server may name thousands.)
         let mut seen = std::collections::HashSet::new();
         for _ in 0..MAX_HIERARCHY_PAGES {
-            let op = SyncFolderHierarchy::new(&state);
+            let op = SyncFolderHierarchy::new(&state).in_store(self.store);
             match self.ask(&op.element(), &|reply| op.answer(reply)).await {
                 Ok(page) => {
                     skipped = skipped.saturating_add(page.skipped);
@@ -474,7 +514,23 @@ pub async fn sync_mail<E: HttpExchange>(
     wait: &mut dyn FnMut(u32) -> bool,
     emit: &mut dyn FnMut(EwsMailResult),
 ) {
+    // (The request says whether it is a run of the mailbox or of its online archive, #1818.)
+    let store = if request.archive { Store::Archive } else { Store::Primary };
+    sync_store(store, client, exchange, request, cancel, wait, emit).await;
+}
+
+/// [`sync_mail`] of the folders of `store` (#1818).
+pub(crate) async fn sync_store<E: HttpExchange>(
+    store: Store,
+    client: &Client,
+    exchange: &E,
+    request: &EwsMailRequest,
+    cancel: &AtomicBool,
+    wait: &mut dyn FnMut(u32) -> bool,
+    emit: &mut dyn FnMut(EwsMailResult),
+) {
     let mut run = Run::new(client, exchange, cancel, wait);
+    run.store = store;
     let mut out = Outcome::default();
     if let Err(stop) = run.all(request, &mut out, emit).await {
         match stop {
@@ -497,7 +553,19 @@ pub async fn sync_mail<E: HttpExchange>(
         log::warn!("ews mail: {} folders hold a change that can't be taken in; they are left where they were", out.blocked.len());
     }
     log::debug!("ews mail: the run is over (clean: {}, stopped: {}, busy: {})", out.clean(), out.stopped, out.busy_for.is_some());
+    // Whether the mailbox has an online archive (#1818): asked of the mailbox only, and not after
+    // a run that was stopped, turned down or told to wait. Never worth failing the run for.
+    let ask = request.probe_archive && store == Store::Primary && !out.stopped && !out.auth_refused && out.busy_for.is_none();
+    let archive = match ask {
+        true => Some(match run.probe().await {
+            ArchiveProbe::Present => ArchiveSeen::Present,
+            ArchiveProbe::Absent => ArchiveSeen::Absent,
+            ArchiveProbe::Unknown => ArchiveSeen::Unknown,
+        }),
+        false => None,
+    };
     emit(EwsMailResult {
+        archive,
         errors: out.errors.clone(),
         busy_for: out.busy_for,
         // (Only a run of every folder is the end of a read that may take away what the server lacks.)
@@ -551,7 +619,8 @@ impl<E: HttpExchange> Run<'_, E> {
     async fn all(&mut self, request: &EwsMailRequest, out: &mut Outcome, emit: &mut dyn FnMut(EwsMailResult)) -> Result<(), Asked> {
         // The server's own folders (#779), before anything goes up: a change of one is never sent.
         let changes_existing = request.changes.iter().any(|c| !matches!(c, FolderChange::Create { .. }));
-        if !request.inbox_pass && (request.list_folders || changes_existing) {
+        // (The archive has none of them: no Outbox, no Sync Issues, no Conversation History.)
+        if self.store == Store::Primary && !request.inbox_pass && (request.list_folders || changes_existing) {
             self.own = self.own_folders().await?;
         }
         // What was changed, written and sent here goes first (not in the Inbox pass).
@@ -560,9 +629,18 @@ impl<E: HttpExchange> Run<'_, E> {
         }
         // What the server calls its special folders: the Inbox first, and what each folder is.
         let specials = self.specials().await?;
-        if specials.inbox.is_none() {
-            out.incomplete = true;
-            out.line("Couldn't find the Inbox on the server");
+        match self.store {
+            Store::Primary if specials.inbox.is_none() => {
+                out.incomplete = true;
+                out.line("Couldn't find the Inbox on the server");
+            }
+            // (An archive without its top is none the server gives now: nothing more is asked.)
+            Store::Archive if specials.root.is_none() => {
+                out.incomplete = true;
+                out.line("Couldn't find the online archive on the server");
+                return Ok(());
+            }
+            _ => {}
         }
         let mut order: Vec<String> = Vec::new();
         // (The server's Outbox, when the list leaves it out: there is nothing in it to read.)
@@ -820,4 +898,60 @@ pub async fn fetch_messages<E: HttpExchange>(
     }
     out.errors = outcome.errors;
     out
+}
+
+/// What asking for the archive found (#1818).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ArchiveProbe {
+    /// The mailbox has a personal archive, and the server gives its top.
+    Present,
+    /// The server says there is none: it doesn't have the folder, doesn't know its name (a schema
+    /// older than Exchange 2010 SP1's) or doesn't know the version asked for.
+    Absent,
+    /// Nothing can be said now: the server couldn't be reached, turned down the sign-in, was busy
+    /// or answered with something that isn't an answer. What was known before stays.
+    Unknown,
+}
+
+/// Whether a code a server answers the archive's name with says there is no archive: it has no
+/// such folder, or its schema (older than Exchange 2010 SP1's) doesn't know the name or the
+/// version. Any other code (access denied, the mailbox being moved, the server failing for now,
+/// one not known here) says nothing either way: two "no"s in a row take the archive off the pane.
+pub(crate) fn says_no_archive(code: &ResponseCode) -> bool {
+    matches!(code, ResponseCode::FolderNotFound | ResponseCode::SchemaValidation | ResponseCode::InvalidRequest | ResponseCode::InvalidServerVersion)
+        // (`ErrorArchiveMailboxNotEnabled`, [MS-OXWSCDATA]: the mailbox has no archive, or no
+        // longer has one, #1834 review.)
+        || matches!(code, ResponseCode::Other(name) if name == ARCHIVE_NOT_ENABLED)
+}
+
+/// The response code of a server whose mailbox has no archive enabled ([MS-OXWSCDATA]).
+const ARCHIVE_NOT_ENABLED: &str = "ErrorArchiveMailboxNotEnabled";
+
+/// Asks whether the account's mailbox has a personal archive (#1818): one `GetFolder` of
+/// `archivemsgfolderroot`, sent to the account's own server like every other request. It never
+/// fails a run: a "no" ([`says_no_archive`]) is [`ArchiveProbe::Absent`], and anything else that
+/// isn't the folder is [`ArchiveProbe::Unknown`]. Nothing the server wrote is read into it. `cancel` and `wait` are as
+/// for [`sync_mail`].
+pub async fn probe_archive<E: HttpExchange>(client: &Client, exchange: &E, cancel: &AtomicBool, wait: &mut dyn FnMut(u32) -> bool) -> ArchiveProbe {
+    Run::new(client, exchange, cancel, wait).probe().await
+}
+
+impl<E: HttpExchange> Run<'_, E> {
+    /// [`probe_archive`] within a run.
+    async fn probe(&mut self) -> ArchiveProbe {
+        let get = GetFolder::new(&[Store::Archive.message_root()]);
+        let probe = match self.ask(&get.element(), &|reply| get.answer(reply)).await {
+            Ok(answers) => match answers.into_iter().next() {
+                Some(Ok(_)) => ArchiveProbe::Present,
+                Some(Err(Error::Server(code))) if says_no_archive(&code) => ArchiveProbe::Absent,
+                Some(Err(_)) | None => ArchiveProbe::Unknown,
+            },
+            // (A fault that names the schema, the version or the request: this server has no archive.)
+            Err(Asked::Code(code)) if says_no_archive(&code) => ArchiveProbe::Absent,
+            Err(Asked::Code(_)) => ArchiveProbe::Unknown,
+            Err(Asked::Stop(_) | Asked::Bad | Asked::Lost | Asked::Unreadable) => ArchiveProbe::Unknown,
+        };
+        log::info!("ews: online archive probe: {probe:?}");
+        probe
+    }
 }

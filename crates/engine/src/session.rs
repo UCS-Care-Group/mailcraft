@@ -1209,6 +1209,10 @@ pub struct Session {
     /// the run is not made good by one that says all went well). Set by any such piece, cleared
     /// when a run is asked for (`sync.ewsRequest`) and when its last piece has been taken in.
     pub(crate) ews_run_cut: std::collections::HashSet<Id>,
+    /// The folders (by server id) each Exchange server account's run now under way has taken a
+    /// page of: an online archive's run, only ever in part, sweeps what these said is gone and
+    /// nothing else (#1834 review). Cleared as [`Session::ews_run_cut`] is.
+    pub(crate) ews_run_read: std::collections::HashMap<Id, std::collections::HashSet<String>>,
     /// The `Message-ID`s each account had before its run now under way brought new mail into its
     /// Inbox or Junk E-mail ([`crate::cmd::account::message_ids`]), as the run first needed them:
     /// kept for the run's later pieces, so that a second copy of one message in a later piece is
@@ -1555,6 +1559,7 @@ impl Session {
             sync_progress: Default::default(),
             graph_index: Default::default(),
             ews_run_cut: Default::default(),
+            ews_run_read: Default::default(),
             run_had: Default::default(),
             graph_unfetchable: Default::default(),
             kept_for_now: Default::default(),
@@ -2320,7 +2325,10 @@ impl Session {
         };
         let mut words = match self.words.take() {
             Some(words) if words.mailbox() == path => words,
-            _ => crate::words::Words::open(&path, self.mailbox.messages.values().cloned().collect()),
+            _ => crate::words::Words::open(
+                &path,
+                self.mailbox.messages.values().filter(|m| crate::words::on_disk(&self.mailbox, m)).cloned().collect(),
+            ),
         };
         // Also once the background is done: what came while it read is looked at then.
         if search || words.account_gone(&self.mailbox) || (!words.building() && !words.complete()) {
@@ -3853,6 +3861,7 @@ impl Session {
         // Where each message is, is looked at afresh.
         self.graph_index = Default::default();
         self.ews_run_cut.clear();
+        self.ews_run_read.clear();
         self.run_had.clear();
         let mail = u.mail;
         let cur = Undo { label: u.label, mailbox: now, touched, sel: std::mem::replace(&mut self.sel, u.sel), folder: self.view.folder, mail };

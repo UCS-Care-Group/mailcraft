@@ -6019,7 +6019,7 @@ msgid ""
 msgstr "Mapeigenschappen"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 msgid "Folder Pane"
 msgstr "Mappenvenster"
 
@@ -6920,6 +6920,12 @@ msgstr "Details verbergen"
 #, fuzzy
 msgid "Hide MailCraft"
 msgstr "Verberg MailCraft"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Hide Online Archive"
+msgstr "Onlinearchief verbergen"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8411,8 +8417,8 @@ msgstr "Taken opsommen"
 msgid "List {n}"
 msgstr "Lijst {n}"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Loading…"
 msgstr "Laden…"
@@ -8605,17 +8611,35 @@ msgstr "E-mailmap: {folder} van het account"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "E-mail uit een ander postvak kan niet in een Postvak UIT worden gezet: bij het volgende Verzenden/ontvangen zou die worden verzonden"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "E-mail komt alleen vanuit het eigen postvak in een onlinearchief: verplaats het eerst naar dat postvak"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "E-mail in Ongewenste e-mail vraagt nog steeds eerst. Bestand › Opties zet dit weer uit."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "E-mail in een onlinearchief wordt binnen het archief gekopieerd: verplaats het in plaats daarvan naar buiten"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "E-mail in het Postvak UIT van dit gedeelde postvak wacht: verzenden vanuit gedeelde postvakken heeft uw toestemming nodig. Gebruik Verzenden/ontvangen."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "E-mail wordt niet van elders naar een onlinearchief gekopieerd: verplaats het daarheen vanuit het eigen postvak"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -11517,6 +11541,12 @@ msgid "Online"
 msgstr "Online"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Online Archive – {address}"
+msgstr "Onlinearchief – {address}"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Online meeting"
@@ -13097,7 +13127,7 @@ msgid "Redo {what}"
 msgstr "{what} opnieuw"
 
 #. interface
-#: crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Refresh"
 msgstr "Vernieuwen"
@@ -14821,6 +14851,12 @@ msgstr "Verzenden/ontvangen meldt aan bij Microsoft; daarna kan de server worden
 msgid "Send/Receive stopped unexpectedly"
 msgstr "Verzenden/ontvangen is onverwacht gestopt"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "Voer Verzenden/ontvangen uit voor het postvak om aan te melden en het onlinearchief te lezen"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 msgid "Send/Receive with Exchange Web Services"
@@ -15228,6 +15264,12 @@ msgstr "MailCraft tonen"
 #, fuzzy
 msgid "Show Message"
 msgstr "Bericht weergeven"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Show Online Archive"
+msgstr "Onlinearchief weergeven"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -17875,6 +17917,18 @@ msgid "The one this build came with"
 msgstr "Die waarmee deze build is geleverd"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "Het onlinearchief kon niet worden gelezen: vernieuw om het opnieuw te proberen"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "The online archive needs a connection to the server"
+msgstr "Het onlinearchief heeft een verbinding met de server nodig"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18221,6 +18275,12 @@ msgstr "De server heeft {total} mappen: één run leest de eerste {max} en laat 
 #, fuzzy
 msgid "The server is busy. Try again in a few minutes."
 msgstr "De server is bezig. Probeer het over een paar minuten opnieuw."
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr "De server heeft het onlinearchief niet meer: wijzigingen erin die de server nog niet hadden bereikt, zijn verloren"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19380,6 +19440,12 @@ msgstr "Dit postvak is geopend vanuit een bestand. De accounts verbinden met:"
 #, fuzzy
 msgid "This mailbox was opened from a file: confirm its servers first"
 msgstr "Dit postvak is geopend vanuit een bestand: bevestig eerst de servers"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
+msgstr "Het onlinearchief van dit postvak staat in Microsoft 365, waarvoor aanmelden bij Microsoft nodig is, dus het wordt niet weergegeven"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -22029,6 +22095,12 @@ msgstr "een account heeft hoogstens {max} afzenderadressen"
 msgid "an event needs a title"
 msgstr "een gebeurtenis heeft een titel nodig"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an online archive stays under its mailbox: move that account"
+msgstr "een onlinearchief blijft onder het postvak: verplaats dat account"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23201,6 +23273,12 @@ msgid "only a message you sent can be sent again"
 msgstr "alleen een bericht dat u hebt verzonden, kan opnieuw worden verzonden"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "only an Exchange server account has an online archive here"
+msgstr "hier heeft alleen een Exchange-serveraccount een onlinearchief"
+
+#. what a command says
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
 msgid "only an IMAP account sends from other addresses"
@@ -23523,6 +23601,12 @@ msgid "subject or body contains {words}"
 msgstr "het onderwerp of de tekst bevat {words}"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "that account isn't an online archive"
+msgstr "dat account is geen onlinearchief"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -23706,6 +23790,12 @@ msgstr "het account heeft geen gebruikersnaam of e-mailadres om mee aan te melde
 #, fuzzy
 msgid "the account is gone"
 msgstr "het account is verdwenen"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the account {name} is the online archive of is gone"
+msgstr "het account {name} waarvan dit het onlinearchief is, bestaat niet meer"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -24112,6 +24202,18 @@ msgstr "het netwerk kon er niet komen"
 #, fuzzy
 msgid "the occurrence was not changed; nothing was moved"
 msgstr "het exemplaar is niet gewijzigd; er is niets verplaatst"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
+msgstr "het onlinearchief heeft wijzigingen die de server nog niet hebben bereikt: eerst Verzenden/ontvangen, dan verbergen"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
+msgstr "het onlinearchief heeft wijzigingen die de server nog niet hebben bereikt: eerst Verzenden/ontvangen, dan aangeven dat het in Exchange Online staat"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

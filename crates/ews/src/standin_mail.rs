@@ -277,6 +277,44 @@ impl State {
         id
     }
 
+    /// Gives the mailbox a personal archive (#1818): its top (`archiveroot`), the top of its mail
+    /// (`archivemsgfolderroot`), and in that its Deleted Items and, if `inbox`, an Inbox. The id of
+    /// the top of its mail.
+    pub fn add_archive(&mut self, inbox: bool) -> String {
+        let root = self.add_own_folder("archiveroot", "Archive Root", "");
+        let top = self.add_own_folder("archivemsgfolderroot", "Top of Archive", "archiveroot");
+        // (Both tops hold no mail of their own, and the archive's lies in no folder of the mailbox.)
+        for folder in [&root, &top] {
+            if let Some(f) = self.folders.iter_mut().find(|f| f.id == *folder) {
+                f.class = String::new();
+                if f.id == root {
+                    f.parent = String::new();
+                }
+            }
+        }
+        self.add_own_folder("archivedeleteditems", "Deleted Items", "archivemsgfolderroot");
+        if inbox {
+            self.add_own_folder("archiveinbox", "Inbox", "archivemsgfolderroot");
+        }
+        top
+    }
+
+    /// Whether `folder` lies under the folder `root` (at any depth, through a chain of at most a
+    /// hundred folders).
+    pub(crate) fn lies_under(&self, folder: &Folder, root: &str) -> bool {
+        let mut parent = folder.parent.as_str();
+        for _ in 0..100 {
+            if parent.is_empty() {
+                return false;
+            }
+            if parent == root {
+                return true;
+            }
+            parent = self.folders.iter().find(|f| f.id == parent).map_or("", |f| f.parent.as_str());
+        }
+        false
+    }
+
     /// Renames a folder: an `Update`.
     pub fn rename_folder(&mut self, id: &str, name: &str) -> bool {
         self.rev = self.rev.saturating_add(1);
@@ -504,8 +542,8 @@ impl State {
         // request that doesn't ask for it gets every folder without one.)
         let with_parent = asked("folder:ParentFolderId") || all;
         let root = self.sync_folder(Check::required(operation, parts.get(1).copied().flatten(), "SyncFolderId")?)?;
-        if root.distinguished != "msgfolderroot" {
-            return Err(Refusal { code: "ErrorInvalidRequest", why: "this stand-in synchronises the top of the mail".into() });
+        if root.distinguished != "msgfolderroot" && root.distinguished != "archivemsgfolderroot" {
+            return Err(Refusal { code: "ErrorInvalidRequest", why: "this stand-in synchronises the top of the mail or of the archive".into() });
         }
         let given = parts.get(2).copied().flatten();
         let since = match given {
@@ -540,7 +578,8 @@ impl State {
         let mut changes = String::new();
         match since {
             None => {
-                for folder in self.folders.iter().filter(|f| f.distinguished != "root" && f.distinguished != "msgfolderroot") {
+                // (What lies under the top asked for: the mailbox's folders, or the archive's.)
+                for folder in self.folders.iter().filter(|f| self.lies_under(f, &root.id)) {
                     changes.push_str(&folder_xml(folder, "Create"));
                 }
             }
@@ -550,7 +589,9 @@ impl State {
                         ("Delete", _) => {
                             changes.push_str(&format!("<t:Delete><t:FolderId Id=\"{}\" ChangeKey=\"AQAAAA==\"/></t:Delete>", escape(&log.id)))
                         }
-                        (kind, Some(folder)) => changes.push_str(&folder_xml(folder, kind)),
+                        // (A folder deleted is no longer anywhere: both stores are told, as an id
+                        // neither knows is passed over.)
+                        (kind, Some(folder)) if self.lies_under(folder, &root.id) => changes.push_str(&folder_xml(folder, kind)),
                         _ => {}
                     }
                 }

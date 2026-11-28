@@ -197,10 +197,16 @@ fn wrap(account: &str) -> String {
 /// The answer of an Exchange Server with Outlook Anywhere: an internal (`EXCH`) and an external
 /// (`EXPR`) `Protocol`, as the service writes them, with plenty besides the address.
 pub fn settings(internal: &str, external: &str, server: &str) -> String {
+    settings_with(internal, external, server, "")
+}
+
+/// [`settings`] with `more` (elements of `Account`, an `AlternativeMailbox` say) after the
+/// protocols.
+pub fn settings_with(internal: &str, external: &str, server: &str, more: &str) -> String {
     wrap(&format!(
         "<Action>settings</Action><Protocol><Type>EXCH</Type><Server>{server}</Server><ServerDN>/o=Example/ou=Exchange/cn=Servers/cn=EXCH01</ServerDN><ServerVersion>73C08A5B</ServerVersion><MdbDN>/o=Example/cn=Databases/cn=DB1</MdbDN><ASUrl>{internal}</ASUrl><EwsUrl>{internal}</EwsUrl><OOFUrl>{internal}</OOFUrl><AuthPackage>Ntlm</AuthPackage></Protocol>\
          <Protocol><Type>EXPR</Type><Server>{server}</Server><SSL>On</SSL><AuthPackage>Basic</AuthPackage><ASUrl>{external}</ASUrl><EwsUrl>{external}</EwsUrl></Protocol>\
-         <Protocol><Type>WEB</Type><External><OWAUrl AuthenticationMethod=\"Fba\">https://owa.example.org/owa</OWAUrl></External></Protocol>"
+         <Protocol><Type>WEB</Type><External><OWAUrl AuthenticationMethod=\"Fba\">https://owa.example.org/owa</OWAUrl></External></Protocol>{more}"
     ))
 }
 

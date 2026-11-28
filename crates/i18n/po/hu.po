@@ -6239,7 +6239,7 @@ msgid ""
 msgstr "Mappa tulajdonságai"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "Mappaablak"
@@ -7181,6 +7181,12 @@ msgstr "Részletek elrejtése"
 #, fuzzy
 msgid "Hide MailCraft"
 msgstr "MailCraft elrejtése"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Hide Online Archive"
+msgstr "Online archívum elrejtése"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8716,8 +8722,8 @@ msgstr "Listafeladatok"
 msgid "List {n}"
 msgstr "{n}. lista"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Loading…"
 msgstr "Betöltés…"
@@ -8914,17 +8920,35 @@ msgstr "Levelezési mappa a fiókban: {folder}"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "Egy másik postafiókából nem lehet bemenni egy Outboxba: a következő Küldés/fogadó küldené el"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "Az online archívumba csak a saját postafiókjából kerülhet levél: először helyezze át abba a postafiókba"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "A junk e-mailben lévő levelek még mindig kérdezik először. Fájl › A beállítások újra kikapcsolják ezt."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "Az online archívumban lévő levelek az archívumon belül másolhatók: inkább helyezze át őket onnan"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "A megosztott postafiókban lévő levelek várakoznak: a megosztott postafiókákból történő küldéshez engedély kell."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "Máshonnan nem másolható levél az online archívumba: helyezze át oda a saját postafiókjából"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -11900,6 +11924,12 @@ msgid "Online"
 msgstr "Online"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Online Archive – {address}"
+msgstr "Online archívum – {address}"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Online meeting"
@@ -13525,7 +13555,7 @@ msgid "Redo {what}"
 msgstr "Újra: {what}"
 
 #. interface
-#: crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Refresh"
 msgstr "Frissítés"
@@ -15329,6 +15359,12 @@ msgstr "A Microsoft-nak küldött/érvénytelenítő jelek; ezután a szerver á
 msgid "Send/Receive stopped unexpectedly"
 msgstr "A küldő/fogadó váratlanul leállt"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "Futtassa a Küldés/fogadás parancsot a postafiókra a bejelentkezéshez és az online archívum olvasásához"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -15742,6 +15778,12 @@ msgstr "MailCraft megjelenítése"
 #, fuzzy
 msgid "Show Message"
 msgstr "Üzenet megjelenítése"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Show Online Archive"
+msgstr "Online archívum megjelenítése"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -18434,6 +18476,18 @@ msgid "The one this build came with"
 msgstr "A programhoz mellékelt azonosító"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "Az online archívum nem olvasható: a frissítéssel próbálja újra"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "The online archive needs a connection to the server"
+msgstr "Az online archívumhoz kapcsolat kell a kiszolgálóval"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18780,6 +18834,12 @@ msgstr "A szerverben {total} mappa vannak: az egyik fut az első {max}-t olvassa
 #, fuzzy
 msgid "The server is busy. Try again in a few minutes."
 msgstr "A szerver elfoglalt. Próbálja újra néhány perc múlva."
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr "A kiszolgálón már nincs online archívum: a benne végzett, a kiszolgálóra még el nem jutott módosítások elvesztek"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19945,6 +20005,12 @@ msgstr "Ez a postafiók fájlból lett megnyitva. A fiókjai ezekhez a kiszolgá
 #, fuzzy
 msgid "This mailbox was opened from a file: confirm its servers first"
 msgstr "Ez a postafiók fájlból lett megnyitva. Előbb hagyja jóvá a kiszolgálóit."
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
+msgstr "A postafiók online archívuma a Microsoft 365-ben van, amihez Microsoft-bejelentkezés kell, ezért nem jelenik meg"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -22638,6 +22704,12 @@ msgstr "egy fióknak legfeljebb {max} feladócíme lehet"
 msgid "an event needs a title"
 msgstr "egy eseménynek címre van szüksége"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an online archive stays under its mailbox: move that account"
+msgstr "az online archívum a postafiókja alatt marad: azt a fiókot helyezze át"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23811,6 +23883,12 @@ msgid "only a message you sent can be sent again"
 msgstr "Csak egy üzenet küldhető újra"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "only an Exchange server account has an online archive here"
+msgstr "itt csak Exchange-kiszolgálófióknak van online archívuma"
+
+#. what a command says
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
 msgid "only an IMAP account sends from other addresses"
@@ -24132,6 +24210,12 @@ msgid "subject or body contains {words}"
 msgstr "a tárgy vagy a szöveg tartalmazza: {words}"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "that account isn't an online archive"
+msgstr "ez a fiók nem online archívum"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -24315,6 +24399,12 @@ msgstr "a fiókhoz nincs bejelentkezésre használható felhasználónév vagy e
 #, fuzzy
 msgid "the account is gone"
 msgstr "a fiók már nincs meg"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the account {name} is the online archive of is gone"
+msgstr "a(z) {name} fiók, amelynek ez az online archívuma, már nem létezik"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -24723,6 +24813,18 @@ msgstr "A csatorna nem tudott odaérni."
 #, fuzzy
 msgid "the occurrence was not changed; nothing was moved"
 msgstr "az előfordulás nem módosult; semmi sem lett áthelyezve"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
+msgstr "az online archívumban olyan módosítások vannak, amelyek még nem értek el a kiszolgálóra: előbb futtassa a Küldés/fogadást, aztán rejtse el"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
+msgstr "az online archívumban olyan módosítások vannak, amelyek még nem értek el a kiszolgálóra: előbb futtassa a Küldés/fogadást, aztán adja meg, hogy az Exchange Online-ban van"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

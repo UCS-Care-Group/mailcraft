@@ -514,6 +514,32 @@ mod in_step {
         assert!(super::super::remove(&path).is_ok() && !file.exists());
     }
 
+    /// The mail of an online archive is kept on this computer in no form, its words neither: the
+    /// index on the disk leaves it out, and a search finds it in memory (#1834 review).
+    #[test]
+    fn an_online_archives_mail_keeps_its_words_off_the_disk() {
+        let tmp = Temp::new("archive");
+        let (path, _, _) = kept(&tmp);
+        let mut s = session(&path);
+        let ews = mailcraft_model::EwsServer { url: "https://mail.example.org/EWS/Exchange.asmx".into(), ..Default::default() };
+        let owner = s.mailbox.add_account(Account {
+            name: "Exchange".into(),
+            email: "avery@corp.example".into(),
+            kind: mailcraft_model::AccountKind::Exchange,
+            ews: Some(ews),
+            ..Default::default()
+        });
+        let archive = s.mailbox.add_archive(owner).unwrap();
+        let folder = s.mailbox.add_folder(archive, None, "2019").unwrap();
+        let budget = s.mailbox.add_message(Message { folder, account: archive, ..message(0, "Budget", "Kit", "The quetzal figures.") }).unwrap();
+        s.mailbox_changed();
+        assert_eq!(finds(&mut s, "quetzal"), Vec::<Id>::new(), "not in the index");
+        assert!(s.words().unwrap().complete(), "and not waiting for it either");
+        let file = crate::store::words_file(&path);
+        assert!(!std::fs::read(&file).unwrap().windows(7).any(|w| w == b"quetzal"), "nor in its file");
+        assert!(s.rows().iter().any(|r| r.members.contains(&budget)), "found all the same");
+    }
+
     #[test]
     fn removing_an_account_takes_its_words_off_the_disk() {
         let tmp = Temp::new("account");

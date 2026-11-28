@@ -64,15 +64,115 @@ impl MailApp {
     /// the one typed this session, or else the one the operating system was asked to remember (what
     /// the background read of the store brought, never the store itself, #613).
     pub(crate) fn ews_secret(&self, account: Id) -> Option<String> {
+        let account = self.ews_credential_account(account);
         if let Some(typed) = self.passwords.get(&account) {
             return Some(typed.clone());
         }
         self.remembered("password", account)
     }
 
+    /// Reads the online archive `archive` from its server when it is opened, and each time one of
+    /// its folders comes on screen (#1818), as Outlook reads it: in the background, and only with a
+    /// password at hand (nothing is asked for by itself). Its folder list and the folder on screen.
+    /// Not after a read that failed, until the owner asks ([`Self::archive_failed`]).
+    pub(crate) fn read_archive(&mut self, archive: Id) {
+        // (A run under way, a Graph job without a stream of pieces too, holds the run state this
+        // read would take: it waits, and a later frame tries again, #1834 review.)
+        if self.run_under_way() || self.offline() || self.archive_failed.contains(&archive) || self.ews_secret(archive).is_none() {
+            return;
+        }
+        let on_screen = self.archive_folder_on_screen().filter(|(_, account)| *account == archive).map_or(0, |(folder, _)| folder);
+        match self.archive_reads.get(&archive).copied() {
+            // (Leaving its folders reads nothing, but is noted: coming back to one reads it.)
+            Some(last) if on_screen == 0 => {
+                if last != 0 {
+                    self.archive_reads.insert(archive, 0);
+                }
+                return;
+            }
+            Some(last) if last == on_screen => return,
+            _ => {}
+        }
+        self.archive_reads.insert(archive, on_screen);
+        if let Err(e) = self.start_ews_mail(archive, true, &json!({})) {
+            log::info!("ews: the online archive couldn't be read now: {e}");
+            self.archive_failed.insert(archive);
+        }
+    }
+
+    /// Each frame, whatever the folder pane shows (#1834 review): a folder of an online archive
+    /// on screen starts the archive's read even when its heading is folded, or the folder was
+    /// opened from Favorites or with the folder pane hidden ([`MailApp::read_archive`], with its
+    /// guards: offline, a failed read, no password). Leaving an archive's folders is noted for
+    /// each archive, so that coming back to one reads it again. Nothing is read when no folder of
+    /// an archive is on screen.
+    pub(crate) fn archive_tick(&mut self) {
+        if self.archive_reads.is_empty() && !self.session.mailbox.accounts.iter().any(mailcraft_model::Account::is_archive) {
+            return;
+        }
+        let on_screen = self.archive_folder_on_screen().map(|(_, account)| account);
+        for (archive, last) in self.archive_reads.iter_mut() {
+            if *last != 0 && on_screen != Some(*archive) {
+                *last = 0;
+            }
+        }
+        let Some(account) = on_screen else { return };
+        if self.offline() || !self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_archive) {
+            return;
+        }
+        self.read_archive(account);
+    }
+
+    /// The mail folder on screen and its account: Mail in front with File closed (#1834 review:
+    /// the folder pane may be hidden). Another module, or File, shows no folder, so leaving an
+    /// archive's folder that way is noted and nothing of it is read meanwhile.
+    fn archive_folder_on_screen(&self) -> Option<(Id, Id)> {
+        if self.session.view.module != mailcraft_engine::Module::Mail || self.ui.backstage {
+            return None;
+        }
+        self.session.mailbox.folder(self.session.view.folder).map(|f| (f.id, f.account))
+    }
+
+    /// Whether the last read of the online archive `archive` failed: it isn't read again by itself
+    /// until the owner asks (#1818).
+    pub fn archive_read_failed(&self, archive: Id) -> bool {
+        self.archive_failed.contains(&archive)
+    }
+
+    /// Why the online archive `archive` has nothing to show yet, when it isn't on its way: its
+    /// last read failed, or there is no password at hand to read it with (#1818).
+    pub(crate) fn archive_not_read(&self, archive: Id) -> Option<&'static str> {
+        if self.archive_failed.contains(&archive) {
+            Some(tl!("The online archive couldn't be read: Refresh to try again"))
+        } else if self.ews_secret(archive).is_none() {
+            Some(tl!("Send/Receive the mailbox to sign in and read its online archive"))
+        } else {
+            None
+        }
+    }
+
+    /// Says once why the online archive of `account` isn't shown, when the automatic setup found it
+    /// kept in Exchange Online (#1818): it would need a Microsoft sign-in, and nothing is sent there.
+    fn tell_cloud_archive(&mut self, account: Id) {
+        let Some(server) = self.session.mailbox.account_mut(account).ok().and_then(|a| a.ews.as_mut()) else { return };
+        if !server.cloud_archive || server.cloud_archive_told {
+            return;
+        }
+        server.cloud_archive_told = true;
+        self.session.mailbox_changed();
+        self.status(tl!("This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown").to_string());
+    }
+
+    /// The account whose password a job of `account` goes with: an online archive's owner's
+    /// (#1818: it has none of its own), else its own.
+    pub(crate) fn ews_credential_account(&self, account: Id) -> Id {
+        self.session.mailbox.archive_owner(account).map_or(account, |owner| owner.id)
+    }
+
     /// The server of `account` turned its password down: the next Send/Receive asks for it again,
     /// and no round by itself goes back until then. What the system remembered is no good either.
     pub(crate) fn ews_password_refused(&mut self, account: Id) {
+        let account = self.ews_credential_account(account);
         self.passwords.remove(&account);
         self.jmap_refused.insert(account);
         if let (Some(store), Some(a)) = (&self.services.secrets, self.session.mailbox.account(account)) {
@@ -94,15 +194,26 @@ impl MailApp {
     /// A Send/Receive of the Exchange server account `account`; `p` may carry the password the owner
     /// has just typed, and `inboxPass` asks for the Inbox alone. Asks for the password the first time.
     pub(crate) fn start_ews_mail(&mut self, account: Id, quiet: bool, p: &Value) -> Result<Value, String> {
+        // (An online archive signs in as its owner, #1818: the password asked for is the owner's.)
+        let holder = self.ews_credential_account(account);
         if let Some(typed) = p.get("password").and_then(Value::as_str).filter(|typed| !typed.is_empty()) {
-            self.passwords.insert(account, typed.to_string());
+            self.passwords.insert(holder, typed.to_string());
+        }
+        // An online archive whose read failed is read again only when the owner asks, never by a
+        // round by itself (#1834 review).
+        if quiet && self.archive_failed.contains(&account) {
+            return Err(tl!("The online archive couldn't be read: Refresh to try again").to_string());
         }
         // The owner asked: a password turned down before is tried again.
         if !quiet {
             self.jmap_refused.remove(&account);
+            // (An archive's sign-in is its owner's, and so is a password turned down for it, #1818;
+            // a read of it that failed is tried again too.)
+            self.jmap_refused.remove(&holder);
+            self.archive_failed.remove(&account);
         }
         let Some(secret) = self.ews_secret(account) else {
-            let dialog = dialogs::Dialog::open("password", self, &json!({"account": account}));
+            let dialog = dialogs::Dialog::open("password", self, &json!({"account": holder}));
             self.set_dialog(dialog);
             return Ok(json!({"pending": "password"}));
         };
@@ -121,7 +232,8 @@ impl MailApp {
         let sent = Some(secret.clone());
         // What it sends is marked so, on disk, before it leaves (AU3-26).
         let pieces = self.hand_ews(account, EwsJob { request, secret, cancel: self.services.sync_cancel.clone() })?;
-        (self.sync_refused, self.sync_password) = (false, sent);
+        (self.sync_refused, self.sync_password, self.ews_run_trouble, self.ews_run_stopped) = (false, sent, false, false);
+        self.ews_run_said = false;
         // (Something made here while the run is under way calls it off to go up first, as a Microsoft account's does.)
         self.sync_run = Some((account, Some(self.waiting_to_go(account)), false, quiet));
         self.sync_rx = Some(MailRun::Ews { account, opening: self.session.openings(), pieces });
@@ -144,12 +256,17 @@ impl MailApp {
                 Err(TryRecvError::Disconnected) => {
                     log::warn!("ews mail: the run stopped without its last piece (its thread ended early)");
                     self.session.end_run_unfinished(account);
+                    self.archive_run_ended(account, false, true);
                     (self.sync_rx, self.sync_refused, self.sync_password) = (None, false, None);
                     self.session.sync_status = tl!("Send/Receive stopped unexpectedly").to_string();
                     return;
                 }
             };
             let (last, whole) = (!piece.partial, piece.whole);
+            // (An online archive's run reads only part of it and is never `whole`: it went through
+            // when nothing went wrong in any piece of it, #1834 review.)
+            self.ews_run_trouble |= !piece.errors.is_empty() || piece.auth_refused || !piece.blocked.is_empty();
+            self.ews_run_stopped |= piece.stopped;
             // Another mailbox took the place of the one the run was for: its accounts are other
             // accounts, whatever their ids and addresses, and what the run brings is nobody's. The
             // run is called off, and what comes of it until its end is thrown away.
@@ -168,21 +285,25 @@ impl MailApp {
                 self.session.driver.fetch.wake();
             }
             let untrusted = !piece.untrusted.is_empty();
+            self.ews_run_trouble |= untrusted;
             // The server answered with its folders or its mail: it took the password (#802).
             if piece.server_answered() {
-                self.keep_accepted_password(account);
+                self.keep_accepted_password(self.ews_credential_account(account));
             }
             // What File › Info says: how this run signed in, and a certificate that needs a say.
             if !piece.signed_in_with.is_empty() {
                 self.ews_signed_in.insert(account, piece.signed_in_with.clone());
             }
             if untrusted {
-                self.ews_certificate.insert(account, piece.untrusted.clone());
+                // (Under the mailbox an online archive is of: File › Info shows the owner's card,
+                // and the archive signs in with the owner's trust, #1834 review.)
+                self.ews_certificate.insert(self.ews_credential_account(account), piece.untrusted.clone());
             }
             match apply_ews_mail(&mut self.session, piece) {
                 Ok(said) => {
                     // The folders the run could not read: File › Info names them until the next run.
                     if last {
+                        self.tell_cloud_archive(account);
                         let folders: Vec<String> = said["unreadableFolders"]
                             .as_array()
                             .map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect())
@@ -194,9 +315,14 @@ impl MailApp {
                         }
                     }
                     let errors = said["errors"].as_array().map(|all| all.iter().filter_map(Value::as_str).map(str::to_string).collect::<Vec<_>>());
+                    // (A read is judged as the engine judges it: a change the server refused is
+                    // said, but doesn't make the read a failed one, #1834 review.)
+                    self.ews_run_trouble |= said["readFailed"].as_bool().unwrap_or(true);
+                    self.ews_run_said |= errors.as_ref().is_some_and(|e| !e.is_empty());
                     self.note_sync_problems(account, &errors.unwrap_or_default(), false);
                 }
                 Err(e) => {
+                    self.ews_run_trouble = true;
                     self.status(e.to_string());
                     self.session.driver.sending.doubted();
                     // A piece that was refused is not skipped over: the run is called off, and the
@@ -215,6 +341,8 @@ impl MailApp {
             self.sync_rx = None;
             // What it sent is filed, and what it didn't is known not to have gone (AU3-26).
             self.session.send_run_answered(account);
+            // (Whether it was called off to be started again, before that is taken: below.)
+            let restarts = matches!(self.sync_run, Some((_, _, true, _)));
             // Called off for something else (a shared mailbox's first read): it goes on after.
             if let Some((whose, _, true, quiet)) = self.sync_run.take() {
                 self.session.driver.round.queue.push_front((whose, quiet));
@@ -231,9 +359,37 @@ impl MailApp {
                 self.ews_certificate.remove(&account);
                 self.note_sync_problems(account, &[], true);
             }
+            // (Stopped to make way for something that goes first, and started again after it, a
+            // read isn't a failed one: it goes on when it starts again, #1834 review. Stopped by
+            // the owner, or by anything else, it is.)
+            let stopped = std::mem::take(&mut self.ews_run_stopped);
+            let trouble = std::mem::take(&mut self.ews_run_trouble);
+            let said = std::mem::take(&mut self.ews_run_said);
+            if !(restarts && stopped && !trouble) {
+                self.archive_run_ended(account, !trouble && !stopped, said);
+            }
             self.sync_password = None;
             self.note_pushed(account);
             return;
+        }
+    }
+
+    /// A run of `account` ended, `read` when it went through, `said` when it told the owner of
+    /// something (a change the server refused, say): for an online archive, whether it is read
+    /// again by itself (#1818). One that failed waits for the owner to ask.
+    pub(crate) fn archive_run_ended(&mut self, account: Id, read: bool, said: bool) {
+        if !self.session.mailbox.account(account).is_some_and(mailcraft_model::Account::is_archive) {
+            return;
+        }
+        if read {
+            self.archive_failed.remove(&account);
+            // (Never `whole`, so the end of a run that went well clears what earlier ones said
+            // went wrong here, #1834 review; not what this one said.)
+            if !said {
+                self.note_sync_problems(account, &[], true);
+            }
+        } else {
+            self.archive_failed.insert(account);
         }
     }
 }

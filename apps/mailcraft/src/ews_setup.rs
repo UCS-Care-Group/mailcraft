@@ -186,7 +186,7 @@ fn reason_of(reason: ConsentReason) -> EwsConsentReason {
 }
 
 /// What the owner is asked, or told, about a certificate the test stopped at.
-fn certificate_end(url: &str, problem: CertificateProblem) -> EwsSetupEnd {
+fn certificate_end(url: &str, problem: CertificateProblem, cloud_archive: bool) -> EwsSetupEnd {
     let changed = matches!(problem, CertificateProblem::Changed(_));
     match problem {
         CertificateProblem::Unacceptable(fault, _) => EwsSetupEnd::Failed(EwsSetupFailure::Certificate(match fault {
@@ -202,6 +202,7 @@ fn certificate_end(url: &str, problem: CertificateProblem) -> EwsSetupEnd {
             not_before: info.not_before,
             not_after: info.not_after,
             changed,
+            cloud_archive,
         }),
     }
 }
@@ -219,12 +220,12 @@ fn answer(job: &EwsSetupJob) -> Option<bool> {
 }
 
 /// Test the account at each address in turn, the first that answers deciding.
-fn test(world: &dyn World, urls: &[String], who: &Who, trusted: &str) -> EwsSetupEnd {
+fn test(world: &dyn World, urls: &[String], who: &Who, trusted: &str, cloud_archive: bool) -> EwsSetupEnd {
     let mut last = EwsSetupFailure::Unreachable;
     for url in urls {
         match world.probe(url, who, trusted) {
-            Probed::Works(with) => return EwsSetupEnd::Works { url: url.clone(), signed_in_with: with.to_owned() },
-            Probed::Certificate(problem) => return certificate_end(url, problem),
+            Probed::Works(with) => return EwsSetupEnd::Works { url: url.clone(), signed_in_with: with.to_owned(), cloud_archive },
+            Probed::Certificate(problem) => return certificate_end(url, problem, cloud_archive),
             // (Only a server that wasn't there makes the next address worth a try.)
             Probed::Failed(EwsSetupFailure::Unreachable) => last = EwsSetupFailure::Unreachable,
             Probed::Failed(failure) => return EwsSetupEnd::Failed(failure),
@@ -247,7 +248,7 @@ fn decide(world: &dyn World, job: &EwsSetupJob, emit: &mut dyn FnMut(EwsSetupEve
             return EwsSetupEnd::ExchangeOnline;
         }
         return match world.look(&job.url, &job.trusted) {
-            Probed::Certificate(problem) => certificate_end(&job.url, problem),
+            Probed::Certificate(problem) => certificate_end(&job.url, problem, false),
             Probed::Works(_) => EwsSetupEnd::CertificateFine,
             Probed::Failed(failure) => EwsSetupEnd::Failed(failure),
         };
@@ -258,7 +259,9 @@ fn decide(world: &dyn World, job: &EwsSetupJob, emit: &mut dyn FnMut(EwsSetupEve
         if on_microsoft(&job.url) {
             return EwsSetupEnd::ExchangeOnline;
         }
-        return test(world, &[job.url.trim().to_owned()], &who, &job.trusted);
+        // (Typed, or the address a search found and whose certificate the owner then trusted: what
+        // that search found of the online archive holds, #1818.)
+        return test(world, &[job.url.trim().to_owned()], &who, &job.trusted, job.cloud_archive);
     }
     let name = if who.username.trim().is_empty() { who.email.trim() } else { who.username.trim() };
     let Ok(secret) = Secret::basic(name, &who.password) else { return EwsSetupEnd::Failed(EwsSetupFailure::BadSettings) };
@@ -294,7 +297,9 @@ fn decide(world: &dyn World, job: &EwsSetupJob, emit: &mut dyn FnMut(EwsSetupEve
     match outcome {
         Outcome::Found(found) => {
             let urls: Vec<String> = found.urls().into_iter().map(str::to_owned).collect();
-            test(world, &urls, &who, &job.trusted)
+            // (An online archive kept in Exchange Online is told of, never sent anything, #1818.)
+            let cloud = found.archive().is_some_and(|archive| archive.in_exchange_online());
+            test(world, &urls, &who, &job.trusted, cloud)
         }
         Outcome::ExchangeOnline => EwsSetupEnd::ExchangeOnline,
         Outcome::Failed(failure) => EwsSetupEnd::Failed(failure_of(failure)),

@@ -7,7 +7,7 @@ use proptest::prelude::*;
 
 use super::*;
 use crate::standin::block_on;
-use crate::standin_autodiscover::{AutodiscoverStandIn, BASIC, Route, error_answer, redirect_addr, redirect_url, settings};
+use crate::standin_autodiscover::{AutodiscoverStandIn, BASIC, Route, error_answer, redirect_addr, redirect_url, settings, settings_with};
 
 const INTERNAL: &str = "https://exch01.corp.example.org/EWS/Exchange.asmx";
 const EXTERNAL: &str = "https://mail.example.org/EWS/Exchange.asmx";
@@ -546,6 +546,11 @@ fn every_failure_offers_server_settings_and_holds_nothing_a_server_wrote() {
 
 // ---- hostile answers ----
 
+/// An answer read as it is for `ada@example.org`.
+fn answer_for_ada(body: &[u8]) -> Answer {
+    read_answer(body, "ada@example.org")
+}
+
 fn answer_of(account: &str) -> Vec<u8> {
     format!("<Autodiscover xmlns=\"{ANSWER_SCHEMA}\"><Response xmlns=\"{RESPONSE_SCHEMA}\"><Account>{account}</Account></Response></Autodiscover>")
         .into_bytes()
@@ -566,7 +571,7 @@ fn only_the_address_and_the_server_are_taken() {
         protocol("EXCH", "<EwsUrl>https://evil.example.net/second</EwsUrl>"),
         protocol("WEB", "<EwsUrl>https://evil.example.net/web</EwsUrl>")
     );
-    let Answer::Settings(found) = read_answer(&answer_of(&account)) else { panic!() };
+    let Answer::Settings(found) = answer_for_ada(&answer_of(&account)) else { panic!() };
     assert_eq!(found.urls(), ["https://mail.example.org/EWS/A.asmx"]);
     assert_eq!(found.server(), Some("mail.example.org"));
     assert!(found.internal_url().is_some() && found.external_url().is_none());
@@ -592,11 +597,15 @@ fn addresses_that_are_not_https_are_not_taken() {
         "",
     ] {
         let account = format!("<Action>settings</Action>{}", protocol("EXCH", &format!("<EwsUrl>{}</EwsUrl>", xml::escape(bad))));
-        assert_eq!(read_answer(&answer_of(&account)), Answer::Settings(Discovered { external: None, internal: None, server: None }), "{bad:?}");
+        assert_eq!(
+            answer_for_ada(&answer_of(&account)),
+            Answer::Settings(Discovered { external: None, internal: None, server: None, archive: None }),
+            "{bad:?}"
+        );
     }
     let long = format!("https://mail.example.org/{}", "a".repeat(3_000));
     let account = format!("<Action>settings</Action>{}", protocol("EXCH", &format!("<EwsUrl>{long}</EwsUrl>")));
-    assert!(matches!(read_answer(&answer_of(&account)), Answer::Settings(found) if found.urls().is_empty()));
+    assert!(matches!(answer_for_ada(&answer_of(&account)), Answer::Settings(found) if found.urls().is_empty()));
 }
 
 #[test]
@@ -606,7 +615,7 @@ fn hostile_documents_are_unreadable_not_trusted() {
         protocol("EXCH", "<EwsUrl>https://mail.example.org/EWS/Exchange.asmx</EwsUrl>")
     )))
     .unwrap();
-    assert!(matches!(read_answer(honest.as_bytes()), Answer::Settings(_)));
+    assert!(matches!(answer_for_ada(honest.as_bytes()), Answer::Settings(_)));
     let bomb = "<!DOCTYPE a [<!ENTITY x \"aaaaaaaaaa\"><!ENTITY y \"&x;&x;&x;&x;&x;&x;&x;&x;\"><!ENTITY z \"&y;&y;&y;&y;&y;&y;&y;&y;\">]>";
     let external = "<!DOCTYPE a [<!ENTITY x SYSTEM \"file:///etc/passwd\">]>";
     for hostile in [
@@ -624,13 +633,13 @@ fn hostile_documents_are_unreadable_not_trusted() {
         "\u{0}\u{1}\u{2}".to_owned(),
         "not xml".to_owned(),
     ] {
-        let read = read_answer(hostile.as_bytes());
+        let read = answer_for_ada(hostile.as_bytes());
         assert!(!matches!(&read, Answer::Settings(found) if found.urls().iter().any(|url| url.contains("passwd"))), "{read:?}");
         assert!(matches!(read, Answer::Unreadable), "{hostile:.120}");
     }
     // An entity that is not one of XML's five spoils the text it is in, and so the address.
     let spoiled = honest.replace("mail.example.org/EWS", "mail.example.org/&bogus;EWS");
-    assert!(matches!(read_answer(spoiled.as_bytes()), Answer::Settings(found) if found.urls().is_empty()));
+    assert!(matches!(answer_for_ada(spoiled.as_bytes()), Answer::Settings(found) if found.urls().is_empty()));
     // Megabytes of address are never read.
     let huge = honest.replace("mail.example.org", &"a".repeat(MAX_ANSWER + 10));
     let standin = AutodiscoverStandIn::new().route("example.org", Route::Bytes(huge.into_bytes()));
@@ -735,12 +744,12 @@ proptest! {
 
     #[test]
     fn arbitrary_answers_are_never_a_panic(bytes in proptest::collection::vec(any::<u8>(), 0..2048)) {
-        let _ = read_answer(&bytes);
+        let _ = answer_for_ada(&bytes);
     }
 
     #[test]
     fn xml_shaped_text_is_never_a_panic(text in "(<[A-Za-z:]{0,10}( xmlns=\"[a-z:/.0-9]{0,20}\")?/?>|</[A-Za-z:]{0,10}>|[a-z &;#0-9]{0,8}|<!DOCTYPE|&[a-z]{0,5};){0,60}") {
-        let _ = read_answer(text.as_bytes());
+        let _ = answer_for_ada(text.as_bytes());
     }
 
     #[test]
@@ -1071,7 +1080,7 @@ fn a_host_of_a_domain_the_owner_agreed_to_is_not_asked_about_as_one_of_the_addre
 #[test]
 fn the_answer_of_grommunio_is_read_for_its_ews_address_and_a_server_name() {
     let body = r#"<?xml version="1.0" encoding="UTF-8"?><Autodiscover xmlns="http://schemas.microsoft.com/exchange/autodiscover/responseschema/2006"><Response xmlns="http://schemas.microsoft.com/exchange/autodiscover/outlook/responseschema/2006a"><User><AutoDiscoverSMTPAddress>ada@example.org</AutoDiscoverSMTPAddress><DisplayName>ada@example.org</DisplayName></User><Account><AccountType>email</AccountType><Action>settings</Action><MicrosoftOnline>False</MicrosoftOnline><ConsumerMailbox>False</ConsumerMailbox><Protocol><OOFUrl>https://mail.example.org/EWS/Exchange.asmx</OOFUrl><Type>EXHTTP</Type><Server>mail.example.org</Server><SSL>On</SSL><AuthPackage>basic</AuthPackage><EwsUrl>https://mail.example.org/EWS/Exchange.asmx</EwsUrl></Protocol><Protocol Type="mapiHttp" Version="1"><MailStore><InternalUrl>https://mail.example.org/mapi/emsmdb/?MailboxId=00000000-0000-0000-0000-000000000001@example.org</InternalUrl></MailStore></Protocol><Protocol><Type>EXCH</Type><Server>00000000-0000-0000-0000-000000000001@example.org</Server><AuthPackage>anonymous</AuthPackage><EwsUrl>https://mail.example.org/EWS/Exchange.asmx</EwsUrl></Protocol><Protocol><Type>EXPR</Type><Server>mail.example.org</Server><SSL>On</SSL><AuthPackage>basic</AuthPackage></Protocol></Account></Response></Autodiscover>"#;
-    let Answer::Settings(found) = read_answer(body.as_bytes()) else { panic!("not settings") };
+    let Answer::Settings(found) = answer_for_ada(body.as_bytes()) else { panic!("not settings") };
     assert_eq!(found.internal.as_deref(), Some("https://mail.example.org/EWS/Exchange.asmx"));
     assert_eq!(found.external, None);
     assert_eq!(found.server.as_deref(), Some("mail.example.org"));
@@ -1186,4 +1195,207 @@ fn the_alias_s_host_is_asked_after_as_many_srv_targets_as_are_taken() {
         .route("autodiscover.hoster.example", good());
     let (outcome, _) = aliased(&alone, &[], &["autodiscover.hoster.example"], &[true, true]);
     assert!(matches!(outcome, Outcome::Found(_)), "{outcome:?}");
+}
+
+// ---- the personal archive (#1818) ----
+
+fn alternative(kind: &str, inside: &str) -> String {
+    format!("<AlternativeMailbox><Type>{kind}</Type>{inside}</AlternativeMailbox>")
+}
+
+fn with_archive(inside: &str) -> Discovered {
+    let account = format!(
+        "<Action>settings</Action>{}{}",
+        protocol("EXCH", &format!("<EwsUrl>{INTERNAL}</EwsUrl><Server>exch01.corp.example.org</Server>")),
+        alternative("Archive", inside)
+    );
+    let Answer::Settings(found) = answer_for_ada(&answer_of(&account)) else { panic!() };
+    found
+}
+
+#[test]
+fn an_answer_that_names_an_archive_gives_its_name_and_address() {
+    let found = with_archive(
+        "<DisplayName>Online Archive - Ada Lovelace</DisplayName><LegacyDN>/o=Example/ou=Exchange/cn=Recipients/cn=ada/guid=0f1e</LegacyDN>\
+         <Server>exch02.corp.example.org</Server><SmtpAddress>Ada.Archive@Corp.Example.ORG</SmtpAddress>",
+    );
+    let archive = found.archive().unwrap();
+    assert_eq!(archive.display_name(), "Online Archive - Ada Lovelace");
+    assert_eq!(archive.address(), Some("Ada.Archive@corp.example.org"));
+    assert!(!archive.in_exchange_online());
+    // The mailbox's own addresses are as they were: the archive's server is no place to go.
+    assert_eq!(found.urls(), [INTERNAL]);
+    assert_eq!(found.server(), Some("exch01.corp.example.org"));
+    // Debug says only what is there.
+    let debug = format!("{found:?}");
+    assert!(!debug.contains("Ada") && !debug.contains("example"), "{debug}");
+}
+
+#[test]
+fn an_archive_with_nothing_more_said_is_still_an_archive() {
+    let found = with_archive("");
+    let archive = found.archive().unwrap();
+    assert!(archive.display_name().is_empty() && archive.address().is_none() && !archive.in_exchange_online());
+}
+
+#[test]
+fn only_an_archive_is_taken_and_only_the_first() {
+    let account = format!(
+        "<Action>settings</Action>{}{}{}{}",
+        protocol("EXCH", &format!("<EwsUrl>{INTERNAL}</EwsUrl>")),
+        alternative("Delegate", "<DisplayName>Team mailbox</DisplayName>"),
+        alternative("archive", "<DisplayName>First</DisplayName>"),
+        alternative("Archive", "<DisplayName>Second</DisplayName>"),
+    );
+    let Answer::Settings(found) = answer_for_ada(&answer_of(&account)) else { panic!() };
+    assert_eq!(found.archive().unwrap().display_name(), "First");
+    let account = format!(
+        "<Action>settings</Action>{}{}",
+        protocol("EXCH", &format!("<EwsUrl>{INTERNAL}</EwsUrl>")),
+        alternative("Delegate", "<DisplayName>Team mailbox</DisplayName>")
+    );
+    let Answer::Settings(found) = answer_for_ada(&answer_of(&account)) else { panic!() };
+    assert!(found.archive().is_none(), "a shared mailbox is no archive");
+}
+
+#[test]
+fn what_an_answer_says_of_the_archive_is_checked() {
+    let long = "A".repeat(5_000);
+    let found = with_archive(&format!("<DisplayName>  Ar\u{7}chive {long}  </DisplayName><SmtpAddress>not an address</SmtpAddress>"));
+    let archive = found.archive().unwrap();
+    assert!(archive.display_name().starts_with("Archive AAA") && archive.display_name().chars().count() <= 256);
+    assert!(archive.address().is_none());
+    for bad in [
+        "@example.org",
+        "ada@",
+        "ada@@example.org",
+        "ada@exa mple.org",
+        "a@b",
+        &format!("{long}@example.org"),
+        "ada@example.org\u{a0}x",
+        "ada\u{2028}x@example.org",
+    ] {
+        let found = with_archive(&format!("<SmtpAddress>{}</SmtpAddress>", xml::escape(bad)));
+        assert!(found.archive().unwrap().address().is_none(), "{bad:?}");
+    }
+}
+
+#[test]
+fn an_archive_in_exchange_online_is_said_so_and_the_mailbox_is_still_found() {
+    for inside in [
+        "<SmtpAddress>ada@contoso.mail.onmicrosoft.com</SmtpAddress>",
+        "<Server>outlook.office365.com</Server>",
+        "<Server>AM0PR01MB1234.eurprd01.prod.outlook.com.</Server>",
+    ] {
+        let found = with_archive(inside);
+        assert!(found.archive().unwrap().in_exchange_online(), "{inside}");
+        assert_eq!(found.urls(), [INTERNAL], "the mailbox itself is on the organisation's server");
+    }
+    // A whole search: the mailbox is found, and nothing goes to Microsoft.
+    let document = settings_with(
+        INTERNAL,
+        EXTERNAL,
+        "exch01.corp.example.org",
+        &alternative(
+            "Archive",
+            "<DisplayName>Online Archive</DisplayName><SmtpAddress>ada@contoso.mail.onmicrosoft.com</SmtpAddress><Server>outlook.office365.com</Server>",
+        ),
+    );
+    let standin = AutodiscoverStandIn::new().route("example.org", Route::Document(document));
+    let run = go(&standin, None, &[]);
+    assert!(found(&run).archive().unwrap().in_exchange_online());
+    assert_eq!(standin.hosts_asked(), ["example.org"]);
+    only_to(&standin, &[]);
+}
+
+#[test]
+fn an_archive_on_another_server_of_the_organisation_sends_nothing_there() {
+    let document = settings_with(
+        INTERNAL,
+        EXTERNAL,
+        "exch01.corp.example.org",
+        &alternative("Archive", "<DisplayName>Online Archive</DisplayName><Server>archive.example.net</Server>"),
+    );
+    let standin = AutodiscoverStandIn::new().route("example.org", Route::Document(document));
+    let run = go(&standin, None, &[]);
+    let found = found(&run);
+    assert!(found.archive().is_some() && !found.archive().unwrap().in_exchange_online());
+    assert!(run.asked.is_empty(), "the archive's server is never asked about: nothing goes there");
+    assert!(!found.urls().iter().any(|url| url.contains("example.net")));
+    only_to(&standin, &[]);
+}
+
+/// Another user's archive (a delegated mailbox's, [MS-OXDSCLI] 2.2.4.1.1.2.5.6: it names its
+/// owner) listed first, in Exchange Online, doesn't hide the mailbox's own archive on its own
+/// server, nor make it one in Exchange Online (#1834).
+#[test]
+fn another_users_archive_is_passed_over_for_the_mailboxs_own() {
+    let account = format!(
+        "<Action>settings</Action>{}{}{}",
+        protocol("EXCH", &format!("<EwsUrl>{INTERNAL}</EwsUrl>")),
+        alternative(
+            "Archive",
+            "<DisplayName>Online Archive - Grace</DisplayName><SmtpAddress>ExchangeGuid+1@example.mail.onmicrosoft.com</SmtpAddress>\
+             <OwnerSmtpAddress>grace@example.org</OwnerSmtpAddress>"
+        ),
+        alternative(
+            "Archive",
+            "<DisplayName>Online Archive - Ada</DisplayName><Server>exch02.corp.example.org</Server><OwnerSmtpAddress> ADA@Example.ORG </OwnerSmtpAddress>"
+        ),
+    );
+    let Answer::Settings(found) = answer_for_ada(&answer_of(&account)) else { panic!() };
+    let archive = found.archive().unwrap();
+    assert_eq!(archive.display_name(), "Online Archive - Ada");
+    assert!(!archive.in_exchange_online());
+    // Only another user's: no archive of the mailbox's own.
+    let account = format!(
+        "<Action>settings</Action>{}{}",
+        protocol("EXCH", &format!("<EwsUrl>{INTERNAL}</EwsUrl>")),
+        alternative("Archive", "<DisplayName>Grace</DisplayName><OwnerSmtpAddress>grace@example.org</OwnerSmtpAddress>")
+    );
+    let Answer::Settings(found) = answer_for_ada(&answer_of(&account)) else { panic!() };
+    assert!(found.archive().is_none());
+}
+
+/// The answer may name the mailbox by another address than the one it was looked up by (its
+/// `AutoDiscoverSMTPAddress`): an archive of that owner is the mailbox's own.
+#[test]
+fn the_owner_may_be_named_by_the_address_the_answer_gives() {
+    let body = format!(
+        "<Autodiscover xmlns=\"{ANSWER_SCHEMA}\"><Response xmlns=\"{RESPONSE_SCHEMA}\"><User><AutoDiscoverSMTPAddress>ada.lovelace@example.org</AutoDiscoverSMTPAddress></User>\
+         <Account><Action>settings</Action>{}{}</Account></Response></Autodiscover>",
+        protocol("EXCH", &format!("<EwsUrl>{INTERNAL}</EwsUrl>")),
+        alternative("Archive", "<DisplayName>Own</DisplayName><OwnerSmtpAddress>Ada.Lovelace@example.org</OwnerSmtpAddress>")
+    );
+    let Answer::Settings(found) = answer_for_ada(body.as_bytes()) else { panic!() };
+    assert_eq!(found.archive().unwrap().display_name(), "Own");
+}
+
+/// An owner that isn't an address, or is one dressed up to look like the mailbox's, is nobody's
+/// own; an empty one says nothing, and the archive is the mailbox's.
+#[test]
+fn an_odd_or_hostile_owner_is_not_taken_for_the_mailbox() {
+    let long = format!("ada@example.org{}", "x".repeat(5_000));
+    for owner in [
+        "not an address",
+        "<ada@example.org>",
+        "ada@example.org grace@example.org",
+        "ada@@example.org",
+        "ada@example.org.evil.example",
+        "@example.org",
+        long.as_str(),
+        "\u{202e}gro.elpmaxe@ada",
+    ] {
+        let account = format!(
+            "<Action>settings</Action>{}{}",
+            protocol("EXCH", &format!("<EwsUrl>{INTERNAL}</EwsUrl>")),
+            alternative("Archive", &format!("<DisplayName>X</DisplayName><OwnerSmtpAddress>{}</OwnerSmtpAddress>", crate::xml::escape_text(owner)))
+        );
+        let read = answer_for_ada(&answer_of(&account));
+        assert!(matches!(&read, Answer::Settings(found) if found.archive().is_none()), "{owner:?}: {read:?}");
+    }
+    for owner in ["", "   "] {
+        let found = with_archive(&format!("<OwnerSmtpAddress>{owner}</OwnerSmtpAddress>"));
+        assert!(found.archive().is_some(), "{owner:?}");
+    }
 }

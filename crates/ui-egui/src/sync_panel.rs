@@ -226,13 +226,13 @@ pub(crate) fn rows(app: &MailApp) -> Vec<Row> {
         .accounts
         .iter()
         .filter_map(|run| {
-            let name = mb.account(run.account)?.name.clone();
+            let name = crate::nav::account_title(mb.account(run.account)?);
             Some(Row { account: run.account, name, run: Some(run.clone()), problems: problems(run.account), full: full(run.account), paused })
         })
         .collect();
     for (account, name, _, lines) in &app.sync_problems {
         if !rows.iter().any(|r| r.account == *account) && !lines.is_empty() {
-            let name = mb.account(*account).map_or_else(|| name.clone(), |a| a.name.clone());
+            let name = mb.account(*account).map_or_else(|| name.clone(), crate::nav::account_title);
             rows.push(Row { account: *account, name, run: None, problems: problems(*account), full: full(*account), paused });
         }
     }

@@ -298,6 +298,7 @@ impl Host {
                 not_before: 1_767_225_600,
                 not_after: 1_893_456_000,
                 changed,
+                cloud_archive: false,
             })
         };
         let mut words = self.ews.split_whitespace();
@@ -309,7 +310,7 @@ impl Host {
                     reason: EwsConsentReason::Redirect,
                 });
             }
-            "works" => EwsSetupEvent::Finished(EwsSetupEnd::Works { url: URL.into(), signed_in_with: "basic".into() }),
+            "works" => EwsSetupEvent::Finished(EwsSetupEnd::Works { url: URL.into(), signed_in_with: "basic".into(), cloud_archive: false }),
             "online" => EwsSetupEvent::Finished(EwsSetupEnd::ExchangeOnline),
             "certificate" => EwsSetupEvent::Finished(certificate(false)),
             "changed" => EwsSetupEvent::Finished(certificate(true)),

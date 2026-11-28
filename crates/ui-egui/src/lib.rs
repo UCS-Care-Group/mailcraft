@@ -1823,6 +1823,13 @@ pub struct MailApp {
     /// mailbox…): shown as No access, and not read again by a Send/Receive that started by
     /// itself, only by one the owner asks for (#70).
     shared_refused: std::collections::HashMap<Id, mailcraft_model::sync::SharedRefusal>,
+    /// The online archives read this session, each with the folder of its that was on screen at
+    /// the last read (0: none): an archive is read when it is first opened, and again each time
+    /// one of its folders comes on screen (#1818).
+    archive_reads: std::collections::HashMap<Id, Id>,
+    /// The online archives whose last read failed: not read again by themselves (no read at every
+    /// frame) until the owner asks (Refresh, Send/Receive), and the folder pane says so (#1818).
+    archive_failed: std::collections::HashSet<Id>,
     /// Shared mailboxes just added in Add Shared Mailbox whose Inbox hasn't been read yet: kept
     /// only once it has been, and removed again when it can't be (#70).
     shared_checking: std::collections::HashSet<Id>,
@@ -1847,6 +1854,14 @@ pub struct MailApp {
     sync_run: Option<(Id, Option<usize>, bool, bool)>,
     /// A piece of the run in flight said the server refused the sign-in.
     sync_refused: bool,
+    /// Something went wrong in some piece of the Exchange server run under way (an error, a folder
+    /// it couldn't read, a piece refused): an online archive's run is judged by the whole run,
+    /// never by its last piece alone (#1834 review).
+    ews_run_trouble: bool,
+    /// Whether the Exchange server run under way told the owner of something (#1834 review).
+    ews_run_said: bool,
+    /// Some piece of that run said it was stopped: judged with what stopped it at the run's end.
+    ews_run_stopped: bool,
     /// The password the run in flight went with, until the system is asked to remember it: once
     /// a run (#802).
     sync_password: Option<String>,
@@ -2130,6 +2145,8 @@ impl MailApp {
             dav: Default::default(),
             shared_calendar_tokens: Default::default(),
             shared_refused: Default::default(),
+            archive_reads: Default::default(),
+            archive_failed: Default::default(),
             shared_checking: Default::default(),
             shared_check_next: None,
             mail_only_next: false,
@@ -2140,6 +2157,9 @@ impl MailApp {
             sync_totals: Default::default(),
             sync_run: None,
             sync_refused: false,
+            ews_run_trouble: false,
+            ews_run_said: false,
+            ews_run_stopped: false,
             sync_password: None,
             jmap_refused: Default::default(),
             control_rx: None,
@@ -3498,7 +3518,8 @@ impl MailApp {
             .mailbox
             .accounts
             .iter()
-            .filter(|a| a.kind.has_server() && a.shared_of.is_none() && a.email.trim().eq_ignore_ascii_case(address))
+            // (An online archive has its owner's address and sign-in, and nothing of its own, #1818.)
+            .filter(|a| a.kind.has_server() && a.shared_of.is_none() && a.archive_of.is_none() && a.email.trim().eq_ignore_ascii_case(address))
             .nth(1)
             .is_some()
     }
@@ -3822,7 +3843,7 @@ impl MailApp {
         }
         // The Inbox checked by itself gives way to a run (#276).
         self.give_up_inbox_check();
-        if self.sync_rx.is_some() || self.graph_rx.is_some() {
+        if self.run_under_way() {
             return Err(tl!("Send/Receive is already running").to_string());
         }
         let cant_connect = || {
@@ -4146,6 +4167,9 @@ impl MailApp {
             self.ews_unreadable.clear();
             self.ews_signed_in.clear();
             self.ews_certificate.clear();
+            // (Another mailbox's accounts may have the same ids, #503.)
+            self.archive_reads.clear();
+            self.archive_failed.clear();
             // Work started for the old mailbox stays with it: every job is called off and its run
             // state forgotten, Send/Receive Progress included ([`jobs`]; what
             // still comes of one is let go of by its poll), the messages being fetched whole are
@@ -4868,7 +4892,7 @@ impl MailApp {
         if problems.is_empty() {
             return;
         }
-        let name = self.session.mailbox.account(account).map(|a| a.name.clone()).unwrap_or_default();
+        let name = self.session.mailbox.account(account).map(crate::nav::account_title).unwrap_or_default();
         let at = crate::dates::clock(self.session.local_now(), self.session.prefs.twelve_hour);
         let problems: Vec<mailcraft_i18n::Text> = problems.into_iter().map(bounded_problem).collect();
         match self.sync_problems.iter_mut().find(|(a, ..)| *a == account) {
@@ -4890,6 +4914,14 @@ impl MailApp {
         kept.iter().find(|said| said.to_string() == summary).map_or(summary, problem_line)
     }
 
+    /// Whether a run that holds the shared run state is under way: a Send/Receive (or the Inbox
+    /// checked by itself) of a mail server, or a job of Microsoft Graph, with or without a stream
+    /// of pieces. Nothing else that would take that state starts meanwhile ([`Self::start_sync`],
+    /// the online archive's read, #1834 review).
+    pub(crate) fn run_under_way(&self) -> bool {
+        self.sync_rx.is_some() || self.graph_rx.is_some()
+    }
+
     /// Whether a job of Microsoft Graph is under way for an account.
     pub fn graph_running(&self) -> bool {
         self.graph_rx.is_some()
@@ -4906,7 +4938,7 @@ impl MailApp {
     fn skip_sync(&mut self, p: &Value) -> Result<Value, String> {
         use mailcraft_engine::cmd::sync_progress::RunState;
         let account = p.get("account").and_then(Value::as_u64).ok_or_else(|| tl!("Say which account to skip").to_string())?;
-        let name = self.session.mailbox.account(account).map(|a| a.name.clone()).ok_or_else(|| tl!("There is no such account").to_string())?;
+        let name = self.session.mailbox.account(account).map(crate::nav::account_title).ok_or_else(|| tl!("There is no such account").to_string())?;
         let row = self.session.sync_progress.accounts.iter().find(|r| r.account == account).map(|r| r.state);
         if self.sync_running_account() == Some(account) || row == Some(RunState::Running) {
             return Err(i18n::fmt(tl!("{name} is being sent and received now. Use Stop."), &[("name", &name)]));
@@ -5159,8 +5191,12 @@ impl MailApp {
     /// The name of what is in view, for the window title.
     pub fn title_stem(&self) -> String {
         use mailcraft_engine::Module;
-        let account =
-            self.session.mailbox.folder(self.session.view.folder).and_then(|f| self.session.mailbox.account(f.account)).map(|a| a.name.clone());
+        let account = self
+            .session
+            .mailbox
+            .folder(self.session.view.folder)
+            .and_then(|f| self.session.mailbox.account(f.account))
+            .map(crate::nav::account_title);
         match self.session.view.module {
             Module::Mail => {
                 // Every account's Inbox and the like (#625): no one account's.
@@ -5358,6 +5394,8 @@ impl MailApp {
             // Whether a new version is out, when the owner wants that known ([`updates`]).
             self.updates_tick(ctx);
             self.auto_sync();
+            // The online archive whose folder is on screen, however it got there (#1818).
+            self.archive_tick();
             // The Inbox by itself every minute, between rounds (#276).
             self.inbox_check_tick();
             // New mail the moment it arrives, where the server says so (#276).

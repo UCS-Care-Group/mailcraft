@@ -108,6 +108,7 @@ fn make_job(email: &str, username: &str, password: &str, url: &str) -> (EwsSetup
         url: url.into(),
         trusted: String::new(),
         certificate_only: false,
+        cloud_archive: false,
         cancel: Arc::new(AtomicBool::new(false)),
         answers,
     };
@@ -156,7 +157,7 @@ fn the_server_is_found_from_the_address_and_the_account_is_tried_at_it() {
     let (job, _) = standin_job("");
     let told = run(&world, &job);
     // The external address is tried first (Outlook Anywhere's, which any network reaches).
-    assert_eq!(ended(&told), EwsSetupEnd::Works { url: EWS.into(), signed_in_with: "basic".into() });
+    assert_eq!(ended(&told), EwsSetupEnd::Works { url: EWS.into(), signed_in_with: "basic".into(), cloud_archive: false });
     assert_eq!(told.len(), 1, "no question was asked");
     assert_eq!(world.lookups.lock().unwrap().as_slice(), ["example.org"], "only the domain goes to the DNS");
     // The sign-in went to the owner's own domain only.
@@ -452,4 +453,19 @@ fn a_run_for_an_account_on_a_microsoft_host_is_refused_before_any_request() {
     assert_eq!(pieces.len(), 1);
     assert!(pieces[0].errors.iter().any(|line| line.contains("Microsoft")), "{:?}", pieces[0].errors);
     assert!(crate::ews_runner::client("https://outlook.office365.com/EWS/Exchange.asmx", "ada", ME, PASSWORD).is_err());
+}
+
+/// A test made again at an address a search found, after the owner trusted its certificate, keeps
+/// what that search found of the online archive (#1818 review): one kept in Exchange Online is
+/// still told of, never dropped by the certificate's question. A typed address says nothing of it.
+#[test]
+fn the_cloud_archive_a_search_found_holds_through_the_certificate_question() {
+    let world = Fake::new(AutodiscoverStandIn::new()).scripted(Probed::Works("basic"));
+    let (mut job, _) = standin_job(EWS);
+    (job.trusted, job.cloud_archive) = ("ab".repeat(32), true);
+    assert_eq!(ended(&run(&world, &job)), EwsSetupEnd::Works { url: EWS.into(), signed_in_with: "basic".into(), cloud_archive: true });
+    // (A scripted answer is given once: a fresh world for the typed address.)
+    let world = Fake::new(AutodiscoverStandIn::new()).scripted(Probed::Works("basic"));
+    let (job, _) = standin_job(EWS);
+    assert!(matches!(ended(&run(&world, &job)), EwsSetupEnd::Works { cloud_archive: false, .. }));
 }

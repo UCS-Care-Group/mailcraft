@@ -6238,7 +6238,7 @@ msgstr ""
 "属性"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "文件夹窗格"
@@ -7178,6 +7178,12 @@ msgstr "隐藏详细信息"
 #, fuzzy
 msgid "Hide MailCraft"
 msgstr "隐藏 MailCraft"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Hide Online Archive"
+msgstr "隐藏在线存档"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8711,8 +8717,8 @@ msgstr "列出任务"
 msgid "List {n}"
 msgstr "列表 {n}"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Loading…"
 msgstr "正在加载…"
@@ -8909,17 +8915,35 @@ msgstr "邮件文件夹：账户的 {folder}"
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "不能将其他邮箱的邮件放入发件箱：下次发送/接收时会将其发送"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "邮件只能从其所属邮箱进入在线存档：请先将其移到该邮箱"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "垃圾邮件中的邮件仍须逐封询问。可在“文件 › 选项”中关闭此功能。"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "在线存档中的邮件只能在存档内复制：请改为将其移出"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "此共享邮箱发件箱中的邮件正在等待发送：从共享邮箱发送邮件需要您的许可。请使用“发送/接收”。"
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "不能从其他位置将邮件复制到在线存档：请从其所属邮箱将其移到那里"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -11893,6 +11917,12 @@ msgid "Online"
 msgstr "在线"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Online Archive – {address}"
+msgstr "在线存档 – {address}"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Online meeting"
@@ -13517,7 +13547,7 @@ msgid "Redo {what}"
 msgstr "重做 {what}"
 
 #. interface
-#: crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Refresh"
 msgstr "刷新"
@@ -15324,6 +15354,12 @@ msgstr "发送/接收会登录 Microsoft；之后即可搜索服务器。"
 msgid "Send/Receive stopped unexpectedly"
 msgstr "发送/接收意外中断"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "对该邮箱执行发送/接收以登录并读取其在线存档"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -15736,6 +15772,12 @@ msgstr "显示 MailCraft"
 #, fuzzy
 msgid "Show Message"
 msgstr "显示邮件"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Show Online Archive"
+msgstr "显示在线存档"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -18422,6 +18464,18 @@ msgid "The one this build came with"
 msgstr "此版本附带的设置"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "无法读取在线存档：请刷新以重试"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "The online archive needs a connection to the server"
+msgstr "在线存档需要连接到服务器"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18768,6 +18822,12 @@ msgstr "服务器有 {total} 个文件夹：一次同步读取前 {max} 个，�
 #, fuzzy
 msgid "The server is busy. Try again in a few minutes."
 msgstr "服务器繁忙。请几分钟后重试。"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr "服务器上已没有在线存档：其中尚未到达服务器的更改已丢失"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19920,6 +19980,12 @@ msgstr "此邮箱是从文件打开的。其账户连接到："
 #, fuzzy
 msgid "This mailbox was opened from a file: confirm its servers first"
 msgstr "此邮箱是从文件打开的：请先确认其服务器"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
+msgstr "此邮箱的在线存档保存在 Microsoft 365 中，需要 Microsoft 登录，因此不显示"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -22614,6 +22680,12 @@ msgstr "一个账户最多有 {max} 个发件人地址"
 msgid "an event needs a title"
 msgstr "日程需要标题"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an online archive stays under its mailbox: move that account"
+msgstr "在线存档始终位于其邮箱之下：请移动该帐户"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23784,6 +23856,12 @@ msgid "only a message you sent can be sent again"
 msgstr "只能重新发送您自己发出的邮件"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "only an Exchange server account has an online archive here"
+msgstr "此处只有 Exchange 服务器账户才有在线存档"
+
+#. what a command says
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
 msgid "only an IMAP account sends from other addresses"
@@ -24105,6 +24183,12 @@ msgid "subject or body contains {words}"
 msgstr "主题或正文包含 {words}"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "that account isn't an online archive"
+msgstr "该账户不是在线存档"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -24288,6 +24372,12 @@ msgstr "此账户没有可用于登录的用户名或电子邮件地址"
 #, fuzzy
 msgid "the account is gone"
 msgstr "此账户已不存在"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the account {name} is the online archive of is gone"
+msgstr "此在线存档所属的账户 {name} 已不存在"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -24696,6 +24786,18 @@ msgstr "无法通过网络连接"
 #, fuzzy
 msgid "the occurrence was not changed; nothing was moved"
 msgstr "单次日程未更改；未移动任何内容"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
+msgstr "在线存档有尚未到达服务器的更改：请先发送/接收，然后再隐藏"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
+msgstr "在线存档有尚未到达服务器的更改：请先发送/接收，然后再标明它保存在 Exchange Online 中"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

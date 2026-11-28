@@ -6258,7 +6258,7 @@ msgstr ""
 "თვისებები"
 
 #. command label, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/view.rs
 #, fuzzy
 msgid "Folder Pane"
 msgstr "საქაღალდეების პანელი"
@@ -7204,6 +7204,12 @@ msgstr "დეტალების დამალვა"
 #, fuzzy
 msgid "Hide MailCraft"
 msgstr "MailCraft-ის დამალვა"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Hide Online Archive"
+msgstr "ონლაინ არქივის დამალვა"
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -8739,8 +8745,8 @@ msgstr "დავალებების ჩამოთვლა"
 msgid "List {n}"
 msgstr "სია {n}"
 
-#. android
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt
+#. android, interface
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarSpeech.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MailListScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PeopleScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TasksScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TodayScreen.kt crates/ui-egui/src/nav.rs
 #, fuzzy
 msgid "Loading…"
 msgstr "ჩატვირთვა…"
@@ -8937,17 +8943,35 @@ msgstr "საფოსტო საქაღალდე: ანგარიშ
 msgid "Mail from another mailbox can't go into an Outbox: the next Send/Receive would send it"
 msgstr "სხვა საფოსტო ყუთის ფოსტა „გასაგზავნებში“ ვერ მოხვდება: შემდეგი გაგზავნა/მიღება მას გაგზავნიდა"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail goes into an online archive only from its own mailbox: move it into that mailbox first"
+msgstr "ფოსტა ონლაინ არქივში მხოლოდ საკუთარი საფოსტო ყუთიდან ხვდება: ჯერ გადაიტანეთ იგი ამ ყუთში"
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Mail in Junk E-mail still asks first. File › Options turns this off again."
 msgstr "„არასასურველ ფოსტაში“ მოხვედრილი ფოსტა მაინც ჯერ გეკითხებათ. „ფაილი › პარამეტრები“ ამას ისევ გამორთავს."
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail in an online archive is copied within the archive: move it out instead"
+msgstr "ონლაინ არქივში არსებული ფოსტა არქივის შიგნით კოპირდება: სანაცვლოდ გადაიტანეთ გარეთ"
+
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
 #, fuzzy
 msgid "Mail in this shared mailbox's Outbox waits: sending from shared mailboxes needs your permission. Use Send/Receive."
 msgstr "ამ საერთო საფოსტო ყუთის „გასაგზავნებში“ არსებული ფოსტა ელოდება: საერთო საფოსტო ყუთებიდან გაგზავნას თქვენი ნებართვა სჭირდება. გამოიყენეთ გაგზავნა/მიღება."
+
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "Mail isn't copied into an online archive from elsewhere: move it there from its own mailbox"
+msgstr "ფოსტა სხვა ადგილიდან ონლაინ არქივში არ კოპირდება: გადაიტანეთ იგი იქ საკუთარი საფოსტო ყუთიდან"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -11928,6 +11952,12 @@ msgid "Online"
 msgstr "ონლაინ"
 
 #. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Online Archive – {address}"
+msgstr "ონლაინ არქივი – {address}"
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Online meeting"
@@ -13556,7 +13586,7 @@ msgid "Redo {what}"
 msgstr "ხელახლა შესრულება: {what}"
 
 #. interface
-#: crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/nav.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Refresh"
 msgstr "განახლება"
@@ -15367,6 +15397,12 @@ msgstr "გაგზავნა/მიღება Microsoft-ში შედ�
 msgid "Send/Receive stopped unexpectedly"
 msgstr "გაგზავნა/მიღება მოულოდნელად შეწყდა"
 
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "Send/Receive the mailbox to sign in and read its online archive"
+msgstr "შეასრულეთ გაგზავნა/მიღება საფოსტო ყუთისთვის, რომ შეხვიდეთ და წაიკითხოთ მისი ონლაინ არქივი"
+
 #. command label
 #: crates/engine/src/cmd/ews_mail.rs
 #, fuzzy
@@ -15786,6 +15822,12 @@ msgstr "MailCraft-ის ჩვენება"
 #, fuzzy
 msgid "Show Message"
 msgstr "წერილის ჩვენება"
+
+#. command label, interface
+#: crates/engine/src/cmd/ews_mail.rs crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "Show Online Archive"
+msgstr "ონლაინ არქივის ჩვენება"
 
 #. command label, interface
 #: crates/engine/src/cmd/calendar_settings.rs crates/ui-egui/src/calendar_view.rs
@@ -18478,6 +18520,18 @@ msgid "The one this build came with"
 msgstr "ის, რომელიც ამ ანაწყობს მოჰყვა"
 
 #. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "The online archive couldn't be read: Refresh to try again"
+msgstr "ონლაინ არქივის წაკითხვა ვერ მოხერხდა: ხელახლა საცდელად განაახლეთ"
+
+#. interface
+#: crates/ui-egui/src/nav.rs
+#, fuzzy
+msgid "The online archive needs a connection to the server"
+msgstr "ონლაინ არქივს სერვერთან კავშირი სჭირდება"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18824,6 +18878,12 @@ msgstr "სერვერზე {total} საქაღალდეა: ერ�
 #, fuzzy
 msgid "The server is busy. Try again in a few minutes."
 msgstr "სერვერი დაკავებულია. სცადეთ რამდენიმე წუთში."
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "The server no longer has the online archive: changes made in it that hadn't reached the server are lost"
+msgstr "სერვერს ონლაინ არქივი აღარ აქვს: მასში შეტანილი ცვლილებები, რომლებიც სერვერამდე არ მისულა, დაიკარგა"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -19990,6 +20050,12 @@ msgstr "ეს საფოსტო ყუთი ფაილიდან გ�
 #, fuzzy
 msgid "This mailbox was opened from a file: confirm its servers first"
 msgstr "ეს საფოსტო ყუთი ფაილიდან გაიხსნა: ჯერ დაადასტურეთ მისი სერვერები"
+
+#. interface
+#: crates/ui-egui/src/ews_mail.rs
+#, fuzzy
+msgid "This mailbox's online archive is kept in Microsoft 365, which needs a Microsoft sign-in, so it isn't shown"
+msgstr "ამ საფოსტო ყუთის ონლაინ არქივი Microsoft 365-შია, რასაც Microsoft-ით შესვლა სჭირდება, ამიტომ არ ჩანს"
 
 #. interface
 #: crates/ui-egui/src/calendar_sync.rs
@@ -22691,6 +22757,12 @@ msgstr "ანგარიშს მაქსიმუმ {max} გამგზ�
 msgid "an event needs a title"
 msgstr "ღონისძიებას სათაური სჭირდება"
 
+#. what a command says
+#: crates/model/src/mailbox.rs
+#, fuzzy
+msgid "an online archive stays under its mailbox: move that account"
+msgstr "ონლაინ არქივი რჩება თავისი საფოსტო ყუთის ქვეშ: გადაიტანეთ ის ანგარიში"
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23865,6 +23937,12 @@ msgid "only a message you sent can be sent again"
 msgstr "ხელახლა მხოლოდ თქვენ მიერ გაგზავნილი წერილის გაგზავნა შეიძლება"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "only an Exchange server account has an online archive here"
+msgstr "აქ ონლაინ არქივი მხოლოდ Exchange სერვერის ანგარიშს აქვს"
+
+#. what a command says
 #: crates/engine/src/cmd/senders.rs
 #, fuzzy
 msgid "only an IMAP account sends from other addresses"
@@ -24187,6 +24265,12 @@ msgid "subject or body contains {words}"
 msgstr "თემა ან ტექსტი შეიცავს {words}"
 
 #. what a command says
+#: crates/model/src/archive.rs
+#, fuzzy
+msgid "that account isn't an online archive"
+msgstr "ეს ანგარიში ონლაინ არქივი არ არის"
+
+#. what a command says
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "that event doesn't repeat"
@@ -24371,6 +24455,12 @@ msgstr "ანგარიშს შესასვლელად მომხ�
 #, fuzzy
 msgid "the account is gone"
 msgstr "ანგარიში აღარ არსებობს"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the account {name} is the online archive of is gone"
+msgstr "ანგარიში {name}, რომლის ონლაინ არქივიც ესაა, აღარ არსებობს"
 
 #. why a mail server couldn't be used
 #: crates/net/src/transport.rs
@@ -24779,6 +24869,18 @@ msgstr "ქსელმა იქამდე ვერ მიაღწია"
 #, fuzzy
 msgid "the occurrence was not changed; nothing was moved"
 msgstr "შემთხვევა არ შეცვლილა; არაფერი გადატანილა"
+
+#. what a command says
+#: crates/engine/src/cmd/ews_mail.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then hide it"
+msgstr "ონლაინ არქივში არის ცვლილებები, რომლებიც ჯერ სერვერამდე არ მისულა: ჯერ შეასრულეთ გაგზავნა/მიღება, შემდეგ დამალეთ"
+
+#. what a command says
+#: crates/engine/src/cmd/account.rs
+#, fuzzy
+msgid "the online archive has changes that haven't reached the server yet: Send/Receive first, then say it is kept in Exchange Online"
+msgstr "ონლაინ არქივში არის ცვლილებები, რომლებიც ჯერ სერვერამდე არ მისულა: ჯერ შეასრულეთ გაგზავნა/მიღება, შემდეგ მიუთითეთ, რომ ის Exchange Online-შია"
 
 #. what a command says
 #: crates/model/src/mailbox.rs

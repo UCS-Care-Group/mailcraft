@@ -65,7 +65,14 @@ fn an_exchange_account_is_added_and_its_commands_answer() {
     assert!(a.incoming.is_none() && a.outgoing.is_none() && a.oauth.is_none() && a.jmap.is_none());
     assert_eq!(
         a.ews,
-        Some(EwsServer { url: URL.into(), username: "CORP\\ada".into(), trusted: String::new(), hierarchy: String::new(), parents: false })
+        Some(EwsServer {
+            url: URL.into(),
+            username: "CORP\\ada".into(),
+            trusted: String::new(),
+            hierarchy: String::new(),
+            parents: false,
+            ..Default::default()
+        })
     );
     // It has the standard folders a server account has.
     assert!(s.mailbox.folder_of_kind(id, FolderKind::Inbox).is_some());
@@ -298,4 +305,31 @@ fn an_address_on_a_microsoft_host_is_refused_by_add_and_edit() {
         assert!(why.contains("Microsoft"), "{why}");
         assert_eq!(s.mailbox.account(id).unwrap().ews.as_ref().unwrap().url, URL, "the edit changed nothing");
     }
+}
+
+/// The setup's word that the online archive is kept in Exchange Online (`ews.cloudArchive`,
+/// #1818) is taken by account.add and kept; account.edit changes it, leaves it when it doesn't
+/// say, and refuses what isn't true or false (#1834 review).
+#[test]
+fn the_cloud_archive_word_is_added_kept_and_edited() {
+    let mut s = Session::empty();
+    let cloud = |s: &Session, id: Id| s.mailbox.account(id).unwrap().ews.as_ref().unwrap().cloud_archive;
+    let with = json!({"email": "ada@example.org", "kind": "exchange", "ews": {"url": URL, "cloudArchive": true}});
+    let id = s.run("account.add", &with).unwrap()["id"].as_u64().unwrap();
+    assert!(cloud(&s, id));
+    let plain = s.run("account.add", &exchange("grace@example.org")).unwrap()["id"].as_u64().unwrap();
+    assert!(!cloud(&s, plain), "none said, none taken");
+    // Kept in the file, and read back.
+    let written = serde_json::to_string(&*s.mailbox.for_disk()).unwrap();
+    let read: Mailbox = serde_json::from_str(&written).unwrap();
+    assert!(read.account(id).unwrap().ews.as_ref().unwrap().cloud_archive);
+    // An edit that doesn't say leaves it; one that says changes it.
+    s.run("account.edit", &json!({"id": id, "ews": {"username": "CORP\\ada"}})).unwrap();
+    assert!(cloud(&s, id));
+    s.run("account.edit", &json!({"id": id, "ews": {"cloudArchive": false}})).unwrap();
+    assert!(!cloud(&s, id));
+    s.run("account.edit", &json!({"id": id, "ews": {"cloudArchive": true}})).unwrap();
+    assert!(cloud(&s, id));
+    assert!(said(s.run("account.edit", &json!({"id": id, "ews": {"cloudArchive": "yes"}}))).contains("cloudArchive"));
+    assert!(cloud(&s, id), "a refused edit changes nothing");
 }

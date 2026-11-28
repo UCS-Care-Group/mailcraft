@@ -483,6 +483,31 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
                 }
                 ui.separator();
             }
+            // An online archive (#1818): read again from its server, or hidden.
+            if app.session.mailbox.account(id).is_some_and(mailcraft_model::Account::is_archive) {
+                if ui.add(egui::Button::new(tl!("Refresh")).min_size(vec2(180.0, 0.0))).clicked() {
+                    // (Run as the owner asked: why it can't, offline say, goes to the status bar.)
+                    let _ = app.run("ui.sync", json!({"account": id}));
+                    ui.close();
+                }
+                if ui.add(egui::Button::new(tl!("Hide Online Archive")).min_size(vec2(180.0, 0.0))).clicked() {
+                    let _ = app.run("account.archive.hide", json!({"account": id}));
+                    ui.close();
+                }
+                return;
+            }
+            // Its owner's, while the owner has it hidden: the way back (#1834 review).
+            if archive_hidden(&app.session.mailbox, id) {
+                if ui.add(egui::Button::new(tl!("Show Online Archive")).min_size(vec2(180.0, 0.0))).clicked() {
+                    // (Then a run of the owner's, as Refresh starts one: the server is asked now,
+                    // and the archive comes back with its answer, #1834 review.)
+                    if app.run("account.archive.show", json!({"account": id})).is_ok() {
+                        let _ = app.run("ui.sync", json!({"account": id}));
+                    }
+                    ui.close();
+                }
+                ui.separator();
+            }
             if ui.add(egui::Button::new(tl!("Properties…")).min_size(vec2(180.0, 0.0))).clicked() {
                 let _ = app.run("folder.properties", json!({"account": id}));
                 ui.close();
@@ -492,6 +517,12 @@ fn heading(app: &mut MailApp, ui: &mut Ui, id: Id, name: &str, height: f32, text
     open
 }
 
+/// Whether `account` is an Exchange server account whose owner hid its online archive
+/// (`account.archive.hide`): its heading's menu offers Show Online Archive (#1834 review).
+pub(crate) fn archive_hidden(mb: &Mailbox, account: Id) -> bool {
+    mb.account(account).is_some_and(|a| !a.is_archive() && a.ews.as_ref().is_some_and(|e| e.archive_hidden))
+}
+
 /// An account being dragged up or down the folder pane by its heading (#702).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) struct AccountDrag(pub Id);
@@ -499,7 +530,7 @@ pub(crate) struct AccountDrag(pub Id);
 /// The owner's own accounts, top to bottom: what a drag puts in another order. A shared mailbox
 /// goes with the account it is opened through.
 fn owners(mb: &Mailbox) -> Vec<Id> {
-    mb.accounts_in_order().into_iter().filter(|a| !a.is_shared()).map(|a| a.id).collect()
+    mb.accounts_in_order().into_iter().filter(|a| !a.is_shared() && !a.is_archive()).map(|a| a.id).collect()
 }
 
 /// What `account.move` is told to put `account` one place up (`up`) or down among the owner's
@@ -1143,7 +1174,7 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
             let lists: Vec<(Id, String, Vec<(Folder, usize, bool)>)> = app
                 .session
                 .mailbox
-                .accounts_in_order()
+                .pane_order()
                 .into_iter()
                 .map(|a| {
                     let rows = visible_in(trees.remove(&a.id).unwrap_or_default(), &folded);
@@ -1223,6 +1254,18 @@ pub fn folder_pane(app: &mut MailApp, ui: &mut Ui) {
                 let unread = folded_unread.get(account).copied().unwrap_or(0);
                 if !head(app, ui, *account, if name.is_empty() { tl!("Mailbox") } else { name }, folded_count(unread)) {
                     continue;
+                }
+                // An online archive is read when it is opened (#1818): until its folders come, a
+                // line says so, or that it needs a connection; a folder of it opened is read then.
+                // A read that failed, or that has no password to go with, says so whether or not
+                // its folders are here (#1834 review). (A folder of it on screen with its heading
+                // folded, or opened from Favorites, is read by [`MailApp::archive_tick`].)
+                if app.session.mailbox.account(*account).is_some_and(mailcraft_model::Account::is_archive) {
+                    if rows.is_empty() || (!app.offline() && app.archive_not_read(*account).is_some()) {
+                        archive_note(app, ui, *account);
+                    } else if !app.offline() {
+                        app.read_archive(*account);
+                    }
                 }
                 for (f, depth, has_children) in rows {
                     // A Gmail account's Inbox has Gmail's categories under it, folded with it,
@@ -1308,9 +1351,20 @@ pub(crate) fn folder_path(mb: &Mailbox, id: Id) -> String {
 }
 
 /// What the folder pane calls an account: its name (Account Settings › Account name), and its
-/// address while none is (#1017).
+/// address while none is (#1017). An online archive is named as Outlook names it, in the
+/// interface's language, never by the name it is kept under (#1818).
 pub(crate) fn account_label(a: &Account) -> String {
+    if a.is_archive() {
+        return crate::i18n::fmt(tl!("Online Archive – {address}"), &[("address", a.email.trim())]);
+    }
     if a.name.trim().is_empty() { a.email.trim().to_string() } else { a.name.trim().to_string() }
+}
+
+/// An account's name where it is shown as it was given (a window's title, the problems of a
+/// run): its name, and an online archive's [`account_label`], so that the name it is kept under
+/// is never shown (#1818).
+pub(crate) fn account_title(a: &Account) -> String {
+    if a.is_archive() { account_label(a) } else { a.name.clone() }
 }
 
 /// The account as a folder row away from the pane names it: [`account_label`], and its address
@@ -1318,7 +1372,8 @@ pub(crate) fn account_label(a: &Account) -> String {
 pub(crate) fn account_name(a: &Account) -> String {
     let label = account_label(a);
     let email = a.email.trim();
-    if email.is_empty() || email == label { label } else { format!("{label} ({email})") }
+    // (An archive's label has its address in it already.)
+    if email.is_empty() || email == label || a.is_archive() { label } else { format!("{label} ({email})") }
 }
 
 /// What a folder is called where it is listed away from its own account's tree (under Favorites,
@@ -1340,16 +1395,46 @@ pub(crate) fn result_folder_label(mb: &Mailbox, f: &Folder) -> String {
     let twin = || mb.folders.iter().any(|o| o.account != f.account && own(o.account) && o.name.eq_ignore_ascii_case(&f.name));
     match mb.account(f.account) {
         Some(a) if !shared && twin() => {
-            let account = if a.name.trim().is_empty() { a.email.trim() } else { a.name.trim() };
-            crate::i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", folder_name(f)), ("mailbox", account)])
+            // (An online archive by the name the interface gives it, never the one it is kept
+            // under, #1834 review.)
+            let account = if a.is_archive() {
+                account_label(a)
+            } else if a.name.trim().is_empty() {
+                a.email.trim().to_owned()
+            } else {
+                a.name.trim().to_owned()
+            };
+            crate::i18n::fmt(tl!("{folder} - {mailbox}"), &[("folder", folder_name(f)), ("mailbox", &account)])
         }
         _ => folder_label(mb, f),
+    }
+}
+
+/// The line under an online archive's heading while it has no folders here, or its last read
+/// failed (#1818): it is read
+/// from its server when it is opened, as Outlook reads it, and offline it can't be; a read that
+/// failed, or that has no password to go with, says so. Opening it starts that read.
+fn archive_note(app: &mut MailApp, ui: &mut Ui, archive: Id) {
+    let t = Tokens::get(ui.ctx());
+    let offline = app.offline();
+    let text =
+        if offline { tl!("The online archive needs a connection to the server") } else { app.archive_not_read(archive).unwrap_or(tl!("Loading…")) };
+    ui.horizontal(|ui| {
+        ui.add_space(NAME_LEFT);
+        ui.label(egui::RichText::new(text).color(t.text_dim).size(12.0));
+    });
+    if !offline {
+        app.read_archive(archive);
     }
 }
 
 /// What an account's heading in the folder pane says: its name, and for a shared mailbox
 /// Microsoft won't open for the owner, No access (#70; the mail already here stays readable).
 pub(crate) fn heading_name(app: &MailApp, a: &mailcraft_model::Account) -> String {
+    // An online archive is named as Outlook names it, in the interface's language (#1818).
+    if a.is_archive() {
+        return account_label(a);
+    }
     if app.shared_refused.contains_key(&a.id) { crate::i18n::fmt(tl!("{account} · No access"), &[("account", &a.name)]) } else { a.name.clone() }
 }
 
@@ -1394,3 +1479,7 @@ fn count_pill(ui: &Ui, t: &Tokens, r: Rect, count: Count, selected: bool) -> f32
     ui.painter().galley(pill.center() - galley.size() / 2.0, galley, ink);
     pill.min.x - 6.0
 }
+
+#[cfg(test)]
+#[path = "nav_archive_tests.rs"]
+mod archive_tests;

@@ -3236,6 +3236,10 @@ fn save_locked(mut st: MutexGuard<'_, State>, shared: &Shared, path: &Path, mail
     if seq < st.newest {
         return Ok(Saved { unchanged: true, ..Saved::default() });
     }
+    // (Nothing of an online archive is written: it is read from its server while connected, #1818.
+    // Worked out only for a save that writes, #1834 review.)
+    let on_disk = mailbox.for_disk();
+    let mailbox: &Mailbox = &on_disk;
     // (The header blocks of messages held in memory, an Undo step, taken through this mailbox's own
     // `Shared`: the file a link leads to has another.)
     let held = lock(&shared.held).kept_blocks();
@@ -3262,9 +3266,24 @@ pub fn save_single(path: &Path, mailbox: &Mailbox) -> Result<u64, String> {
 /// the source mailbox alive throughout the write; no fully loaded copy or whole-file buffer.
 pub(crate) fn save_single_with(path: &Path, mailbox: &Mailbox, load: impl Fn(Id) -> Result<Arc<Message>, String>) -> Result<u64, String> {
     let shared = shared(path);
+    // (A copy of the mailbox holds nothing of its online archives either, #1818.)
+    let on_disk = mailbox.for_disk();
     let mut st = lock(&shared.state);
     let mut file = AtomicFile::create(&resolve(path)).map_err(|e| format!("{}: {e}", path.display()))?;
-    let bytes = export::write(&mut file, mailbox, load, MAX_MAILBOX_JSON).map_err(|e| format!("{}: {e}", path.display()))?;
+    // (A message `load` brings is as the mailbox in memory has it: one whose move into an online
+    // archive the server hasn't made is written where `for_disk` put it back, #1834 review.)
+    let placed = |id: Id| -> Result<Arc<Message>, String> {
+        let m = load(id)?;
+        match on_disk.message(id) {
+            Some(there) if (there.account, there.folder) != (m.account, m.folder) => {
+                let mut m = Arc::unwrap_or_clone(m);
+                m.lies_in(there.folder, there.account, there.uid, there.synced);
+                Ok(Arc::new(m))
+            }
+            _ => Ok(m),
+        }
+    };
+    let bytes = export::write(&mut file, &on_disk, placed, MAX_MAILBOX_JSON).map_err(|e| format!("{}: {e}", path.display()))?;
     file.commit().map_err(|e| format!("{}: {e}", path.display()))?;
     // The file is another one now: nothing known about the old one holds, and a state of it
     // still waiting to be written has had its turn.

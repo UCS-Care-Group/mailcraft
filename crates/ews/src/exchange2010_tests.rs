@@ -293,3 +293,36 @@ fn a_version_word_inside_an_answer_is_not_a_reason_to_ask_again() {
     assert_eq!(block_on(client.check(&server)).unwrap(), Err(Error::Server(ResponseCode::InvalidServerVersion)));
     assert_eq!((server.asked.get(), client.version()), (1, Version::Exchange2013));
 }
+
+// ---- the personal archive (#1818) ----
+
+fn probe(client: &Client, server: &impl HttpExchange) -> ArchiveProbe {
+    block_on(probe_archive(client, server, &AtomicBool::new(false), &mut |_| true)).unwrap()
+}
+
+#[test]
+fn an_exchange_2010_archive_is_found_in_a_version_that_has_it() {
+    let standin = exchange2010();
+    standin.state().add_archive(true);
+    let client = client();
+    assert_eq!(probe(&client, &standin), ArchiveProbe::Present);
+    let state = standin.state();
+    let last = state.versions.last().unwrap();
+    assert_eq!(last, Version::FALLBACK.as_str(), "stepped down once, to a version that has the archive");
+    assert!(Version::FALLBACK >= Version::Exchange2010Sp1);
+}
+
+#[test]
+fn a_server_that_doesnt_know_the_archives_names_has_no_archive() {
+    let standin = exchange2010();
+    standin.state().add_archive(true);
+    standin.state().unknown_names = vec!["archivemsgfolderroot".into(), "archiveinbox".into()];
+    assert_eq!(probe(&client(), &standin), ArchiveProbe::Absent);
+}
+
+#[test]
+fn a_server_older_than_any_version_asked_for_has_no_archive() {
+    // (Exchange 2007: neither 2013 nor the fallback is a version it knows.)
+    let server = VersionInMessage { asked: Cell::new(0) };
+    assert_eq!(probe(&client(), &server), ArchiveProbe::Absent);
+}

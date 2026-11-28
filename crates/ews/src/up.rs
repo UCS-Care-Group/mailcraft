@@ -155,7 +155,7 @@ impl<E: HttpExchange> Run<'_, E> {
                     },
                     None => parent.clone(),
                 };
-                let op = CreateFolder::new(&parent, name);
+                let op = CreateFolder::new(&parent, name).in_store(self.store);
                 let made_now = self.ask_once(&op.element(), &|reply| op.answer(reply)).await;
                 if let Ok(id) = &made_now {
                     made.insert(*local, id.clone());
@@ -168,7 +168,7 @@ impl<E: HttpExchange> Run<'_, E> {
                 self.ask(&op.element(), &|reply| op.answer(reply)).await.map(|()| folder(id, name, ""))
             }
             FolderChange::Move { id, parent, .. } => {
-                let op = MoveFolder::new(id, parent);
+                let op = MoveFolder::new(id, parent).in_store(self.store);
                 self.ask_once(&op.element(), &|reply| op.answer(reply)).await.map(|id| folder(&id, "", parent))
             }
             FolderChange::Delete { id, shown } => {

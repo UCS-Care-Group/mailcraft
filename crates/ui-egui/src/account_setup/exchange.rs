@@ -299,11 +299,11 @@ impl AccountSetup {
         }
         self.exchange.trusted.clear();
         let url = self.exchange.url.trim().to_string();
-        self.exchange_run(app, url, String::new(), false);
+        self.exchange_run(app, url, String::new(), false, false);
     }
 
     /// Give the host a job and wait for it on the checking page.
-    fn exchange_run(&mut self, app: &mut MailApp, url: String, trusted: String, certificate_only: bool) {
+    fn exchange_run(&mut self, app: &mut MailApp, url: String, trusted: String, certificate_only: bool, cloud_archive: bool) {
         if app.offline() {
             self.error = crate::send_receive::said();
             return;
@@ -322,6 +322,7 @@ impl AccountSetup {
             url,
             trusted,
             certificate_only,
+            cloud_archive,
             cancel: self.exchange.cancel.clone(),
             answers,
         };
@@ -358,7 +359,7 @@ impl AccountSetup {
             self.done = true;
             return;
         };
-        self.exchange_run(app, server.url, server.trusted, true);
+        self.exchange_run(app, server.url, server.trusted, true, false);
         if self.exchange.events.is_none() {
             // This build has no host to look: nothing to ask.
             self.go_keeping_error(Page::ExchangeCertificate);
@@ -466,7 +467,8 @@ impl AccountSetup {
             return self.done;
         }
         self.exchange.trusted = certificate.fingerprint.clone();
-        self.exchange_run(app, certificate.url, certificate.fingerprint, false);
+        // (What the search found of the online archive holds for the test made again, #1818.)
+        self.exchange_run(app, certificate.url, certificate.fingerprint, false, certificate.cloud_archive);
         false
     }
 
@@ -518,7 +520,7 @@ impl AccountSetup {
 
     fn exchange_finished(&mut self, app: &mut MailApp, end: EwsSetupEnd) {
         match end {
-            EwsSetupEnd::Works { url, signed_in_with } => self.add_exchange(app, &url, &signed_in_with),
+            EwsSetupEnd::Works { url, signed_in_with, cloud_archive } => self.add_exchange(app, &url, &signed_in_with, cloud_archive),
             EwsSetupEnd::ExchangeOnline => {
                 // Nothing was sent to Microsoft; nothing typed stays either.
                 self.forget_password();
@@ -561,7 +563,7 @@ impl AccountSetup {
 
     /// The account works: add it, keep its password for this session and, where the owner lets it
     /// be, with the operating system; then its first Send/Receive.
-    fn add_exchange(&mut self, app: &mut MailApp, url: &str, signed_in_with: &str) {
+    fn add_exchange(&mut self, app: &mut MailApp, url: &str, signed_in_with: &str, cloud_archive: bool) {
         let Some((email, _)) = address(&self.email) else {
             self.error = self.not_an_address();
             return self.go_keeping_error(Page::Exchange);
@@ -573,6 +575,9 @@ impl AccountSetup {
         }
         if !self.exchange.trusted.is_empty() {
             ews.insert("trusted".into(), json!(self.exchange.trusted));
+        }
+        if cloud_archive {
+            ews.insert("cloudArchive".into(), json!(true));
         }
         let added = app.execute("account.add", json!({"email": email, "displayName": self.name.trim(), "kind": "exchange", "ews": ews}));
         match added.map(|v| v.get("id").and_then(Value::as_u64)) {
