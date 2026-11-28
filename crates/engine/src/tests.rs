@@ -1723,7 +1723,7 @@ mod two_way {
         run(&mut s, "edit.undo", json!({}));
         assert_eq!(s.mailbox.message(one).map(|m| m.folder), Some(inbox), "back in the Inbox here");
         let ops = request(&s, a).ops;
-        assert!(!ops.iter().any(|op| matches!(op, RemoteOp::Move { uid, .. } if *uid != 5)), "no move under a UID the server didn't give: {ops:?}");
+        assert!(!ops.iter().any(|op| matches!(op, RemoteOp::Move { .. })), "no move before the server gives its UID: {ops:?}");
         // A run reads Trash whole and finds it there under UID 5.
         let trash = FolderDelta {
             complete: true,
