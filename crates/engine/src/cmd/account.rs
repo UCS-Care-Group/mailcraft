@@ -1320,8 +1320,11 @@ fn cut_name(remote: &str) -> String {
 ///   server that didn't say where to) is matched to it instead of being added.
 /// - Nothing taken out here because the server no longer has it is ever told back to the server
 ///   as a deletion, and a change that didn't go through keeps waiting.
-/// - When the server was told to move or delete something, or mail was sent, the undo history is
-///   forgotten: an undo would bring back a mailbox the server no longer has, or send again. A
+/// - When the server was told to delete something, to move mail out of its account, or to move
+///   a message deleted for good meanwhile, or mail was sent, the undo history is forgotten: an
+///   undo would bring back a mailbox the server no longer has, or send again. A move within an
+///   IMAP account keeps it: an undo moves the message back from where the server has it now
+///   (`undo::imap_back`). A
 ///   read mark or a flag going up doesn't cost the history (opening a message would otherwise
 ///   wipe it every few seconds); undoing one after it went up is overruled by the server's copy
 ///   at the next run.
@@ -1500,8 +1503,22 @@ fn apply_sync_piece(s: &mut Session, run: &mut SyncTotals, mut result: SyncResul
 /// Take in what a result has for the mailbox. Returns what that changed, and how many messages
 /// were sent.
 fn take_in_news(s: &mut Session, account: Id, result: &mut SyncResult) -> (Counts, usize) {
-    let told =
-        !result.moved.is_empty() || !result.deleted.is_empty() || !result.sent.is_empty() || !result.placed.is_empty() || !result.unplaced.is_empty();
+    // A move within the account is undone from where the server has the message now
+    // (`undo::imap_back`); one out of it, a deletion for good or a sending is not, nor a move
+    // whose message was deleted for good meanwhile (its deletion now waits where the server put it).
+    // Only an IMAP account's messages are put back there; for any other kind a move ends it too.
+    let imap = s.mailbox.account(account).is_some_and(|a| a.kind == AccountKind::Imap);
+    let out_of_account =
+        !result.moved.is_empty() && (!imap || result.moved.iter().any(|m| s.mailbox.folder(m.to_folder).is_none_or(|f| f.account != account)));
+    let deleting: HashSet<(&str, u32)> =
+        s.mailbox.pending.iter().filter(|p| matches!(p, Pending::Delete { .. }) && p.account() == account).map(Pending::source).collect();
+    let deleted_meanwhile = result.moved.iter().any(|m| deleting.contains(&(m.from.as_str(), m.uid)));
+    let told = out_of_account
+        || deleted_meanwhile
+        || !result.deleted.is_empty()
+        || !result.sent.is_empty()
+        || !result.placed.is_empty()
+        || !result.unplaced.is_empty();
     let gmail_moves = gmail_moves_go(s, account);
     let clock = s.rule_clock();
     // What the account had before the run's new mail, as an earlier piece of it found it.
