@@ -3,6 +3,8 @@
 msgid ""
 msgstr ""
 "Project-Id-Version: MailCraft\n"
+"Last-Translator: kaz32C <53830324+okura1234@users.noreply.github.com>\n"
+"Language-Team: Japanese\n"
 "Language: ja\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
@@ -2335,8 +2337,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "ファイルの添付"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Attach Item"
 msgstr "アイテムの添付"
@@ -2389,6 +2391,12 @@ msgstr "{name}の添付ファイルのオプション"
 #, fuzzy
 msgid "Attachments"
 msgstr "添付ファイル"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Attachments can't be opened here."
+msgstr "添付ファイルはここでは開けません。"
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -2730,7 +2738,7 @@ msgstr "本文"
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Body contains"
-msgstr "本文に含む"
+msgstr "本文に次の文字が含まれる"
 
 #. android, command label, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ComposerScreen.kt crates/engine/src/cmd/format.rs crates/ui-egui/src/ribbon.rs
@@ -5113,8 +5121,20 @@ msgstr "完了: 最新の状態です"
 msgid "Done: {n} new"
 msgstr "完了: 新着 {n} 件"
 
-#. android, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Double-click to download {name}"
+msgstr "ダブルクリックして{name}をダウンロードします"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+#, fuzzy
+msgid "Double-click to open {name}"
+msgstr "ダブルクリックして{name}を開きます"
+
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
 #, fuzzy
 msgid "Download"
 msgstr "ダウンロード"
@@ -6575,7 +6595,7 @@ msgstr "差出人と宛先には、someone@example.org のような完全なア�
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "From contains"
-msgstr "差出人に次を含む"
+msgstr "差出人に次の文字が含まれる"
 
 #. interface
 #: crates/ui-egui/src/reading/warnings.rs
@@ -7066,6 +7086,12 @@ msgstr "返信の送信先"
 #, fuzzy
 msgid "Have replies sent to other addresses"
 msgstr "返信先を別のアドレスにする"
+
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "ヘッダーに次の文字が含まれる"
 
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
@@ -8988,6 +9014,12 @@ msgstr "MailCraft は、IMAP の代わりに、Outlook on the web と同じよ�
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "MailCraft はこのアカウントのルールをサーバーに保持できません"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "MailCraft can't open {name} because of its file type."
+msgstr "{name}は MailCraft で開けない種類のファイルです。"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -11605,7 +11637,7 @@ msgid "Nothing was done: what the agent asked about changed after you were asked
 msgstr "何も実行されませんでした: エージェントが尋ねた内容が、確認後に変更されました。"
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Nothing was done: what you were asked about has changed since. Ask again."
 msgstr "何も実行されませんでした: 確認を求めた内容がその後に変更されました。もう一度確認してください。"
@@ -12043,7 +12075,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "MailCraft が最前面のウィンドウでないときのみ、自分のアカウントの受信トレイが対象です。"
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Open"
 msgstr "開く"
@@ -12093,6 +12125,12 @@ msgstr "ダイアログを開く"
 #, fuzzy
 msgid "Open Draft"
 msgstr "下書きを開く"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+#, fuzzy
+msgid "Open Draft Attachment"
+msgstr "下書きの添付ファイルを開く"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -13440,13 +13478,13 @@ msgstr "最近のメールはこのスマートフォンに保存され、古い
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Recipient contains"
-msgstr "受信者に次を含む"
+msgstr "受信者に次の文字が含まれる"
 
 #. name
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "Recipient's address contains"
-msgstr "受信者のアドレスに次を含む"
+msgstr "受信者のアドレスに次の文字が含まれる"
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -13607,7 +13645,7 @@ msgid "Remove Account"
 msgstr "アカウントの削除"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Remove Attachment"
 msgstr "添付ファイルの削除"
@@ -15791,7 +15829,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "アラームのデスクトップ通知を表示する"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "新着メールの受信時にデスクトップ通知を表示する"
@@ -17959,6 +17997,12 @@ msgstr "{domain}のドメインにより、自動セットアップ (Autodiscove
 #, fuzzy
 msgid "The download was called off."
 msgstr "ダウンロードが中止されました。"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+#, fuzzy
+msgid "The draft isn't open any more"
+msgstr "下書きはもう開かれていません"
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -22934,6 +22978,12 @@ msgstr "添付ファイルがある"
 #, fuzzy
 msgid "has too many files: the rest was not removed"
 msgstr "ファイルが多すぎます。残りは削除されませんでした"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "header contains {words}"
+msgstr "ヘッダーに{words}を含む"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
