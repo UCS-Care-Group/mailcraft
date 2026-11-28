@@ -766,13 +766,18 @@ fn older_mail_that_kept_a_hop_too_long_for_its_block_does_not_vouch() {
     assert!(m.headers.iter().all(|(name, value)| crate::headers::may_stay(name, value)));
     assert!(!trusted(&own_server(), &m));
     // Read in again as a mailbox file is, it stays so.
-    let read = crate::Messages::read([(m.id, std::sync::Arc::new(m))].into_iter().collect());
+    let read = crate::Messages::read([(m.id, std::sync::Arc::new(m.clone()))].into_iter().collect());
     assert!(read.values().all(|m| !trusted(&own_server(), m)));
-    // Split by this version the intake hop stays on top, below the forged verdict.
-    let mut m = Message { headers: all, ..bank(Vec::new()) };
-    m.hops_kept = false;
-    m.split_headers();
-    assert!(m.hops_kept);
+    // And with its block lost (damaged, or named by a name that isn't one) and a line on it that
+    // may not stay, split again from what is left: the server's hop is gone, and it is not marked.
+    let mut lost = Message { header_block: crate::headers::HeaderBlock::default(), ..m };
+    lost.headers.push(h("X-Spam-Report", "long"));
+    let read = crate::Messages::read([(lost.id, std::sync::Arc::new(lost))].into_iter().collect());
+    assert!(read.values().all(|m| !m.hops_kept && !trusted(&own_server(), m)));
+    // Split by this version (as it is read) the intake hop stays on top, below the forged verdict.
+    let (headers, header_block) = crate::headers::split(all);
+    let m = Message { headers, header_block, ..bank(Vec::new()) };
+    assert!(m.headers.iter().any(|(name, value)| name == "Received" && value == INTAKE));
     assert!(!trusted(&own_server(), &m));
 }
 
@@ -786,14 +791,19 @@ fn only_mail_split_by_this_version_is_believed_by_its_hops() {
     assert!(!trusted(&own_server(), &older));
     let older = split_before(all.clone(), &[0]);
     assert!(!trusted(&own_server(), &older));
-    // A line that may not stay makes a version before's message split again as it is read: the
-    // hops then are this version's.
-    let mut joined = all;
-    joined.push(h("X-Spam-Score", "0.1"));
-    let mut m = Message { headers: joined, ..bank(Vec::new()) };
-    m.hops_kept = false;
-    let read = crate::Messages::read([(m.id, std::sync::Arc::new(m))].into_iter().collect());
+    // A line that may not stay (one too long for its block, say) makes a version before's message
+    // split again as it is read, with its block: the hops then are this version's.
+    let mut older = split_before(all.clone(), &[0]);
+    older.headers.push(h("X-Spam-Report", "long"));
+    let read = crate::Messages::read([(older.id, std::sync::Arc::new(older))].into_iter().collect());
     assert!(read.values().all(|m| m.hops_kept && vouched(Some(&own_server()), m)));
+    // Not without its block, which may be lost with the server's hop in it, nor so with every
+    // line on the message, which a message whose block was lost can't be told from.
+    let mut joined = all;
+    joined.push(h("X-Spam-Report", "long"));
+    let m = Message { headers: joined, hops_kept: false, ..bank(Vec::new()) };
+    let read = crate::Messages::read([(m.id, std::sync::Arc::new(m))].into_iter().collect());
+    assert!(read.values().all(|m| !m.hops_kept && !trusted(&own_server(), m)));
 }
 
 #[test]

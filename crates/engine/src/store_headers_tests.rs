@@ -28,8 +28,8 @@ pub(super) fn with_exchange_headers(messages: usize) -> Mailbox {
     let ids: Vec<Id> = mb.messages.keys().copied().collect();
     for (n, id) in ids.into_iter().enumerate() {
         let mut m = Message::clone(mb.message(id).unwrap());
-        m.headers = exchange_headers(n);
-        m.split_headers();
+        (m.headers, m.header_block) = mailcraft_model::headers::split(exchange_headers(n));
+        m.hops_kept = true;
         mb.messages.insert(id, Arc::new(m));
     }
     mb
@@ -144,8 +144,9 @@ fn a_file_of_format_3_puts_its_header_blocks_beside_it_as_it_opens_and_is_writte
     let opened = open_window(&path);
     // Each block went beside the file as it was read, and is named on its message.
     assert!(opened.mailbox.messages.values().all(|m| m.header_block.data.is_empty() && m.header_block.kept.is_some()));
-    // Its lines were all on the message, in order: split now, by this version (#2059).
-    assert!(opened.mailbox.messages.values().all(|m| m.hops_kept));
+    // Split now, but from no block: one lost can't be told from none, so not believed by its
+    // hops (#2059).
+    assert!(opened.mailbox.messages.values().all(|m| !m.hops_kept));
     assert!(block_files(&path).is_empty());
     assert_eq!(pack_bytes(&path), block_bytes(&mb), "in a pack");
     // The file itself is as it was until a save: a stop now (a crash) loses nothing.

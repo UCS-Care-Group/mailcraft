@@ -385,9 +385,12 @@ pub struct Message {
     /// ([`crate::headers::split`], #2059). Only then is a server of the account's own believed by
     /// where its verdict stands among them: a version before kept a hop too long for its block on
     /// the message and put the server's own in the block, so a sender's hop could stand in for it.
-    /// False for mail split before, and for a file from before. A mailbox file (one opened from
-    /// elsewhere too) or a result given to `sync.apply` can say true, but whoever writes one
-    /// writes its header lines too, in any order, so it can say nothing a forged header can't.
+    /// False for mail split before, and for a file from before. Such mail split again here
+    /// ([`Message::split_headers`]) is marked only when its block in memory has lines: an empty
+    /// one may be one lost with the server's hop in it (so mail kept from before blocks never
+    /// is). A mailbox file (one opened from elsewhere too) or a result given to `sync.apply` can
+    /// say true, but whoever writes one writes its header lines too, in any order, so it can say
+    /// nothing a forged header can't.
     #[serde(skip_serializing_if = "is_false")]
     pub hops_kept: bool,
     /// The message's UID in the server mailbox of the folder it is in (IMAP); 0 for a message
