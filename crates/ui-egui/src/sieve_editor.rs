@@ -262,6 +262,18 @@ impl SieveEditor {
         }
     }
 
+    /// How many bytes [`SieveEditor::written`] has, without making it: line breaks of a CRLF
+    /// script count two (#2058).
+    pub(crate) fn written_len(&self) -> usize {
+        match &self.own {
+            Some(own) if own.crlf => {
+                let bare = self.text.matches('\n').count().saturating_sub(self.text.matches("\r\n").count());
+                self.text.len().saturating_add(bare)
+            }
+            _ => self.text.len(),
+        }
+    }
+
     /// The most bytes of text.
     fn cap(&self) -> usize {
         if self.own.is_some() { MAX_SCRIPT } else { MAX_SIEVE_RULE }
@@ -394,6 +406,12 @@ impl SieveEditor {
     /// Check asked for: the text in MailCraft's script, to the server.
     pub(crate) fn check_on_server(&mut self, app: &mut MailApp) {
         self.error.clear();
+        // Larger than the server is sent, as it would be written (#2058).
+        if self.own.is_some() && self.written_len() > MAX_SCRIPT {
+            let why = tl!("A Sieve script is at most 1 MB.").to_string();
+            self.server = Some(ServerSaid { text: self.text.clone(), kind: Said::Failed(why), lines: Vec::new() });
+            return;
+        }
         // The owner's own script goes as it is: the server's line numbers are its own.
         let made = if let Some(rule) = self.one_rule().map(|r| r.id) {
             sieve_blocks::for_server_check(&app.session, rule, &self.written()).map_err(|e| app.refusal_said(&e.to_string()))
@@ -443,7 +461,7 @@ impl SieveEditor {
             if self.text.trim().is_empty() {
                 return Some(if own.rule.is_some() { tl!("A rule needs some Sieve.") } else { tl!("A Sieve script needs some Sieve.") });
             }
-            if self.text.len() > MAX_SCRIPT {
+            if self.written_len() > MAX_SCRIPT {
                 return Some(tl!("A Sieve script is at most 1 MB."));
             }
             if self.written() == own.read {
@@ -531,7 +549,7 @@ impl SieveEditor {
             self.edited = Some(now_ms() as u64);
             self.error.clear();
         }
-        let used = self.text.len();
+        let used = self.written_len();
         let cap = self.cap();
         if used >= cap / 4 * 3 {
             let said =

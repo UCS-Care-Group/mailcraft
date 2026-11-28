@@ -465,3 +465,13 @@ fn rules_of_the_owners_script_alone_are_not_no_rules() {
     assert!(h.query_by_label("In your Sieve script \"roundcube\"").is_some());
     assert!(h.query_by_label("No rules yet. A rule files, flags or deletes mail as it arrives.").is_none());
 }
+
+/// A CRLF script's size is counted as it is written, its line breaks two bytes each (#2058).
+#[test]
+fn a_crlf_scripts_size_is_counted_as_written() {
+    let (app, account, _) = own_window();
+    let mut e = SieveEditor::own_script(&app, account).unwrap();
+    e.text = "keep;\n".repeat(10);
+    assert_eq!(e.written_len(), e.written().len());
+    assert_eq!(e.written_len(), 70);
+}
