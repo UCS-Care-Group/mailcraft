@@ -600,7 +600,14 @@ fn open_initial_imap<'a>(
                 std::thread::sleep(remaining.min(Duration::from_millis(50)));
             }
             let mut final_refusal = None;
-            match open_imap_attempt(&request.account, request.secret(), &limits.patience, Some(stop_retry), refused, &mut final_refusal) {
+            let result = open_imap_attempt(&request.account, request.secret(), &limits.patience, Some(stop_retry), refused, &mut final_refusal);
+            // Connection and TLS setup use their existing bounded network waits, before
+            // a Stream can watch cancellation. A canceled retry is still stopped when
+            // setup finishes or fails, rather than surfacing its connection error.
+            if stop_retry.load(Ordering::Relaxed) {
+                return Err(NetError::Proto(ProtoError::Io(transport::STOPPED.into())));
+            }
+            match result {
                 Ok(mut imap) => {
                     // Authentication obeys cancellation even while a sent copy is owed.
                     // Once authenticated, restore the existing copy-filing policy.

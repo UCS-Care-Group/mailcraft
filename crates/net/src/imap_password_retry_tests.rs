@@ -188,6 +188,54 @@ fn cancelling_the_replacement_greeting_never_submits_the_password_even_when_a_se
 }
 
 #[test]
+fn cancellation_during_replacement_tls_setup_is_stopped_not_a_connection_error() {
+    crate::tls_test_support::with_tls(|config| {
+        let stop = Arc::new(AtomicBool::new(false));
+        let seen = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let cancel = stop.clone();
+        let handshakes = seen.clone();
+        let imap = peer(&[REFUSAL], true);
+        {
+            let mut world = imap.world();
+            world.offer_starttls = true;
+            world.starttls_upgrade = Some(Arc::new(move |mut stream| -> Box<dyn crate::fake::MailIo> {
+                if handshakes.fetch_add(1, Ordering::Relaxed) == 0 {
+                    let connection = rustls::ServerConnection::new(config.clone()).unwrap();
+                    return Box::new(rustls::StreamOwned::new(connection, stream));
+                }
+                // Wait for the replacement's ClientHello, then cancel and leave its
+                // handshake unanswered. Its short I/O timeout must remain a stop.
+                let mut first_byte = [0];
+                std::io::Read::read_exact(&mut stream, &mut first_byte).unwrap();
+                cancel.store(true, Ordering::Relaxed);
+                let _ = std::io::copy(&mut stream, &mut std::io::sink());
+                stream
+            }));
+        }
+        let smtp = Fake::smtp(SmtpWorld { user: "user@example.org".into(), password: PASSWORD.into(), auth: true, ..Default::default() });
+        let mut request = request(imap.port);
+        request.account.incoming.as_mut().unwrap().security = Security::StartTls;
+        request.account.outgoing = Some(Server { host: "127.0.0.1".into(), port: smtp.port, security: Security::None });
+        request.outbox.push(Message {
+            id: 41,
+            to: vec![Address::new("Recipient", "recipient@example.org")],
+            subject: "Synthetic delivery".into(),
+            ..Default::default()
+        });
+        let mut limits = limits(Duration::ZERO);
+        limits.patience.io = Duration::from_millis(500);
+        let (result, _) = run(&request, limits, &stop, false);
+        assert_eq!(seen.load(Ordering::Relaxed), 2);
+        assert!(result.stopped);
+        assert_eq!(result.auth_refused, Some(false));
+        assert!(result.errors.is_empty(), "{:?}", result.errors);
+        assert_eq!(result.unfiled, [41]);
+        assert_eq!(smtp.world().delivered.len(), 1);
+        assert_eq!(imap.world().log.iter().filter(|line| line.contains(" AUTHENTICATE PLAIN")).count(), 1);
+    });
+}
+
+#[test]
 fn ordinary_sync_oauth_tls_and_local_validation_do_not_gain_password_retries() {
     let imap = peer(&[REFUSAL], true);
     let (result, _) = run(&request(imap.port), Limits::in_pieces(), &AtomicBool::new(false), false);
