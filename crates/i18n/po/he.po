@@ -456,7 +456,7 @@ msgstr "@{login}: {prs} PRs ממוזגים, {commits} קומיטים, +{added} /
 #: crates/engine/src/import_pst.rs
 #, fuzzy
 msgid "A .pst file is being imported: try again when it is done"
-msgstr "מתבצע כעת ייבוא של קובץ .pst: נסו שוב בסיום הייבוא"
+msgstr "מתבצע כעת ייבוא של קובץ .pst: יש לנסות שוב בסיום הייבוא"
 
 #. what a command says
 #: crates/model/src/mailbox_snooze.rs
@@ -898,7 +898,7 @@ msgstr "אישור"
 #: crates/ui-egui/src/meeting_dialogs.rs crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Accept Proposal"
-msgstr "קבל את ההצעה"
+msgstr "קבלת ההצעה"
 
 #. android, interface, name
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt crates/model/src/calendar.rs crates/ui-egui/src/meeting_dialogs/share.rs
@@ -1724,7 +1724,7 @@ msgstr "מתבצע ייבוא"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "An item that repeats can't be taken to another calendar this way. Hold Ctrl to copy this occurrence there, or use Move to Calendar in its menu for the whole series."
-msgstr "לא ניתן להעביר פריט חוזר ללוח שנה אחר בדרך זו. החזיקו את Ctrl לחוץ כדי להעתיק לשם מופע זה, או השתמשו ב'העבר ללוח שנה' שבתפריט שלו עבור הסדרה כולה."
+msgstr "לא ניתן להעביר פריט חוזר ללוח שנה אחר בדרך זו. יש להחזיק את Ctrl לחוץ כדי להעתיק לשם מופע זה, או להשתמש ב'העברה ללוח שנה' שבתפריט שלו עבור הסדרה כולה."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/selection.rs
@@ -1812,7 +1812,7 @@ msgstr "ענו להזמנה בלוח השנה שלכם. לא ניתן לשלוח
 #: crates/ui-egui/src/reading/invitation.rs
 #, fuzzy
 msgid "Answer the invitation. You are asked whether to tell the organizer."
-msgstr "השיבו להזמנה. תישאלו אם ליידע את המארגן."
+msgstr "מענה להזמנה. תוצג שאלה אם ליידע את המארגן."
 
 #. name
 #: crates/ui-egui/src/account_setup.rs
@@ -4302,7 +4302,7 @@ msgstr "לא ניתן היה לשמור את \"{subject}\" ב-\"{folder}\" בש�
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "Couldn't reach Microsoft to open the calendar of {address}. Try again in a moment."
-msgstr "לא ניתן היה ליצור קשר עם Microsoft כדי לפתוח את לוח השנה של {address}. נסו שוב בעוד רגע."
+msgstr "לא ניתן היה ליצור קשר עם Microsoft כדי לפתוח את לוח השנה של {address}. יש לנסות שוב בעוד רגע."
 
 #. why a mail server couldn't be used
 #: crates/net/src/push.rs crates/net/src/sync.rs
@@ -6222,7 +6222,7 @@ msgstr "קיפול"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Fold the calendars of this group away"
-msgstr "כווץ את לוחות השנה בקבוצה זו"
+msgstr "כיווץ לוחות השנה בקבוצה זו"
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt
@@ -6986,7 +6986,7 @@ msgstr "כניסה באמצעות Google אינה מוגדרת בגרסת הבנ
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Google sign-in is not configured for this build. Use an app password instead."
-msgstr "כניסה באמצעות Google אינה מוגדרת בגרסה זו. השתמשו במקום זאת בסיסמה לאפליקציה."
+msgstr "כניסה באמצעות Google אינה מוגדרת בגרסה זו. יש להשתמש במקום זאת בסיסמת יישום."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -7292,7 +7292,7 @@ msgstr "חשיבות גבוהה בראש הרשימה"
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "Hold Unsent Mail"
-msgstr "השאר דואר שלא נשלח בהמתנה"
+msgstr "השארת דואר שלא נשלח בהמתנה"
 
 #. interface, ribbon location
 #: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/share.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/category.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_move.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/gmail_move.rs crates/engine/src/cmd/junk.rs crates/engine/src/cmd/mail.rs crates/engine/src/cmd/people.rs crates/engine/src/cmd/people_merge.rs crates/engine/src/cmd/react.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/snooze.rs crates/engine/src/cmd/tasks.rs crates/engine/src/cmd/view.rs crates/ui-egui/src/forms.rs
@@ -8532,7 +8532,7 @@ msgstr "מאוחר יותר"
 #: crates/ui-egui/src/graph_switch.rs
 #, fuzzy
 msgid "Later keeps this account on IMAP for now. You can switch whenever you like: search the commands for \"Switch to Microsoft Graph\"."
-msgstr "״מאוחר יותר״ משאיר חשבון זה ב־IMAP לעת עתה. תוכל לעבור מתי שתרצה: חפש בפקודות ״מעבר ל־Microsoft Graph״."
+msgstr "״מאוחר יותר״ משאיר חשבון זה ב־IMAP לעת עתה. ניתן לעבור בכל עת: יש לחפש בפקודות ״מעבר ל־Microsoft Graph״."
 
 #. interface
 #: crates/ui-egui/src/reading/react.rs
@@ -8574,7 +8574,7 @@ msgstr "יש להשאיר ריק כדי לחפש את השרת לפי כתובת
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Leave it not verified"
-msgstr "השאר ללא אימות"
+msgstr "השארה ללא אימות"
 
 #. interface
 #: crates/ui-egui/src/sync_panel.rs
@@ -9818,7 +9818,7 @@ msgstr "Microsoft אינה מקבלת עוד את הכניסה הזו"
 #: crates/ui-egui/src/auto_replies.rs
 #, fuzzy
 msgid "Microsoft no longer takes your sign-in. Sign in again to read and change your automatic replies."
-msgstr "Microsoft אינה מקבלת עוד את הכניסה שלך. היכנס שוב כדי לקרוא ולשנות את התשובות האוטומטיות שלך."
+msgstr "Microsoft אינה מקבלת עוד את הכניסה שלך. יש להיכנס שוב כדי לקרוא ולשנות את התשובות האוטומטיות שלך."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -9854,13 +9854,13 @@ msgstr "דף האישור של Microsoft פתוח בדפדפן שלך…"
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
 msgid "Microsoft's page came back without giving it. You can try again."
-msgstr "הדף של Microsoft חזר מבלי לתת את האישור. תוכל לנסות שוב."
+msgstr "הדף של Microsoft חזר מבלי לתת את האישור. ניתן לנסות שוב."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/Accounts.kt
 #, fuzzy
 msgid "Microsoft's page came back without signing you in. You can try again."
-msgstr "הדף של Microsoft חזר מבלי להשלים את הכניסה. תוכל לנסות שוב."
+msgstr "הדף של Microsoft חזר מבלי להשלים את הכניסה. ניתן לנסות שוב."
 
 #. interface
 #: crates/ui-egui/src/approval.rs
@@ -11978,7 +11978,7 @@ msgstr "רק אם איש אינו משיב"
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Only keep your custom-domain address if both addresses are aliases of the same Microsoft mailbox."
-msgstr "השאר את הכתובת בדומיין המותאם אישית רק אם שתי הכתובות הן כינויים של אותה תיבת דואר ב־Microsoft."
+msgstr "יש להשאיר את הכתובת בדומיין המותאם אישית רק אם שתי הכתובות הן כינויים של אותה תיבת דואר ב־Microsoft."
 
 #. interface
 #: crates/ui-egui/src/auto_replies.rs
@@ -12050,7 +12050,7 @@ msgstr "רק מארגן הפגישה יכול לשנות את מועדה."
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "Only this certificate is trusted, and only for this account. If the server shows another one later, you are asked again."
-msgstr "רק תעודת אבטחה זו מהימנה, ועבור חשבון זה בלבד. אם השרת יציג תעודה אחרת בהמשך, תישאל שוב."
+msgstr "רק תעודת אבטחה זו מהימנה, ועבור חשבון זה בלבד. אם השרת יציג תעודה אחרת בהמשך, תוצג שאלה שוב."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarEditor.kt
@@ -12930,7 +12930,7 @@ msgstr "הצמדה"
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Pin to the top of the list"
-msgstr "הצמד לראש הרשימה"
+msgstr "הצמדה לראש הרשימה"
 
 #. interface
 #: crates/ui-egui/src/ribbon.rs
@@ -13540,7 +13540,7 @@ msgstr "קטגוריה אדומה"
 #: crates/engine/src/cmd/edit.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Redo"
-msgstr "בצע שוב"
+msgstr "ביצוע מחדש"
 
 #. command label
 #: crates/engine/src/cmd/format.rs
@@ -13552,7 +13552,7 @@ msgstr "ביצוע חוזר של הקלדה"
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Redo {what}"
-msgstr "בצע שוב: {what}"
+msgstr "ביצוע מחדש: {what}"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -15986,7 +15986,7 @@ msgstr "הצגת המועדפים מ־Outlook בחלונית התיקיות"
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "Show the calendars of this group"
-msgstr "הרחב את לוחות השנה בקבוצה זו"
+msgstr "הרחבת לוחות השנה בקבוצה זו"
 
 #. interface
 #: crates/ui-egui/src/reading/invitation.rs
@@ -16070,13 +16070,13 @@ msgstr "מוצג לצד שם החשבון, ועל הודעות הדואר שלו
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Shown in the folder pane, such as Team or Support. Leave it empty to show the address. Kept on this computer only."
-msgstr "מוצג בחלונית התיקיות, כגון ״צוות״ או ״תמיכה״. השאר ריק כדי להציג את הכתובת. נשמר במחשב זה בלבד."
+msgstr "מוצג בחלונית התיקיות, כגון ״צוות״ או ״תמיכה״. יש להשאיר ריק כדי להציג את הכתובת. נשמר במחשב זה בלבד."
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "Shown in the folder pane, such as Work or Home. Leave it empty to show the address."
-msgstr "מוצג בחלונית התיקיות, כגון ״עבודה״ או ״בית״. השאר ריק כדי להציג את הכתובת."
+msgstr "מוצג בחלונית התיקיות, כגון ״עבודה״ או ״בית״. יש להשאיר ריק כדי להציג את הכתובת."
 
 #. interface
 #: crates/ui-egui/src/compose.rs
@@ -16710,7 +16710,7 @@ msgstr "עצירה"
 #: crates/engine/src/cmd/dav_account.rs
 #, fuzzy
 msgid "Stop Using Calendar and Contacts Server"
-msgstr "הפסק להשתמש בשרת לוחות השנה ואנשי הקשר"
+msgstr "הפסקת השימוש בשרת לוחות השנה ואנשי הקשר"
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -16722,7 +16722,7 @@ msgstr "הפסקת שמירת מפתח ציבורי זה"
 #: crates/ui-egui/src/chrome.rs
 #, fuzzy
 msgid "Stop opening it; the mailbox that is open stays"
-msgstr "עצור את הפתיחה; תיבת הדואר הפתוחה תישאר פתוחה"
+msgstr "עצירת הפתיחה; תיבת הדואר הפתוחה תישאר פתוחה"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -16734,13 +16734,13 @@ msgstr "הפסקת עיבוד כללים נוספים"
 #: crates/ui-egui/src/chrome.rs crates/ui-egui/src/sync_panel.rs
 #, fuzzy
 msgid "Stop this Send/Receive; what has arrived stays"
-msgstr "עצור את השליחה והקבלה; מה שכבר התקבל יישמר"
+msgstr "עצירת השליחה והקבלה; מה שכבר התקבל יישמר"
 
 #. interface
 #: crates/ui-egui/src/ews_setup.rs
 #, fuzzy
 msgid "Stop trusting this certificate for this account. If the server shows it again and this computer doesn't trust it, you are asked."
-msgstr "הפסק לסמוך על אישור זה עבור חשבון זה. אם השרת יציג אותו שוב ומחשב זה אינו נותן בו אמון, תישאל לגביו."
+msgstr "הפסקת האמון באישור זה עבור חשבון זה. אם השרת יציג אותו שוב ומחשב זה אינו נותן בו אמון, תוצג שאלה לגביו."
 
 #. interface, what a command says
 #: crates/engine/src/cmd/account.rs crates/ui-egui/src/sync_panel.rs
@@ -17412,7 +17412,7 @@ msgstr "הטקסט ארוך מדי עבור דוח: יש לקצר אותו"
 #: crates/ui-egui/src/report_problem.rs
 #, fuzzy
 msgid "That isn't a GitHub username: letters, digits and single hyphens, 39 at most. Leave the box empty if you have none."
-msgstr "זה אינו שם משתמש תקין ב־GitHub: אותיות, ספרות ומקפים בודדים, עד 39 תווים. השאר את התיבה ריקה אם אין לך שם משתמש."
+msgstr "זה אינו שם משתמש תקין ב־GitHub: אותיות, ספרות ומקפים בודדים, עד 39 תווים. יש להשאיר את התיבה ריקה אם אין לך שם משתמש."
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -17808,7 +17808,7 @@ msgstr "ההתחברות אל שרת לוח השנה של {account} נכשלה. 
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "The calendar {name} and its events kept on this computer will be removed, and so will the address kept for it. Nothing is sent anywhere; you can subscribe again with the address."
-msgstr "לוח השנה {name} והאירועים שלו השמורים במחשב זה יוסרו, וכך גם הכתובת שנשמרה עבורו. דבר אינו נשלח לשום מקום; תוכל להירשם שוב כמנוי באמצעות הכתובת."
+msgstr "לוח השנה {name} והאירועים שלו השמורים במחשב זה יוסרו, וכך גם הכתובת שנשמרה עבורו. דבר אינו נשלח לשום מקום; ניתן להירשם שוב כמנוי באמצעות הכתובת."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs
@@ -18372,7 +18372,7 @@ msgstr "ההודעה אינה קיימת עוד"
 #: crates/ui-egui/src/send_later.rs
 #, fuzzy
 msgid "The message waits in your Outbox, where you can change or cancel it. MailCraft sends it at that time; if MailCraft isn't running then, it goes the next time it runs."
-msgstr "ההודעה ממתינה בדואר היוצא שלך, שם תוכל לשנות או לבטל אותה. MailCraft שולח אותה במועד זה; אם MailCraft אינו פועל אז, היא תישלח בהפעלה הבאה."
+msgstr "ההודעה ממתינה בדואר היוצא שלך, שם ניתן לשנות או לבטל אותה. MailCraft שולח אותה במועד זה; אם MailCraft אינו פועל אז, היא תישלח בהפעלה הבאה."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -18552,7 +18552,7 @@ msgstr "התמונה הייתה גדולה מדי ולכן הוקטנה (רוח�
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The port; leave it empty for the usual one"
-msgstr "היציאה; השאר ריק לשימוש ביציאה הרגילה"
+msgstr "היציאה; יש להשאיר ריק לשימוש ביציאה הרגילה"
 
 #. what a command says
 #: crates/engine/src/private_keys.rs
@@ -18876,7 +18876,7 @@ msgstr "השרת דחה את הכניסה עבור חשבון זה. יש להש�
 #: crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/jmap_mail.rs
 #, fuzzy
 msgid "The server turned down the sign-in for {name}: sign in again"
-msgstr "השרת דחה את הכניסה עבור {name}: היכנס שוב"
+msgstr "השרת דחה את הכניסה עבור {name}: יש להיכנס שוב"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -19674,7 +19674,7 @@ msgstr "שינוי זה שמור במחשב זה ויישלח לשרת בפעו�
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "This computer doesn't trust the certificate the server at {host} shows. If this is your organisation's server, you can trust this one certificate for this account."
-msgstr "מחשב זה אינו נותן אמון בתעודת האבטחה שמציג השרת בכתובת {host}. אם זהו שרת הארגון שלך, תוכל לתת אמון בתעודה אחת זו עבור חשבון זה."
+msgstr "מחשב זה אינו נותן אמון בתעודת האבטחה שמציג השרת בכתובת {host}. אם זהו שרת הארגון שלך, ניתן לתת אמון בתעודה אחת זו עבור חשבון זה."
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -20306,7 +20306,7 @@ msgstr "אי אפשר לשמור כלל זה בשרת: {why}. הוא פועל ב
 #: crates/engine/src/cmd/calendar.rs
 #, fuzzy
 msgid "This series is still on its way to the account's server. Change one of its days once it is there (in a moment)."
-msgstr "סדרה זו עדיין בדרכה לשרת של החשבון. שנה את אחד הימים שלה ברגע שתגיע לשם (בעוד רגע)."
+msgstr "סדרה זו עדיין בדרכה לשרת של החשבון. ניתן לשנות את אחד הימים שלה ברגע שתגיע לשם (בעוד רגע)."
 
 #. interface
 #: crates/ui-egui/src/shared_mailboxes.rs
@@ -20324,7 +20324,7 @@ msgstr "החשבון המשויך לתיבת הדואר המשותפת אינו 
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsPages.kt
 #, fuzzy
 msgid "This signature has a picture or its own layout. Change it on the computer."
-msgstr "בחתימה זו יש תמונה או פריסה משלה. שנה אותה במחשב."
+msgstr "בחתימה זו יש תמונה או פריסה משלה. יש לשנות אותה במחשב."
 
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt
@@ -20704,7 +20704,7 @@ msgstr "תרגום"
 #: crates/ui-egui/src/account_setup/help.rs
 #, fuzzy
 msgid "Trouble on that page? Sign in for mail only"
-msgstr "נתקלת בבעיה בדף הזה? היכנס לדואר בלבד"
+msgstr "נתקלת בבעיה בדף זה? כניסה לדואר בלבד"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -22544,7 +22544,7 @@ msgstr "לכתובת שולח חסרה כתובת דוא״ל"
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox asks before deleting a conversation as the account it is opened through does: change that account's"
-msgstr "תיבת דואר משותפת שואלת לפני מחיקת שיחה בהתאם להגדרה של החשבון שדרכו היא נפתחת: שנה את ההגדרה של אותו חשבון"
+msgstr "תיבת דואר משותפת שואלת לפני מחיקת שיחה בהתאם להגדרה של החשבון שדרכו היא נפתחת: יש לשנות את ההגדרה של אותו חשבון"
 
 #. what a command says
 #: crates/model/src/mailbox.rs
@@ -22562,7 +22562,7 @@ msgstr "לתיבת דואר משותפת אין תיקיית הודעות שנד
 #: crates/engine/src/cmd/account.rs
 #, fuzzy
 msgid "a shared mailbox keeps as much mail offline as the account it is opened through: change that account's"
-msgstr "תיבת דואר משותפת שומרת במצב לא מקוון את אותה כמות דואר כמו החשבון שדרכו היא נפתחת: שנה את ההגדרה של אותו חשבון"
+msgstr "תיבת דואר משותפת שומרת במצב לא מקוון את אותה כמות דואר כמו החשבון שדרכו היא נפתחת: יש לשנות את ההגדרה של אותו חשבון"
 
 #. what a command says
 #: crates/engine/src/cmd/offline.rs
@@ -24141,7 +24141,7 @@ msgstr "הצגת התראה בשולחן העבודה"
 #: crates/net/src/lib.rs
 #, fuzzy
 msgid "sign in to the account first"
-msgstr "היכנס תחילה לחשבון"
+msgstr "יש להיכנס תחילה לחשבון"
 
 #. why a mail server couldn't be used
 #: crates/net/src/lib.rs
@@ -24405,13 +24405,13 @@ msgstr "הקבצים המצורפים גדולים יחד מ־{mb} מ״ב: יש 
 #: crates/engine/src/cmd/auto_replies.rs
 #, fuzzy
 msgid "the automatic replies haven't been read from the server yet: read them first, so that nothing of them is written over unseen"
-msgstr "התשובות האוטומטיות טרם נקראו מהשרת: קרא אותן תחילה, כדי ששום דבר מהן לא יידרס מבלי שנקרא"
+msgstr "התשובות האוטומטיות טרם נקראו מהשרת: יש לקרוא אותן תחילה, כדי ששום דבר מהן לא יידרס מבלי שנקרא"
 
 #. what a command says
 #: crates/engine/src/cmd/graph_switch.rs
 #, fuzzy
 msgid "the browser can't keep a copy of the mailbox beside it: switch in the desktop app"
-msgstr "הדפדפן אינו יכול לשמור עותק של תיבת הדואר לצדו: בצע את ההחלפה ביישום שולחן העבודה"
+msgstr "הדפדפן אינו יכול לשמור עותק של תיבת הדואר לצדו: יש לבצע את ההחלפה ביישום שולחן העבודה"
 
 #. interface
 #: crates/ui-egui/src/import_tree.rs
