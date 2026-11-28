@@ -413,6 +413,16 @@ fn shown(text: &str) -> String {
     if text.trim().is_empty() { "(no subject)".to_string() } else { text }
 }
 
+/// The line about `items`, put in `lines` when there are any: `one` names the only one by its
+/// `key`, `many` counts them by `{n}`.
+fn said_of(lines: &mut Vec<String>, items: &[String], key: &str, one: &str, many: &str) {
+    match items {
+        [] => {}
+        [only] => lines.push(mailcraft_i18n::fmt(one, &[(key, &shown(only))])),
+        _ => lines.push(mailcraft_i18n::fmt(many, &[("n", &items.len().to_string())])),
+    }
+}
+
 impl Said {
     fn lines(&self, lang: mailcraft_i18n::Lang) -> Vec<String> {
         let mut lines = Vec::new();
@@ -437,54 +447,41 @@ impl Said {
             many => lines
                 .push(format!("{} messages were moved out of their account and the server's copies removed: that can't be undone here.", many.len())),
         }
-        match self.held.as_slice() {
-            [] => {}
-            [one] => lines.push(mailcraft_i18n::fmt(
-                lang.t("'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."),
-                &[("subject", &shown(one))],
-            )),
-            many => {
-                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
-                let line = lang.tn(
-                    n,
-                    "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again.",
-                    "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again.",
-                );
-                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
-            }
-        }
-        match self.no_room.as_slice() {
-            [] => {}
-            [one] => lines.push(mailcraft_i18n::fmt(
-                lang.t("The category '{name}' couldn't be put back: the list of categories is full."),
-                &[("name", &shown(one))],
-            )),
-            many => {
-                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
-                let line = lang.tn(
-                    n,
-                    "{n} category couldn't be put back: the list of categories is full.",
-                    "{n} categories couldn't be put back: the list of categories is full.",
-                );
-                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
-            }
-        }
-        match self.not_back.as_slice() {
-            [] => {}
-            [one] => lines.push(mailcraft_i18n::fmt(
-                lang.t("'{subject}' isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."),
-                &[("subject", &shown(one))],
-            )),
-            many => {
-                let n = u64::try_from(many.len()).unwrap_or(u64::MAX);
-                let line = lang.tn(
-                    n,
-                    "{n} message isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone.",
-                    "{n} messages aren't moved: their mail server has moved or removed them since, or the folders they were to go to are gone.",
-                );
-                lines.push(mailcraft_i18n::fmt(line, &[("n", &n.to_string())]));
-            }
-        }
+        // (Counted for the line about several: a line about one names it.)
+        let n = |items: &[String]| u64::try_from(items.len()).unwrap_or(u64::MAX);
+        said_of(
+            &mut lines,
+            &self.held,
+            "subject",
+            lang.t("'{subject}' stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again."),
+            lang.tn(
+                n(&self.held),
+                "{n} message stays where it was moved: it is Digitally signed or Encrypted, and its copy in the mailbox it came from was removed while the copy it was first moved out of keeps the bytes it came as. Move it back to put it there again.",
+                "{n} messages stay where they were moved: they are Digitally signed or Encrypted, and their copies in the mailbox they came from were removed while the copies they were first moved out of keep the bytes they came as. Move them back to put them there again.",
+            ),
+        );
+        said_of(
+            &mut lines,
+            &self.no_room,
+            "name",
+            lang.t("The category '{name}' couldn't be put back: the list of categories is full."),
+            lang.tn(
+                n(&self.no_room),
+                "{n} category couldn't be put back: the list of categories is full.",
+                "{n} categories couldn't be put back: the list of categories is full.",
+            ),
+        );
+        said_of(
+            &mut lines,
+            &self.not_back,
+            "subject",
+            lang.t("'{subject}' isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone."),
+            lang.tn(
+                n(&self.not_back),
+                "{n} message isn't moved: its mail server has moved or removed it since, or the folder it was to go to is gone.",
+                "{n} messages aren't moved: their mail server has moved or removed them since, or the folders they were to go to are gone.",
+            ),
+        );
         lines
     }
 }
