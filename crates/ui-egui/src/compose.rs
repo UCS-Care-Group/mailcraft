@@ -632,6 +632,13 @@ fn signature(app: &mut MailApp, ui: &mut Ui) {
     });
     let shown = Rect::from_min_max(pos2(ui.min_rect().min.x, top), pos2(ui.min_rect().max.x, ui.cursor().min.y));
     app.hit.add("composeSignature", 0, shown);
+    // From a linked file it is read again for each message: edits made here would be lost.
+    let from_file = app.session.compose.as_ref().is_some_and(|c| {
+        c.signature_file_warning.is_empty() && c.signature.as_ref().is_some_and(|s| crate::signature_files::setting_for_name(app, &s.name).enabled)
+    });
+    if from_file {
+        return;
+    }
     let edit = ui
         .link(tl!("Edit signature as text"))
         .on_hover_text(tl!("The signature is then sent as the simpler text shown here, not as it was designed"));
