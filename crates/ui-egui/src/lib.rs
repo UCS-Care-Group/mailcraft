@@ -3471,16 +3471,13 @@ impl MailApp {
         }
         let Some(account) = self.session.mailbox.account(account) else { return };
         let key = Self::secret_key(kind, account);
-        if self.services.secrets.is_none() {
-            return;
-        }
+        let Some(store) = self.services.secrets.clone() else { return };
         // Already kept, as it is: the store is not asked again. (Each sync's jobs hand back the
         // account's refresh token; writing it each time cost a keychain question each time.)
         if self.secret_cache.get(&key).is_some_and(|kept| kept == secret) {
             self.index_secret_key(key);
             return;
         }
-        let Some(store) = &self.services.secrets else { return };
         match store.set(&key, secret) {
             Ok(()) => {
                 self.secret_cache.insert(key.clone(), secret.to_string());

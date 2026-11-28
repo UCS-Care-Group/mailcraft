@@ -32,6 +32,8 @@ struct Asked {
     /// Done once, just after the item of this name is read (another thread's write or delete
     /// landing in the middle of a read).
     on_read: Option<(String, Box<dyn FnOnce() + Send>)>,
+    /// Done once, just before the item of this name is removed.
+    on_delete: Option<(String, Box<dyn FnOnce() + Send>)>,
 }
 
 struct Counting {
@@ -85,6 +87,19 @@ impl CredentialApi for Counted {
     }
 
     fn delete_credential(&self) -> keyring_core::Result<()> {
+        let hook = {
+            let mut asked = self.asked.lock().unwrap();
+            match asked.on_delete.take() {
+                Some((name, hook)) if name == self.user => Some(hook),
+                other => {
+                    asked.on_delete = other;
+                    None
+                }
+            }
+        };
+        if let Some(hook) = hook {
+            hook();
+        }
         if self.asked.lock().unwrap().stuck && self.there() {
             return Err(Error::NoStorageAccess(Box::new(std::io::Error::other("locked"))));
         }
@@ -500,4 +515,53 @@ fn a_missing_piece_with_no_write_meanwhile_is_nothing() {
     put(&mock, &format!("{key}#0"), "half-");
     assert_eq!(store.get(key), None);
     assert_eq!(there(&mock, &format!("{key}#{WHOLE}")), None, "nothing half made is moved");
+}
+
+/// Two reads of one key at once: the one that finishes the move first sweeps a piece the other
+/// has still to read. The other then reads the item the move wrote, not nothing.
+#[test]
+fn two_reads_at_once_both_give_the_secret() {
+    let (store, mock, asked) = shared();
+    let key = "refresh:one@example.org|graph";
+    put(&mock, &format!("{key}#n"), "2");
+    put(&mock, &format!("{key}#0"), "old-");
+    put(&mock, &format!("{key}#1"), "token");
+    let (second, got) = (Arc::downgrade(&store), Arc::new(Mutex::new(None)));
+    let kept = got.clone();
+    asked.lock().unwrap().on_read = Some((
+        format!("{key}#0"),
+        Box::new(move || {
+            if let Some(store) = second.upgrade() {
+                *kept.lock().unwrap() = Some(store.get("refresh:one@example.org|graph"));
+            }
+        }),
+    ));
+
+    assert_eq!(store.get(key).as_deref(), Some("old-token"), "the first read");
+    assert_eq!(got.lock().unwrap().clone(), Some(Some("old-token".to_string())), "the second read");
+    assert_eq!(there(&mock, &format!("{key}#{WHOLE}")).as_deref(), Some("old-token"));
+}
+
+/// The move sweeps the old pieces with no lock held, so a write from the window never waits on
+/// the keychain removing them (nor on any question it might ask about that).
+#[test]
+fn the_move_sweeps_the_pieces_with_no_lock_held() {
+    let (store, mock, asked) = shared();
+    let key = "refresh:one@example.org|graph";
+    put(&mock, &format!("{key}#n"), "1");
+    put(&mock, &format!("{key}#0"), "old-token");
+    let (watched, held) = (Arc::downgrade(&store), Arc::new(Mutex::new(None)));
+    let seen = held.clone();
+    asked.lock().unwrap().on_delete = Some((
+        format!("{key}#0"),
+        Box::new(move || {
+            if let Some(store) = watched.upgrade() {
+                *seen.lock().unwrap() = Some(store.writes_held());
+            }
+        }),
+    ));
+
+    assert_eq!(store.get(key).as_deref(), Some("old-token"));
+    assert_eq!(*held.lock().unwrap(), Some(false), "the sweep ran, and with the lock free");
+    assert_eq!(there(&mock, &format!("{key}#0")), None);
 }

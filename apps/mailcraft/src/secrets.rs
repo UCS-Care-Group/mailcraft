@@ -340,6 +340,10 @@ mod os {
         }
 
         fn get_whole(&self, key: &str) -> Option<String> {
+            // (An older build run after this one keeps a sign-in in pieces again and leaves this
+            // build's item as it was: a newer build then reads that item first. The server refuses
+            // the stale secret and the owner is asked to sign in once more; nothing is lost.)
+            //
             // Counted before the item is looked for: a write of this key after this, even one that
             // lands between the look and the pieces' read and couldn't sweep the pieces, stops the
             // move. (Another key's write doesn't.)
@@ -364,17 +368,34 @@ mod os {
                         return self.read_whole(key).ok().flatten();
                     }
                     let secret = pieces?;
-                    if let Err(e) = self.set_whole(key, &secret) {
-                        // (Kept as it was: the pieces stay until a write succeeds.)
-                        log::warn!("couldn't move a remembered sign-in into one keychain item: {e}");
+                    let mut writes = writes;
+                    let moved = self.write_whole(key, &secret);
+                    if moved.is_ok() {
+                        // A write of this key like any other: a read of it under way at the same
+                        // time, which may find a piece this move sweeps, reads the item instead.
+                        writes.note(key);
                     }
+                    // The item is written: the pieces are swept with no lock held, so that a write
+                    // from the window never waits on the keychain removing them.
                     drop(writes);
+                    match moved {
+                        Ok(()) => self.sweep_once(key),
+                        // (Kept as it was: the pieces stay until a write succeeds.)
+                        Err(e) => log::warn!("couldn't move a remembered sign-in into one keychain item: {e}"),
+                    }
                     Some(secret)
                 }
             }
         }
 
         fn set_whole(&self, key: &str, secret: &str) -> Result<(), SecretError> {
+            self.write_whole(key, secret)?;
+            self.sweep_once(key);
+            Ok(())
+        }
+
+        /// The one item for `key` holds `secret`: what a write must do under the lock.
+        fn write_whole(&self, key: &str, secret: &str) -> Result<(), SecretError> {
             // As long as the pieces could be: no longer than what any system keeps.
             if pieces(secret).is_none() {
                 return Err(SecretError::TooLong);
@@ -389,11 +410,14 @@ mod os {
                 let _ = self.remove_part(key, WHOLE);
                 return Err(SecretError::Refused);
             }
-            // The secret is safe in one item: what an earlier version left in pieces goes, once.
+            Ok(())
+        }
+
+        /// The secret is safe in one item: what an earlier version left in pieces goes, once.
+        fn sweep_once(&self, key: &str) {
             if !self.pieces_cleared(key) {
                 self.clear_pieces_unread(key);
             }
-            Ok(())
         }
 
         fn delete_whole(&self, key: &str) {
@@ -440,6 +464,14 @@ mod os {
 
         fn take_trouble(&self) -> Option<StoreTrouble> {
             self.trouble.lock().ok()?.take()
+        }
+    }
+
+    #[cfg(test)]
+    impl OsStore {
+        /// Whether a write holds the lock on the writes just now.
+        pub(super) fn writes_held(&self) -> bool {
+            self.writes.try_lock().is_err()
         }
     }
 }
