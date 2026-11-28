@@ -48,8 +48,9 @@ send ([Problem reports](#problem-reports)).
   the path in `MAILCRAFT_PDFCRAFT_CLI` or `MAILCRAFT_PHOTOCRAFT_CLI` if set. Otherwise it looks
   for the expected CLI name in the usual installation location (on Windows the program's folder
   in Program Files, then the ArtCraft Launcher's, `Program Files\ArtCraft\<program>`; on macOS
-  `/Applications`) and then on `PATH`. It selects the file by path and name without verifying the program's publisher or
-  identity. In Junk E-mail and its subfolders, choose Preview Attachment from the attachment menu.
+  `/Applications`) and then on `PATH`. It selects the file by path and name without verifying
+  the program's publisher or identity. In Junk E-mail and its subfolders, choose Preview
+  Attachment from the attachment menu.
 - **A downloaded new version** (only for a copy that updates itself) is kept in the `updates`
   folder of MailCraft's settings folder until it is installed (when you press Restart to update,
   or when you quit), and is deleted when it doesn't pass MailCraft's release signature or when a
