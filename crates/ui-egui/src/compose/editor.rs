@@ -117,6 +117,9 @@ pub fn key_of(command: &str) -> Option<&'static str> {
         "compose.link" => "Mod+K",
         "compose.undo" => "Mod+Z",
         "compose.redo" => "Mod+Y",
+        "edit.cut" => "Mod+X",
+        "edit.copy" => "Mod+C",
+        "edit.paste" => "Mod+V",
         _ => return None,
     })
 }
@@ -957,7 +960,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
         // Both take pictures: a signature, and a message's text since #547.
         let takes = crate::text_menu::Takes::Pictures;
         let mut chosen = None;
-        crate::text_menu::body(&resp, now(app, which).is_some_and(|(sel, _)| !sel.is_empty()), takes, |ui| {
+        let (selected, plain) = now(app, which).map_or((false, false), |(sel, plain)| (!sel.is_empty(), plain));
+        crate::text_menu::body(&resp, selected, takes, plain, |ui| {
             st.spelling_menu.as_ref().is_some_and(|suggestions| suggestions.show(ui, &mut chosen))
         });
         if let Some(word) = chosen
@@ -1012,7 +1016,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                         let html = got.get("html").and_then(Value::as_str);
                         let put = match (&app.services.clipboard, html) {
                             (Some(board), Some(html)) => board.put(html, &text),
-                            _ => Err(String::new()),
+                            (Some(board), None) => board.put_text(&text),
+                            (None, _) => Err(String::new()),
                         };
                         if put.is_err() {
                             ctx.copy_text(text);
@@ -1022,8 +1027,8 @@ pub(crate) fn show_doc(app: &mut MailApp, ui: &mut Ui, which: Which, min_height:
                     None
                 }
                 // What is pasted comes as HTML when the clipboard has some (reduced to the set
-                // by `edit.paste`, which takes the text egui read when the HTML comes to no text,
-                // a picture alone), else as that text; into a signature, a picture on the
+                // by `edit.paste`, which takes the text egui read instead in a plain-text message
+                // and when the HTML comes to no text, a picture alone), else as that text; into a signature, a picture on the
                 // clipboard comes as a picture. Nothing to paste changes nothing. What a text's
                 // menu read when its Paste was chosen stands for the clipboard (`crate::text_menu`);
                 // its Paste Text Only read no HTML, and the text comes alone.

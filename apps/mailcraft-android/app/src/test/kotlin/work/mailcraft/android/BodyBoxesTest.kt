@@ -223,6 +223,31 @@ class BodyBoxesTest {
         assertEquals(ACCENT, at(x, bounds.bottom - 3f * density))
     }
 
+    @Test
+    fun aBarIsAsTallAsTheHeightItAsksAndAllColour() {
+        val (bounds, at) = drawTable(OldSpacingCorpus.barTable)
+        val density = Shot.density.dpiValue / 160f
+        assertEquals(4f * density, bounds.height, 1f)
+        assertEquals(OldSpacingCorpus.BAR, at(bounds.center.x, bounds.center.y))
+    }
+
+    @Test
+    fun aDividerCellGivenNoRoomIsAPixelHigh() {
+        // What the bridge gives for `<table cellpadding=0><tr><td bgcolor=#ccc style="font-size:1px">&nbsp;</td></tr></table>`.
+        val cell = B.cell(background = DIVIDER.toUInt()).copy(padding = insets(1, 0, 0, 0))
+        val (bounds, at) = drawTable(B.table(layout = true, width = LengthView.Percent(100u), rows = listOf(listOf(cell))))
+        val density = Shot.density.dpiValue / 160f
+        assertEquals(density, bounds.height, 1f)
+        assertEquals(DIVIDER, at(bounds.center.x, bounds.top + density / 2f))
+    }
+
+    @Test
+    fun theRoomAMessageGivesACellWinsOverTheDefaults() {
+        val data = B.table(layout = false, rows = listOf(listOf(B.cell(B.p("Seed trays", 0u)))))
+        assertEquals(insets(10, 10, 10, 10), cellPadding(data, ruled = false, cell = B.cell(B.p("Seed trays", 0u), padding = 10u)))
+        assertEquals(insets(4, 0, 0, 0), cellPadding(OldSpacingCorpus.barTable, ruled = false, cell = OldSpacingCorpus.barTable.rows.first().cells.first()))
+    }
+
     private companion object {
         val Shot = DeviceConfig.PIXEL_5.copy(screenHeight = 2_400)
         const val WHITE = 0xFFFFFF
@@ -230,5 +255,6 @@ class BodyBoxesTest {
         const val RGB = 0xFFFFFF
         const val NAVY = BoxCorpus.NAVY
         const val ACCENT = BoxCorpus.ACCENT
+        const val DIVIDER = 0xCCCCCC
     }
 }

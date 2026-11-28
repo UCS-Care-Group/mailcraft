@@ -27,6 +27,7 @@ fn lang() -> &'static Lang {
         Lang::Romanian => &Lang::Romanian,
         Lang::Hungarian => &Lang::Hungarian,
         Lang::Polish => &Lang::Polish,
+        Lang::Slovenian => &Lang::Slovenian,
         Lang::Czech => &Lang::Czech,
         Lang::Russian => &Lang::Russian,
         Lang::ChineseSimplified => &Lang::ChineseSimplified,
