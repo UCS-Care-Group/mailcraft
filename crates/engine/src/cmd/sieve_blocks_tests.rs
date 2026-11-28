@@ -381,3 +381,40 @@ proptest! {
         }
     }
 }
+
+/// One of MailCraft's rules whose folder is gone from the server can still be given Sieve of the
+/// owner's; without any, it is refused, as MailCraft can't write it (#2058).
+#[test]
+fn a_rule_whose_folder_is_gone_takes_sieve_given_for_it() {
+    let mut s = Session::empty();
+    let account = run(&mut s, "account.add", json!({"email": "ada@example.org", "incoming": {"host": "imap.example.org"}}))["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    s.mailbox.folder_mut(inbox).unwrap().remote = "INBOX".into();
+    let lists = run(&mut s, "folder.new", json!({"name": "Lists", "parent": inbox}))["id"].as_u64().unwrap();
+    s.mailbox.folder_mut(lists).unwrap().remote = "INBOX/Lists".into();
+    run(&mut s, "sync.applySieve", json!({"account": account, "state": {"extensions": ALL, "scripts": [], "script": null}}));
+    let id = run(
+        &mut s,
+        "rules.add",
+        json!({"account": account, "name": "Lists", "conditions": [{"type": "subjectContains", "value": "x"}], "actions": [{"type": "moveTo", "value": lists}], "server": true}),
+    )["id"]
+        .as_u64()
+        .unwrap();
+    s.mailbox.folder_mut(lists).unwrap().remote.clear();
+    assert!(s.run("rules.toSieve", &json!({"id": id})).is_err());
+    run(&mut s, "rules.toSieve", json!({"id": id, "sieve": "keep;"}));
+    assert_eq!(s.mailbox.rules.iter().find(|r| r.id == id).unwrap().sieve, "keep;");
+}
+
+/// A rule's new text gains only what it needs in `require`, not what a command after it lacks
+/// (#2058).
+#[test]
+fn require_gains_only_what_the_new_text_needs() {
+    let text = "require [\"fileinto\"];\r\nif header :contains \"subject\" \"a\" {\r\n  fileinto \"INBOX/Lists\";\r\n}\r\nif header :contains \"subject\" \"b\" {\r\n  addflag \"\\\\Seen\";\r\n}\r\n";
+    let (s, account, _) = session(text);
+    let first = rules(&s, account)[0].id;
+    let kept = super::sieve_blocks::spliced(&s, first, "keep;\r\n", None).unwrap();
+    assert!(!kept.script.contains("imap4flags"), "{}", kept.script);
+    let flagged = super::sieve_blocks::spliced(&s, first, "addflag \"\\\\Flagged\";\r\n", None).unwrap();
+    assert!(flagged.script.contains("imap4flags"), "{}", flagged.script);
+}

@@ -195,7 +195,8 @@ pub fn spliced(s: &Session, rule: Id, text: &str, read: Option<&str>) -> Result<
     for _ in 0..MAX_ADDED {
         let missing = match crate::sieve_check::check(&script, None) {
             Err(problems) => problems.into_iter().find_map(|p| match p.fault {
-                Fault::NeedsRequire { ext, .. } if p.at.start >= start => Some(ext),
+                // (Only what the new text needs: a command after it is left as it was, #2058.)
+                Fault::NeedsRequire { ext, .. } if p.at.start >= start && p.at.start < start.saturating_add(with.len()) => Some(ext),
                 _ => None,
             }),
             Ok(_) => None,
@@ -411,11 +412,14 @@ pub(crate) fn to_sieve(s: &Session, v: &Value) -> Result<(usize, Rule, Checked),
     if let Some(why) = super::rules::cannot_edit(&s.mailbox, old) {
         return Err(CmdError::Failed(why.said().to_string()));
     }
-    let made = super::sieve_rules::block(&s.mailbox, old, old.account)
-        .map_err(|why| failed!("This rule can't be said in Sieve: {why}.", why = Arg::words(why.said())))?;
+    // The Sieve MailCraft writes for it only when none is given: a rule whose folder is gone can
+    // still be given Sieve of the owner's (#2058).
     let text = match opt_text(v, "sieve")? {
         Some(t) => t.to_string(),
-        None => made.text.replace("\r\n", "\n"),
+        None => super::sieve_rules::block(&s.mailbox, old, old.account)
+            .map_err(|why| failed!("This rule can't be said in Sieve: {why}.", why = Arg::words(why.said())))?
+            .text
+            .replace("\r\n", "\n"),
     };
     let checked = super::rules_sieve::checked(a, &text)?;
     let name = match v.get("name") {
