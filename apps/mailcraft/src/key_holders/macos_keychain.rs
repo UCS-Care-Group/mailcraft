@@ -38,6 +38,24 @@ pub fn certificates() -> Result<Vec<HeldCertificate>, KeyHolderError> {
     Ok(super::usable(identities()?.into_iter().map(|(_, der)| der), now()))
 }
 
+/// The certificates in the keychains the system searches, that a signer's chain may be made of
+/// ([`super::certificate::chain`]): within [`super::certificate::gather`]'s caps. A search that
+/// fails gives nothing.
+pub fn authorities() -> Vec<Vec<u8>> {
+    let limit = i64::try_from(super::certificate::MAX_AUTHORITIES).unwrap_or(i64::MAX);
+    let Ok(results) = ItemSearchOptions::new().class(ItemClass::certificate()).load_refs(true).limit(Limit::Max(limit)).search() else {
+        return Vec::new();
+    };
+    let mut pool = Vec::new();
+    for result in results {
+        let SearchResult::Ref(Reference::Certificate(certificate)) = result else { continue };
+        if !super::certificate::gather(&mut pool, certificate.to_der()) {
+            break;
+        }
+    }
+    pool
+}
+
 /// Signs `digest` with the key of the certificate whose SHA-256 is `fingerprint`: the raw RSA
 /// signature, or DER `Ecdsa-Sig-Value` for ECDSA (what the keychain's X9.62 algorithms give).
 /// The certificate must be for mail and in its dates.

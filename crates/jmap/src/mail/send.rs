@@ -112,6 +112,8 @@ pub(super) const NO_IDENTITY: &str = "the server has no sending identity for thi
 pub(super) const NO_MAILBOX: &str = "the server has no Sent or Drafts mailbox to file the message in";
 pub(super) const BAD_SENDER: &str = "this account's address isn't one mail can be sent from";
 pub(super) const NOTHING: &str = "the message has nothing to send";
+/// Why a message that was to be Digitally signed and wasn't goes nowhere (#30).
+pub(super) const NOT_SIGNED: &str = "it was to be Digitally signed and wasn't, so it wasn't sent";
 pub(super) const NO_RECIPIENTS: &str = "the message has no recipients";
 pub(super) const BAD_RECIPIENT: &str = "a recipient's address isn't one mail can be sent to";
 pub(super) const TOO_MANY: &str = "the message has more recipients than can be sent to at once";
@@ -544,6 +546,10 @@ impl<H: HttpExchange> Run<'_, H> {
     /// One message: checked, uploaded, imported and submitted.
     async fn send(&self, send: &SendUp, identity: &str, mailbox: &str) -> Fate {
         let Some(message) = send.mime.as_deref() else { return (Some(held(NOTHING)), None) };
+        // A message to be Digitally signed that isn't goes nowhere (#30), whatever brought it here.
+        if mailcraft_mime_model::signature_missing(message) {
+            return (Some(held(NOT_SIGNED)), None);
+        }
         let to = match recipients(message) {
             Ok(to) => to,
             Err(why) => return (Some(held(why)), None),

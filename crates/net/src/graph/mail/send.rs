@@ -53,6 +53,12 @@ pub(super) fn sends(graph: &Graph<'_>, sends: &[SendUp], out: &mut Vec<SendDone>
 
 fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetError> {
     let url = match (&send.draft, &send.mime) {
+        // A message to be Digitally signed goes only as its own bytes (#30 R19): sending the
+        // server's draft would have Microsoft build it again, unsigned. Never sent that way.
+        (Some(_), Some(message)) if message.sign_with.is_some() => {
+            done.outcome = SendOutcome::Held { lost: false, why: mailcraft_mime::NOT_SIGNED.to_string() };
+            return Ok(());
+        }
         (Some(draft), _) => {
             let mut up = DraftDone { change: draft.without_data(), id: draft.id.clone(), ..Default::default() };
             let brought = super::drafts::one(graph, draft, &mut up);
@@ -91,7 +97,22 @@ fn one(graph: &Graph<'_>, send: &SendUp, done: &mut SendDone) -> Result<(), NetE
                 SEND_TIMEOUT,
                 MAX_PAGE,
             );
-            return settle(graph, asked, done);
+            settle(graph, asked, done)?;
+            // A Digitally signed message saved as a draft went as its own bytes (#30 R19): the
+            // draft the server has goes now. One that couldn't be taken away is named, and goes
+            // with the next run as any other delete; the send is never made again.
+            if done.outcome == SendOutcome::Sent && !send.discard.is_empty() {
+                match discard(graph, &send.discard) {
+                    Ok(true) => {}
+                    Ok(false) => done.draft_left = send.discard.clone(),
+                    // It went: the rest of the run's sends go on, and the draft goes next run.
+                    Err(e) => {
+                        log::info!("graph sending: the draft of a signed message sent couldn't be taken away ({e}); it goes next run");
+                        done.draft_left = send.discard.clone();
+                    }
+                }
+            }
+            return Ok(());
         }
         (None, None) => return Ok(()),
     };
@@ -145,4 +166,26 @@ fn held_refused(status: u16, code: &str, shared: bool) -> SendOutcome {
         _ => "Microsoft wouldn't take the message".to_string(),
     };
     SendOutcome::Held { lost: false, why }
+}
+
+/// Take away the server's draft of a message that went another way: whether it is gone (or never
+/// was there), or nothing more can be done about it. Graph's delete keeps it recoverable for the
+/// retention period.
+fn discard(graph: &Graph<'_>, id: &str) -> Result<bool, NetError> {
+    let Some(id) = id_of(id).map(|id| http::encode(&id)) else {
+        // No request can name it, now or at a later run: said, and not tried again (a delete
+        // queued for it could never go either).
+        log::warn!("graph sending: the draft of a signed message sent has an id that can't be used in a request, so it is left on the server");
+        return Ok(true);
+    };
+    let url = graph.url(&graph.mail_path(&format!("/messages/{id}")));
+    let reply = graph.call(Kind::Same, &url, "DELETE", &[], None, SEND_TIMEOUT, MAX_PAGE)?;
+    super::refusing(graph, &reply)?;
+    match reply.status {
+        200..=299 | 404 | 410 => Ok(true),
+        status => {
+            log::info!("graph sending: the draft of a signed message sent couldn't be taken away (status {status}); it goes next run");
+            Ok(false)
+        }
+    }
 }

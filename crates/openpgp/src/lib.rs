@@ -1,10 +1,10 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! MailCraft OpenPGP: checking a message's Digital signature and reading the Public keys it
-//! carries (#30). No I/O, no clock and no keys of its own: the caller hands in the message's
-//! original bytes (what `Message::original` keeps), the Public keys it keeps
-//! ([`KeyRing`]), the time, and whether the owner has Verified a key; so it builds for the
-//! browser too, which checks but never signs.
+//! MailCraft OpenPGP: checking a message's Digital signature, reading the Public keys it
+//! carries, and writing the owner's own Digital signatures (#30). No I/O, no clock and no keys
+//! of its own: the caller hands in the message's original bytes (what `Message::original`
+//! keeps), the Public keys it keeps ([`KeyRing`]), the time, and whether the owner has Verified
+//! a key; so it builds for the browser too, which checks but has no key holder to sign with.
 //!
 //! - [`verify`] checks a PGP/MIME message (`multipart/signed;
 //!   protocol="application/pgp-signature"`, RFC 3156 §5) over the signed part's canonical
@@ -15,6 +15,10 @@
 //! - [`keys_in_message`] reads the keys a message carries: attached `application/pgp-keys`
 //!   parts and the `Autocrypt:` header (Autocrypt Level 1), for the caller to keep by address
 //!   (R9). Nothing is fetched or sent.
+//! - [`sign_detached`] writes a PGP/MIME Digital signature (RFC 3156 §5) over the bytes it is
+//!   given, never with a private key of its own: the owner's key holder (gpg-agent, which keeps
+//!   the private key) signs the digest it is handed, and what it gives back is checked against
+//!   the key before it is written. [`signing_keys`] reads which of the owner's keys may sign.
 //!
 //! The cryptography is rPGP's (`pgp`, MIT OR Apache-2.0); the MIME around it, the armour and the
 //! Cleartext Signature Framework are read here, from RFC 2045/2046, RFC 3156 and RFC 9580, so
@@ -29,6 +33,7 @@ mod check;
 mod keys;
 mod mime;
 pub mod secret;
+mod sign;
 
 #[cfg(test)]
 mod armour_tests;
@@ -48,6 +53,8 @@ mod prop_tests;
 #[cfg(test)]
 mod secret_tests;
 #[cfg(test)]
+mod sign_tests;
+#[cfg(test)]
 mod tests;
 #[cfg(test)]
 mod vector_tests;
@@ -55,6 +62,7 @@ mod vector_tests;
 pub use autocrypt::{Autocrypt, parse_autocrypt};
 pub use check::{CantCheck, Checked, Coverage, Issuer, NotVerified, Outcome, Signer};
 pub use keys::{Fingerprint, KeyId, KeyRing, PublicKey};
+pub use sign::{AgentKey, HashAlgorithm, SignError, SignatureValue, SigningKey, sign_detached, signing_keys};
 
 /// The largest message looked at, as large as the largest any server is fetched for.
 pub const MAX_MESSAGE: usize = 150 << 20;

@@ -1237,3 +1237,109 @@ mod pkcs11 {
         assert_eq!(refused, Err(KeyHolderError::TokenChanged));
     }
 }
+
+/// A certificate named `name`, an authority's when `ca`, issued by `issuer` (self-signed without).
+fn issued(
+    name: &str,
+    ca: bool,
+    key: &rcgen::KeyPair,
+    issuer: Option<(&rcgen::CertificateParams, &rcgen::KeyPair)>,
+) -> (rcgen::CertificateParams, Vec<u8>) {
+    let mut p = rcgen::CertificateParams::new(Vec::<String>::new()).unwrap();
+    p.distinguished_name = rcgen::DistinguishedName::new();
+    p.distinguished_name.push(rcgen::DnType::CommonName, name);
+    if ca {
+        p.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+    }
+    let der = match issuer {
+        Some((params, issuer_key)) => p.signed_by(key, &rcgen::Issuer::new(params.clone(), issuer_key)).unwrap().der().to_vec(),
+        None => p.self_signed(key).unwrap().der().to_vec(),
+    };
+    (p, der)
+}
+
+fn new_key() -> rcgen::KeyPair {
+    rcgen::KeyPair::generate_for(&rcgen::PKCS_ECDSA_P256_SHA256).unwrap()
+}
+
+/// Security review of #1036: an S/MIME signature carries the authorities between the signer's
+/// certificate and its root (RFC 8551 §2.4.1), found by name among what the store holds: only
+/// authorities, never the root, bounded however the store is laid out.
+#[test]
+fn a_signers_chain_is_its_authorities_up_to_the_root() {
+    use super::certificate::{MAX_AUTHORITIES, chain, gather};
+    let (root_key, inter_key, leaf_key) = (new_key(), new_key(), new_key());
+    let (root, root_der) = issued("Example Root", true, &root_key, None);
+    let (inter, inter_der) = issued("Example Intermediate", true, &inter_key, Some((&root, &root_key)));
+    let (_, leaf_der) = issued("Owner", false, &leaf_key, Some((&inter, &inter_key)));
+    let (_, other_der) = issued("Somebody Else", false, &new_key(), Some((&root, &root_key)));
+    assert_eq!(chain(&leaf_der, &[root_der.clone(), other_der.clone(), b"junk".to_vec(), inter_der.clone()], 8), vec![inter_der.clone()]);
+    assert!(chain(&leaf_der, &[root_der.clone(), other_der], 8).is_empty(), "no intermediate in the store: none carried");
+    assert!(chain(b"not a certificate", std::slice::from_ref(&inter_der), 8).is_empty());
+    // A certificate that has the authority's name but isn't an authority's isn't taken.
+    let (_, impostor) = issued("Example Intermediate", false, &new_key(), Some((&root, &root_key)));
+    assert!(chain(&leaf_der, &[impostor], 8).is_empty());
+
+    // Two authorities that name each other: it ends where it would go round, and at `max`.
+    let (a_key, b_key) = (new_key(), new_key());
+    let (b_params, _) = issued("B", true, &b_key, None);
+    let (a_params, a_der) = issued("A", true, &a_key, Some((&b_params, &b_key)));
+    let (_, b_der) = issued("B", true, &b_key, Some((&a_params, &a_key)));
+    let (_, leaf_der) = issued("Owner", false, &new_key(), Some((&a_params, &a_key)));
+    assert_eq!(chain(&leaf_der, &[a_der.clone(), b_der.clone()], 8), vec![a_der.clone(), b_der]);
+    assert_eq!(chain(&leaf_der, std::slice::from_ref(&a_der), 1), vec![a_der]);
+
+    // The pool is capped in number and size.
+    let mut pool = Vec::new();
+    for i in 0..MAX_AUTHORITIES {
+        assert!(gather(&mut pool, vec![u8::try_from(i % 251).unwrap(), u8::try_from(i / 251).unwrap()]));
+    }
+    assert!(!gather(&mut pool, vec![1, 2, 3]), "full");
+    assert_eq!(pool.len(), MAX_AUTHORITIES);
+    let mut pool = Vec::new();
+    assert!(gather(&mut pool, vec![0; MAX_CERTIFICATE_LEN + 1]));
+    assert!(pool.is_empty(), "too large to be a certificate");
+}
+
+/// [`issued`], with the authority key identifier that names the issuer's key (RFC 5280 §4.2.1.1).
+fn issued_by_key(
+    name: &str,
+    ca: bool,
+    key: &rcgen::KeyPair,
+    issuer: Option<(&rcgen::CertificateParams, &rcgen::KeyPair)>,
+) -> (rcgen::CertificateParams, Vec<u8>) {
+    let mut p = rcgen::CertificateParams::new(Vec::<String>::new()).unwrap();
+    p.distinguished_name = rcgen::DistinguishedName::new();
+    p.distinguished_name.push(rcgen::DnType::CommonName, name);
+    p.use_authority_key_identifier_extension = true;
+    if ca {
+        p.is_ca = rcgen::IsCa::Ca(rcgen::BasicConstraints::Unconstrained);
+    }
+    let der = match issuer {
+        Some((params, issuer_key)) => p.signed_by(key, &rcgen::Issuer::new(params.clone(), issuer_key)).unwrap().der().to_vec(),
+        None => p.self_signed(key).unwrap().der().to_vec(),
+    };
+    (p, der)
+}
+
+/// Review of #1036: of two authorities with one name, the chain takes the one whose key issued
+/// the certificate; and an authority's older key's certificate for its newer one (a rollover,
+/// the same name) is carried, while the root it ends at isn't.
+#[test]
+fn a_chain_follows_the_issuers_key_and_carries_a_rollover() {
+    use super::certificate::chain;
+    let (old_root_key, new_root_key) = (new_key(), new_key());
+    let (old_root, old_root_der) = issued_by_key("Example Root", true, &old_root_key, None);
+    let (new_root, new_root_der) = issued_by_key("Example Root", true, &new_root_key, None);
+    let (_, rollover_der) = issued_by_key("Example Root", true, &new_root_key, Some((&old_root, &old_root_key)));
+    let (old_inter_key, inter_key) = (new_key(), new_key());
+    let (_, old_inter_der) = issued_by_key("Example Intermediate", true, &old_inter_key, Some((&new_root, &new_root_key)));
+    let (inter, inter_der) = issued_by_key("Example Intermediate", true, &inter_key, Some((&new_root, &new_root_key)));
+    let (_, leaf_der) = issued_by_key("Owner", false, &new_key(), Some((&inter, &inter_key)));
+    // The intermediate with the other key comes first, and isn't taken.
+    let pool = [old_inter_der.clone(), inter_der.clone(), new_root_der.clone(), old_root_der.clone()];
+    assert_eq!(chain(&leaf_der, &pool, 8), vec![inter_der.clone()]);
+    // With the rollover in the store: carried, up to the old root.
+    let pool = [old_inter_der, inter_der.clone(), new_root_der, rollover_der.clone(), old_root_der];
+    assert_eq!(chain(&leaf_der, &pool, 8), vec![inter_der, rollover_der]);
+}

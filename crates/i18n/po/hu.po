@@ -145,6 +145,11 @@ msgid "\"{title}\" is cancelled, so it can't be added to the selection."
 msgstr "„{title}” le van mondva, ezért nem adható hozzá a kijelöléshez."
 
 #. what a command says
+#: crates/engine/src/cmd/signing.rs
+msgid "'{subject}' couldn't be Digitally signed, so it wasn't sent: {why}. It is held in the Outbox."
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/graph_send.rs
 #, fuzzy
 msgid "'{subject}' may have been sent, even if its copy in Sent (or Drafts) is still marked as a draft. It is held in the Outbox."
@@ -193,7 +198,7 @@ msgid "(no recipients)"
 msgstr "(nincs címzett)"
 
 #. android, interface, what a command says, why a mail server couldn't be used
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/MessageHeader.kt crates/engine/src/cmd/compose.rs crates/engine/src/cmd/graph_drafts.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/snooze.rs crates/mobile/src/sync.rs crates/net/src/sync.rs crates/ui-egui/src/alerts.rs crates/ui-egui/src/mail_view.rs crates/ui-egui/src/mail_view/server_rows.rs crates/ui-egui/src/people_view.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/reminders.rs crates/ui-egui/src/tasks_view.rs crates/ui-egui/src/windows.rs
 #, fuzzy
 msgid "(no subject)"
 msgstr "(nincs tárgy)"
@@ -462,6 +467,11 @@ msgstr "@{login}: {prs} beolvasztott PR, {commits} véglegesítés, +{added} / �
 msgid "A .pst file is being imported: try again when it is done"
 msgstr "A .pst fájlt importálják: próbálja újra, ha kész"
 
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "A Digital signature shows that a message from {account} came from you and wasn't changed on the way."
+msgstr ""
+
 #. what a command says
 #: crates/model/src/mailbox_snooze.rs
 #, fuzzy
@@ -491,6 +501,11 @@ msgstr "Egy naptárban, amely csak azt mutatja, mikor foglaltak az emberek, ninc
 #, fuzzy
 msgid "A calendar that only shows when people are busy has nothing that can be deleted."
 msgstr "Egy naptárban, amely csak azt mutatja, mikor foglaltak az emberek, nincs semmi, ami törölhető."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "A certificate or key to sign with is chosen"
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/sync_driver/calendar_plan.rs
@@ -1581,6 +1596,11 @@ msgstr "Mindig mozgassa az üzeneteket"
 #, fuzzy
 msgid "Always Move Messages From This Sender"
 msgstr "A feladó üzeneteinek automatikus áthelyezése"
+
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "Always add a Digital signature to messages from this account"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/remote.rs
@@ -3573,6 +3593,11 @@ msgid "Choose who this is sent from"
 msgstr "Válassza ki, kinek a nevében küldi"
 
 #. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "Chosen now: {key}"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
 msgid "City"
@@ -3673,6 +3698,11 @@ msgstr "Keresés törlése (Esc)"
 #, fuzzy
 msgid "Clear the flag"
 msgstr "Jelölő törlése"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Click here to choose the certificate or key to sign with, or turn Sign off"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -4878,6 +4908,16 @@ msgstr "Ábra"
 msgid "Digital Signature"
 msgstr "Digitális aláírás"
 
+#. command label, interface
+#: crates/engine/src/cmd/signing.rs crates/ui-egui/src/account_setup.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs
+msgid "Digital Signatures"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Digital Signatures…"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
@@ -4897,10 +4937,20 @@ msgid "Digital signatures are checked with these. They are collected from Digita
 msgstr "A digitális aláírásokat ezekkel ellenőrizzük, és a digitálisan aláírt levelekből gyűjtjük, amelyeket itt kapsz vagy importálsz."
 
 #. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "Digital signatures are made by the desktop program."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/reading/signature.rs
 #, fuzzy
 msgid "Digitally signed and verified"
 msgstr "Digitális aláírás és ellenőrzés"
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Digitally signed at Send with {key} (clear-signed)"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/reading/signature.rs
@@ -5566,6 +5616,11 @@ msgstr "Postafiók ürítése"
 msgid "Enable Rule"
 msgstr "Szabályok engedélyezése"
 
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/signing.rs crates/ui-egui/src/ribbon.rs
+msgid "Encrypt"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -5977,7 +6032,7 @@ msgid "Fewer than two of these contacts are still here, so there is nothing to m
 msgstr "Ketten még mindig itt vannak, szóval nincs mit összehozni."
 
 #. command label, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/help.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/tasks_remote.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "File"
 msgstr "Fájl"
@@ -6797,6 +6852,11 @@ msgstr "A GnuPG telepítve van, de nem válaszolt ({why}): OpenPGP dedikálás c
 #, fuzzy
 msgid "GnuPG isn't installed: OpenPGP signing will work only with a key imported here."
 msgstr "A GnuPG nincs telepítve: a OpenPGP dedikálás csak egy ide behozott kulccsal működik."
+
+#. interface
+#: crates/ui-egui/src/security.rs
+msgid "GnuPG, on a smartcard"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -7749,7 +7809,7 @@ msgid "Indexing mail: {percent}%"
 msgstr "Indexáló levél: {percent}%"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/auto_replies.rs crates/engine/src/cmd/calendar_subscribed.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/device_limits.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/tasks_remote.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Info"
 msgstr "Információ"
@@ -7916,6 +7976,11 @@ msgstr "Kibocsátó:"
 msgid "Issued to"
 msgstr "Kibocsátva"
 
+#. what a command says
+#: crates/engine/src/cmd/signing.rs
+msgid "It couldn't be Digitally signed: {why}. It wasn't sent; Send Again tries again."
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
@@ -7945,6 +8010,11 @@ msgstr "Ez egy azonosító, nem egy titok. MailCraft tartja a beállításokat (
 #, fuzzy
 msgid "It is held in memory for this import only, and never written down."
 msgstr "Csak erre az importra emlékeznek, és soha nem írják le."
+
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "It is held in memory until MailCraft closes, and never saved. Send Again sends the message that waits for it."
+msgstr ""
 
 #. what a command says
 #: crates/engine/src/cmd/people_merge.rs
@@ -7987,6 +8057,11 @@ msgstr "A postaszerverből is eltávolítják, és ezt nem lehet visszacsinálni
 #, fuzzy
 msgid "It is the same for an installed and a portable copy. MailCraft quits afterwards."
 msgstr "Ugyanez vonatkozik egy beépített és hordozható másolatra is. A MailCraft utána kilép."
+
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "It isn't for this account's address: recipients will see the signer as not verified."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -8763,6 +8838,11 @@ msgstr "Ezt a találkozót keresem a naptáradban…"
 #, fuzzy
 msgid "Looking for your Exchange server…"
 msgstr "Keresem a csere szerverét…"
+
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "Looking for your certificates and keys…"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/check_names.rs
@@ -9882,8 +9962,8 @@ msgstr "Hónap"
 msgid "More"
 msgstr "Továbbiak"
 
-#. ribbon location
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
+#. ribbon, ribbon location
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "More Options"
 msgstr "További lehetőségek"
@@ -10844,6 +10924,21 @@ msgid "No category"
 msgstr "Nincs kategória"
 
 #. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "No certificate or OpenPGP key that can sign was found on this computer: an S/MIME certificate with its private key in the system's certificate store (or on a smartcard), or an OpenPGP key in GnuPG."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "No certificate or key"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "No certificate or key to sign with is chosen"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "No certificates or keys of yours were found on this computer."
@@ -11666,7 +11761,7 @@ msgid "Numbering"
 msgstr "Számozás"
 
 #. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AboutPages.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountDialogs.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/CalendarScreen.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/TaskEditorScreen.kt crates/ui-egui/src/auto_replies.rs crates/ui-egui/src/calendar_sync.rs crates/ui-egui/src/check_names.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/digital_signatures.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/merge_contacts.rs crates/ui-egui/src/move_items.rs crates/ui-egui/src/reminder_dialog.rs crates/ui-egui/src/send_later.rs crates/ui-egui/src/settings_notice.rs crates/ui-egui/src/software.rs crates/ui-egui/src/updates.rs
 #, fuzzy
 msgid "OK"
 msgstr "OK"
@@ -12037,6 +12132,11 @@ msgstr "Csak kérésre"
 msgid "Only while MailCraft isn't the window in front, and only for the Inboxes of your own accounts."
 msgstr "Csak akkor, amikor a MailCraft ablaka nincs előtérben, és csak a saját fiókok Beérkezett üzenetek mappáihoz."
 
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "Only you choose how this account signs, in the window"
+msgstr ""
+
 #. android, interface, ribbon
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -12282,6 +12382,11 @@ msgid "Open {name}? {why}"
 msgstr "Megnyitja ezt: „{name}”? {why}"
 
 #. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "OpenPGP key"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/open_shared.rs
 #, fuzzy
 msgid "Opened the calendar of {name}. It is listed under Shared Calendars, on this computer only."
@@ -12354,7 +12459,7 @@ msgid "Optional"
 msgstr "Opcionális"
 
 #. command label, interface, name, ribbon location
-#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
+#: crates/engine/src/cmd/calendar.rs crates/engine/src/cmd/calendar/invitation.rs crates/engine/src/cmd/calendar_extra.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/file.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/keys.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/zones.rs crates/ui-egui/src/backstage.rs crates/ui-egui/src/lib.rs crates/ui-egui/src/menubar.rs
 #, fuzzy
 msgid "Options"
 msgstr "Beállítások"
@@ -14009,6 +14114,11 @@ msgstr "Hiba bejelentése"
 msgid "Request Responses"
 msgstr "Válaszok kérése"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Request a Delivery Receipt"
+msgstr ""
+
 #. command label, ribbon
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -14344,6 +14454,11 @@ msgid "Run this rule on mail as it arrives"
 msgstr "A szabály futtatása az üzenetek beérkezésekor"
 
 #. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "S/MIME certificate"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
 #, fuzzy
 msgid "SHA-256 fingerprint"
@@ -14493,6 +14608,11 @@ msgstr "Üzenet mentése másként…"
 msgid "Save Message File As"
 msgstr "Üzenetfájl mentése"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Save Sent Item To"
+msgstr ""
+
 #. command label
 #: crates/engine/src/cmd/signature.rs
 #, fuzzy
@@ -14510,6 +14630,11 @@ msgstr "Mentés iCalendarként…"
 #, fuzzy
 msgid "Save draft"
 msgstr "Piszkozat mentése"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Save or discard changes here before choosing how this account signs."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup.rs
@@ -15516,8 +15641,8 @@ msgstr "Kézi beállítás"
 msgid "Setting up the account stopped unexpectedly"
 msgstr "A fiók beállítása váratlanul megszakadt"
 
-#. android, interface
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/ui-egui/src/backstage.rs
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AppDrawer.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/SettingsScreen.kt crates/engine/src/cmd/signing.rs crates/ui-egui/src/backstage.rs
 #, fuzzy
 msgid "Settings"
 msgstr "Beállítások"
@@ -16032,6 +16157,11 @@ msgstr ""
 msgid "Side-by-Side"
 msgstr "Oldalsó"
 
+#. command label, ribbon
+#: crates/engine/src/cmd/signing.rs crates/ui-egui/src/ribbon.rs
+msgid "Sign"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/dialogs.rs
 #, fuzzy
@@ -16189,6 +16319,11 @@ msgid "Sign in with Send/Receive to see when other people are busy."
 msgstr "Jelentkezz be a Küldés/Elfogadásnál, hogy mikor vannak mások elfoglaltak."
 
 #. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "Sign with"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Sign-in cancelled"
@@ -16308,6 +16443,11 @@ msgstr "Bejelentkezés ezzel a szolgáltatóval: {provider}"
 msgid "Signs in with: {how}"
 msgstr "Bejelentkezési mód: {how}"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Signs with {key}"
+msgstr ""
+
 #. name
 #: crates/ui-egui/src/ribbon.rs
 #, fuzzy
@@ -16373,6 +16513,11 @@ msgstr "Skype üzleti célokra"
 #, fuzzy
 msgid "Smallest on top"
 msgstr "A legkisebb a tetején"
+
+#. interface
+#: crates/ui-egui/src/dialogs.rs
+msgid "Smartcard PIN"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/security.rs
@@ -17813,6 +17958,21 @@ msgid "The certificate wasn't issued by a certification authority this computer 
 msgstr "A tanúsítványt nem egy tanúsító hatóság adta ki, hanem ez a számítógépes vagyonkezelő."
 
 #. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "The certificates and keys couldn't be looked for."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "The chosen key is for {addresses}, not {account}: recipients will see the signer as not verified."
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "The chosen key names no e-mail address, so it isn't for {account}: recipients will see the signer as not verified."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs
 #, fuzzy
 msgid "The connection test only checks that this server answers. If it does want a sign-in, the first message you send says so."
@@ -19024,6 +19184,11 @@ msgstr "A jeladó kulcsa nem lett jelölve."
 #, fuzzy
 msgid "The signer's key was revoked by its owner."
 msgstr "A signer kulcsát a tulajdonosa visszavonta."
+
+#. interface
+#: crates/ui-egui/src/digital_signatures.rs
+msgid "The smartcard {token} needs its PIN to add a Digital signature."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/view_source.rs
@@ -21025,6 +21190,11 @@ msgstr "A Küldés/fogadás paranccsal jelentkezhet be ebbe a fiókba: {address}
 msgid "Use This Address"
 msgstr "A cím használata"
 
+#. ribbon
+#: crates/ui-egui/src/ribbon.rs
+msgid "Use Voting Buttons"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -22686,6 +22856,16 @@ msgstr "a kategória: {words}"
 msgid "choose a time within a year"
 msgstr "válasszon egy évnyi időn belüli időpontot"
 
+#. what a command says
+#: crates/engine/src/cmd/signing.rs
+msgid "choose the certificate or key to sign with before turning Always on"
+msgstr ""
+
+#. what a command says
+#: crates/engine/src/cmd/signing.rs
+msgid "choose the certificate or key to sign with first (File › Info › Settings › Digital Signatures), or turn Sign off"
+msgstr ""
+
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23198,6 +23378,11 @@ msgstr "leveszi az ablakot az üzenetről, amit a tulajdonos ír."
 msgid "it took too long"
 msgstr "Túl sokáig tartott."
 
+#. why a mail server couldn't be used
+#: crates/net/src/send.rs
+msgid "it was to be Digitally signed and wasn't, so it wasn't sent"
+msgstr ""
+
 #. name
 #: crates/engine/src/agent.rs
 #, fuzzy
@@ -23421,7 +23606,7 @@ msgid "no account with id {account}"
 msgstr "nincs ilyen azonosítójú fiók: {account}"
 
 #. what a command says
-#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs
+#: crates/engine/src/cmd/account.rs crates/engine/src/cmd/calendar_opened.rs crates/engine/src/cmd/calendar_settings.rs crates/engine/src/cmd/compose.rs crates/engine/src/cmd/contacts_remote.rs crates/engine/src/cmd/dav_account.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/folder.rs crates/engine/src/cmd/graph_mail.rs crates/engine/src/cmd/graph_send.rs crates/engine/src/cmd/graph_switch.rs crates/engine/src/cmd/jmap_mail.rs crates/engine/src/cmd/offline.rs crates/engine/src/cmd/remote.rs crates/engine/src/cmd/rules.rs crates/engine/src/cmd/search_server.rs crates/engine/src/cmd/senders.rs crates/engine/src/cmd/shared.rs crates/engine/src/cmd/signature.rs crates/engine/src/cmd/signing.rs
 #, fuzzy
 msgid "no account with id {id}"
 msgstr "nincs ilyen azonosítójú fiók: {id}"
@@ -23517,7 +23702,7 @@ msgid "no message being written has the id {id}"
 msgstr "Nincs olyan üzenet, amiben megírnák az azonosító {id}-t."
 
 #. what a command says, why a command can't run
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/writing_tools.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/edit.rs crates/engine/src/cmd/ews_mail.rs crates/engine/src/cmd/followup.rs crates/engine/src/cmd/format.rs crates/engine/src/cmd/mod.rs crates/engine/src/cmd/picture.rs crates/engine/src/cmd/send_later.rs crates/engine/src/cmd/signing.rs crates/engine/src/cmd/writing_tools.rs
 #, fuzzy
 msgid "no message is being written"
 msgstr "nincs megnyitva szerkesztésre üzenet"
@@ -25377,6 +25562,11 @@ msgid "this Send/Receive was for the server {name} named before"
 msgstr "Ez a Send/Receive a {name} nevű kiszolgálónak volt."
 
 #. what a command says
+#: crates/engine/src/cmd/signing.rs
+msgid "this account doesn't send mail from here, so its messages can't be Digitally signed: turn Sign off"
+msgstr ""
+
+#. what a command says
 #: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/send_later.rs
 #, fuzzy
 msgid "this account has no Drafts folder"
@@ -25633,7 +25823,7 @@ msgid "unexpected server response: {reason}"
 msgstr "váratlan szerver válasz: {reason}"
 
 #. interface
-#: crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/digital_signatures.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "valid until {date}"
 msgstr "érvényes {date}-ig"

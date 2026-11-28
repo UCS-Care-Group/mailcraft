@@ -165,6 +165,10 @@ pub enum Dialog {
     /// People › Merge Duplicates (#506, [`crate::merge_contacts`]): it only collects what to
     /// merge, then runs `people.merge`.
     MergeContacts(Box<crate::merge_contacts::MergeContacts>),
+    /// An account's Digital signatures: the key it signs with, and whether always (#30).
+    DigitalSignatures(Box<crate::digital_signatures::DigitalSignatures>),
+    /// A smartcard's PIN, asked when a signature wanted it (#30).
+    SigningPin(Box<crate::digital_signatures::SigningPin>),
     /// Move to Contacts Folder… (#1144, [`crate::move_contacts`]): it only chooses the folder
     /// (and asks about somebody there already), then runs `people.moveToFolder`.
     MoveContacts(Box<crate::move_contacts::MoveContacts>),
@@ -337,6 +341,8 @@ impl Dialog {
             Dialog::ImportTree(_) => "importTree",
             Dialog::ImportPst(_) => "importPst",
             Dialog::MergeContacts(_) => "mergeContacts",
+            Dialog::DigitalSignatures(_) => "digitalSignatures",
+            Dialog::SigningPin(_) => "signingPin",
             Dialog::MoveContacts(_) => "moveContacts",
             Dialog::Pick(p) => match p.kind {
                 crate::pick_item::PickKind::Message => "attachItem",
@@ -500,6 +506,11 @@ pub(crate) fn open_dialog(app: &mut MailApp, name: &str, params: &Value) -> Opti
         app.session.compose.as_ref()?;
         let kind = if name == "attachItem" { crate::pick_item::PickKind::Message } else { crate::pick_item::PickKind::Contact };
         return Some(Dialog::Pick(Box::new(crate::pick_item::Pick::new(kind))));
+    }
+    if name == "digitalSignatures" {
+        let account =
+            params.get("account").and_then(Value::as_u64).filter(|i| *i != 0).or_else(|| app.session.compose.as_ref().map(|c| c.account))?;
+        return crate::digital_signatures::DigitalSignatures::open(app, account).map(|d| Dialog::DigitalSignatures(Box::new(d)));
     }
     if name == "mergeContacts" {
         return crate::merge_contacts::MergeContacts::open(app, params).map(|d| Dialog::MergeContacts(Box::new(d)));
@@ -3128,6 +3139,21 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::Pick(dialog) => {
             let mut done = false;
             let open = window(ctx, dialog.title(), crate::pick_item::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+        }
+        Dialog::DigitalSignatures(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Digital Signatures"), crate::digital_signatures::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+        }
+        Dialog::SigningPin(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Smartcard PIN"), crate::digital_signatures::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            // Escape or the window's X: closed without a PIN, which the host is told (Cancel
+            // told it already).
+            if (close || !open) && !done {
+                dialog.close(app);
+            }
             close |= !open || done;
         }
         Dialog::NameChoice(dialog) => {

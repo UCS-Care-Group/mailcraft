@@ -104,6 +104,11 @@ mod settings_unread_tests;
 mod shared_calendar_flow;
 #[cfg(test)]
 mod shared_send_flow;
+mod signing;
+#[cfg(test)]
+mod signing_interop_tests;
+#[cfg(test)]
+mod signing_tests;
 mod single_instance;
 #[cfg(any(target_os = "windows", target_os = "macos"))]
 mod spelling;
@@ -874,6 +879,17 @@ fn favorites_refusal(refusal: mailcraft_net::oauth::FavoritesRefusal) -> String 
     }
 }
 
+/// Microsoft Graph's run, with what is to go Digitally signed signed first (#30): what can't be
+/// is held and never sent unsigned.
+fn signed_graph(mut request: GraphRequest) -> mailcraft_ui_egui::GraphResult {
+    let mut unsigned = signing::sign_outbox(&mut request.outbox);
+    // (A run kept in step through Graph says them here too: its mail may come back in pieces.)
+    unsigned.extend(request.mail.as_mut().map(|mail| signing::sign_sends(&mut mail.sends)).unwrap_or_default());
+    let mut out = mailcraft_host::graph::graph(request);
+    out.unsigned.extend(unsigned);
+    out
+}
+
 /// Keep an account's list of categories in step with its server (#661): a token that may change
 /// it (a sign-in that doesn't cover it gets none: the answer says so, and nothing is sent), what
 /// waits told to the server, then the list read back. Nothing of a category is logged.
@@ -1155,13 +1171,22 @@ fn services(
             let (wake, cancel) = (sync_ctx.clone(), cancel.clone());
             cancel.store(false, Ordering::Relaxed);
             let spawned = std::thread::Builder::new().name("send/receive".into()).spawn(move || {
-                mailcraft_net::sync_with(&request, &cancel, &mut |piece| {
+                // What is to go Digitally signed is signed first; what can't be is held (#30).
+                let mut deliver = |piece| {
                     // Nobody is listening any more (the window closed): stop.
-                    if tx.send(piece).is_err() {
+                    let listening = tx.send(piece).is_ok();
+                    if !listening {
                         cancel.store(true, Ordering::Relaxed);
                     }
                     wake.request_repaint();
-                });
+                    listening
+                };
+                signing::signed_run(
+                    request,
+                    &signing::sign_now,
+                    |request, deliver| mailcraft_net::sync_with(request, &cancel, deliver),
+                    &mut deliver,
+                );
             });
             // A dropped sender reads as "stopped unexpectedly" in the app.
             if let Err(e) = spawned {
@@ -1202,7 +1227,7 @@ fn services(
         })),
         graph: Some(Box::new({
             let host = host.clone();
-            move |request: GraphRequest| host_job(host.as_ref(), &graph_ctx, "microsoft graph", move || mailcraft_host::graph::graph(request))
+            move |request: GraphRequest| host_job(host.as_ref(), &graph_ctx, "microsoft graph", move || signed_graph(request))
         })),
         // Messages of a Microsoft account fetched whole, a few at a time (R3.2).
         graph_fetch: Some(Box::new({
@@ -1215,6 +1240,8 @@ fn services(
         ews: Some(Box::new(move |job| ews_runner::run_mail(job, &ews_ctx))),
         ews_fetch: Some(Box::new(move |job| ews_runner::run_fetch(job, &ews_fetch_ctx))),
         ews_setup: Some(Box::new(move |job| ews_setup::run_setup(job, &ews_setup_ctx))),
+        // Digital signatures (#30): the owner's keys, and a smartcard's PIN.
+        signing: Some(signing::host()),
         // Names looked up in its address list, on the owner's Check Names (#1262).
         ews_resolve: Some(Box::new(move |job| ews_runner::run_resolve(job, &ews_resolve_ctx))),
         // A Microsoft mailbox searched on its server, a page at a time, on the owner's click (R6.2).

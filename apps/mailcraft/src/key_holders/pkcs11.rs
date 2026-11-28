@@ -212,6 +212,11 @@ pub trait TokenSession {
     fn facts(&self) -> Result<TokenFacts, KeyHolderError>;
     /// The X.509 certificates on the token with their `CKA_ID`, at most [`MAX_SCANNED`].
     fn certificates(&self) -> Vec<(Vec<u8>, Vec<u8>)>;
+    /// Every X.509 certificate on the token, with an id or not (an authority's has none), for a
+    /// signer's chain: at most [`super::certificate::MAX_AUTHORITIES`]. None when the token can't say.
+    fn authorities(&self) -> Vec<Vec<u8>> {
+        Vec::new()
+    }
     /// The key objects of `class` with this `CKA_ID`, at most [`MAX_KEYS_PER_ID`].
     fn keys(&self, class: ObjectClass, id: &[u8]) -> Vec<Self::Key>;
     /// What the token says of a key object's public half.
@@ -276,6 +281,21 @@ pub fn list<M: Module>(module: &M, now: Option<u64>) -> Result<Vec<TokenCertific
         }
     }
     Ok(out)
+}
+
+/// The certificates on `module`'s tokens that a signer's chain may be made of
+/// ([`super::certificate::chain`]): within [`super::certificate::gather`]'s caps.
+pub fn authorities<M: Module>(module: &M) -> Vec<Vec<u8>> {
+    let mut pool = Vec::new();
+    for slot in module.slots().unwrap_or_default() {
+        let Ok(session) = module.open(slot) else { continue };
+        for der in session.authorities() {
+            if !super::certificate::gather(&mut pool, der) {
+                return pool;
+            }
+        }
+    }
+    pool
 }
 
 /// Signs `digest` with the key of the certificate whose SHA-256 is `fingerprint`; `pin` is the
@@ -602,6 +622,11 @@ impl Pkcs11Holder {
         list(self, now())
     }
 
+    /// [`authorities`] on this module's tokens.
+    pub fn authorities(&self) -> Vec<Vec<u8>> {
+        authorities(self)
+    }
+
     /// [`sign_digest`] with this module's tokens.
     pub fn sign_digest(
         &self,
@@ -677,6 +702,23 @@ impl TokenSession for Pkcs11Session {
             }
             if let (Some(der), Some(id)) = (der, id) {
                 out.push((der, id));
+            }
+        }
+        out
+    }
+
+    fn authorities(&self) -> Vec<Vec<u8>> {
+        let template = [Attribute::Class(ObjectClass::CERTIFICATE), Attribute::CertificateType(CertificateType::X_509)];
+        let Ok(handles) = self.session.find_objects(&template) else { return Vec::new() };
+        let mut out = Vec::new();
+        for handle in handles.into_iter().take(super::certificate::MAX_AUTHORITIES) {
+            let Ok(attributes) = self.session.get_attributes(handle, &[AttributeType::Value]) else { continue };
+            for attribute in attributes {
+                if let Attribute::Value(v) = attribute
+                    && v.len() <= MAX_CERTIFICATE_LEN
+                {
+                    out.push(v);
+                }
             }
         }
         out

@@ -1074,6 +1074,8 @@ mod search_tests;
 #[cfg(test)]
 mod shared_tests;
 #[cfg(test)]
+mod signed_send_tests;
+#[cfg(test)]
 mod skip_tests;
 #[cfg(test)]
 mod tests;

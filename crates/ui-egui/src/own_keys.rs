@@ -41,8 +41,10 @@ pub enum KeyPlace {
     Keychain,
     /// A PKCS#11 token (a smartcard), by its label.
     Token(String),
-    /// The owner's GnuPG keyring, or a card GnuPG reads.
+    /// The owner's GnuPG keyring.
     Gnupg,
+    /// A smartcard GnuPG reads (gpg-agent holds its key).
+    GnupgCard,
     /// Imported here, kept in the system's credential store.
     Imported,
 }

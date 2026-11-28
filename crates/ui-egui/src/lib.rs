@@ -112,6 +112,7 @@ mod dialog_scrim_tests;
 #[cfg(test)]
 mod dialog_size_tests;
 pub mod dialogs;
+pub mod digital_signatures;
 #[cfg(test)]
 mod draft_continue_tests;
 #[cfg(test)]
@@ -292,6 +293,8 @@ mod signature_link_tests;
 mod signature_rename_tests;
 mod signatures;
 #[cfg(test)]
+mod signing_problems_tests;
+#[cfg(test)]
 mod snooze_tell_tests;
 mod snooze_tick;
 pub mod software;
@@ -462,6 +465,8 @@ pub struct Services {
     /// test the account with one request for the Inbox ([`ews_setup`]). Absent where no host does
     /// (the browser): Add Account then says it can't connect.
     pub ews_setup: Option<Box<dyn Fn(ews_setup::EwsSetupJob) -> Receiver<ews_setup::EwsSetupEvent>>>,
+    /// Desktop: the owner's keys that can add a Digital signature, and a smartcard's PIN (#30).
+    pub signing: Option<std::sync::Arc<dyn digital_signatures::SigningHost>>,
     /// Whether the host holds the credential of this JMAP account itself (a page that signed the
     /// owner in to its server): for such an account the window never asks for a password, and its
     /// jobs go without one. Absent, or false for an account: the owner types it.
@@ -4390,7 +4395,7 @@ impl MailApp {
         }
         // What was handed to Microsoft and whose answer was lost may have gone: held for the
         // owner, never sent again by itself (AU3-26).
-        let mut said = Vec::new();
+        let (mut said, mut unsigned) = (Vec::new(), Vec::new());
         if mailcraft_engine::cmd::graph_send::hold_lost(
             &mut self.session.mailbox,
             account,
@@ -4398,12 +4403,22 @@ impl MailApp {
             "Microsoft",
             self.session.interface_language,
             &mut said,
+        ) | mailcraft_engine::cmd::signing::hold_unsigned(
+            &mut self.session.mailbox,
+            account,
+            &result.unsigned,
+            self.session.interface_language,
+            &mut unsigned,
         ) {
             self.session.mailbox_changed();
-            if let Some(first) = said.first() {
+            if let Some(first) = said.first().or(unsigned.first()) {
                 self.status(first.clone());
             }
         }
+        // Not Digitally signed as it was to be (#30): kept among the run's problems, so that the
+        // account says it until the owner has seen it, not only in passing; an IMAP leg of the
+        // same run that goes through cleanly doesn't clear it ([`MailApp::poll_sync`]).
+        result.errors.extend(unsigned.iter().cloned());
         // What the run sent is filed by now, what it held for a lost answer is held, and the rest
         // (not tried, or Microsoft said later) didn't go: no message of the account is marked as
         // being sent any more. (A job that ended without an answer, or with a piece refused,
@@ -4541,11 +4556,15 @@ impl MailApp {
             return;
         }
         self.note_sync_problems(account, &errors, false);
-        let skip: Vec<Id> = result.sent.iter().chain(&result.held).copied().collect();
-        if let Err(e) = self.start_sync(&json!({"account": account, "quiet": quiet, "afterGraph": true, "skip": skip})) {
-            self.session.sync_progress.end(account, false);
-            self.session.sync_status.clear();
-            self.status(e);
+        let skip: Vec<Id> = result.sent.iter().chain(&result.held).copied().chain(result.unsigned.iter().map(|u| u.message)).collect();
+        match self.start_sync(&json!({"account": account, "quiet": quiet, "afterGraph": true, "skip": skip})) {
+            Err(e) => {
+                self.session.sync_progress.end(account, false);
+                self.session.sync_status.clear();
+                self.status(e);
+            }
+            // The IMAP leg's run counts them among its own problems.
+            Ok(_) => self.sync_totals.errors.extend(unsigned),
         }
     }
 
@@ -5807,6 +5826,8 @@ impl MailApp {
         // mailbox's times are put by the new clock before anything of it is drawn, and so are
         // the appointments that stand open.
         self.follow_zone();
+        // A smartcard that wanted its PIN for a Digital signature is asked about (#30).
+        self.ask_for_signing_pin();
         // Escape and Enter go to one place, and to nothing under it: worked out here, before
         // anything reads them (#406). The agent's question is on top of everything.
         keys::gate_main(self, &ctx);

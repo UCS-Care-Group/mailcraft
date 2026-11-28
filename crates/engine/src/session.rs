@@ -753,6 +753,10 @@ pub struct Compose {
     /// Request a Read Receipt: the message asks for one, to its sender (`compose.readReceipt`).
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub read_receipt: bool,
+    /// Sign (`compose.sign`, #30 R16a): `None` while the owner hasn't set it for this message,
+    /// and the account's Always add a Digital signature holds, as it stands at Send.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub sign: Option<bool>,
     /// Delay Delivery (#950, `compose.delay`): the message is not sent before this time (seconds
     /// since 1970). A time that has passed by the time of Send is no delay.
     #[serde(skip_serializing_if = "Option::is_none")]

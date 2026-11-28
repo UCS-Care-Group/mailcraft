@@ -32,4 +32,6 @@ libfuzzer_sys::fuzz_target!(|data: &[u8]| {
     let _ = mailcraft_openpgp::parse_autocrypt(&String::from_utf8_lossy(data));
     let _ = mailcraft_openpgp::secret::read(data);
     let _ = mailcraft_openpgp::secret::holds_secret(data);
+    // The keys `gpg --export` brought, read for signing (#30 part 5).
+    let _ = mailcraft_openpgp::signing_keys(data, 1_790_000_000);
 });

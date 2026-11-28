@@ -255,7 +255,7 @@ fn a_send_after_the_version_steps_down_makes_one_message() {
         body: mailcraft_model::Body { text: "Numbers attached.".into(), ..Default::default() },
         ..Default::default()
     });
-    let send = SendUp { message: 3, draft: None, mime: Some(message) };
+    let send = SendUp { message: 3, draft: None, mime: Some(message), discard: String::new() };
     let result = run(&standin, &EwsMailRequest { sends: vec![send], list_folders: false, ..request() });
     assert_eq!(result.sent[0].outcome, SendOutcome::Sent);
     let state = standin.state();

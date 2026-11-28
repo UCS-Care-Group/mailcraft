@@ -18,8 +18,9 @@ use super::changes_tests::{
     run_fake, run_over, run_stand_in, run_unchecked, sent_of, session_reply, status_reply,
 };
 use super::send::{
-    BAD_RECIPIENT, BAD_SENDER, Filing, MAX_RECIPIENTS, NO_IDENTITY, NO_MAILBOX, NO_RECIPIENTS, NO_SUBMISSION, NOTHING, Settled, TOO_LARGE, TOO_MANY,
-    blob_of_size, existing_of, filing_for, filing_of, identity_of, is_address, not_made, recipients, same_octets, settled, written,
+    BAD_RECIPIENT, BAD_SENDER, Filing, MAX_RECIPIENTS, NO_IDENTITY, NO_MAILBOX, NO_RECIPIENTS, NO_SUBMISSION, NOT_SIGNED, NOTHING, Settled,
+    TOO_LARGE, TOO_MANY, blob_of_size, existing_of, filing_for, filing_of, identity_of, is_address, not_made, recipients, same_octets, settled,
+    written,
 };
 use super::*;
 use crate::connection::tests::any_json;
@@ -50,7 +51,7 @@ fn message(to: &[&str], cc: &[&str], bcc: &[&str]) -> Message {
 }
 
 fn outbox(id: u64, message: Message) -> SendUp {
-    SendUp { message: id, draft: None, mime: Some(Box::new(message)) }
+    SendUp { message: id, draft: None, mime: Some(Box::new(message)), discard: String::new() }
 }
 
 /// A message to one person, waiting in the Outbox as the message `id`.
@@ -350,6 +351,22 @@ fn a_message_larger_than_the_server_takes_is_held_before_anything_is_uploaded() 
     assert_eq!(sent_of(&pieces), [is(41, held(TOO_LARGE)), is(42, SendOutcome::Sent)]);
     assert_eq!(uploads(&stand_in), 1, "only the small one was uploaded");
     assert!(last(&pieces).whole);
+}
+
+/// Review of #1036: a message that was to be Digitally signed and wasn't (moved into a JMAP
+/// account's Outbox from one that signs) is held, never uploaded or sent unsigned.
+#[test]
+fn a_message_to_be_signed_that_isnt_is_held_before_anything_is_uploaded() {
+    let (stand_in, _) = world();
+    let mut signed = message(&["bob@example.org"], &[], &[]);
+    signed.sign_with = Some(mailcraft_model::signing::SigningKey {
+        format: mailcraft_model::digital_signature::SignatureFormat::Smime,
+        fingerprint: "AB".repeat(32),
+        label: String::new(),
+    });
+    let pieces = send(&stand_in, vec![outbox(41, signed), simple(42)]);
+    assert_eq!(sent_of(&pieces), [is(41, held(NOT_SIGNED)), is(42, SendOutcome::Sent)]);
+    assert_eq!(uploads(&stand_in), 1, "only the unsigned one was uploaded");
 }
 
 #[test]
@@ -692,7 +709,7 @@ fn an_address_that_could_end_a_line_or_begin_another_is_no_recipient_and_the_mes
 
     // A message with nobody to go to, with too many, and with nothing to send, are held without an upload.
     let fake = sender(|_, _| None);
-    let nothing = SendUp { message: 43, draft: None, mime: None };
+    let nothing = SendUp { message: 43, draft: None, mime: None, discard: String::new() };
     let pieces = send_fake(&fake, vec![outbox(41, message(&[], &[], &[])), outbox(42, message(&crowd, &[], &[])), nothing, simple(44)]);
     assert_eq!(sent_of(&pieces), [is(41, held(NO_RECIPIENTS)), is(42, held(TOO_MANY)), is(43, held(NOTHING)), is(44, SendOutcome::Sent)]);
     assert_eq!(fake.uploads().len(), 1);

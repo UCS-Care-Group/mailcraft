@@ -113,6 +113,9 @@ pub struct GraphResult {
     /// connection, an answer that doesn't say): they may have gone, and are held for the owner
     /// (AU3-26). The rest of `held` didn't go, and goes with the next run.
     pub unsure: Vec<Id>,
+    /// Outbox messages that were to be Digitally signed and couldn't be (#30): none went; they
+    /// are held, with why.
+    pub unsigned: Vec<mailcraft_model::signing::Unsigned>,
     pub events: Option<mailcraft_model::remote::EventsDownload>,
     /// The account's own main contacts folder.
     pub contacts: Option<mailcraft_model::remote::ContactsDownload>,

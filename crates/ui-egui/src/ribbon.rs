@@ -135,7 +135,7 @@ impl From<Mode> for String {
 pub fn tabs(app: &MailApp) -> Vec<&'static str> {
     let mut tabs = vec!["File", "Home", "Send / Receive", "Folder", "View", "Help"];
     if crate::windows::compose_window::pane_compose(app).is_some() {
-        tabs.splice(1..1, ["Message", "Insert", "Format Text", "Review"]);
+        tabs.splice(1..1, ["Message", "Insert", "Options", "Format Text", "Review"]);
     }
     if crate::attachment_preview::pane_target(app).is_some() {
         tabs.push("Attachments");
@@ -497,6 +497,7 @@ pub(crate) fn describe_tab(app: &MailApp, name: &str) -> Tab {
     let (mut tab, which) = match name {
         "Message" => (message(app), "Message"),
         "Insert" => (insert(), "Insert"),
+        "Options" => (options(app), "Options"),
         "Format Text" => (format_text(app), "Format Text"),
         "Review" => (review(), "Review"),
         "Attachments" => {
@@ -982,6 +983,42 @@ fn message(app: &MailApp) -> Tab {
         ),
         // The reading pane's message into a window of its own (#286; a window's ribbon leaves it out).
         g("Window", vec![Item::big("popOut", "Pop\nOut", "compose.popOut", no()).at(6, 4)]),
+    ])
+}
+
+/// Options, while a message is being written, in classic Outlook's groups: Sign (#30), which is
+/// on when the message will go Digitally signed (the owner's choice for it, else its account's
+/// Always add a Digital signature), the message's tracking and where replies go, and the rest
+/// still to be built.
+fn options(app: &MailApp) -> Tab {
+    let compose = app.session.compose.as_ref();
+    let read_receipt = compose.is_some_and(|c| c.read_receipt);
+    let delayed = crate::send_later::delay_is_on(app);
+    let sign = compose
+        .is_some_and(|c| app.session.mailbox.account(c.account).or(app.session.mailbox.default_account()).is_some_and(|a| a.signing.signs(c.sign)));
+    Tab::of(vec![
+        g(
+            "Encrypt",
+            vec![Item::big("digitalSign", "Sign", "compose.sign", no()).checked(sign).at(0, 1), Item::pending("compose.encrypt", "Encrypt", 0)],
+        ),
+        g(
+            "Tracking",
+            vec![
+                Item::pending("compose.voting", "Use Voting Buttons", 1),
+                Item::pending("compose.deliveryReceipt", "Request a Delivery Receipt", 1),
+                Item::small("read", "Request a Read Receipt", "Ask to be told when the message is read", "compose.readReceipt", no())
+                    .checked(read_receipt)
+                    .at(1, 3),
+            ],
+        ),
+        g(
+            "More Options",
+            vec![
+                Item::pending("compose.saveSentTo", "Save Sent Item To", 2),
+                Item::small("clock", "Delay Delivery", "Do not deliver before a date and time", "compose.delay", no()).checked(delayed).at(2, 3),
+                Item::small("reply", "Direct Replies To", "Have replies sent to other addresses", "compose.replyTo", no()).at(2, 3),
+            ],
+        ),
     ])
 }
 
@@ -2942,7 +2979,7 @@ mod tests {
                 out.push((format!("{module} › {tab}"), vec![(module, json!({})), ("ui.tab", json!({"tab": tab}))]));
             }
         }
-        for tab in ["Message", "Insert", "Format Text", "Review"] {
+        for tab in ["Message", "Insert", "Options", "Format Text", "Review"] {
             out.push((
                 tab.to_string(),
                 vec![("view.mail", json!({})), ("mail.first", json!({})), ("mail.reply", json!({})), ("ui.tab", json!({"tab": tab}))],
@@ -3022,7 +3059,7 @@ mod tests {
             assert!(tab.groups.iter().all(|group| !group.title.is_empty() && !group.items.is_empty()), "{name}");
             seen += 1;
         }
-        assert_eq!(seen, 24);
+        assert_eq!(seen, 25);
     }
 
     /// Mail › Home in the order the simplified row has it, with its split buttons.

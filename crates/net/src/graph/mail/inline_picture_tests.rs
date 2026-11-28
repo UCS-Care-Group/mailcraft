@@ -81,7 +81,11 @@ fn sent_from_the_draft_the_copy_keeps_the_picture_inline() {
     let saved = run(&server, vec![draft("", vec![picture()], Vec::new())], Vec::new());
     let done = saved.drafts.first().cloned().unwrap();
     let synced = done.attachments.clone().unwrap_or_default();
-    let all = run(&server, Vec::new(), vec![SendUp { message: 5, draft: Some(draft(&done.id, vec![picture()], synced)), mime: None }]);
+    let all = run(
+        &server,
+        Vec::new(),
+        vec![SendUp { message: 5, draft: Some(draft(&done.id, vec![picture()], synced)), mime: None, discard: String::new() }],
+    );
     assert!(matches!(all.sent.as_slice(), [d] if d.outcome == SendOutcome::Sent), "{:?} {:?}", all.sent, all.errors);
     let sent_items = server.state().well_known("sentitems");
     let state = server.state();

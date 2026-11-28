@@ -695,12 +695,14 @@ pub(crate) fn options(app: &mut MailApp, ui: &mut Ui, t: &Tokens) {
     public_keys(app, ui, t);
 }
 
-fn place_name(place: &KeyPlace) -> String {
+/// Where one of the owner's keys is, in words (also Digital Signatures's list).
+pub(crate) fn place_name(place: &KeyPlace) -> String {
     match place {
         KeyPlace::WindowsStore => tl!("Windows certificate store").to_string(),
         KeyPlace::Keychain => tl!("Keychain").to_string(),
         KeyPlace::Token(label) => crate::i18n::fmt(tl!("Smartcard {label}"), &[("label", &crate::own_keys::clip(label))]),
         KeyPlace::Gnupg => tl!("GnuPG").to_string(),
+        KeyPlace::GnupgCard => tl!("GnuPG, on a smartcard").to_string(),
         KeyPlace::Imported => tl!("Imported here").to_string(),
     }
 }

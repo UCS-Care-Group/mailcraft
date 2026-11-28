@@ -331,6 +331,11 @@ pub struct SendUp {
     pub draft: Option<DraftUp>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub mime: Option<Box<Message>>,
+    /// A Microsoft account's draft on the server that a Digitally signed message saved as one
+    /// was (#30 R19): the message goes as MIME, its own bytes (sending the draft would have the
+    /// server build it again), and the draft is taken away once it has gone. Empty otherwise.
+    #[serde(skip_serializing_if = "String::is_empty")]
+    pub discard: String,
 }
 
 /// What became of a message sent.

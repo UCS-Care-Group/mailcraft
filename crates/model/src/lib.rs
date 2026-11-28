@@ -60,6 +60,9 @@ pub mod senders;
 mod senders_tests;
 pub mod shown;
 pub mod signature;
+pub mod signing;
+#[cfg(test)]
+mod signing_tests;
 pub mod subscription;
 pub mod sync;
 mod task;

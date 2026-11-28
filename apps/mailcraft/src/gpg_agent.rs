@@ -243,11 +243,14 @@ fn first_line(mut stream: impl Read) -> Vec<u8> {
 
 /// Connect to this computer's gpg-agent, with the hints its pinentry needs to show on the owner's
 /// screen (from this program's environment).
-#[cfg_attr(test, expect(dead_code, reason = "the tests never run the computer's own gpgconf"))]
 pub(crate) fn connect() -> Result<GpgAgent<AgentStream>, Unavailable> {
-    let gpgconf = find_gpgconf(&gpgconf_candidates(&|name| std::env::var_os(name))).ok_or(Unavailable::NoGnupg)?;
     let hints = PinentryHints::from_env(|name| std::env::var(name).ok());
-    connect_with(&Gpgconf::at(gpgconf), &hints)
+    connect_with(&gpgconf()?, &hints)
+}
+
+/// This computer's `gpgconf`.
+pub(crate) fn gpgconf() -> Result<Gpgconf, Unavailable> {
+    find_gpgconf(&gpgconf_candidates(&|name| std::env::var_os(name))).map(Gpgconf::at).ok_or(Unavailable::NoGnupg)
 }
 
 /// Connect through `gpgconf`: `gpgconf --launch gpg-agent` first (it does nothing when the agent

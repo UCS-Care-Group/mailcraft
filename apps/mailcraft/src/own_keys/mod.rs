@@ -15,7 +15,7 @@
 //!   when there is no credential store. The passphrase is used for the one call and let go of;
 //!   no private key opened here outlives the check.
 
-mod gnupg;
+pub(crate) mod gnupg;
 
 #[cfg(test)]
 #[allow(dead_code)]
@@ -74,7 +74,6 @@ fn list() -> Listing {
 }
 
 /// A certificate the system holds a private key for, as the window lists it.
-#[cfg_attr(not(any(target_os = "windows", target_os = "macos", target_os = "linux", target_os = "freebsd")), allow(dead_code))]
 fn held(h: &crate::key_holders::HeldCertificate, place: KeyPlace) -> OwnKey {
     OwnKey {
         format: SignatureFormat::Smime,
@@ -88,25 +87,25 @@ fn held(h: &crate::key_holders::HeldCertificate, place: KeyPlace) -> OwnKey {
     }
 }
 
+/// What it says when the system's certificates can't be read.
+#[cfg(target_os = "windows")]
+const UNREADABLE: &str = "Windows' certificate store couldn't be read";
+#[cfg(target_os = "macos")]
+const UNREADABLE: &str = "The keychain couldn't be read";
+#[cfg(not(any(target_os = "windows", target_os = "macos")))]
+const UNREADABLE: &str = "The smartcards couldn't be read";
+/// Whether "unavailable" is simply none there (no PKCS#11 module installed is no trouble: there
+/// are no tokens), rather than trouble.
+const NONE_IS_FINE: bool = !cfg!(any(target_os = "windows", target_os = "macos"));
+
+/// The certificates the system holds a private key for: the same listing signing uses
+/// (`signing::held`).
 fn system_certificates(listing: &mut Listing) {
-    #[cfg(target_os = "windows")]
-    match crate::key_holders::windows_store::certificates() {
-        Ok(found) => listing.keys.extend(found.iter().map(|h| held(h, KeyPlace::WindowsStore))),
-        Err(e) => listing.trouble.push(format!("Windows' certificate store couldn't be read: {e}")),
+    match crate::signing::held() {
+        Ok(found) => listing.keys.extend(found.iter().map(|h| held(&h.certificate, h.place.clone()))),
+        Err(crate::key_holders::KeyHolderError::Unavailable(why)) if NONE_IS_FINE => log::info!("no system certificates: {why}"),
+        Err(e) => listing.trouble.push(format!("{UNREADABLE}: {e}")),
     }
-    #[cfg(target_os = "macos")]
-    match crate::key_holders::macos_keychain::certificates() {
-        Ok(found) => listing.keys.extend(found.iter().map(|h| held(h, KeyPlace::Keychain))),
-        Err(e) => listing.trouble.push(format!("The keychain couldn't be read: {e}")),
-    }
-    #[cfg(any(target_os = "linux", target_os = "freebsd"))]
-    match crate::key_holders::pkcs11::open_default().and_then(|holder| holder.certificates()) {
-        Ok(found) => listing.keys.extend(found.iter().map(|t| held(&t.certificate, KeyPlace::Token(t.token.label.clone())))),
-        // No PKCS#11 module installed is no trouble: there are simply no tokens.
-        Err(crate::key_holders::KeyHolderError::Unavailable(why)) => log::info!("no PKCS#11 tokens: {why}"),
-        Err(e) => listing.trouble.push(format!("The smartcards couldn't be read: {e}")),
-    }
-    let _ = listing;
 }
 
 fn import(format: SignatureFormat, bytes: &[u8], passphrase: Option<&Passphrase>, store: Option<&dyn SecretStore>) -> Result<Imported, String> {

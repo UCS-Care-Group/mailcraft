@@ -37,21 +37,21 @@ const fn oid(s: &str) -> ObjectIdentifier {
 const MD5: ObjectIdentifier = oid("1.2.840.113549.2.5");
 const SHA1: ObjectIdentifier = oid("1.3.14.3.2.26");
 const SHA224: ObjectIdentifier = oid("2.16.840.1.101.3.4.2.4");
-const SHA256: ObjectIdentifier = oid("2.16.840.1.101.3.4.2.1");
-const SHA384: ObjectIdentifier = oid("2.16.840.1.101.3.4.2.2");
-const SHA512: ObjectIdentifier = oid("2.16.840.1.101.3.4.2.3");
+pub(crate) const SHA256: ObjectIdentifier = oid("2.16.840.1.101.3.4.2.1");
+pub(crate) const SHA384: ObjectIdentifier = oid("2.16.840.1.101.3.4.2.2");
+pub(crate) const SHA512: ObjectIdentifier = oid("2.16.840.1.101.3.4.2.3");
 
 // RSA.
-const RSA: ObjectIdentifier = oid("1.2.840.113549.1.1.1");
+pub(crate) const RSA: ObjectIdentifier = oid("1.2.840.113549.1.1.1");
 const MD2_RSA: ObjectIdentifier = oid("1.2.840.113549.1.1.2");
 const MD5_RSA: ObjectIdentifier = oid("1.2.840.113549.1.1.4");
 const SHA1_RSA: ObjectIdentifier = oid("1.2.840.113549.1.1.5");
-const PSS: ObjectIdentifier = oid("1.2.840.113549.1.1.10");
+pub(crate) const PSS: ObjectIdentifier = oid("1.2.840.113549.1.1.10");
 const SHA256_RSA: ObjectIdentifier = oid("1.2.840.113549.1.1.11");
 const SHA384_RSA: ObjectIdentifier = oid("1.2.840.113549.1.1.12");
 const SHA512_RSA: ObjectIdentifier = oid("1.2.840.113549.1.1.13");
 const SHA224_RSA: ObjectIdentifier = oid("1.2.840.113549.1.1.14");
-const MGF1: ObjectIdentifier = oid("1.2.840.113549.1.1.8");
+pub(crate) const MGF1: ObjectIdentifier = oid("1.2.840.113549.1.1.8");
 
 /// The bits of an RSA modulus written big-endian.
 fn modulus_bits(modulus: &[u8]) -> usize {
@@ -94,14 +94,14 @@ pub(crate) fn private_key_kind(algorithm: ObjectIdentifier, curve: Option<Object
 }
 
 // ECDSA.
-const EC_KEY: ObjectIdentifier = oid("1.2.840.10045.2.1");
+pub(crate) const EC_KEY: ObjectIdentifier = oid("1.2.840.10045.2.1");
 const SHA1_ECDSA: ObjectIdentifier = oid("1.2.840.10045.4.1");
 const SHA224_ECDSA: ObjectIdentifier = oid("1.2.840.10045.4.3.1");
-const SHA256_ECDSA: ObjectIdentifier = oid("1.2.840.10045.4.3.2");
-const SHA384_ECDSA: ObjectIdentifier = oid("1.2.840.10045.4.3.3");
-const SHA512_ECDSA: ObjectIdentifier = oid("1.2.840.10045.4.3.4");
-const P256: ObjectIdentifier = oid("1.2.840.10045.3.1.7");
-const P384: ObjectIdentifier = oid("1.3.132.0.34");
+pub(crate) const SHA256_ECDSA: ObjectIdentifier = oid("1.2.840.10045.4.3.2");
+pub(crate) const SHA384_ECDSA: ObjectIdentifier = oid("1.2.840.10045.4.3.3");
+pub(crate) const SHA512_ECDSA: ObjectIdentifier = oid("1.2.840.10045.4.3.4");
+pub(crate) const P256: ObjectIdentifier = oid("1.2.840.10045.3.1.7");
+pub(crate) const P384: ObjectIdentifier = oid("1.3.132.0.34");
 
 /// A digest algorithm that is safe to rely on.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -271,4 +271,34 @@ fn rsa_key(key: &SubjectPublicKeyInfoOwned) -> Result<rsa::PublicKey, Fault> {
         return Err(Fault::Unknown);
     }
     rsa::PublicKey::try_from(pkcs1).map_err(|_| Fault::Unknown)
+}
+
+/// The kinds of key a Digital signature can be made with here.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SigningKind {
+    /// RSA (`rsaEncryption`), of [`MIN_RSA_BITS`] to [`MAX_RSA_BITS`].
+    Rsa,
+    /// ECDSA on P-256.
+    P256,
+    /// ECDSA on P-384.
+    P384,
+}
+
+/// The kind of `key`, when it is one a signature checked here can be made with:
+/// [`Fault::Weak`] for an RSA key under [`MIN_RSA_BITS`], [`Fault::Unknown`] for anything else
+/// (an RSA key restricted to PSS among them: its parameters may bind it to another hash).
+pub fn signing_kind(key: &SubjectPublicKeyInfoOwned) -> Result<SigningKind, Fault> {
+    match key.algorithm.oid {
+        RSA => rsa_key(key).map(|_| SigningKind::Rsa),
+        EC_KEY => {
+            let curve = key.algorithm.parameters.as_ref().and_then(|p| p.decode_as::<ObjectIdentifier>().ok()).ok_or(Fault::Unknown)?;
+            let point = key.subject_public_key.as_bytes().ok_or(Fault::Unknown)?;
+            match curve {
+                P256 => p256::ecdsa::VerifyingKey::from_sec1_bytes(point).map(|_| SigningKind::P256).map_err(|_| Fault::Malformed),
+                P384 => p384::ecdsa::VerifyingKey::from_sec1_bytes(point).map(|_| SigningKind::P384).map_err(|_| Fault::Malformed),
+                _ => Err(Fault::Unknown),
+            }
+        }
+        _ => Err(Fault::Unknown),
+    }
 }

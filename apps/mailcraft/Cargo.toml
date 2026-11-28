@@ -14,6 +14,7 @@ workspace = true
 mailcraft-time = { workspace = true }
 mailcraft-model = { workspace = true }
 mailcraft-engine = { workspace = true }
+mailcraft-mime-model = { workspace = true }
 mailcraft-link = { workspace = true }
 # A name from a certificate or a token is cleaned as every incoming name is (`key_holders`, #30).
 mailcraft-names = { workspace = true }
@@ -30,6 +31,10 @@ mailcraft-net = { workspace = true }
 mailcraft-ews = { workspace = true }
 # OpenPGP keys kept in GnuPG (#30): the conversation with gpg-agent; finding and opening its socket is `gpg_agent.rs`.
 mailcraft-assuan = { workspace = true }
+# Digital signatures made at Send (#30 part 5): the signed layout, CMS and OpenPGP signatures.
+mailcraft-mime = { workspace = true }
+mailcraft-smime = { workspace = true }
+mailcraft-openpgp = { workspace = true }
 # `clipboard`: since 0.37 eframe has copy and paste behind a feature of its own (on by default, and
 # we turn the defaults off); without it nothing is copied, on any platform.
 eframe = { workspace = true, features = ["default_fonts", "wgpu", "accesskit", "wayland", "x11", "clipboard"] }
@@ -58,6 +63,16 @@ mailcraft-ews = { workspace = true, features = ["stand-in"] }
 # A sign-in the provider refuses, as `mailcraft-net` says it.
 mailcraft-proto = { workspace = true }
 mailcraft-charset = { workspace = true }
+# Digital signatures made at Send checked by verifiers that aren't MailCraft's (#30 part 5):
+# rPGP's own for OpenPGP, RustCrypto's CMS reader and ECDSA for S/MIME; the keys and the
+# example.org certificate are made in the test. All already in the tree, the same versions.
+pgp = { workspace = true }
+rand = { version = "0.8", default-features = false, features = ["std", "std_rng"] }
+rcgen = { workspace = true }
+cms = { workspace = true }
+der = { workspace = true }
+p256 = { workspace = true }
+sha2 = { workspace = true }
 
 [build-dependencies]
 # Icon + VERSIONINFO for mailcraft.exe; build.rs only uses it when the target is Windows.

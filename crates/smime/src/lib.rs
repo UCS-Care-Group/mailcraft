@@ -1,6 +1,6 @@
 // SPDX-FileCopyrightText: MailCraft contributors
 // SPDX-License-Identifier: MIT OR Apache-2.0
-//! MailCraft's S/MIME (RFC 8551): Digital signatures checked (#30), written from the public
+//! MailCraft's S/MIME (RFC 8551): Digital signatures checked and made (#30), written from the public
 //! specifications (RFC 5652 for CMS, RFC 5280 for X.509, RFC 5754, RFC 4055 and RFC 5480 for
 //! the algorithms). No I/O: the host hands in the certificates it trusts ([`Anchors`]), the
 //! message's halves come from `mailcraft-mime`, and the result is
@@ -11,6 +11,10 @@
 //! (RSA PKCS #1 v1.5 or PSS of 2048 bits or more, ECDSA on P-256 or P-384, over SHA-2), and then
 //! whether the certificate rests on a trust anchor, is for signing mail and is for the From
 //! address. MD5 and SHA-1 are no longer safe and are said to be. Revocation isn't checked.
+//!
+//! [`sign`] makes the CMS SignedData of a detached signature over a MIME entity (RFC 5652 §5,
+//! RFC 8551 §3.5.3): it hands the digest of the signed attributes to the key's holder, which
+//! signs it (no key is ever seen here), and checks what comes back against the certificate.
 //!
 //! Input is hostile: BER is turned into DER with nesting bounded, every length is checked
 //! against what is there, the certificates, signers and the path to an anchor are capped, and
@@ -23,6 +27,7 @@ mod cert;
 mod chain;
 pub mod import;
 pub mod pkcs12;
+mod sign;
 mod verify;
 
 #[cfg(test)]
@@ -30,9 +35,12 @@ mod import_tests;
 #[cfg(test)]
 mod pkcs12_tests;
 #[cfg(test)]
+mod sign_tests;
+#[cfg(test)]
 mod tests;
 
 pub use chain::{Anchors, MAX_ANCHORS};
+pub use sign::{DigestAlgorithm, MAX_CHAIN, MAX_SIGNED_BYTES, SignError, SignRequest, SignatureScheme, sign};
 pub use verify::{Checked, Context, MAX_CERTS, MAX_SIGNERS, MAX_VERIFICATIONS, Signed, check};
 
 /// The fingerprint and addresses of a certificate in DER, as a Digital signature's details show

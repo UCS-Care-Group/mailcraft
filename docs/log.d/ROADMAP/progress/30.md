@@ -1,0 +1,1 @@
+| 2026-11-11 | #30 part 5: Digital signatures at Send: Options › Sign and an account's Digital Signatures (key, Always); S/MIME through the Windows store, macOS keychain or PKCS#11 (PIN asked in the window), OpenPGP through gpg-agent; the same signed bytes over SMTP, the IMAP Sent copy, Graph `sendMail` (its server draft deleted) and EWS `MimeContent`; never sent unsigned |

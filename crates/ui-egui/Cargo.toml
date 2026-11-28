@@ -30,8 +30,8 @@ image = { workspace = true }
 # A font is opened as egui will open it before egui is given it (`theme::is_face`): a system's
 # face, and the browser's Georgian face fetched from the server.
 skrifa = { workspace = true }
-# A passphrase typed for importing a key, and the key file, overwritten when let go of (#30;
-# already in the tree).
+# A passphrase typed for importing a key, the key file, and a smartcard's PIN typed for a
+# Digital signature, overwritten when let go of (#30; already in the tree).
 zeroize = "1"
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
