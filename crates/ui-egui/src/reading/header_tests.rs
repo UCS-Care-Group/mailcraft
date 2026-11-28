@@ -56,3 +56,30 @@ fn a_compact_pane_gives_the_address_its_own_line() {
     assert!((wide.width() - narrow.width()).abs() < 1.0, "{wide:?} → {narrow:?}");
     assert!(address.min.y >= narrow.max.y - 0.5, "{narrow:?} and {address:?}");
 }
+
+#[test]
+fn reading_actions_keep_their_labels_on_narrow_and_wide_panes() {
+    use egui_kittest::kittest::Queryable as _;
+    for width in [960.0, 1600.0] {
+        let message = super::tests::web_message(0, "sender@example.org", "A readable subject", &[]);
+        let (app, ids) = super::tests::app_with(vec![message]);
+        let mut h = super::tests::window(app, (width, 800.0));
+        super::tests::select(&mut h, ids[0]);
+        h.run_steps(3);
+        let react = h.state().hit.rect("react", ids[0]).expect("the reading pane is visible");
+        let actions: Vec<_> = super::ACTIONS
+            .iter()
+            .map(|(_, label, _)| {
+                h.get_all_by_role_and_label(egui::accesskit::Role::Button, tl!(label))
+                    .map(|node| node.rect())
+                    .min_by(|a, b| (a.center().y - react.center().y).abs().total_cmp(&(b.center().y - react.center().y).abs()))
+                    .expect("labeled message action")
+            })
+            .collect();
+        for (index, rect) in actions.iter().enumerate() {
+            assert!(rect.right() <= width && rect.width() > 30.0);
+            assert!(!rect.intersects(react));
+            assert!(actions[index + 1..].iter().all(|other| !rect.intersects(*other)));
+        }
+    }
+}

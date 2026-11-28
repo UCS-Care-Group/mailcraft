@@ -68,6 +68,12 @@ fn item<'h>(harness: &'h Window, label: &'h str) -> egui_kittest::Node<'h> {
     item
 }
 
+/// Menu buttons include the shortcut in their accessible name; pane buttons use just the label.
+fn menu_label(harness: &Window, label: &str, command: &str) -> String {
+    let key = crate::widgets::shortcut_text(harness.state(), command);
+    format!("{label} {key}")
+}
+
 /// The message being written forwards `id` as an attachment.
 fn forwards_as_attachment(harness: &Window, id: Id) -> bool {
     harness.state().session.compose.as_ref().is_some_and(|c| {
@@ -83,17 +89,12 @@ fn the_right_click_menu_has_it_after_forward() {
     let id = mockups(&harness);
     let row = harness.state().hit.rect("message", id).unwrap_or_else(|| panic!("no row for {id}")).center();
     press(&mut harness, row, egui::PointerButton::Secondary);
-    // The menu's items, top to bottom (the ribbon's and the reading pane's buttons are icons).
-    let tops = |h: &Window, label: &str| {
-        let mut tops: Vec<f32> = items(h, label).map(|n| n.rect().top()).collect();
-        tops.sort_by(f32::total_cmp);
-        tops
-    };
-    let (forward, unread) = (tops(&harness, "Forward"), tops(&harness, "Mark as Unread"));
-    assert_eq!((forward.len(), unread.len()), (2, 1), "Forward and Forward as Attachment, once each");
-    assert_eq!(tops(&harness, "Forward as Attachment"), [forward[1]]);
-    assert!(forward[0] < forward[1] && forward[1] < unread[0], "{forward:?} {unread:?}");
-    item(&harness, "Forward as Attachment").click();
+    let forward = harness.get_by_role_and_label(Role::Button, &menu_label(&harness, "Forward", "mail.forward")).rect().top();
+    let label = menu_label(&harness, "Forward as Attachment", "mail.forwardAsAttachment");
+    let attachment = harness.get_by_role_and_label(Role::Button, &label);
+    let unread = item(&harness, "Mark as Unread").rect().top();
+    assert!(forward < attachment.rect().top() && attachment.rect().top() < unread);
+    attachment.click();
     harness.run_steps(4);
     assert!(forwards_as_attachment(&harness, id));
 }
@@ -183,15 +184,13 @@ fn with_several_selected_each_way_attaches_them_all() {
         h.state_mut().execute("mail.select", json!({"ids": ids})).unwrap();
         h.run_steps(3);
     };
-    for label in ["Forward as Attachment", "Forward"] {
+    for (label, command) in [("Forward as Attachment", "mail.forwardAsAttachment"), ("Forward", "mail.forward")] {
         select(&mut harness);
         // A right click on one of the selected keeps them all selected.
         let row = harness.state().hit.rect("message", ids[0]).unwrap().center();
         press(&mut harness, row, egui::PointerButton::Secondary);
         assert_eq!(harness.state().session.sel.messages, ids, "{label}");
-        // (Forward is the first of the two whose names hold "Forward".)
-        let node = items(&harness, label).min_by(|a, b| a.rect().top().total_cmp(&b.rect().top()));
-        node.unwrap_or_else(|| panic!("no {label}")).click();
+        harness.get_by_role_and_label(Role::Button, &menu_label(&harness, label, command)).click();
         harness.run_steps(4);
         assert!(all_attached(&harness), "the right-click menu's {label}");
     }

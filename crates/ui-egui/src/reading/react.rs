@@ -34,6 +34,10 @@ pub(crate) fn shown(a: &mailcraft_model::Address) -> String {
     format!("{cut}{dots} <{}>", a.email)
 }
 
+pub(super) fn label() -> &'static str {
+    tl!("React")
+}
+
 /// The React button, and its row of emoji while it is open. Greyed, with the reason of a message
 /// that can't be reacted to as the engine judges it, and not there for a message not filed.
 pub(super) fn button(app: &mut MailApp, ui: &mut Ui, m: &Message) {
@@ -45,10 +49,10 @@ pub(super) fn button(app: &mut MailApp, ui: &mut Ui, m: &Message) {
     let blocked = why.is_some();
     let tip = match why {
         Some(why) => crate::i18n::t(text(why)),
-        None => tl!("React"),
+        None => label(),
     };
     let to = recipient(&app.session, m).map(|a| shown(&a));
-    let resp = crate::widgets::icon_button(ui, "react", tip, 17.0, !blocked);
+    let resp = crate::widgets::icon_text_button(ui, "react", label(), !blocked).on_hover_text(tip);
     resp.widget_info(|| egui::WidgetInfo::labeled(egui::Role::Button, !blocked, tip));
     app.hit.add("react", m.id, resp.rect);
     if blocked {
