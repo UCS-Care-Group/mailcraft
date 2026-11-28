@@ -1013,8 +1013,20 @@ pub(crate) fn left_sheet(app: &mut MailApp, ui: &mut Ui, t: &Tokens, fill: Color
     let whole = ui.max_rect();
     // (Before the module bar: the pane's colour would paint over it.)
     sheet(ui.painter(), whole, t, fill);
-    module_foot(app, ui);
-    sheet_foot(ui.painter(), whole, t, if foot_in_use(&app.session) { FOOT_H } else { 0.0 });
+    let foot = foot_in_use(&app.session);
+    if foot {
+        module_foot(app, ui);
+    } else {
+        // Without the bar the pane keeps the room of its corner at the foot, so that a row
+        // (selected or hovered) ends inside the curve, as the pane at the right does.
+        egui::Panel::bottom("sheet_corner_room")
+            .exact_size(f32::from(SHEET_CORNER))
+            .resizable(false)
+            .show_separator_line(false)
+            .frame(egui::Frame::NONE)
+            .show(ui, |_| {});
+    }
+    sheet_foot(ui.painter(), whole, t, if foot { FOOT_H } else { 0.0 });
 }
 
 /// The pane at the window's left, at its foot: the line along the bottom, rounded where it meets
