@@ -356,6 +356,7 @@ impl Message {
         let mut all = self.all_headers();
         all.retain(|(have, _)| !have.eq_ignore_ascii_case(name));
         (self.headers, self.header_block) = split(all);
+        self.hops_kept = true;
     }
 
     /// Every header line of the message kept, in order: those on it and those of its block in
@@ -376,6 +377,7 @@ impl Message {
         }
         let all = self.all_headers();
         (self.headers, self.header_block) = split(all);
+        self.hops_kept = true;
     }
 
     /// [`Message::all_headers`] put back on the message, with no block: as a file written for a

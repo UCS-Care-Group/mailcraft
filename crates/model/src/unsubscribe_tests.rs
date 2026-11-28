@@ -38,6 +38,7 @@ fn bare(headers: &[(&str, &str)]) -> Message {
         from: Address::new("Lumen News", "letter@news.example"),
         uid: 1,
         headers: headers.iter().map(|(h, v)| ((*h).into(), (*v).into())).chain([("Received".into(), INTAKE.into())]).collect(),
+        hops_kept: true,
         ..Message::default()
     }
 }

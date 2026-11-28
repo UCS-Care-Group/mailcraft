@@ -210,8 +210,14 @@ fn from_own_domain(account: &Account, value: &str) -> bool {
 /// is not on Exchange Online (else [`exchange_online_results`] reads it), so a server of its own
 /// behind that edge writes its hop above it, and a version before this one kept such a hop on
 /// the message and put the server's own in the block, where nothing reads it. Past
-/// [`MAX_DELIVERY_HOPS`] hops to the store nothing more is read: each is read whole.
+/// [`MAX_DELIVERY_HOPS`] hops to the store nothing more is read: each is read whole. Mail this
+/// version did not split ([`Message::hops_kept`]) is never believed: a version before may have
+/// put the server's own hop in the block and left a sender's on the message (one too long for
+/// its block, for one), and which it did can't be told.
 fn above_intake(m: &Message) -> bool {
+    if !m.hops_kept {
+        return false;
+    }
     let (mut seen, mut stores) = (false, 0usize);
     for (name, value) in m.headers.iter().take(MAX_HEADERS_READ) {
         if name.eq_ignore_ascii_case(RESULTS) {

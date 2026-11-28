@@ -66,6 +66,7 @@ fn what_the_format_carries_goes_both_ways() {
         read_header_cut: true,
         headers_cut: true,
         fresh_stamps: true,
+        hops_kept: true,
         original: Original::new(b"Content-Type: multipart/signed\r\n\r\n".to_vec()),
         ..Message::default()
     };

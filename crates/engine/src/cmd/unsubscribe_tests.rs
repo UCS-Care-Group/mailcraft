@@ -38,6 +38,8 @@ fn with(headers: &[(&str, &str)]) -> (Session, Id) {
         message_id: "week@news.example".into(),
         date: 100,
         headers: headers.iter().map(|(h, v)| ((*h).into(), (*v).into())).chain([("Received".into(), INTAKE.into())]).collect(),
+        // Split as a message read by this version is.
+        hops_kept: true,
         ..Default::default()
     };
     let result = SyncResult {
@@ -176,6 +178,7 @@ fn inbox(senders: &[(&str, &str, bool, i64)]) -> (Session, Vec<Id>) {
                 message_id: format!("{n}@{domain}"),
                 date: *date,
                 headers,
+                hops_kept: true,
                 ..Default::default()
             }
         })

@@ -710,7 +710,7 @@ pub fn take_fetched_as(mb: &mut Mailbox, index: &mut ServerIndex, account: Id, i
         m.original = read.original;
     }
     m.parts_removed = false;
-    (m.headers, m.header_block, m.fresh_stamps) = (read.headers, read.header_block, read.fresh_stamps);
+    (m.headers, m.header_block, m.fresh_stamps, m.hops_kept) = (read.headers, read.header_block, read.fresh_stamps, read.hops_kept);
     (m.read_header, m.read_header_cut) = if keeps_header { (read.read_header, read.read_header_cut) } else { (String::new(), false) };
     // (What a listing left out of its categories stays left out: they are the server's still,
     // [`Message::categories_cut`].)

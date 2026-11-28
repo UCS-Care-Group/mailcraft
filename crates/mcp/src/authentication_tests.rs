@@ -32,6 +32,8 @@ fn read_message_gives_the_topmost_authentication_results_only() {
         let m = std::sync::Arc::make_mut(session.mailbox.messages.get_mut(id).unwrap());
         m.uid = 5;
         m.account = account;
+        // Split as a message read by this version is.
+        m.hops_kept = true;
         m.headers = headers
             .iter()
             .map(|v| ("Authentication-Results".to_string(), (*v).to_string()))
@@ -58,6 +60,7 @@ fn the_signers_domain_is_framed_as_untrusted() {
     let m = std::sync::Arc::make_mut(session.mailbox.messages.get_mut(&id).unwrap());
     m.uid = 5;
     m.account = account;
+    m.hops_kept = true;
     m.headers = vec![
         ("Authentication-Results".to_string(), format!("mx.example.org; spf=pass; dkim=pass header.d={hostile}; dmarc=pass")),
         ("Received".to_string(), INTAKE.to_string()),

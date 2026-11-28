@@ -50,6 +50,8 @@ fn every_header_line_is_saved_and_comes_back_in_its_place() {
         let read = back.message(*id).unwrap();
         assert_eq!(read.all_headers(), m.all_headers(), "message {id}");
         assert_eq!(read.headers, m.headers);
+        // Split by this version, and said so in the file (#2059).
+        assert!(m.hops_kept && read.hops_kept, "message {id}");
     }
 }
 
@@ -124,6 +126,7 @@ fn a_large_header_block_is_kept_beside_the_mailbox_file_and_read_when_wanted() {
     for m in opened.mailbox.messages.values() {
         assert!(m.header_block.data.is_empty() && m.header_block.kept.is_some(), "not read at opening");
         assert_eq!(m.header("List-Id"), Some("<news.example.org>"), "what is read by name is there");
+        assert!(m.hops_kept, "split by this version");
     }
     let back = whole(&path);
     for (id, m) in &mb.messages {
@@ -141,6 +144,8 @@ fn a_file_of_format_3_puts_its_header_blocks_beside_it_as_it_opens_and_is_writte
     let opened = open_window(&path);
     // Each block went beside the file as it was read, and is named on its message.
     assert!(opened.mailbox.messages.values().all(|m| m.header_block.data.is_empty() && m.header_block.kept.is_some()));
+    // Its lines were all on the message, in order: split now, by this version (#2059).
+    assert!(opened.mailbox.messages.values().all(|m| m.hops_kept));
     assert!(block_files(&path).is_empty());
     assert_eq!(pack_bytes(&path), block_bytes(&mb), "in a pack");
     // The file itself is as it was until a save: a stop now (a crash) loses nothing.

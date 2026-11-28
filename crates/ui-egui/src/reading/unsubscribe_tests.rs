@@ -39,6 +39,8 @@ fn list_app(headers: &[(&str, &str)]) -> (MailApp, u64) {
         uid: 1,
         date: NOW - 3_600,
         headers: headers.iter().map(|(h, v)| ((*h).into(), (*v).into())).chain([("Received".into(), INTAKE.into())]).collect(),
+        // Split as a message read by this version is.
+        hops_kept: true,
         ..Message::default()
     };
     let id = mailbox.add_message(m).unwrap();
@@ -183,6 +185,7 @@ fn add(app: &mut MailApp, from: &str, list: &str) -> u64 {
             ("DKIM-Signature".into(), format!("v=1; d={domain}; s=s1; h=from:list-unsubscribe:list-unsubscribe-post; bh=AA; b=BB")),
             ("Received".into(), INTAKE.into()),
         ],
+        hops_kept: true,
         ..Message::default()
     };
     app.session.mailbox.add_message(m).unwrap()
@@ -254,6 +257,7 @@ fn add_at(app: &mut MailApp, from: &str, ago: i64, headers: &[(&str, &str)]) -> 
         uid: 3,
         date: NOW - ago,
         headers: all,
+        hops_kept: true,
         ..Message::default()
     };
     app.session.mailbox.add_message(m).unwrap()

@@ -380,6 +380,16 @@ pub struct Message {
     /// believed: one saved before may be a sender's own, carried in from another account.
     #[serde(skip_serializing_if = "is_false")]
     pub fresh_stamps: bool,
+    /// Whether [`Message::headers`] were split by a MailCraft that keeps the topmost `Received`
+    /// hops on the message, down to the one at which the receiving server took it in
+    /// ([`crate::headers::split`], #2059). Only then is a server of the account's own believed by
+    /// where its verdict stands among them: a version before kept a hop too long for its block on
+    /// the message and put the server's own in the block, so a sender's hop could stand in for it.
+    /// False for mail split before, and for a file from before. A mailbox file (one opened from
+    /// elsewhere too) or a result given to `sync.apply` can say true, but whoever writes one
+    /// writes its header lines too, in any order, so it can say nothing a forged header can't.
+    #[serde(skip_serializing_if = "is_false")]
+    pub hops_kept: bool,
     /// The message's UID in the server mailbox of the folder it is in (IMAP); 0 for a message
     /// that isn't on the server there (yet).
     #[serde(skip_serializing_if = "is_zero")]

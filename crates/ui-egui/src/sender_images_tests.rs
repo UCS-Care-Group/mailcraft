@@ -43,6 +43,8 @@ fn window(answer: impl Fn(&str) -> Result<Vec<u8>, String> + 'static) -> (MailAp
             ("Authentication-Results".into(), format!("mx.example.org; dmarc=pass header.from={}", from.rsplit('@').next().unwrap_or(""))),
             ("Received".into(), INTAKE.into()),
         ],
+        // Split as a message read by this version is.
+        hops_kept: true,
         ..Default::default()
     };
     mailbox.add_message(mail(sent, "avery@lumen-works.example", "Grace@Shop.example")).unwrap();

@@ -140,6 +140,8 @@ fn message(n: usize, from: (&str, &str), subject: &str, html: Option<String>, te
             ("Authentication-Results".into(), format!("mx.example.org; dmarc=pass header.from={}", from.1.rsplit('@').next().unwrap_or(""))),
             ("Received".into(), INTAKE.into()),
         ],
+        // Split as a message read by this version is.
+        hops_kept: true,
         ..Message::default()
     }
 }

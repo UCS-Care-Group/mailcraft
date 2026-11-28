@@ -22,7 +22,7 @@ fn message(headers: &[&str]) -> Message {
     let intake =
         ("Received".to_string(), "from mail.sender.example (mail.sender.example [198.51.100.7]) by mx.example.org with ESMTPS id 1".to_string());
     let headers = headers.iter().map(|v| ("Authentication-Results".to_string(), (*v).to_string())).chain([intake]).collect();
-    Message { from: Address::new("", "alerts@sender.example"), uid: 3, headers, ..Message::default() }
+    Message { from: Address::new("", "alerts@sender.example"), uid: 3, headers, hops_kept: true, ..Message::default() }
 }
 
 fn of(headers: &[&str]) -> Option<Summary> {

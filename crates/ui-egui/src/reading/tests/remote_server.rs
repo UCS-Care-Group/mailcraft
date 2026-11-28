@@ -32,6 +32,8 @@ fn message(headers: &[&str]) -> Message {
             .map(|value| ("Authentication-Results".to_string(), value.to_string()))
             .chain([("Received".to_string(), INTAKE.to_string())])
             .collect(),
+        // Split as a message read by this version is.
+        hops_kept: true,
         ..Message::default()
     }
 }

@@ -45,6 +45,7 @@ fn with_results(mut m: Message, value: &str) -> Message {
     // Above the hop at which the server took the message in, where it writes its own.
     let intake = "from mail.sender.example (mail.sender.example [198.51.100.7]) by mx.lumen.example with ESMTPS id 1";
     m.headers = vec![("Authentication-Results".into(), value.into()), ("Received".into(), intake.into())];
+    m.hops_kept = true;
     m
 }
 

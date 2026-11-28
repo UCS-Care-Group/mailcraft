@@ -35,6 +35,7 @@ fn message(count: u32, w: u32, h: u32, shown: u32) -> Message {
             ("Authentication-Results".into(), "mx.example.org; dmarc=pass header.from=example.org".into()),
             ("Received".into(), "from mail.example.org (mail.example.org [198.51.100.7]) by mx.example.org with ESMTPS id 1".into()),
         ],
+        hops_kept: true,
         attachments: (0..count)
             .map(|i| Attachment {
                 content_id: format!("p{i}@example.org"),

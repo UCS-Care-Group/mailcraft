@@ -95,7 +95,7 @@ fn internal_mail(from: &str, extra: Vec<(String, String)>) -> Vec<(String, Strin
 }
 
 fn message(from: &str, headers: Vec<(String, String)>) -> Message {
-    Message { from: Address::new("", from), uid: 7, headers, fresh_stamps: true, ..Message::default() }
+    Message { from: Address::new("", from), uid: 7, headers, fresh_stamps: true, hops_kept: true, ..Message::default() }
 }
 
 #[test]
@@ -735,4 +735,75 @@ fn a_verdict_below_too_many_hops_to_the_store_is_not_read() {
     assert!(vouched(Some(&own_server()), &with(8)));
     assert!(!trusted(&own_server(), &with(9)));
     assert!(!trusted(&own_server(), &with(1_000)));
+}
+
+/// `all` as a version before this one left it: the lines at `block` in the block with every
+/// one that may not stay on a message, the rest on the message, and no word that this version
+/// split it.
+fn split_before(all: Vec<(String, String)>, block: &[usize]) -> Message {
+    let (block, working): (Vec<_>, Vec<_>) =
+        all.into_iter().enumerate().partition(|(at, (name, value))| block.contains(at) || !crate::headers::may_stay(name, value));
+    let block: Vec<crate::headers::HeaderLine> =
+        block.into_iter().map(|(at, (name, value))| crate::headers::HeaderLine { at, name, value }).collect();
+    Message {
+        headers: working.into_iter().map(|(_, line)| line).collect(),
+        header_block: crate::headers::HeaderBlock::of(&block),
+        hops_kept: false,
+        ..bank(Vec::new())
+    }
+}
+
+#[test]
+fn older_mail_that_kept_a_hop_too_long_for_its_block_does_not_vouch() {
+    // A hop of the sender's below its forged verdict, under mime's 64 KiB but over the old 256 KiB
+    // block in JSON (`\u0001` is six bytes): a version before left it on the message and put the
+    // server's own intake hop in the block. Every line left passes `may_stay`, so nothing splits
+    // it again, and the long hop is no hop to the store.
+    let long = format!("from x.bank.example by y.bank.example with ESMTP id 1 {}; Tue, 3 Nov 2026 09:59:59 +0000", "\u{1}".repeat(44_000));
+    let mut all = vec![h("Received", DELIVERY), h("Received", INTAKE), h("Authentication-Results", SELF_PASS), h("Received", &long)];
+    all.extend(sent(Vec::new()));
+    let m = split_before(all.clone(), &[0, 1]);
+    assert!(m.headers.iter().all(|(name, value)| crate::headers::may_stay(name, value)));
+    assert!(!trusted(&own_server(), &m));
+    // Read in again as a mailbox file is, it stays so.
+    let read = crate::Messages::read([(m.id, std::sync::Arc::new(m))].into_iter().collect());
+    assert!(read.values().all(|m| !trusted(&own_server(), m)));
+    // Split by this version the intake hop stays on top, below the forged verdict.
+    let mut m = Message { headers: all, ..bank(Vec::new()) };
+    m.hops_kept = false;
+    m.split_headers();
+    assert!(m.hops_kept);
+    assert!(!trusted(&own_server(), &m));
+}
+
+#[test]
+fn only_mail_split_by_this_version_is_believed_by_its_hops() {
+    // The server's own verdict above its intake hop: believed only once this version split it.
+    let mut all = vec![h("Received", DELIVERY), h("Authentication-Results", SELF_PASS), h("Received", INTAKE)];
+    all.extend(sent(Vec::new()));
+    assert!(vouched(Some(&own_server()), &bank(all.clone())));
+    let older = split_before(all.clone(), &[]);
+    assert!(!trusted(&own_server(), &older));
+    let older = split_before(all.clone(), &[0]);
+    assert!(!trusted(&own_server(), &older));
+    // A line that may not stay makes a version before's message split again as it is read: the
+    // hops then are this version's.
+    let mut joined = all;
+    joined.push(h("X-Spam-Score", "0.1"));
+    let mut m = Message { headers: joined, ..bank(Vec::new()) };
+    m.hops_kept = false;
+    let read = crate::Messages::read([(m.id, std::sync::Arc::new(m))].into_iter().collect());
+    assert!(read.values().all(|m| m.hops_kept && vouched(Some(&own_server()), m)));
+}
+
+#[test]
+fn a_message_saved_before_reads_as_not_split_by_this_version() {
+    let old: Message = serde_json::from_str(r#"{"id":3,"subject":"Old","headers":[["Received","x"]]}"#).unwrap();
+    assert_eq!(old.subject, "Old");
+    assert!(!old.hops_kept);
+    let new = Message { hops_kept: true, ..Message::default() };
+    let back: Message = serde_json::from_str(&serde_json::to_string(&new).unwrap()).unwrap();
+    assert!(back.hops_kept);
+    // Not written when false: a file for a version before stays as it was.
+    assert!(!serde_json::to_string(&Message::default()).unwrap().contains("hopsKept"));
 }

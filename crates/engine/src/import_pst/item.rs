@@ -290,7 +290,7 @@ fn message_of<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, item
         out.references = parsed.references;
         out.importance = parsed.importance;
         out.categories = parsed.categories;
-        (out.headers, out.header_block) = (parsed.headers, parsed.header_block);
+        (out.headers, out.header_block, out.hops_kept) = (parsed.headers, parsed.header_block, parsed.hops_kept);
         out.read_header = parsed.read_header;
         // The lines past the limit are lost, so a rule with words in the header can't tell (#566).
         out.read_header_cut = parsed.read_header_cut || cut.len() < h.len();

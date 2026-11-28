@@ -85,6 +85,8 @@ fn delivered(uid: u32, subject: &str, headers: &[(&str, &str)]) -> Message {
         message_id: format!("{uid}-{}@bank.example", subject.replace(' ', "-")),
         from: Address::new("Bank", BANK),
         headers: headers.iter().map(|(name, value)| (name.to_string(), value.to_string())).chain([("Received".into(), INTAKE.into())]).collect(),
+        // Split as a message read by this version is.
+        hops_kept: true,
         ..Default::default()
     }
 }
