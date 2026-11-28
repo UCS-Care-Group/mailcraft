@@ -61,6 +61,7 @@ fn expected(m: &Message, opts: &WriteOptions) -> Message {
         answered: m.answered,
         headers: mailcraft_model::headers::split(m.all_headers()).0,
         header_block: mailcraft_model::headers::split(m.all_headers()).1,
+        hops_kept: true,
         ..Message::default()
     }
 }
@@ -534,6 +535,7 @@ fn message() -> impl Strategy<Value = Message> {
             read_header: "X-Priority: 9 (not carried)\n".into(),
             read_header_cut: false,
             fresh_stamps: false,
+            hops_kept: false,
             id: 7,
             account: 3,
             folder: 5,
@@ -1050,4 +1052,17 @@ fn a_reaction_is_written_marked_and_read_back_as_plain_text() {
     assert!(!back.reaction);
     // Not marked, not written as one.
     assert!(!String::from_utf8(write(&Message { reaction: false, ..m }, &WriteOptions::default())).unwrap().contains("reaction"));
+}
+
+#[test]
+fn a_message_read_here_is_split_with_its_hops_kept() {
+    // Its verdict is then believed by where it stands among its hops (#2059).
+    let raw = "Received: from mx.example.org by imap.example.org with LMTP id 1; Tue, 3 Nov 2026 10:00:02 +0000\r\n\
+               Authentication-Results: mx.example.org; dmarc=pass header.from=bank.example\r\n\
+               Received: from mail.bank.example by mx.example.org with ESMTP id 2; Tue, 3 Nov 2026 10:00:01 +0000\r\n\
+               From: alerts@bank.example\r\nSubject: Hi\r\n\r\nBody\r\n";
+    let m = parse(raw.as_bytes());
+    assert!(m.hops_kept);
+    assert_eq!(m.headers.iter().filter(|(name, _)| name == "Received").count(), 2);
+    assert!(parse_mbox(format!("From x Tue Nov  3 10:00:00 2026\n{raw}").as_bytes()).iter().all(|m| m.hops_kept));
 }

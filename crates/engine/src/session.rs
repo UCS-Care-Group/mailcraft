@@ -2634,6 +2634,21 @@ impl Session {
         Ok(Arc::new(copy))
     }
 
+    /// [`Session::loaded_message`] as it is written as an Internet message (an export, a copy put
+    /// on a server). Mail not split with its hops kept ([`Message::hops_kept`], #2059) leaves its
+    /// verdicts and Exchange's stamps behind, as a copy put on another server does: its block may
+    /// be one lost (unreadable, read as none, or split again without it) with the server's hop
+    /// in it, and read back as fresh mail its verdicts would stand above a sender's hop.
+    pub(crate) fn loaded_to_write(&self, id: Id) -> Result<Arc<Message>, CmdError> {
+        let m = self.loaded_message(id)?;
+        if m.hops_kept {
+            return Ok(m);
+        }
+        let mut copy = Message::clone(&m);
+        mailcraft_model::auth_results::forget_stamps(&mut copy);
+        Ok(Arc::new(copy))
+    }
+
     /// Whether every part of `m` can be read here: what is in memory, and what the mailbox keeps
     /// outside it read back whole (checked against its length and SHA-256). The server's copy of
     /// a message moved to this computer goes only then (#451): a body or a file whose content
@@ -2680,14 +2695,14 @@ impl Session {
         m.attachments.iter().filter_map(|a| a.kept.filter(|_| a.data.is_empty())).chain(original).all(|r| self.fetch(&r).is_ok())
     }
 
-    /// What a copy of `m` put on another server is made of ([`Session::loaded_message`]), or
+    /// What a copy of `m` put on another server is made of ([`Session::loaded_to_write`]), or
     /// `None` while it waits: the bytes a protected message came as (#30) couldn't be read in that
     /// one read, and the copy it is being moved out of may hold them
     /// ([`crate::cmd::mail::check_again::source_may_hold`]). That copy is asked for them first
     /// ([`Session::ask_for_lost_originals`]), and goes only once nothing can be lost with it:
     /// made of its parts the copy would be taken for the message.
     pub(crate) fn placeable(&self, m: &Message) -> Result<Option<Arc<Message>>, CmdError> {
-        let whole = self.loaded_message(m.id)?;
+        let whole = self.loaded_to_write(m.id)?;
         let fell_back = m.original.is_some() && whole.original.is_none();
         Ok((!fell_back || !crate::cmd::mail::check_again::source_may_hold(&self.mailbox, m.id)).then_some(whole))
     }

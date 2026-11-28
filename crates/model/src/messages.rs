@@ -497,7 +497,7 @@ impl Messages {
     /// block ([`Message::split_headers`]).
     pub(crate) fn read(mut map: BTreeMap<Id, Arc<Message>>) -> Messages {
         for m in map.values_mut() {
-            if m.headers.iter().any(|(name, value)| !crate::headers::is_working(name, value)) {
+            if m.headers.iter().any(|(name, value)| !crate::headers::may_stay(name, value)) {
                 Arc::make_mut(m).split_headers();
             }
         }

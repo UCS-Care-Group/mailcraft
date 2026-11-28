@@ -17,7 +17,8 @@ pub(super) fn exchange_headers(seed: usize) -> Vec<(String, String)> {
         ("DKIM-Signature".into(), format!("v=1; a=rsa-sha256; d=example.org; s=s1; b={filler}")),
         ("List-Id".into(), "<news.example.org>".into()),
         ("X-MS-Exchange-AntiSpam-MessageData-0".into(), filler),
-        ("Return-Path".into(), "<bounce@example.org>".into()),
+        // Each message's own: the topmost hop stays on the message (`mailcraft_model::headers::split`).
+        ("Return-Path".into(), format!("<bounce+{seed}@example.org>")),
     ]
 }
 
@@ -27,8 +28,8 @@ pub(super) fn with_exchange_headers(messages: usize) -> Mailbox {
     let ids: Vec<Id> = mb.messages.keys().copied().collect();
     for (n, id) in ids.into_iter().enumerate() {
         let mut m = Message::clone(mb.message(id).unwrap());
-        m.headers = exchange_headers(n);
-        m.split_headers();
+        (m.headers, m.header_block) = mailcraft_model::headers::split(exchange_headers(n));
+        m.hops_kept = true;
         mb.messages.insert(id, Arc::new(m));
     }
     mb
@@ -49,6 +50,8 @@ fn every_header_line_is_saved_and_comes_back_in_its_place() {
         let read = back.message(*id).unwrap();
         assert_eq!(read.all_headers(), m.all_headers(), "message {id}");
         assert_eq!(read.headers, m.headers);
+        // Split by this version, and said so in the file (#2059).
+        assert!(m.hops_kept && read.hops_kept, "message {id}");
     }
 }
 
@@ -123,6 +126,7 @@ fn a_large_header_block_is_kept_beside_the_mailbox_file_and_read_when_wanted() {
     for m in opened.mailbox.messages.values() {
         assert!(m.header_block.data.is_empty() && m.header_block.kept.is_some(), "not read at opening");
         assert_eq!(m.header("List-Id"), Some("<news.example.org>"), "what is read by name is there");
+        assert!(m.hops_kept, "split by this version");
     }
     let back = whole(&path);
     for (id, m) in &mb.messages {
@@ -140,6 +144,9 @@ fn a_file_of_format_3_puts_its_header_blocks_beside_it_as_it_opens_and_is_writte
     let opened = open_window(&path);
     // Each block went beside the file as it was read, and is named on its message.
     assert!(opened.mailbox.messages.values().all(|m| m.header_block.data.is_empty() && m.header_block.kept.is_some()));
+    // Split now, but from no block: one lost can't be told from none, so not believed by its
+    // hops (#2059).
+    assert!(opened.mailbox.messages.values().all(|m| !m.hops_kept));
     assert!(block_files(&path).is_empty());
     assert_eq!(pack_bytes(&path), block_bytes(&mb), "in a pack");
     // The file itself is as it was until a save: a stop now (a crash) loses nothing.
@@ -389,6 +396,64 @@ fn what_writes_a_message_whole_writes_every_header_line_kept_beside_the_mailbox_
     let without = s.loaded_message(id).unwrap();
     assert_eq!(without.all_headers(), was.headers);
     assert!(s.run("mail.viewSource", &json!({"id": id})).unwrap()["source"].as_str().unwrap().contains("List-Id: <news.example.org>"));
+}
+
+/// A message split by a version before this one (#2059) is written out as an Internet message
+/// (Save Message As, Export Folder, a copy put on a server) without the verdicts and Exchange's
+/// stamps on it: its block may be one lost with the server's hop in it (unreadable, read as
+/// none, or split again without it), and the copy, read back as fresh mail, would be believed by
+/// where its verdict stands among the hops left. The mailbox, and a mailbox file saved of it,
+/// keep them; mail split by this version keeps its hops on it, and its verdicts with them
+/// (`what_writes_a_message_whole_writes_every_header_line_kept_beside_the_mailbox_file`).
+#[test]
+fn a_message_split_before_is_written_out_without_its_verdicts() {
+    let mut mb = with_exchange_headers(2);
+    let ids: Vec<Id> = mb.messages.keys().copied().collect();
+    for id in &ids {
+        let mut m = Message::clone(mb.message(*id).unwrap());
+        m.hops_kept = false;
+        mb.messages.insert(*id, Arc::new(m));
+    }
+    let tmp = Temp::new("headers-split-before");
+    let path = tmp.file();
+    save(&path, &mb).unwrap();
+    clear_cache();
+    let (mut s, _) = session_on(&path, &mb, 2);
+    let id = ids[0];
+    assert!(!s.mailbox.message(id).unwrap().header_block.is_loaded() && !s.mailbox.message(id).unwrap().hops_kept);
+    let trust = |m: &Message| {
+        m.all_headers()
+            .into_iter()
+            .filter(|(name, _)| {
+                ["Authentication-Results", "ARC-Authentication-Results", mailcraft_model::auth_results::AUTH_AS].contains(&name.as_str())
+            })
+            .count()
+    };
+    let had = trust(mb.message(id).unwrap());
+    assert!(had > 0);
+    let written = |s: &mut Session| {
+        let eml = s.run("file.exportMessage", &json!({"id": id})).unwrap();
+        let eml = mailcraft_mime_model::parse(&crate::cmd::base64_decode(eml["data"].as_str().unwrap()).unwrap());
+        let folder = s.mailbox.message(id).unwrap().folder;
+        let mbox = s.run("file.exportFolder", &json!({"id": folder})).unwrap();
+        let mbox = mailcraft_mime_model::parse_mbox(&crate::cmd::base64_decode(mbox["data"].as_str().unwrap()).unwrap());
+        let placed = s.placeable(s.mailbox.message(id).unwrap()).unwrap().unwrap();
+        [eml, mbox.into_iter().find(|m| m.message_id == s.mailbox.message(id).unwrap().message_id).unwrap(), Message::clone(&placed)]
+    };
+    // With its block read whole, and with its block gone from the disk.
+    for lost in [false, true] {
+        if lost {
+            packs(&path).into_iter().for_each(|f| fs::remove_file(f).unwrap());
+            clear_cache();
+        }
+        for m in written(&mut s) {
+            assert_eq!(trust(&m), 0, "lost {lost}: {:?}", m.all_headers());
+            assert!(m.has_header("List-Id"), "the rest is written");
+        }
+    }
+    // Left as they are on the message here, and in a mailbox file saved of it.
+    assert_eq!(trust(s.mailbox.message(id).unwrap()), had);
+    assert_eq!(trust(s.loaded_mailbox().unwrap().message(id).unwrap()), had);
 }
 
 /// Run Rules Now with a rule that looks for words in the header finds them in the lines kept

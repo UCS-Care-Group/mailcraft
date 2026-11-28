@@ -372,7 +372,7 @@ fn export_message(s: &mut Session, v: &Value) -> CmdResult {
         return saved_as_received(v, &name, std::sync::Arc::unwrap_or_clone(bytes), "kept");
     }
     // Whole: what the mailbox keeps outside memory goes into the file.
-    let m = s.loaded_message(id)?;
+    let m = s.loaded_to_write(id)?;
     // (A message kept from before #30 had only a note of it kept when it was too large.)
     if super::compose::not_downloaded(&m) {
         let subject = super::compose::subject_of(&m);
@@ -406,7 +406,7 @@ fn export_folder(s: &mut Session, v: &Value) -> CmdResult {
     // Each message whole: what the mailbox keeps outside memory goes into the file.
     let mut whole: Vec<std::sync::Arc<mailcraft_model::Message>> = Vec::new();
     for m in s.mailbox.messages_in(id) {
-        whole.push(s.loaded_message(m.id)?);
+        whole.push(s.loaded_to_write(m.id)?);
     }
     whole.sort_by_key(|m| (m.date, m.id));
     let messages: Vec<&mailcraft_model::Message> = whole.iter().map(|m| m.as_ref()).collect();

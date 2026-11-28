@@ -12,9 +12,10 @@
 //! when the message is written out (the engine's store); in memory it is then only named
 //! ([`HeaderBlock::kept`]).
 //!
-//! What is read by name is [`WORKING`] (and MailCraft's own `X-MailCraft-…` notes, and the hop at
-//! which Exchange Online took the mail in, which a sender check places its verdict by): a name
-//! read anywhere that isn't in it would never be found, which a test holds to.
+//! What is read by name is [`WORKING`] (and MailCraft's own `X-MailCraft-…` notes, the hop at
+//! which Exchange Online took the mail in, and the topmost hops down to the one at which the
+//! receiving server took it in, which a sender check places its verdict by): a name read anywhere
+//! that isn't in it would never be found, which a test holds to.
 
 use std::sync::Arc;
 
@@ -86,6 +87,13 @@ const REMOVED: &str = "";
 /// own `Authentication-Results` is read (`auth_results`).
 pub fn is_working(name: &str, value: &str) -> bool {
     is_working_name(name) || (name.eq_ignore_ascii_case("Received") && crate::auth_results::is_exchange_online_edge(value))
+}
+
+/// Whether a line may stand on a message that is split ([`split`]): one that [`is_working`], or a
+/// `Received` hop, of which `split` keeps the topmost ones on the message, down to the one at
+/// which the receiving server took the mail in.
+pub fn may_stay(name: &str, value: &str) -> bool {
+    is_working(name, value) || name.eq_ignore_ascii_case("Received")
 }
 
 /// Whether every header line with this name stays on the message ([`is_working`]).
@@ -261,9 +269,20 @@ pub fn split(all: Vec<(String, String)>) -> (Vec<(String, String)>, HeaderBlock)
     let mut block = Vec::new();
     // `[` and `]`; each line adds itself and a comma.
     let mut size = 2usize;
+    // The topmost `Received` hops stay, down to the one at which the receiving server took the
+    // mail in (the first that is no hop to the mailbox store): the server's own verdict is read by
+    // where it stands among them (`auth_results`). The ones below are anybody's to write.
+    // lean: kept for every account (one or two lines, ~250 B each, per message in memory), though
+    // only one at a server of its own reads them; keep them only for such an account's mail if a
+    // large mailbox's memory (mailbox_bench) says it matters.
+    let mut intake = false;
     for (at, (name, value)) in all.into_iter().enumerate() {
         let one = serde_json::to_vec(&(at, &name, &value)).map_or(usize::MAX, |b| b.len()).saturating_add(1);
-        if is_working(&name, &value) || block.len() >= MAX_BLOCK_LINES || size.saturating_add(one) > MAX_HEADER_BLOCK {
+        let hop = !intake && name.eq_ignore_ascii_case("Received");
+        if hop {
+            intake = !crate::auth_results::is_delivery_hop(&value);
+        }
+        if hop || is_working(&name, &value) || block.len() >= MAX_BLOCK_LINES || size.saturating_add(one) > MAX_HEADER_BLOCK {
             working.push((name, value));
         } else {
             size = size.saturating_add(one);
@@ -352,10 +371,12 @@ impl Message {
     /// message's block ([`split`]): for a message read before the two were kept apart, or one a
     /// line was added to. A block kept outside memory stays as it is, and so does the rest.
     pub fn split_headers(&mut self) {
-        if !self.header_block.is_loaded() || self.headers.iter().all(|(name, value)| is_working(name, value)) {
+        if !self.header_block.is_loaded() || self.headers.iter().all(|(name, value)| may_stay(name, value)) {
             return;
         }
         let all = self.all_headers();
+        // (It leaves `hops_kept` as it was: lines split again may be short of one a block lost, so
+        // they say nothing of where the server's hop was.)
         (self.headers, self.header_block) = split(all);
     }
 

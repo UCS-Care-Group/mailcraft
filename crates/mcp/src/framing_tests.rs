@@ -326,7 +326,13 @@ fn unsubscribing() -> (Session, Id) {
         subject: marked("listSubject"),
         message_id: "week@news.example".into(),
         date: 100,
-        headers: vec![("Authentication-Results".into(), passed.into()), ("List-Unsubscribe".into(), list.into())],
+        headers: vec![
+            ("Authentication-Results".into(), passed.into()),
+            ("List-Unsubscribe".into(), list.into()),
+            // The hop at which the server took it in: its verdict lies above.
+            ("Received".into(), "from mail.news.example (mail.news.example [198.51.100.7]) by mx.lumen.example with ESMTPS id 1".into()),
+        ],
+        hops_kept: true,
         ..Default::default()
     };
     let delta = FolderDelta { remote: "INBOX".into(), kind: FolderKind::Inbox, uid_validity: 7, uid_seen: 5, new: vec![m], ..Default::default() };

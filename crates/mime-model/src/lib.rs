@@ -153,6 +153,7 @@ fn unmarked(m: mime::Message) -> Message {
         read_header_cut,
         headers_cut,
         fresh_stamps,
+        hops_kept: true,
         original: original.map(|data| Original { data, kept: None }),
         ..Message::default()
     }

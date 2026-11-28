@@ -17,6 +17,9 @@ const PASSED: &str = "mx.lumen.example; spf=pass smtp.mailfrom=news.example; dki
 const SIGNED: &str = "v=1; a=rsa-sha256; d=news.example; s=s1; h=from:subject:list-unsubscribe:list-unsubscribe-post; bh=AA; b=BB";
 const FAILED: &str = "mx.lumen.example; spf=fail smtp.mailfrom=elsewhere.example; dmarc=fail header.from=news.example";
 
+/// The hop at which the account's server took the mail in, below what it wrote of it.
+const INTAKE: &str = "from mail.news.example (mail.news.example [198.51.100.7]) by mx.lumen.example with ESMTPS id 1; Tue, 3 Nov 2026 10:00:00 +0000";
+
 /// A session with Avery's IMAP account, whose Inbox has one message from the list with `headers`.
 fn with(headers: &[(&str, &str)]) -> (Session, Id) {
     let mut s = Session::empty();
@@ -34,7 +37,9 @@ fn with(headers: &[(&str, &str)]) -> (Session, Id) {
         subject: "This week".into(),
         message_id: "week@news.example".into(),
         date: 100,
-        headers: headers.iter().map(|(h, v)| ((*h).into(), (*v).into())).collect(),
+        headers: headers.iter().map(|(h, v)| ((*h).into(), (*v).into())).chain([("Received".into(), INTAKE.into())]).collect(),
+        // Split as a message read by this version is.
+        hops_kept: true,
         ..Default::default()
     };
     let result = SyncResult {
@@ -165,6 +170,7 @@ fn inbox(senders: &[(&str, &str, bool, i64)]) -> (Session, Vec<Id>) {
             if *vouched {
                 headers.push(("Authentication-Results".into(), format!("mx.lumen.example; dmarc=pass header.from={domain}")));
             }
+            headers.push(("Received".into(), INTAKE.into()));
             Message {
                 uid: n as u32 + 10,
                 from: Address::new("", *from),
@@ -172,6 +178,7 @@ fn inbox(senders: &[(&str, &str, bool, i64)]) -> (Session, Vec<Id>) {
                 message_id: format!("{n}@{domain}"),
                 date: *date,
                 headers,
+                hops_kept: true,
                 ..Default::default()
             }
         })

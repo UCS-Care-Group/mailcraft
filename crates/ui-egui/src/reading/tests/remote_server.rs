@@ -19,12 +19,21 @@ fn imap(host: &str) -> Account {
     account(AccountKind::Imap, host)
 }
 
+/// The hop at which the account's server took the mail in: what it wrote of it lies above.
+const INTAKE: &str = "from mail.sender.example (mail.sender.example [198.51.100.7]) by mx.example.org with ESMTPS id 1";
+
 fn message(headers: &[&str]) -> Message {
     Message {
         from: Address::new("Shop", "news@shop.example"),
         // (As the server has it: mail from a file is nobody's word.)
         uid: 7,
-        headers: headers.iter().map(|value| ("Authentication-Results".to_string(), value.to_string())).collect(),
+        headers: headers
+            .iter()
+            .map(|value| ("Authentication-Results".to_string(), value.to_string()))
+            .chain([("Received".to_string(), INTAKE.to_string())])
+            .collect(),
+        // Split as a message read by this version is.
+        hops_kept: true,
         ..Message::default()
     }
 }
@@ -345,7 +354,10 @@ fn mail_imported_from_a_file_is_never_vouched_for() {
 
 /// The message as the server hands it over, read the way every message is read.
 fn delivered(results: &str) -> Message {
-    let raw = format!("Authentication-Results: {results}\r\nFrom: News <news@victim.example>\r\nSubject: x\r\n\r\nHello\r\n");
+    let raw = format!(
+        "Authentication-Results: {results}\r\nReceived: from mail.victim.example (mail.victim.example [198.51.100.7]) by mx.lumen.example \
+         with ESMTPS id 1\r\nFrom: News <news@victim.example>\r\nSubject: x\r\n\r\nHello\r\n"
+    );
     Message { uid: 7, ..mailcraft_engine::mime::parse(raw.as_bytes()) }
 }
 

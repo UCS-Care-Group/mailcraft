@@ -25,6 +25,8 @@ use crate::{MailApp, Services};
 
 /// Wednesday 2026-10-14 16:00 UTC.
 const NOW: i64 = 1_791_993_600;
+/// The hop at which the account's server took the mail in: what it wrote of it lies above.
+const INTAKE: &str = "from mail.sender.example (mail.sender.example [198.51.100.7]) by mx.example.org with ESMTPS id 1";
 
 // ---- pictures, drawn in code ----
 
@@ -134,10 +136,12 @@ fn message(n: usize, from: (&str, &str), subject: &str, html: Option<String>, te
         // On the server (mail from a file is never vouched for).
         uid: 1,
         // The server vouched for every sender (a test of the lists would be of nothing otherwise).
-        headers: vec![(
-            "Authentication-Results".into(),
-            format!("mx.example.org; dmarc=pass header.from={}", from.1.rsplit('@').next().unwrap_or("")),
-        )],
+        headers: vec![
+            ("Authentication-Results".into(), format!("mx.example.org; dmarc=pass header.from={}", from.1.rsplit('@').next().unwrap_or(""))),
+            ("Received".into(), INTAKE.into()),
+        ],
+        // Split as a message read by this version is.
+        hops_kept: true,
         ..Message::default()
     }
 }
@@ -1732,7 +1736,7 @@ fn a_long_name_does_not_squeeze_the_address_out_of_the_header() {
 #[test]
 fn a_remembered_sender_needs_the_servers_word() {
     let shop = "news@shop.example";
-    let verdict = |value: &str| vec![("Authentication-Results".to_string(), value.to_string())];
+    let verdict = |value: &str| vec![("Authentication-Results".to_string(), value.to_string()), ("Received".to_string(), INTAKE.to_string())];
     let mut plain = web_message(0, shop, "No verdict", &web_pictures("a.shop.example", 1));
     plain.headers.clear();
     let mut failed = web_message(1, shop, "Failed", &web_pictures("b.shop.example", 1));

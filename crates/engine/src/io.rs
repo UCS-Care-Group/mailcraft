@@ -386,6 +386,8 @@ pub fn import_opened(s: &mut Session, name: &str, bytes: &[u8]) -> Result<Value,
     let folder = s.mailbox.imported_folder(false)?;
     let mut m = mailcraft_mime_model::parse_fetched(bytes);
     m.remove_header(OPENED_FROM);
+    // No server of the owner's read it: its hops may all be the file's giver's (#2059).
+    m.hops_kept = false;
     let hash = file_sha256(bytes);
     // The same Message-ID (none for both, too), and, when the copy there keeps the SHA-256 of the
     // file it came from, the same file; a copy without one (imported before) by its Message-ID
@@ -426,6 +428,8 @@ pub fn parse_unfiled(name: &str, bytes: &[u8]) -> Result<mailcraft_model::Messag
     }
     let mut m = mailcraft_mime_model::parse_fetched(bytes);
     m.remove_header(OPENED_FROM);
+    // No server of the owner's read it: its hops may all be the file's giver's (#2059).
+    m.hops_kept = false;
     (m.id, m.uid, m.folder, m.draft, m.read) = (0, 0, 0, false, true);
     (m.server, m.synced) = (None, None);
     if m.received == 0 {
@@ -589,6 +593,8 @@ pub fn import(s: &mut Session, name: &str, bytes: &[u8], folder: Option<Id>) -> 
                 m.folder = folder;
                 m.left_gmail_inbox();
                 m.draft = drafts;
+                // No server of the owner's read it: its hops may all be the file's giver's (#2059).
+                m.hops_kept = false;
                 // Only a message opened from a file keeps that file's SHA-256 (`import_opened`).
                 m.remove_header(OPENED_FROM);
                 if m.received == 0 {

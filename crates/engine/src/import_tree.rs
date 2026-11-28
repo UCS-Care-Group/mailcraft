@@ -363,7 +363,7 @@ fn parse_found(mut w: Walk, top: String, count_only: bool, progress: &Progress) 
         let mut ids = Vec::new();
         let mut messages = Vec::new();
         let mut more = false;
-        for m in mailcraft_mime_model::mbox_messages(&bytes) {
+        for mut m in mailcraft_mime_model::mbox_messages(&bytes) {
             if ids.len() >= limit {
                 more = true;
                 break;
@@ -371,6 +371,8 @@ fn parse_found(mut w: Walk, top: String, count_only: bool, progress: &Progress) 
             progress.check()?;
             progress.messages.fetch_add(1, Ordering::Relaxed);
             ids.push(crate::cmd::imported_dupes::identity(&m));
+            // No server of the owner's read it: its hops may all be the file's giver's (#2059).
+            m.hops_kept = false;
             if !count_only {
                 messages.push(m);
             }

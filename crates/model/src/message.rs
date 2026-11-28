@@ -384,6 +384,24 @@ pub struct Message {
     /// believed: one saved before may be a sender's own, carried in from another account.
     #[serde(skip_serializing_if = "is_false")]
     pub fresh_stamps: bool,
+    /// Whether [`Message::headers`] were split by a MailCraft that keeps the topmost `Received`
+    /// hops on the message, down to the one at which the receiving server took it in
+    /// ([`crate::headers::split`], #2059). Only then is a server of the account's own believed by
+    /// where its verdict stands among them: a version before kept a hop too long for its block on
+    /// the message and put the server's own in the block, so a sender's hop could stand in for it.
+    /// False for mail split before, and for a file from before, and it stays so when such mail is
+    /// split again here ([`Message::split_headers`]): its block may be one lost (damaged, or
+    /// named by a name that isn't one) with the server's hop in it, which no later split can
+    /// tell. Set as a message is read (`mailcraft_mime_model`) and kept only for mail read from a
+    /// server of the owner's (IMAP, Microsoft Graph, JMAP, Exchange): mail from a file (opened,
+    /// imported from .eml, mbox or .pst, or only looked at) leaves it false, since its hops may
+    /// all be the file's giver's. Carried after that. A mailbox file (one opened from elsewhere
+    /// too) or a result given to `sync.apply` can say true, but whoever writes one writes its
+    /// header lines too, in any order, so it can say nothing a forged header can't. Mail it is
+    /// false for is written out as an Internet message (an export, a copy put on a server)
+    /// without its verdicts (`Session::loaded_to_write` in the engine).
+    #[serde(skip_serializing_if = "is_false")]
+    pub hops_kept: bool,
     /// The message's UID in the server mailbox of the folder it is in (IMAP); 0 for a message
     /// that isn't on the server there (yet).
     #[serde(skip_serializing_if = "is_zero")]

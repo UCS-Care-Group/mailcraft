@@ -84,10 +84,15 @@ fn delivered(uid: u32, subject: &str, headers: &[(&str, &str)]) -> Message {
         subject: subject.into(),
         message_id: format!("{uid}-{}@bank.example", subject.replace(' ', "-")),
         from: Address::new("Bank", BANK),
-        headers: headers.iter().map(|(name, value)| (name.to_string(), value.to_string())).collect(),
+        headers: headers.iter().map(|(name, value)| (name.to_string(), value.to_string())).chain([("Received".into(), INTAKE.into())]).collect(),
+        // Split as a message read by this version is.
+        hops_kept: true,
         ..Default::default()
     }
 }
+
+/// The hop at which the account's server took the mail in, below what it wrote of it.
+const INTAKE: &str = "from mail.bank.example (mail.bank.example [198.51.100.7]) by mx.lumen.example with ESMTPS id 1; Tue, 3 Nov 2026 10:00:00 +0000";
 
 fn trusted(s: &Session, id: Id) -> bool {
     let m = s.mailbox.message(id).unwrap();
@@ -193,6 +198,60 @@ fn moved_into_microsoft(w: &mut World, id: Id, made: &str) {
     assert!(!m.headers.iter().any(|(name, _)| is_verdict(name)), "{:?}", m.headers);
 }
 
+/// A .pst file (base64) with one item, `subject`, whose transport headers are [`eml`]'s.
+fn pst(subject: &str) -> String {
+    let mut item = MessageSpec { class: "IPM.Note".into(), subject: subject.into(), body: "Your statement.".into(), ..Default::default() };
+    let whole = eml(subject);
+    let headers = whole.split("\r\n\r\n").next().unwrap();
+    item.extra = vec![(0x007D, w::unicode(&format!("{headers}\r\n")))];
+    let file = FileSpec {
+        layout: Layout::new(Format::Unicode, Encryption::Permute),
+        password: None,
+        password_ansi: false,
+        name: "Personal Folders".into(),
+        folders: vec![FolderSpec { name: "Inbox".into(), class: Some("IPF.Note".into()), messages: vec![item], children: Vec::new() }],
+        named: Vec::new(),
+        named_strings: Vec::new(),
+    };
+    crate::cmd::base64_encode(&w::build(&file))
+}
+
+/// Mail that came in a file was not read from a server of the owner's: whatever `Received`
+/// lines it has, any of them may be the file's giver's, so its hops are never taken for ones a
+/// server kept (`Message::hops_kept`, #2059). Opened, imported (.eml, mbox, a tree of mbox files,
+/// .pst) or only looked at.
+#[test]
+fn mail_from_a_file_is_never_taken_for_mail_whose_hops_its_server_kept() {
+    let mut w = world(Vec::new(), Vec::new());
+    let dir = std::env::temp_dir().join(format!("mailcraft-hops-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let file = |name: &str, text: String| {
+        let path = dir.join(name);
+        std::fs::write(&path, text).unwrap();
+        path
+    };
+    let mbox = |subject: &str| format!("From bank.example Mon Nov  2 10:00:00 2026\r\n{}\r\n", eml(subject));
+    let mut ids = Vec::new();
+    let eml_path = file("a.eml", eml("eml import"));
+    ids.push(w.s.run("file.import", &json!({"path": eml_path, "folder": w.kept})).unwrap()["ids"][0].as_u64().unwrap());
+    let mbox_path = file("b.mbox", mbox("mbox import"));
+    ids.push(w.s.run("file.import", &json!({"path": mbox_path, "folder": w.kept})).unwrap()["ids"][0].as_u64().unwrap());
+    let opened_path = file("c.eml", eml("opened"));
+    ids.push(w.s.run("file.import", &json!({"path": opened_path, "opened": true})).unwrap()["opened"].as_u64().unwrap());
+    let entries = json!([{"path": "Mail/Inbox", "data": crate::cmd::base64_encode(mbox("tree import").as_bytes())}]);
+    w.s.run("file.importFolderTree", &json!({"entries": entries, "name": "Old mail"})).unwrap();
+    ids.push(titled(&w.s, "tree import"));
+    w.s.run("file.importPst", &json!({"name": "old-mail.pst", "data": pst("pst import")})).unwrap();
+    ids.push(titled(&w.s, "pst import"));
+    for id in ids {
+        let m = w.s.mailbox.message(id).unwrap();
+        assert!(m.headers.iter().any(|(name, _)| name == "Received"), "{}: {:?}", m.subject, m.headers);
+        assert!(!m.hops_kept, "{}", m.subject);
+    }
+    assert!(!crate::io::parse_unfiled("d.eml", eml("looked at").as_bytes()).unwrap().hops_kept);
+    let _ = std::fs::remove_dir_all(dir);
+}
+
 #[test]
 fn mail_from_a_file_put_on_a_server_by_mailcraft_is_not_vouched_for_by_what_it_says_of_itself() {
     let mut w = world(Vec::new(), Vec::new());
@@ -209,21 +268,7 @@ fn mail_from_a_file_put_on_a_server_by_mailcraft_is_not_vouched_for_by_what_it_s
     assert!(!trusted(&w.s, imported));
 
     // From a .pst file, the same headers in the item's transport headers.
-    let mut item = MessageSpec { class: "IPM.Note".into(), subject: "pst statement".into(), body: "Your statement.".into(), ..Default::default() };
-    let whole = eml("pst statement");
-    let headers = whole.split("\r\n\r\n").next().unwrap();
-    item.extra = vec![(0x007D, w::unicode(&format!("{headers}\r\n")))];
-    let file = FileSpec {
-        layout: Layout::new(Format::Unicode, Encryption::Permute),
-        password: None,
-        password_ansi: false,
-        name: "Personal Folders".into(),
-        folders: vec![FolderSpec { name: "Inbox".into(), class: Some("IPF.Note".into()), messages: vec![item], children: Vec::new() }],
-        named: Vec::new(),
-        named_strings: Vec::new(),
-    };
-    let data = crate::cmd::base64_encode(&w::build(&file));
-    w.s.run("file.importPst", &json!({"name": "old-mail.pst", "data": data})).unwrap();
+    w.s.run("file.importPst", &json!({"name": "old-mail.pst", "data": pst("pst statement")})).unwrap();
     let from_pst = titled(&w.s, "pst statement");
     assert!(w.s.mailbox.message(from_pst).unwrap().headers.iter().any(|(name, _)| name == "Authentication-Results"));
     assert!(!trusted(&w.s, from_pst));

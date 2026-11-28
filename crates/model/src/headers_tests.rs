@@ -7,7 +7,9 @@ use std::sync::Arc;
 
 use proptest::prelude::*;
 
-use crate::headers::{self, HeaderBlock, HeaderLine, MAX_BLOCK_LINES, MAX_HEADER_BLOCK, WORKING, is_working, is_working_name, merge, split};
+use crate::headers::{
+    self, HeaderBlock, HeaderLine, MAX_BLOCK_LINES, MAX_HEADER_BLOCK, WORKING, is_working, is_working_name, may_stay, merge, split,
+};
 use crate::{Mailbox, Message};
 
 fn pairs(list: &[(&str, &str)]) -> Vec<(String, String)> {
@@ -41,6 +43,7 @@ fn what_is_read_by_name_stays_and_the_rest_goes_to_the_block_in_order() {
     assert_eq!(
         names,
         [
+            "Received",
             "Authentication-Results",
             "Received",
             "X-MS-Exchange-Organization-AuthAs",
@@ -49,12 +52,13 @@ fn what_is_read_by_name_stays_and_the_rest_goes_to_the_block_in_order() {
             "X-MailCraft-Pst-Item"
         ]
     );
-    // Only the hop at Exchange Online's edge stays of the trace.
+    // Of the trace, the topmost hop that is no hop to the mailbox store stays (with any such hops
+    // above it), and the hop at Exchange Online's edge.
     assert!(working.iter().any(|(n, v)| n == "Received" && v.contains(".mail.protection.outlook.com")));
     let lines = block.lines();
     let names: Vec<&str> = lines.iter().map(|l| l.name.as_str()).collect();
-    assert_eq!(names, ["Received", "X-Microsoft-Antispam-Message-Info", "ARC-Seal", "Return-Path"]);
-    assert_eq!(lines.iter().map(|l| l.at).collect::<Vec<_>>(), [0, 4, 5, 8]);
+    assert_eq!(names, ["X-Microsoft-Antispam-Message-Info", "ARC-Seal", "Return-Path"]);
+    assert_eq!(lines.iter().map(|l| l.at).collect::<Vec<_>>(), [4, 5, 8]);
     assert_eq!(merge(&working, &lines), all);
 }
 
@@ -107,7 +111,7 @@ fn places_that_make_no_sense_lose_no_line() {
 fn a_message_splits_and_joins() {
     let mut m = Message { headers: exchange(), ..Default::default() };
     m.split_headers();
-    assert_eq!(m.headers.len(), 6);
+    assert_eq!(m.headers.len(), 7);
     assert!(!m.header_block.none_in_memory());
     assert_eq!(m.all_headers(), exchange());
     assert_eq!(m.header("list-id"), Some("<news.example.org>"));
@@ -115,7 +119,7 @@ fn a_message_splits_and_joins() {
     // A line added since goes to the block too, the next time.
     m.headers.push(("X-Spam-Score".into(), "1.0".into()));
     m.split_headers();
-    assert!(m.headers.iter().all(|(n, v)| is_working(n, v)));
+    assert!(m.headers.iter().all(|(n, v)| may_stay(n, v)));
     assert_eq!(m.all_headers().last().map(|(n, _)| n.as_str()), Some("X-Spam-Score"));
     m.join_headers();
     assert!(m.header_block.is_empty());
@@ -141,7 +145,7 @@ fn a_message_round_trips_through_json_with_its_block() {
     let mut m = Message { id: 3, headers: exchange(), ..Default::default() };
     m.split_headers();
     let json = serde_json::to_string(&m).unwrap();
-    assert!(json.contains("\"headerBlock\":[[0,\"Received\""), "{json}");
+    assert!(json.contains("\"headerBlock\":[[4,\"X-Microsoft-Antispam-Message-Info\""), "{json}");
     let back: Message = serde_json::from_str(&json).unwrap();
     assert_eq!(back, m);
     assert_eq!(back.all_headers(), exchange());
@@ -249,7 +253,15 @@ proptest! {
     fn split_then_merge_is_what_was_split(list in proptest::collection::vec((prop::sample::select(vec!["Received", "List-Id", "X-A", "Sender", "x-mailcraft-z", "DKIM-Signature", "Authentication-Results"]), "[ -~]{0,40}"), 0..40)) {
         let all: Vec<(String, String)> = list.into_iter().map(|(n, v)| (n.to_string(), v)).collect();
         let (working, block) = split(all.clone());
-        prop_assert!(working.iter().all(|(n, v)| is_working(n, v)));
+        prop_assert!(working.iter().all(|(n, v)| may_stay(n, v)));
+        // Of the trace, only the topmost hops stay, down to the first that is no hop to the
+        // mailbox store (a hop at Exchange Online's edge aside).
+        let hops: Vec<&String> = all.iter().filter(|(n, _)| n == "Received").map(|(_, v)| v).collect();
+        let down_to = hops.iter().position(|v| !crate::auth_results::is_delivery_hop(v)).map_or(hops.len(), |at| at + 1);
+        let kept: Vec<&String> = working.iter().filter(|(n, _)| n == "Received").map(|(_, v)| v).collect();
+        let expected: Vec<&String> =
+            hops.iter().enumerate().filter(|(at, v)| *at < down_to || crate::auth_results::is_exchange_online_edge(v)).map(|(_, v)| *v).collect();
+        prop_assert_eq!(kept, expected);
         prop_assert_eq!(merge(&working, &block.lines()), all);
     }
 }
