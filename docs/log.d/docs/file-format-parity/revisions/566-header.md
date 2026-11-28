@@ -1,0 +1,1 @@
+| 2026-11-23 | patch | #566: `readHeader` and `readHeaderCut`, the header lines kept as they came for a rule with words in the header, only for the mail of an account such a rule is for, and what an older build does with them; 0.15.0 and earlier refuse a mailbox holding such a rule |

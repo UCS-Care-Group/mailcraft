@@ -1,0 +1,1 @@
+| 2026-11-23 | #566: a rule can look for words in the message header (Header contains), as a condition or an exception, kept on a Microsoft account's server too; it reads the header as it came, and the lines MailCraft reads into the message are kept as they came for it (up to 64 KB a message) only for the mail of an account such a rule is for, from the time there is one |

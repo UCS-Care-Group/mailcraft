@@ -2232,8 +2232,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "Datei anfügen"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 msgid "Attach Item"
 msgstr "Element anhängen"
 
@@ -2282,6 +2282,11 @@ msgstr "Anlagenoptionen für {name}"
 #, fuzzy
 msgid "Attachments"
 msgstr "Anlagen"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/compose.rs
+msgid "Attachments can't be opened here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/attachment_open.rs
@@ -4850,8 +4855,18 @@ msgstr "Fertig: auf dem neuesten Stand"
 msgid "Done: {n} new"
 msgstr "Fertig: {n} neu"
 
-#. android, ribbon location
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to download {name}"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/compose.rs
+msgid "Double-click to open {name}"
+msgstr ""
+
+#. android, interface, ribbon location
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/PicturesBanner.kt crates/engine/src/cmd/send_receive.rs crates/ui-egui/src/compose.rs
 msgid "Download"
 msgstr "Herunterladen"
 
@@ -6666,6 +6681,12 @@ msgstr "Antworten senden an"
 msgid "Have replies sent to other addresses"
 msgstr "Antworten an andere Adressen senden lassen"
 
+#. name
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
+msgid "Header contains"
+msgstr "Kopfzeile enthält"
+
 #. interface
 #: crates/ui-egui/src/compose/picture_size.rs
 #, fuzzy
@@ -8457,6 +8478,11 @@ msgstr "MailCraft kann {account} jetzt statt über IMAP über Microsoft Graph mi
 #, fuzzy
 msgid "MailCraft can't keep this account's rules on its server"
 msgstr "MailCraft kann die Regeln dieses Kontos nicht auf seinem Server speichern"
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "MailCraft can't open {name} because of its file type."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
@@ -10927,7 +10953,7 @@ msgid "Nothing was done: what the agent asked about changed after you were asked
 msgstr "Es wurde nichts ausgeführt: Das, wonach der Agent gefragt hat, hat sich geändert, nachdem Sie gefragt wurden."
 
 #. interface
-#: crates/ui-egui/src/dialogs.rs
+#: crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/dialogs.rs
 #, fuzzy
 msgid "Nothing was done: what you were asked about has changed since. Ask again."
 msgstr "Es wurde nichts getan: Das, wonach Sie gefragt wurden, hat sich inzwischen geändert. Versuchen Sie es erneut."
@@ -11334,7 +11360,7 @@ msgid "Only while MailCraft isn't the window in front, and only for the Inboxes 
 msgstr "Nur, wenn MailCraft nicht das vordere Fenster ist, und nur für die Posteingänge Ihrer eigenen Konten."
 
 #. android, interface, ribbon
-#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
+#: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AttachmentsView.kt apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/ReadingScreen.kt crates/ui-egui/src/attachment_open.rs crates/ui-egui/src/calendar_view.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/dialogs.rs crates/ui-egui/src/reading.rs crates/ui-egui/src/ribbon.rs
 msgid "Open"
 msgstr "Öffnen"
 
@@ -11377,6 +11403,11 @@ msgstr "Dialog öffnen"
 #: crates/engine/src/cmd/compose.rs crates/ui-egui/src/mail_view.rs
 msgid "Open Draft"
 msgstr "Entwurf öffnen"
+
+#. command label
+#: crates/ui-egui/src/lib.rs
+msgid "Open Draft Attachment"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
@@ -11920,8 +11951,9 @@ msgstr "Bild aus Zwischenablage einfügen"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "Nur Text einfügen"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -12786,7 +12818,7 @@ msgid "Remove Account"
 msgstr "Konto entfernen"
 
 #. command label, interface
-#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/reading.rs
+#: crates/engine/src/cmd/compose.rs crates/engine/src/cmd/mail.rs crates/ui-egui/src/compose.rs crates/ui-egui/src/reading.rs
 #, fuzzy
 msgid "Remove Attachment"
 msgstr "Anlage entfernen"
@@ -14864,7 +14896,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "Desktopbenachrichtigung für Erinnerungen anzeigen"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Desktopbenachrichtigung bei neuen E-Mails anzeigen"
@@ -16906,6 +16938,11 @@ msgstr "Die Domain {domain} nennt einen Server für die automatische Einrichtung
 #, fuzzy
 msgid "The download was called off."
 msgstr "Der Download wurde abgebrochen."
+
+#. interface
+#: crates/ui-egui/src/attachment_open.rs
+msgid "The draft isn't open any more"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dialogs.rs
@@ -21636,6 +21673,12 @@ msgstr "enthält zu viele Dateien: Der Rest wurde nicht entfernt"
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
+msgid "header contains {words}"
+msgstr "die Kopfzeile enthält {words}"
+
+#. interface
+#: crates/ui-egui/src/forms.rs
+#, fuzzy
 msgid "high"
 msgstr "hoch"
 
@@ -24825,6 +24868,12 @@ msgstr "{name} ist ein freigegebenes Postfach, dessen Konto nicht mehr vorhanden
 #, fuzzy
 msgid "{name} is already in {folder}."
 msgstr "{name} ist bereits in {folder}."
+
+#. interface
+#: crates/ui-egui/src/files.rs
+#, fuzzy
+msgid "{name} is attached: it can't go in the text ({why})"
+msgstr "{name} wurde angehängt: Es kann nicht in den Text eingefügt werden ({why})"
 
 #. interface
 #: crates/ui-egui/src/lib.rs

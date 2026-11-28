@@ -48,6 +48,8 @@ macro_rules! tl_later {
 
 #[cfg(test)]
 mod accent_custom_tests;
+#[cfg(test)]
+mod account_card_tests;
 mod account_setup;
 pub mod address_book;
 mod advanced_search;
@@ -103,6 +105,8 @@ mod dav_job;
 mod dav_job_tests;
 #[cfg(test)]
 mod dav_secrets_tests;
+#[cfg(test)]
+mod dialog_focus_tests;
 #[cfg(test)]
 mod dialog_report_tests;
 #[cfg(test)]
@@ -173,6 +177,8 @@ mod keep_offline;
 mod key_chain_tests;
 pub mod keys;
 #[cfg(test)]
+mod label_columns_tests;
+#[cfg(test)]
 #[path = "late_work_tests.rs"]
 mod late_work_tests;
 #[cfg(test)]
@@ -239,6 +245,8 @@ pub mod scheduling;
 mod search_pills;
 #[cfg(test)]
 mod search_pills_tests;
+#[cfg(test)]
+mod search_scope_tests;
 mod search_suggest;
 mod secret_field;
 #[cfg(test)]
@@ -380,7 +388,7 @@ pub struct Services {
     /// Files delivered asynchronously otherwise (dropped in the browser): each goes where its
     /// kind says, to the message with the keyboard, whatever a picker was last opened for.
     pub inbox: Option<Inbox>,
-    /// Desktop: open an attachment the owner asked to open (`mail.openAttachment`) with the
+    /// Desktop: open an attachment the owner asked to open with the
     /// system's own program for its kind: the host writes it, under the name given (already
     /// made safe, and made safe again there), into a folder of MailCraft's own that only this
     /// user can read and that is emptied when MailCraft quits, and asks the system to open it.
@@ -699,6 +707,10 @@ impl Services {
 pub trait RichClipboard {
     /// Put `html` on the clipboard with `text` beside it for programs that take text.
     fn put(&self, html: &str, text: &str) -> Result<(), String>;
+    /// Put plain text on the clipboard when the source document has no HTML.
+    fn put_text(&self, _text: &str) -> Result<(), String> {
+        Err("the clipboard cannot write plain text".into())
+    }
     /// The HTML on the clipboard, when what is on it has HTML.
     fn html(&self) -> Option<String>;
     /// The picture on the clipboard as PNG, when what is on it is a picture.
@@ -1436,6 +1448,12 @@ pub const UI_COMMANDS: &[(&str, &str, &str, &str)] = &[
     ("ui.open", "Open Mailbox", "File › Open & Export", "{}"),
     ("ui.import", "Import", "File › Open & Export", "{}"),
     ("ui.attach", "Attach File", "Message › Include", "{}"),
+    (
+        "ui.openDraftAttachment",
+        "Open Draft Attachment",
+        "Message › Include",
+        r#"{"compose": id, "index": zero-based, "confirmed"?: bool} — open a copy of the attachment in that draft, or download it in the browser"#,
+    ),
     ("ui.toggleFolder", "Expand or Collapse Folder", "Folder", r#"{"id": number}"#),
     (
         "ui.openWindow",
@@ -1664,6 +1682,8 @@ pub struct MailApp {
     /// The message being written whose body takes the keyboard back at its next frame (after a
     /// ribbon button or a dialog changed its text), by its id (#286).
     pub(crate) body_focus_wanted: Option<u64>,
+    /// The owner opened this forward and has yet to type its recipients.
+    pub(crate) recipient_focus_wanted: Option<u64>,
     /// The signature open in File › Signatures is to take the keyboard back at its next frame,
     /// after its formatting bar or the Link dialog changed its text (#1552).
     pub(crate) signature_focus_wanted: bool,
@@ -2055,6 +2075,7 @@ impl MailApp {
             search_box_shown: false,
             compose_bcc: Default::default(),
             body_focus_wanted: None,
+            recipient_focus_wanted: None,
             signature_focus_wanted: false,
             signatures_shown: false,
             signature_note: None,
@@ -2344,6 +2365,10 @@ impl MailApp {
             // still the ones it took, and a time picked to put them at. A hint only, as above.
             None if id == "ui.calendarPaste" => calendar_view::paste_ready(self),
             None if id == "ui.openDataFolder" => self.services.data_folder.is_some() && !self.data_removed,
+            None if id == attachment_open::OPEN_DRAFT => {
+                self.session.compose.as_ref().is_some_and(|c| !c.attachments.is_empty())
+                    && (self.services.open_file.is_some() || self.services.download.is_some())
+            }
             None => UI_COMMANDS.iter().any(|c| c.0 == id),
         }
     }
@@ -2549,9 +2574,22 @@ impl MailApp {
         if keys::MOVES_IN_LIST.contains(&id) || id == "mail.collapseConversation" {
             self.reveal_selection = true;
         }
+        // The owner's forward is ready for its recipients, including when the
+        // control that opened it still has the keyboard.
+        if !self.driven
+            && self.session.agent.is_none()
+            && matches!(id, "mail.forward" | "mail.forwardAsAttachment")
+            && let Ok(answer) = &r
+        {
+            self.recipient_focus_wanted = answer.get("compose").and_then(Value::as_u64);
+        }
+        // Formatting keeps the keyboard where the owner is typing. If a header field has it,
+        // the ribbon still formats the body without moving the keyboard out of that field.
+        let format_body = id.starts_with("format.")
+            && self.ctx.as_ref().zip(self.session.compose_id()).is_none_or(|(ctx, compose)| compose::focused_header(ctx, compose).is_none());
         // What was done to the text being written leaves the keyboard in it.
         if r.is_ok()
-            && (id.starts_with("format.")
+            && (format_body
                 || matches!(id, "compose.link" | "compose.undo" | "compose.redo" | "edit.paste" | "compose.formatHtml" | "compose.formatPlain"))
         {
             self.want_body_focus();
@@ -5046,15 +5084,26 @@ impl MailApp {
         }
     }
 
-    /// Open a file by path (the command line, a drop on the window, the system's Open With): a
-    /// mailbox opens, a message, calendar or contact file is imported, anything else is attached
-    /// to the message being written. A failure shows in the status bar.
+    /// Open a file by path (the command line, the system's Open With): a mailbox opens, a
+    /// message, calendar or contact file is imported, anything else is attached to the message
+    /// being written. A failure shows in the status bar. (A file let go over a window:
+    /// [`let_go`](Self::let_go).)
     pub fn open_path(&mut self, path: &str) {
         // Handed over while the mailbox opens: opened once it is.
         if opening::queue(self, path) {
             return;
         }
         files::dropped_path(self, path);
+    }
+
+    /// A file let go over a window ([`files::let_go`]): `writing` is the message being written
+    /// that window shows, if any; a picture goes into its text when it is in HTML.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn let_go(&mut self, path: &str, writing: Option<u64>) {
+        if opening::queue(self, path) {
+            return;
+        }
+        files::let_go(self, path, writing);
     }
 
     /// Open what the system handed MailCraft (the command line, a later start, the Finder): a
@@ -5226,6 +5275,7 @@ impl MailApp {
             self.motion.applied = None;
         }
         let plays = self.motion.plays(self.ui.animations, ctx.input(|i| i.time), self.services.animations_enabled.as_deref());
+        let plays = software::animations_play(self.ui.animations, plays, software::is_software());
         self.motion.apply(ctx, plays);
         let zoom = self.ui.interface_size.zoom_factor();
         if ctx.zoom_factor() != zoom {
@@ -5373,7 +5423,11 @@ impl MailApp {
             if signatures && self.session.signature_edit.is_some() {
                 signatures::add_picture(self, json!({"path": path}));
             } else {
-                self.open_path(&path);
+                // The message the main window writes: the reading pane's, or, where the windows
+                // are inside it, the one in front (those of the system take their own:
+                // `windows`). Asked for each file: a mailbox let go with them changes it.
+                let writing = if ctx.embed_viewports() { windows::compose_window::target(self) } else { windows::compose_window::pane_compose(self) };
+                self.let_go(&path, writing);
             }
         }
         self.by_hand = false;
@@ -6097,7 +6151,7 @@ const MAX_PROBLEM: usize = 600;
 pub(crate) fn refusal_worth_a_box(id: &str, error: &str) -> bool {
     let quiet = ["not available:", "unknown command", "bad parameters:", "nothing "];
     let lower = error.trim_start().to_lowercase();
-    !id.starts_with("ui.") && !error.trim().is_empty() && !quiet.iter().any(|q| lower.starts_with(q))
+    (!id.starts_with("ui.") || id == attachment_open::OPEN_DRAFT) && !error.trim().is_empty() && !quiet.iter().any(|q| lower.starts_with(q))
 }
 
 fn feedback(id: &str, v: &Value) -> Option<String> {

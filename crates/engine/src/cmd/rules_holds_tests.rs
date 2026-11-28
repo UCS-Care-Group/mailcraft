@@ -233,3 +233,66 @@ fn a_later_listing_that_cut_the_categories_keeps_a_rule_from_deleting_past_a_cat
     run(&mut s, "rules.run", json!({"folder": inbox}));
     assert!(!binned(&s, account, "Contract"), "deleted, though Keep may be among the categories left out");
 }
+
+/// The boss writes to all 1,900 staff, the owner among them; every recipient is read, none past
+/// what is kept, and only the header lines kept as they came for a header rule run past 64 KB.
+/// "From the boss, except automatic replies: to Boss, stop" acts, and "subject contains all staff:
+/// delete" after it doesn't: the message is in Boss, not Deleted Items. So it is on an account
+/// with a rule with words in the header, which keeps the lines and says they were cut (#566).
+#[test]
+fn mail_to_many_read_whole_goes_where_its_first_rule_puts_it() {
+    use mailcraft_model::sync::{FolderDelta, SyncResult};
+    let mut s = Session::empty();
+    let me = "ada@mail.example";
+    let account = run(&mut s, "account.add", json!({"email": me, "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+    let inbox = s.mailbox.folder_of_kind(account, FolderKind::Inbox).unwrap();
+    let boss = run(&mut s, "folder.new", json!({"name": "Boss", "parent": inbox}))["id"].as_u64().unwrap();
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Boss", "account": account, "conditions": [{"type": "from", "value": "boss@example.org"}],
+            "exceptions": [{"type": "automaticReply"}], "actions": [{"type": "moveTo", "value": boss}], "stop": true}),
+    );
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "All staff", "account": account, "conditions": [{"type": "subjectContains", "value": "all staff"}],
+            "actions": [{"type": "delete"}]}),
+    );
+    let list = |prefix: &str, n: usize| (0..n).map(|i| format!("{prefix}-long-recipient-name-{i:04}@example.org")).collect::<Vec<_>>().join(",\r\n ");
+    let deliver = |s: &mut Session, uid: u32| {
+        let raw = format!(
+            "From: Boss <boss@example.org>\r\nTo: {me},\r\n {}\r\nCc: {}\r\nSubject: All staff: the new office\r\nMessage-ID: <many-{uid}@example.org>\r\n\r\nHello.\r\n",
+            list("to", 1000),
+            list("cc", 899)
+        );
+        let mut m = crate::mime::parse(raw.as_bytes());
+        assert_eq!((m.to.len(), m.cc.len()), (1001, 899));
+        m.uid = uid;
+        let delta = FolderDelta {
+            id: Some(inbox),
+            remote: "INBOX".into(),
+            kind: FolderKind::Inbox,
+            uid_validity: 7,
+            uid_seen: uid,
+            new: vec![m],
+            ..Default::default()
+        };
+        run(s, "sync.apply", json!({"result": SyncResult { account, folders: vec![delta], ..Default::default() }}));
+        let got = s.mailbox.messages.values().find(|m| m.message_id == format!("many-{uid}@example.org")).unwrap().clone();
+        (s.mailbox.folder(got.folder).unwrap().name.clone(), got)
+    };
+    let (folder, got) = deliver(&mut s, 1);
+    assert_eq!(folder, "Boss", "headers cut: {}", got.headers_cut);
+    // No header rule: the lines, and that they were cut, aren't kept.
+    assert!(!got.headers_cut && got.read_header.is_empty() && !got.read_header_cut);
+    run(
+        &mut s,
+        "rules.add",
+        json!({"name": "Campaigns", "account": account, "conditions": [{"type": "headerContains", "value": "x-campaign"}],
+            "actions": [{"type": "delete"}]}),
+    );
+    let (folder, got) = deliver(&mut s, 2);
+    assert_eq!(folder, "Boss");
+    assert!(!got.headers_cut && !got.read_header.is_empty() && got.read_header_cut);
+}
