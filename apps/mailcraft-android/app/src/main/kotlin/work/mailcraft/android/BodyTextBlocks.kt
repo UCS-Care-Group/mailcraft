@@ -13,13 +13,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.text.BasicText
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalLayoutDirection
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDirection
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -29,11 +32,18 @@ import uniffi.mailcraft_mobile.BlockView
 import uniffi.mailcraft_mobile.LineHeightView
 import uniffi.mailcraft_mobile.MarkerView
 
+/** The side a block's text stands at: the one the core names, whichever way the text reads. */
 internal fun textAlign(align: AlignView): TextAlign = when (align) {
-    AlignView.LEFT -> TextAlign.Start
+    AlignView.LEFT -> TextAlign.Left
     AlignView.CENTER -> TextAlign.Center
-    AlignView.RIGHT -> TextAlign.End
+    AlignView.RIGHT -> TextAlign.Right
 }
+
+/**
+ * The way a block reads, as the core says: right to left where the message's `dir` or its plain
+ * text says so, else left to right.
+ */
+internal fun textDirection(block: BlockView): TextDirection = if (block.rtl) TextDirection.Rtl else TextDirection.Ltr
 
 /** The size of a heading of [level] (1 to 6), in sp. */
 internal fun headingSize(level: Int): Int = HEADING_SIZES.getOrElse(level - 1) { BASE_SIZE }
@@ -56,8 +66,8 @@ internal fun TextBlock(
     val style = TextStyle(
         color = composeColor(paper.ink),
         fontSize = base.sp,
-        fontWeight = if (heading > 0) FontWeight.Bold else null,
         textAlign = textAlign(block.align),
+        textDirection = textDirection(block),
         lineHeight = lineHeightOf(block, base),
         fontFamily = if (mono) FontFamily.Monospace else null,
     )
@@ -71,7 +81,7 @@ internal fun TextBlock(
  */
 internal fun lineHeightOf(block: BlockView, size: Int): TextUnit {
     val asked = when (val h = block.lineHeight) {
-        is LineHeightView.Scale -> size * h.hundredths.toInt() / HUNDRED
+        is LineHeightView.Scale -> size * h.hundredths.toInt().coerceAtMost(MAX_LINE_SCALE) / HUNDRED
         is LineHeightView.Px -> h.px.toFloat()
         null -> size * DEFAULT_LINE
     }
@@ -89,22 +99,26 @@ internal fun ListItem(block: BlockView, kind: BlockKindView.ListItem, env: BodyE
         is MarkerView.Nothing -> ""
     }
     val indent = (kind.depth.toInt().coerceIn(0, MAX_LIST_DEPTH) * LIST_INDENT).dp
-    Row(modifier = Modifier.padding(start = indent), horizontalArrangement = Arrangement.spacedBy(MARKER_GAP.dp)) {
-        BasicText(
-            marker,
-            modifier = Modifier.width(MARKER_WIDTH.dp),
-            style = TextStyle(color = composeColor(paper.ink), fontSize = BASE_SIZE.sp, textAlign = TextAlign.End),
-        )
-        Box(modifier = Modifier.weight(1f)) { TextBlock(block, env, paper) }
+    // An item that reads from the right hangs its marker there, whatever side its text stands at.
+    val direction = if (block.rtl) LayoutDirection.Rtl else LayoutDirection.Ltr
+    CompositionLocalProvider(LocalLayoutDirection provides direction) {
+        Row(modifier = Modifier.padding(start = indent), horizontalArrangement = Arrangement.spacedBy(MARKER_GAP.dp)) {
+            BasicText(
+                marker,
+                modifier = Modifier.width(MARKER_WIDTH.dp),
+                style = TextStyle(color = composeColor(paper.ink), fontSize = BASE_SIZE.sp, textAlign = TextAlign.End),
+            )
+            Box(modifier = Modifier.weight(1f)) { TextBlock(block, env, paper) }
+        }
     }
 }
 
 /** A horizontal rule, as thick and as coloured as the message says (a line of 1 to 4 pixels). */
 @Composable
-internal fun RuleBlock(block: BlockView, env: BodyEnv) {
+internal fun RuleBlock(block: BlockView, env: BodyEnv, paper: Paper) {
     val line = block.line
     val thickness = line.width.toInt().coerceIn(1, MAX_RULE)
-    val color = line.color?.let { composeColor(it.rgb()) } ?: env.rule
+    val color = line.color?.rgb()?.let(paper::rule)?.let(::composeColor) ?: env.rule
     Spacer(
         modifier = Modifier
             .padding(vertical = RULE_MARGIN.dp)
@@ -116,7 +130,10 @@ internal fun RuleBlock(block: BlockView, env: BodyEnv) {
 
 private const val BULLET = "•"
 private const val HUNDRED = 100f
-private const val DEFAULT_LINE = 1.4f
+
+/** The tallest line for its size, in hundredths: the parser's `MAX_LINE_HEIGHT`, held here too (I3). */
+private const val MAX_LINE_SCALE = 250
+internal const val DEFAULT_LINE = 1.4f
 
 /** The least line height, in sizes of its text: room for the ascent and descent of the phone's fonts. */
 private const val MIN_LINE = 1.2f
