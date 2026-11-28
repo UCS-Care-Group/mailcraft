@@ -144,9 +144,10 @@ impl Doc {
 
 /// Whether one of the pictures is written into the message or attached to it.
 fn shows_a_picture(blocks: &[Block], message: &Message) -> bool {
+    let parts = mailcraft_model::shown::PartIndex::new(&message.attachments);
     mailcraft_html::images(blocks).iter().any(|b| match &b.kind {
         BlockKind::Image { data: Some(_), .. } => true,
-        BlockKind::Image { src, .. } => super::images::attachment(message, src).is_some(),
+        BlockKind::Image { src, .. } => parts.find(src).is_some(),
         _ => false,
     })
 }

@@ -208,6 +208,17 @@ jobs:
           shared-key: android-app
           save-if: ${{ github.ref == 'refs/heads/main' }}
           cache-on-failure: false
+      # Gradle's downloads (plugins, dependencies, the wrapper) are kept, so a flaky repository
+      # fetch only hurts a run that changes them. Only main saves (like rust-cache above), so pull
+      # requests don't churn the repository's cache space; no secret reaches this job.
+      - uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: gradle-cache
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('apps/mailcraft-android/**/*.gradle.kts', 'apps/mailcraft-android/gradle/libs.versions.toml', 'apps/mailcraft-android/gradle/wrapper/gradle-wrapper.properties', 'apps/mailcraft-android/gradle.properties') }}
+          restore-keys: gradle-${{ runner.os }}-
       - name: Android SDK pieces the app is built with
         run: |
           yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null
@@ -217,7 +228,23 @@ jobs:
       - name: cargo xtask mobile
         run: |
           export JAVA_HOME="$JAVA_HOME_21_X64"  # Paparazzi 2 runs on 21; the app still targets 17
-          cargo run --locked --package xtask -- mobile
+          set -o pipefail
+          # One more try when Gradle could not download a plugin or dependency (a repository
+          # hiccup); any other failure fails at once.
+          cargo run --locked --package xtask -- mobile 2>&1 | tee "$RUNNER_TEMP/mobile.log" && exit 0
+          if grep -qiE 'could not resolve plugin artifact|Could not (GET|HEAD)' "$RUNNER_TEMP/mobile.log"; then
+            echo "::warning::Gradle download failed; trying once more"
+            cargo run --locked --package xtask -- mobile
+          else
+            exit 1
+          fi
+      - uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: success() && github.ref == 'refs/heads/main' && github.event_name == 'push' && steps.gradle-cache.outputs.cache-hit != 'true'
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
 
   # The one check main's protection requires (and the merge queue's): passes when every job that
   # ran passed; a job this run had no need of is skipped, and a skip counts as a pass. A failed or

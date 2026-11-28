@@ -398,11 +398,11 @@ fn message_of<R: Read + Seek>(pst: &mut Pst<R>, m: &mailcraft_pst::Message, item
     // The body.
     body(pst, m, &text, item, &mut out)?;
 
-    // Attachments, and the pictures the HTML shows by content id (looked for once).
-    let cids = mailcraft_model::shown::shown_ids(out.body.html.as_deref().unwrap_or(""));
+    // Attachments, then the pictures the HTML draws by content id (laid out once).
     for a in &m.attachments {
-        attachment(pst, a, &text, item, depth, &cids, &mut out)?;
+        attachment(pst, a, &text, item, depth, &mut out)?;
     }
+    mailcraft_mime_model::mark_drawn(&mut out);
     if class.to_ascii_lowercase().starts_with("ipm.note.smime") {
         item.note("signed or encrypted (S/MIME): kept as it was, can't be read yet".to_string());
     }
@@ -694,7 +694,6 @@ fn attachment<R: Read + Seek>(
     text: &Text,
     item: &mut Item,
     depth: usize,
-    cids: &mailcraft_model::shown::ShownIds,
     out: &mut Message,
 ) -> Result<(), PstError> {
     let p = &a.properties;
@@ -751,9 +750,10 @@ fn attachment<R: Read + Seek>(
             };
             let mut file = Attachment::new(name, mime, data);
             if !content_id.is_empty() {
-                // Shown in place only as a picture an `<img>` asks for (or the file hides), by its
-                // bytes: a file of any other kind is listed, whatever the body or the file says.
-                file.inline = mailcraft_model::shown::is_picture(&file.data) && (hidden || cids.shows(&content_id));
+                // Shown in place only as a picture the file hides, or one the body draws
+                // (`mark_drawn`), by its bytes: a file of any other kind is listed, whatever the
+                // body or the file says.
+                file.inline = mailcraft_model::shown::is_picture(&file.data) && hidden;
                 file.content_id = content_id;
             }
             out.attachments.push(file);

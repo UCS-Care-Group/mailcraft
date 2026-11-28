@@ -479,12 +479,14 @@ pub fn message_json(s: &Session, m: &Message) -> Value {
         o.insert("forwarded".into(), json!(m.forwarded));
         o.insert("draft".into(), json!(m.draft));
         o.insert("pinned".into(), json!(m.pinned));
+        // `inline`: the body shows it in place, not listed (`Message::listed_attachments`).
+        let listed: std::collections::BTreeSet<usize> = m.listed_attachments().map(|(i, _)| i).collect();
         o.insert(
             "attachments".into(),
             m.attachments
                 .iter()
                 .enumerate()
-                .map(|(i, a)| json!({"index": i, "name": a.name, "mime": a.mime, "size": a.size(), "inline": a.inline}))
+                .map(|(i, a)| json!({"index": i, "name": a.name, "mime": a.mime, "size": a.size(), "inline": !listed.contains(&i)}))
                 .collect(),
         );
         o.insert("conversation".into(), json!(s.mailbox.conversation(m.id)));
