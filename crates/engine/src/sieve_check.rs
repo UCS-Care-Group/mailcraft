@@ -466,6 +466,8 @@ const DATE_ZONE: &[TagSpec] = &[tag("zone", S, NONE, G_ZONE), tag("originalzone"
 const ZONE: &[TagSpec] = &[tag("zone", S, NONE, 0)];
 const SIZE: &[TagSpec] = &[tag("over", None, NONE, G_SIZE), tag("under", None, NONE, G_SIZE)];
 const COPY: &[TagSpec] = &[tag("copy", None, &["copy"], 0)];
+/// `redirect :list`, to the members of a list (RFC 6134 §2.5), #2058.
+const EXTLISTS: &[TagSpec] = &[tag("list", None, &["extlists"], 0)];
 const FLAGS: &[TagSpec] = &[tag("flags", L, &["imap4flags"], 0)];
 const FILEINTO: &[TagSpec] = &[tag("create", None, &["mailbox"], 0), tag("specialuse", S, &["special-use"], 0)];
 const VACATION: &[TagSpec] = &[
@@ -546,7 +548,7 @@ const SPECS: &[Spec] = &[
     spec("stop", Control, NONE, &[], &[]),
     spec("keep", Action, NONE, &[FLAGS], &[]),
     spec("discard", Action, NONE, &[], &[]),
-    does(Sends, spec("redirect", Action, NONE, &[COPY], &[STR])),
+    does(Sends, spec("redirect", Action, NONE, &[COPY, EXTLISTS], &[STR])),
     spec("fileinto", Action, &["fileinto"], &[COPY, FLAGS, FILEINTO], &[STR]),
     spec("address", Test, NONE, &[COMPARATOR, MATCH, ADDRESS_PART, INDEX, MIME_ANY], &[LIST, LIST]),
     spec("envelope", Test, &["envelope"], &[COMPARATOR, MATCH, ADDRESS_PART], &[LIST, LIST]),

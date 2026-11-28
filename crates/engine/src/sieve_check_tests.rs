@@ -476,3 +476,10 @@ fn an_error_after_a_full_list_of_warnings_still_fails() {
     assert!(problems.len() <= MAX_PROBLEMS);
     assert!(problems.iter().any(|p| !p.warning), "{problems:?}");
 }
+
+/// `redirect :list` of RFC 6134 is taken with `extlists`, and still sends (#2058).
+#[test]
+fn redirect_to_a_list_is_known() {
+    assert!(check("require \"extlists\";\r\nredirect :list \"tag:example.org,2026:list\";\r\n", None).is_ok());
+    assert!(check("redirect :list \"tag:example.org,2026:list\";\r\n", None).is_err());
+}
