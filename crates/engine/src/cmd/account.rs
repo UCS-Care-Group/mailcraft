@@ -628,6 +628,12 @@ pub(crate) fn added_by_newer(a: &Account, then: &'static str) -> CmdError {
     failed!("{who} was added by a newer version of MailCraft, {then}", who = super::remote::who(a), then = mailcraft_i18n::Arg::words(then))
 }
 
+/// Where an account's ManageSieve server is: the host named for it, its port, and the incoming
+/// server's host (the default one), as they are compared.
+fn sieve_at(a: &mailcraft_model::Account) -> (String, u16, Option<String>) {
+    (a.sieve_host.trim().to_ascii_lowercase(), a.sieve_port, a.incoming.as_ref().map(|i| i.host.trim().to_ascii_lowercase()))
+}
+
 fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let id = p::req_id(v, "id")?;
     let mut a = s.mailbox.account(id).cloned().ok_or_else(|| failed!("no account with id {id}", id))?;
@@ -636,6 +642,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
         return Err(added_by_newer(&a, "which keeps its settings: change them there"));
     }
     let before = a.clone();
+    let sieve_before = sieve_at(&a);
     let named_by_address = before.named_by_address();
     apply_fields(&mut a, v)?;
     check_address(&a, Some(&before))?;
@@ -715,8 +722,7 @@ fn edit(s: &mut Session, v: &Value) -> CmdResult {
     let lengthened = a.keep_offline > before.keep_offline && s.mailbox.device_limits.is_some();
     // Where its ManageSieve server is (named, or the incoming server's host): what is known of the
     // Sieve scripts and replies of the server before is no longer this account's (#2058).
-    let sieve_at = |a: &mailcraft_model::Account| (a.sieve_host.trim().to_ascii_lowercase(), a.sieve_port, a.incoming.as_ref().map(|i| i.host.trim().to_ascii_lowercase()));
-    let sieve_moved = sieve_at(&before) != sieve_at(&a);
+    let sieve_moved = sieve_before != sieve_at(&a);
     *s.mailbox.account_mut(id)? = a;
     if sieve_moved {
         s.sieve.remove(&id);
