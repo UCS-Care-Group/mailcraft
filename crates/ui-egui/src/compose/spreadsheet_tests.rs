@@ -40,6 +40,35 @@ fn a_pasted_table_fits_the_composer_and_has_one_position() {
 }
 
 #[test]
+fn a_table_in_a_centred_or_right_paragraph_moves_with_its_row_and_the_caret_and_a_click_follow_it() {
+    let fragment = mailcraft_mime_model::rich::from_html_for_compose(RANGE);
+    let room = 600.0;
+    let lay = |align: Align| {
+        let mut paragraph = fragment.paragraphs().first().unwrap().clone();
+        paragraph.align = align;
+        let mut layout = Layout::default();
+        let ctx = egui::Context::default();
+        let mut frame = ctx.run_ui(egui::RawInput::default(), |ui| {
+            layout.paras.push(Layout::default().lay(ui.ctx(), &paragraph, 0, false, &[], &Tokens::light(), room, &mut crate::fonts::Chooser::none()));
+        });
+        frame.textures_delta.clear();
+        layout
+    };
+    let left = lay(Align::Left).paras.first().unwrap().tables.first().unwrap().rect;
+    assert!(left.width() < room - 100.0, "the table is narrower than its room: {left:?}");
+    for (align, expected) in [(Align::Center, (room - left.width()) / 2.0), (Align::Right, room - left.width())] {
+        let layout = lay(align);
+        let object = layout.paras.first().unwrap().tables.first().unwrap().rect;
+        assert!((object.left() - expected).abs() <= 1.0, "{align:?}: the table stands at {object:?}, its row at {expected}");
+        assert!((object.width() - left.width()).abs() < 0.01, "{align:?}: {object:?} {left:?}");
+        // The caret before and after it, and a click on it, are where it is drawn.
+        assert!((layout.caret(0).min.x - object.left()).abs() <= 1.0, "{align:?}: {:?} {object:?}", layout.caret(0));
+        assert!((layout.caret(1).min.x - object.right()).abs() <= 1.0, "{align:?}: {:?} {object:?}", layout.caret(1));
+        assert_eq!(layout.table_hit(object.center().to_vec2()), Some(0), "{align:?}");
+    }
+}
+
+#[test]
 fn centered_and_right_aligned_text_stay_inside_their_cells() {
     let fragment =
         mailcraft_mime_model::rich::from_html_for_compose(r#"<table><tr><td align="center">Centered</td><td align="right">123,45</td></tr></table>"#);
