@@ -2213,6 +2213,8 @@ impl State {
             ["todo", tail @ ..] => self.todo_at(asked, method, tail),
             ["outlook", "masterCategories", tail @ ..] => self.categories_at(asked, method, tail),
             ["contacts"] if method == "GET" => self.page(asked, Vec::new()),
+            // No contacts and no folders of them under the main one (#1917).
+            ["contactFolders"] if method == "GET" => self.page(asked, Vec::new()),
             ["mailboxSettings", "workingHours"] if method == "GET" => Ok((
                 200,
                 Some(json!({
@@ -2220,7 +2222,7 @@ impl State {
                     "startTime": "08:00:00.0000000", "endTime": "17:00:00.0000000", "timeZone": {"name": "UTC"},
                 })),
             )),
-            ["calendarView"] | ["calendars"] | ["calendarGroups"] | ["contacts"] => Err(no_way()),
+            ["calendarView"] | ["calendars"] | ["calendarGroups"] | ["contacts"] | ["contactFolders"] => Err(no_way()),
             [first, ..] => Err(refuse(400, "BadRequest", format!("Resource not found for the segment '{first}'."))),
             [] => Err(no_way()),
         }

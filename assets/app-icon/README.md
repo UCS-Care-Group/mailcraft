@@ -18,6 +18,7 @@ contributors, under the project's licence (MIT OR Apache-2.0).
 | `mailcraft.ico` | Windows: 16 to 256 px |
 | `mailcraft.icns`, `mailcraft-macos-512.png` | macOS, on Apple's 824/1024 grid |
 | `mailcraft-1024.png` | The icon at 1024 px |
+| `apps/mailcraft-android/app/src/main/res/` (`mipmap-anydpi/ic_launcher.xml`, `drawable/ic_launcher_*.xml`, `drawable/ic_notification.xml`) | Android: the adaptive launcher icon (the tile behind, the sheets and the page in front within the 66 dp safe circle, the page alone in one colour for themed icons) and the status-bar icon (the page in white), the source's shapes written by hand as Android vectors |
 
 ## Geometry
 
@@ -37,4 +38,6 @@ cargo xtask icon
 ```
 
 It renders the SVG with `resvg`, a pure-Rust renderer that only xtask depends on, and writes every
-file above. Commit what changed; each file has its row in `ATTRIBUTION.md`.
+file above. Commit what changed; each file has its row in `ATTRIBUTION.md`. The Android vectors are
+not written by it: a change to the drawing is copied into them by hand (their path data is the
+source's own, in its coordinates, placed by a group's scale and offset).

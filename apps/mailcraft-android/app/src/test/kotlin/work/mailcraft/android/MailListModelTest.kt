@@ -100,10 +100,14 @@ class MailListModelTest {
 
     @Test
     fun rowsAreDescribedForAScreenReader() {
-        val row = FakeMailSource.row(2, members = 3).copy(flagged = true, hasAttachments = true)
+        val row = FakeMailSource.row(2, members = 3).copy(flagged = true, hasAttachments = true, important = true)
         assertEquals(
-            "Unread, Flagged, Has attachments, 3 messages in the conversation",
+            "Unread, High importance, Flagged, Has attachments, 3 messages in the conversation",
             rowDescription(EnglishTexts, row),
+        )
+        assertEquals(
+            "Low importance",
+            rowDescription(EnglishTexts, FakeMailSource.row(1).copy(lowImportance = true)),
         )
         assertEquals("", rowDescription(EnglishTexts, FakeMailSource.row(1)))
     }

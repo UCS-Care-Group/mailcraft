@@ -330,10 +330,63 @@ pub(crate) mod kit {
         });
     }
 
+    /// The label column's width: that of the widest label the form's last pass drew, at least
+    /// [`LABEL_W`] and at most 2/5 of the row, so a translated label isn't cut and the controls
+    /// still start on one line. (The widest is learnt a pass late; it is the same pass after pass.)
+    fn label_width(ui: &Ui, label: &str) -> f32 {
+        let font = regular(12.5);
+        let need = ui.painter().layout_no_wrap(label.to_owned(), font, Color32::PLACEHOLDER).size().x + 6.0;
+        let (key, pass) = (egui::Id::NULL.with_salt(egui::IdSalt::new(("form label column", host().id))), ui.ctx().cumulative_pass_nr());
+        // (pass of `now`, widest so far in that pass, widest in the pass before)
+        let (at, now, before) = ui.data_mut(|d| d.get_temp::<(u64, f32, f32)>(key)).unwrap_or_default();
+        let (now, before) = if at == pass { (now, before) } else { (0.0, now) };
+        let now = now.max(need);
+        ui.data_mut(|d| d.insert_temp(key, (pass, now, before)));
+        // The pass's widest is known only once it ends: then ask for one more pass if it differs from the
+        // pass before's, so the column settles after growing and after shrinking (another language).
+        // One callback per Context serves every form; it drains the hosts measured in the pass.
+        let (list, hooked) = (
+            egui::Id::NULL.with_salt(egui::IdSalt::new("form label columns measured")),
+            egui::Id::NULL.with_salt(egui::IdSalt::new("form label columns hooked")),
+        );
+        ui.data_mut(|d| {
+            let (at, mut keys) = d.get_temp::<(u64, Vec<egui::Id>)>(list).unwrap_or_default();
+            if at != pass {
+                keys.clear();
+            }
+            if !keys.contains(&key) {
+                keys.push(key);
+            }
+            d.insert_temp(list, (pass, keys));
+        });
+        if !ui.data(|d| d.get_temp::<bool>(hooked).unwrap_or(false)) {
+            ui.data_mut(|d| d.insert_temp(hooked, true));
+            ui.ctx().on_end_pass(
+                "form label column",
+                std::sync::Arc::new(move |ui: &mut Ui| {
+                    let ctx = ui.ctx().clone();
+                    let (at, keys) = ctx.data_mut(|d| d.remove_temp::<(u64, Vec<egui::Id>)>(list)).unwrap_or_default();
+                    if at != ctx.cumulative_pass_nr() {
+                        return;
+                    }
+                    let pass_nr = ctx.cumulative_pass_nr();
+                    for key in keys {
+                        let (at, now, before) = ctx.data(|d| d.get_temp::<(u64, f32, f32)>(key)).unwrap_or_default();
+                        if at == pass_nr && now != before {
+                            ctx.request_repaint();
+                        }
+                    }
+                }),
+            );
+        }
+        now.max(before).max(LABEL_W).min((ui.available_width() * 0.4).max(LABEL_W))
+    }
+
     fn label_cell(ui: &mut Ui, label: &str) {
         let t = Tokens::get(ui.ctx());
-        let (r, _) = ui.allocate_exact_size(vec2(LABEL_W, ROW_H), Sense::hover());
-        paint_clipped(ui.painter(), pos2(r.min.x, r.center().y), LABEL_W - 6.0, label, regular(12.5), t.text);
+        let w = label_width(ui, label);
+        let (r, _) = ui.allocate_exact_size(vec2(w, ROW_H), Sense::hover());
+        paint_clipped(ui.painter(), pos2(r.min.x, r.center().y), w - 6.0, label, regular(12.5), t.text);
     }
 
     /// What the buttons at the bottom take of a form's height, with the gap over them.
@@ -978,7 +1031,7 @@ pub(crate) mod kit {
             let sheet = Rect::from_min_max(pos2(strip.min.x + SIDE, strip.min.y + OVER), pos2(strip.max.x - SIDE, strip.min.y + OVER + BAND_H));
             // In the dark the sheet stands out by itself; on a light window it needs its edge.
             let line = t.ribbon_edge;
-            ui.painter().rect(sheet, 8.0, t.ribbon, line, egui::StrokeKind::Inside);
+            ui.painter().rect(sheet, t.sheet_radius, t.ribbon, line, egui::StrokeKind::Inside);
             let edge = (BAND_H - BUTTON_H) / 2.0;
             let area = Rect::from_min_max(pos2(sheet.min.x + SIDE, sheet.min.y + edge), pos2(sheet.max.x - SIDE, sheet.max.y - edge));
             let names: Vec<f32> = items
@@ -3473,6 +3526,60 @@ mod contact {
         });
     }
 
+    /// Where a new contact goes, `picked` or by itself: the folder (0: On this computer; `None`:
+    /// the account's main folder, made when the contact is) and its account (0: none).
+    pub(super) fn destination(s: &Session, picked: Option<Id>) -> (Option<Id>, Id) {
+        use mailcraft_engine::cmd::contacts_remote::{default_contact_folder, home};
+        let account_of = |f: Id| home(&s.mailbox, f).map_or(0, |f| f.account);
+        match picked.map(Ok).unwrap_or_else(|| default_contact_folder(s)) {
+            Ok(f) => (Some(f), account_of(f)),
+            Err(account) => (None, account),
+        }
+    }
+
+    /// The contacts folder a new contact goes in: those of each account it can go in, then On
+    /// this computer. Unpicked, it shows where `people.new` puts it by itself.
+    fn folder_combo(ui: &mut Ui, app: &MailApp, folder: &mut Option<Id>) {
+        let mailbox = &app.session.mailbox;
+        let name = |f: Id| crate::people_view::folder_name(mailbox, f);
+        let writable = |f: &Id| mailbox.contact_folder(*f).is_some_and(|f| f.writable);
+        let (current, account) = destination(&app.session, *folder);
+        // The main folder of the account a new contact goes to by itself, before it is made:
+        // offered as such (`None`), so it can be chosen again after another one was.
+        let unmade = match destination(&app.session, None) {
+            (None, account) => Some(account),
+            _ => None,
+        };
+        let label = |f: Option<Id>, account: Id| match f {
+            Some(f) => name(f),
+            None => {
+                crate::i18n::fmt(tl!("{folder} ({owner})"), &[("folder", tl!("Contacts")), ("owner", &crate::widgets::place_name(mailbox, account))])
+            }
+        };
+        let choices: Vec<Option<Id>> = unmade
+            .map(|_| None)
+            .into_iter()
+            .chain(
+                mailcraft_engine::cmd::people::contact_accounts(mailbox)
+                    .into_iter()
+                    .flat_map(|account| crate::address_book::contact_folders(mailbox, account))
+                    .filter(writable)
+                    .chain([0])
+                    .map(Some),
+            )
+            .collect();
+        egui::ComboBox::from_id_salt("contact_folder").width(ui.available_width()).selected_text(label(current, account)).truncate().show_ui(
+            ui,
+            |ui| {
+                for f in choices {
+                    if ui.selectable_label(current == f, label(f, unmade.unwrap_or(0))).clicked() {
+                        *folder = f;
+                    }
+                }
+            },
+        );
+    }
+
     /// The rows of e-mail addresses or phone numbers, with a button that adds one more.
     fn labeled_rows(ui: &mut Ui, pass: &mut Pass, title: &str, key: &'static str, rows: &mut Vec<Labeled>, labels: &[&str], more: &str) {
         let count = rows.len();
@@ -3518,6 +3625,9 @@ mod contact {
     pub struct ContactForm {
         /// The contact being edited; `None` for a new one.
         id: Option<Id>,
+        /// The contacts folder a new contact goes in, picked (0: On this computer); `None`: where
+        /// `people.new` puts it by itself, which the picker shows (#1917).
+        folder: Option<Id>,
         first: String,
         last: String,
         display: String,
@@ -3688,7 +3798,12 @@ mod contact {
                     m.insert("id".into(), json!(id));
                     ("people.edit", Value::Object(m))
                 }
-                None => ("people.new", Value::Object(m)),
+                None => {
+                    if let Some(folder) = self.folder {
+                        m.insert("folder".into(), json!(folder));
+                    }
+                    ("people.new", Value::Object(m))
+                }
             }
         }
 
@@ -3704,9 +3819,17 @@ mod contact {
         pub fn show(&mut self, app: &mut MailApp, ui: &mut Ui) -> bool {
             let mut add_key = false;
             let mut pass = Pass::new(ui, &app.session, &mut self.focus);
-            let account = self.id.and_then(|id| app.session.mailbox.contact(id)).map_or(0, |c| c.origin.account);
+            // A new contact takes the categories of the account it goes to.
+            let account = match self.id {
+                Some(id) => app.session.mailbox.contact(id).map_or(0, |c| c.origin.account),
+                None => destination(&app.session, self.folder).1,
+            };
             let categories = app.session.mailbox.categories_of(account).to_vec();
             body(ui, |ui| {
+                // Where a new contact goes, where there is more than one place (#1917).
+                if self.id.is_none() && !mailcraft_engine::cmd::people::contact_accounts(&app.session.mailbox).is_empty() {
+                    row(ui, tl!("Kept in"), |ui| folder_combo(ui, app, &mut self.folder));
+                }
                 row(ui, tl!("First name"), |ui| {
                     pass.text(ui, "first", &mut self.first, f32::INFINITY, "");
                 });
@@ -4466,6 +4589,7 @@ pub(crate) mod rules {
         Subject,
         Body,
         SubjectOrBody,
+        Header,
         Attachment,
         Importance,
         Sensitivity,
@@ -4478,7 +4602,7 @@ pub(crate) mod rules {
     }
 
     impl When {
-        const ALL: [When; 21] = [
+        const ALL: [When; 22] = [
             When::Person,
             When::From,
             When::SentTo,
@@ -4491,6 +4615,7 @@ pub(crate) mod rules {
             When::Subject,
             When::Body,
             When::SubjectOrBody,
+            When::Header,
             When::Attachment,
             When::Importance,
             When::Sensitivity,
@@ -4516,6 +4641,7 @@ pub(crate) mod rules {
                 When::Subject => "Subject contains",
                 When::Body => "Body contains",
                 When::SubjectOrBody => "Subject or body contains",
+                When::Header => "Header contains",
                 When::Attachment => "Has an attachment",
                 When::Importance => "Importance is",
                 When::Sensitivity => "Sensitivity is",
@@ -4557,6 +4683,7 @@ pub(crate) mod rules {
                 When::Subject => "subjectContains",
                 When::Body => "bodyContains",
                 When::SubjectOrBody => "subjectOrBodyContains",
+                When::Header => "headerContains",
                 When::Attachment => "hasAttachment",
                 When::Importance => "importance",
                 When::Sensitivity => "sensitivity",
@@ -4572,7 +4699,7 @@ pub(crate) mod rules {
         /// The condition is words to look for, or people's addresses: several, any one of
         /// which is enough, set apart by semicolons.
         fn takes_text(self) -> bool {
-            matches!(self, When::Person | When::From | When::SentTo | When::To | When::Subject | When::Body | When::SubjectOrBody)
+            matches!(self, When::Person | When::From | When::SentTo | When::To | When::Subject | When::Body | When::SubjectOrBody | When::Header)
         }
 
         /// It takes people's whole addresses.
@@ -5019,6 +5146,7 @@ pub(crate) mod rules {
             Condition::ToOrCcMe => tl!("my address is in To or Cc").to_string(),
             Condition::NotToMe => tl!("my address isn't in To").to_string(),
             Condition::SubjectOrBodyContains(t) => one(tl!("subject or body contains {words}"), t),
+            Condition::HeaderContains(t) => one(tl!("header contains {words}"), t),
             Condition::Sensitivity(s) => {
                 let level = match s {
                     Sensitivity::Normal => tl!("normal"),

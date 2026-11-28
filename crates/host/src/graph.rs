@@ -12,7 +12,7 @@ mod run;
 /// The seams the flow tests run the whole way through with a renewal of their own (a test's
 /// build only: `test-support`).
 #[cfg(all(not(target_arch = "wasm32"), any(test, feature = "test-support")))]
-pub use run::{Renew, RenewSend, graph_in, graph_in_with, graph_sending_with, graph_with};
+pub use run::{Renew, RenewContacts, RenewSend, graph_in, graph_in_contacts, graph_in_with, graph_sending_with, graph_with};
 #[cfg(not(target_arch = "wasm32"))]
 pub use run::{graph, local_zone, open_by_address};
 
@@ -65,6 +65,22 @@ pub struct GraphRequest {
     /// answer carries only those tokens, for the caller to refuse and say whose they were.
     /// `None`: not checked in the run (the caller checks what comes back).
     pub signer: Option<mailcraft_model::Account>,
+    /// The contacts (#1917): what waits to go up, and the folders to bring down. `None`: neither.
+    pub contacts: Option<ContactsAsk>,
+}
+
+/// What a calendar job does with an account's contacts (#1917).
+#[derive(Clone, Debug, Default)]
+pub struct ContactsAsk {
+    /// What the server is to be told first (`sync.contactChanges`); no ops for none.
+    pub upload: mailcraft_model::contact_sync::ContactsUpload,
+    /// Bring the folders down too.
+    pub read: bool,
+    /// The account's contacts folders as the mailbox has them: where each was read up to, and
+    /// which may only be read.
+    pub folders: Vec<mailcraft_model::contact_sync::ContactFolder>,
+    /// The addresses of the shared mailboxes the account opens: their contacts are read too.
+    pub mailboxes: Vec<String>,
 }
 
 /// What a [`GraphRequest`] came to. Never an error as a whole: mail goes on either way.
@@ -98,7 +114,16 @@ pub struct GraphResult {
     /// (AU3-26). The rest of `held` didn't go, and goes with the next run.
     pub unsure: Vec<Id>,
     pub events: Option<mailcraft_model::remote::EventsDownload>,
+    /// The account's own main contacts folder.
     pub contacts: Option<mailcraft_model::remote::ContactsDownload>,
+    /// Its other contacts folders, the shared mailboxes' and those shared with the owner, parents
+    /// before the folders under them (#1917).
+    pub more_contacts: Vec<mailcraft_model::remote::ContactsDownload>,
+    /// What the server said to the contact changes it was told ([`ContactsAsk::upload`]).
+    pub contacts_uploaded: Option<mailcraft_model::contact_sync::ContactsUploaded>,
+    /// The sign-in doesn't cover changing contacts (or reading the shared mailboxes'): the changes
+    /// wait here, and the window asks the owner (`ui.allowSync`).
+    pub contacts_consent_needed: bool,
     /// What the server said to the calendar changes it was told ([`GraphRequest::changes`]).
     pub uploaded: Option<mailcraft_model::remote::EventsUploaded>,
     pub errors: Vec<String>,

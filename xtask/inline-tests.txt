@@ -123,7 +123,6 @@ crates/vcard/src/lines.rs
 crates/vcard/src/read.rs
 crates/vcard/src/text.rs
 crates/vcard/src/write.rs
-xtask/src/assets.rs
 xtask/src/i18n.rs
 xtask/src/ico.rs
 xtask/src/release_key.rs

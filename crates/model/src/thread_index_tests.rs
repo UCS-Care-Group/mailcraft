@@ -250,3 +250,14 @@ fn mail_its_server_was_asked_about_links_by_its_headers_alone() {
     // Without a Message-ID it is still not known.
     assert!(unknown(&asked(4, "")));
 }
+
+#[test]
+fn a_reply_kept_as_a_draft_is_in_the_conversation_it_answers_without_headers() {
+    let first = mail(1, "Lunch?", "first@example.org");
+    let answers = |forward| Some(crate::Answers { message: 1, message_id: "first@example.org".into(), forward, also: Vec::new() });
+    let draft = Message { answers: answers(false), ..mail(2, "RE: Lunch?", "draft@example.org") };
+    assert!(ThreadIndex::build([&first, &draft]).same(1, 2));
+    // A forward is a conversation of its own.
+    let forward = Message { answers: answers(true), ..mail(2, "RE: Lunch?", "draft@example.org") };
+    assert!(!ThreadIndex::build([&first, &forward]).same(1, 2));
+}
