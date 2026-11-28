@@ -1549,7 +1549,7 @@ msgid "Allowed"
 msgstr "Consentito"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Already in your contacts"
 msgstr "Già nei contatti"
@@ -3195,7 +3195,7 @@ msgid "Celebrate"
 msgstr "Festeggia"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Certificates"
 msgstr "Certificati"
@@ -5238,6 +5238,12 @@ msgid "Downloading pictures…"
 msgstr "Download delle immagini…"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the address book stopped unexpectedly"
+msgstr "Il download della rubrica si è interrotto in modo imprevisto"
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "Downloading the message first…"
@@ -5248,6 +5254,12 @@ msgstr "Download preliminare del messaggio…"
 #, fuzzy
 msgid "Downloading the messages first…"
 msgstr "Download preliminare dei messaggi…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the organisation's address book…"
+msgstr "Download della rubrica dell'organizzazione…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6602,6 +6614,12 @@ msgstr "Dall'esterno della sua organizzazione."
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
+msgstr "Dalla rubrica dell'organizzazione di {account}, tenuta in memoria mentre MailCraft è in esecuzione e mai salvata: Aggiungi ai contatti ne conserva una copia su questo computer."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
 msgstr "Dall'elenco indirizzi dell'organizzazione di {account}. Mostrato durante la ricerca e non conservato: «Aggiungi ai contatti» ne conserva una copia su questo computer."
 
@@ -7714,6 +7732,12 @@ msgstr "Nella selezione"
 #, fuzzy
 msgid "In this calendar:"
 msgstr "In questo calendario:"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "In your contacts"
+msgstr "Nei tuoi contatti"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -11220,6 +11244,12 @@ msgstr "Nessuno ha proposto un altro orario."
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
+msgid "Nobody in the address book matches"
+msgstr "Nessuno nella rubrica corrisponde"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Nobody in the address list matches"
 msgstr "Nessuno nell'elenco indirizzi corrisponde"
 
@@ -11396,6 +11426,12 @@ msgstr "Non tutti i server sono stati trovati: il resto è solo una supposizione
 #, fuzzy
 msgid "Not everything could be removed. Some of it is still here. Try again."
 msgstr "Non è stato possibile rimuovere tutto. Una parte è ancora presente. Riprova."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
+msgstr "Non per la posta, o di un'autorità di certificazione: Aggiungi ai contatti lo esclude."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12096,6 +12132,12 @@ msgstr "Apri allegato"
 #, fuzzy
 msgid "Open Calendar"
 msgstr "Apri calendario"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Open Contact"
+msgstr "Apri contatto"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -18414,6 +18456,12 @@ msgid "The one this build came with"
 msgstr "Quello fornito con questa build"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The organisation's address book is empty"
+msgstr "La rubrica dell'organizzazione è vuota"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18789,6 +18837,12 @@ msgstr[1] "Il server di {account} avvisa le {n} persone invitate, perché sappia
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr "Il server o l'organizzazione non ha fornito le impostazioni. Chiedi all'amministratore l'indirizzo del server e scrivilo in Impostazioni server."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The server sent no address book"
+msgstr "Il server non ha inviato alcuna rubrica"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs

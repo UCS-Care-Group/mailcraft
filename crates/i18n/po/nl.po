@@ -1517,7 +1517,7 @@ msgid "Allowed"
 msgstr "Toegestaan"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Already in your contacts"
 msgstr "Staat al bij uw contactpersonen"
@@ -3105,7 +3105,7 @@ msgid "Celebrate"
 msgstr "Vieren"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Certificates"
 msgstr "Certificaten"
@@ -5069,6 +5069,12 @@ msgid "Downloading pictures…"
 msgstr "Bezig afbeeldingen te downloaden…"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the address book stopped unexpectedly"
+msgstr "Het downloaden van het adresboek is onverwacht gestopt"
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "Downloading the message first…"
@@ -5079,6 +5085,12 @@ msgstr "Bezig eerst het bericht te downloaden…"
 #, fuzzy
 msgid "Downloading the messages first…"
 msgstr "Eerst de berichten downloaden…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the organisation's address book…"
+msgstr "Het adresboek van de organisatie wordt gedownload…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6358,6 +6370,12 @@ msgstr "Van buiten uw organisatie."
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
+msgstr "Uit het adresboek van de organisatie van {account}, in het geheugen gehouden zolang MailCraft draait en nooit opgeslagen: Toevoegen aan contactpersonen bewaart een kopie op deze computer."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
 msgstr "Uit de adreslijst van de organisatie van {account}. Wordt getoond zolang u zoekt en niet bewaard: „Toevoegen aan contactpersonen” bewaart een kopie op deze computer."
 
@@ -7445,6 +7463,12 @@ msgstr "In de selectie"
 #, fuzzy
 msgid "In this calendar:"
 msgstr "In deze agenda:"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "In your contacts"
+msgstr "In uw contactpersonen"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -10848,6 +10872,12 @@ msgstr "Niemand heeft een andere tijd voorgesteld."
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
+msgid "Nobody in the address book matches"
+msgstr "Niemand in het adresboek komt overeen"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Nobody in the address list matches"
 msgstr "Niemand in de adreslijst komt overeen"
 
@@ -11022,6 +11052,12 @@ msgstr "Niet elke server is gevonden: de rest is slechts een gok op basis van he
 #, fuzzy
 msgid "Not everything could be removed. Some of it is still here. Try again."
 msgstr "Niet alles kon worden verwijderd. Een deel staat er nog. Probeer het opnieuw."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
+msgstr "Niet voor e-mail, of van een certificeringsinstantie: Toevoegen aan contactpersonen laat het weg."
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -11713,6 +11749,12 @@ msgstr "Bijlage openen"
 #, fuzzy
 msgid "Open Calendar"
 msgstr "Agenda openen"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Open Contact"
+msgstr "Contactpersoon openen"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -17875,6 +17917,12 @@ msgid "The one this build came with"
 msgstr "Die waarmee deze build is geleverd"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The organisation's address book is empty"
+msgstr "Het adresboek van de organisatie is leeg"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18251,6 +18299,12 @@ msgstr[1] "De server van {account} licht de {n} uitgenodigde personen in, zodat 
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr "De server of de organisatie wilde de instellingen niet geven. Vraag uw beheerder om het adres van de server en typ het bij Serverinstellingen."
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The server sent no address book"
+msgstr "De server heeft geen adresboek gestuurd"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs

@@ -1550,7 +1550,7 @@ msgid "Allowed"
 msgstr "已允许"
 
 #. interface
-#: crates/ui-egui/src/lib.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/lib.rs
 #, fuzzy
 msgid "Already in your contacts"
 msgstr "已在您的通讯录中"
@@ -3196,7 +3196,7 @@ msgid "Celebrate"
 msgstr "庆祝"
 
 #. interface
-#: crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
+#: crates/ui-egui/src/address_book.rs crates/ui-egui/src/forms.rs crates/ui-egui/src/security.rs
 #, fuzzy
 msgid "Certificates"
 msgstr "证书"
@@ -5241,6 +5241,12 @@ msgid "Downloading pictures…"
 msgstr "正在下载图片…"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the address book stopped unexpectedly"
+msgstr "通讯簿下载意外中止"
+
+#. interface
 #: crates/ui-egui/src/graph_fetch.rs
 #, fuzzy
 msgid "Downloading the message first…"
@@ -5251,6 +5257,12 @@ msgstr "正在先下载邮件…"
 #, fuzzy
 msgid "Downloading the messages first…"
 msgstr "正在先下载邮件…"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Downloading the organisation's address book…"
+msgstr "正在下载组织的通讯簿…"
 
 #. interface
 #: crates/ui-egui/src/reading.rs
@@ -6596,6 +6608,12 @@ msgstr "来自组织外部。"
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
+msgid "From the organisation's address book of {account}, held in memory while MailCraft runs and never saved: Add to Contacts keeps a copy on this computer."
+msgstr "来自 {account} 所在组织的通讯簿，仅在 MailCraft 运行期间保存在内存中，从不存储：“添加至联系人”会在这台计算机上保留一份副本。"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "From the organisation's address list of {account}. Shown while you look, and not kept: Add to Contacts keeps a copy on this computer."
 msgstr "来自 {account} 所在组织的地址列表。仅在查看时显示，不会保存：“添加至联系人”会在此计算机上保存一份副本。"
 
@@ -7713,6 +7731,12 @@ msgstr "在所选内容中"
 #, fuzzy
 msgid "In this calendar:"
 msgstr "在此日历中："
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "In your contacts"
+msgstr "已在联系人中"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -11217,6 +11241,12 @@ msgstr "尚无人提出其他时间。"
 #. interface
 #: crates/ui-egui/src/address_book.rs
 #, fuzzy
+msgid "Nobody in the address book matches"
+msgstr "通讯簿中没有匹配的人"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
 msgid "Nobody in the address list matches"
 msgstr "地址列表中没有匹配的人"
 
@@ -11393,6 +11423,12 @@ msgstr "并非所有服务器都已找到：其余部分只是根据域名推测
 #, fuzzy
 msgid "Not everything could be removed. Some of it is still here. Try again."
 msgstr "无法移除全部内容，仍有一部分保留。请重试。"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Not for mail, or an authority's: Add to Contacts leaves it out."
+msgstr "不用于邮件，或属于证书颁发机构：“添加至联系人”不会包含它。"
 
 #. interface
 #: crates/ui-egui/src/forms.rs
@@ -12093,6 +12129,12 @@ msgstr "打开附件"
 #, fuzzy
 msgid "Open Calendar"
 msgstr "打开日历"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "Open Contact"
+msgstr "打开联系人"
 
 #. command label
 #: crates/ui-egui/src/lib.rs
@@ -18422,6 +18464,12 @@ msgid "The one this build came with"
 msgstr "此版本附带的设置"
 
 #. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The organisation's address book is empty"
+msgstr "组织的通讯簿为空"
+
+#. interface
 #: crates/ui-egui/src/meeting_dialogs.rs
 #, fuzzy
 msgid "The organizer can't be written to from this account."
@@ -18795,6 +18843,12 @@ msgstr[0] "{account} 的服务器通知 {n} 位受邀者，让他们知道已取
 #, fuzzy
 msgid "The server or the organisation wouldn't give its settings. Ask your administrator for the server's address and type it in Server settings."
 msgstr "服务器或组织未提供其设置。请向管理员询问服务器地址，并在服务器设置中输入。"
+
+#. interface
+#: crates/ui-egui/src/address_book.rs
+#, fuzzy
+msgid "The server sent no address book"
+msgstr "服务器未发送通讯簿"
 
 #. interface
 #: crates/ui-egui/src/account_setup/exchange.rs
