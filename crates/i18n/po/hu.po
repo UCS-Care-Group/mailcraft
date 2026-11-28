@@ -325,6 +325,11 @@ msgid "1. Copy the message below and send it to your organisation's administrato
 msgstr "1. Másolja ki az alábbi üzenetet, és küldje el a szervezete rendszergazdájának."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "1. Turn on 2-Step Verification for your Google account, if it isn't on yet: Google offers app passwords only then."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "10 Minutes"
@@ -372,6 +377,11 @@ msgstr "2 hét"
 msgid "2 years"
 msgstr "2 év"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "2. Open Google's App passwords page, sign in to the account you are adding, type a name such as MailCraft and press Create."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
@@ -401,6 +411,11 @@ msgstr "3 nap"
 #, fuzzy
 msgid "3 months"
 msgstr "3 hónap"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "3. Copy the 16-letter password Google shows, which it shows only once, and paste it here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -7351,6 +7366,11 @@ msgid "Horizontal Line"
 msgstr "Vízszintes vonal"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "How do I make an app password?"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "How far back mail is kept in full on this computer. Older mail keeps its headers and a preview, and downloads when you open it. It stays on the server."
@@ -7397,6 +7417,11 @@ msgstr "Ikonok"
 #, fuzzy
 msgid "If Google says the app is in testing, ask the developer to add your email as a test user. If your organization blocks MailCraft, ask its Workspace administrator. Those pages may not return here: cancel, then retry when access is granted or use an app password if allowed."
 msgstr "Ha a Google azt mondja, hogy az alkalmazás tesztelés alatt áll, kérje meg a fejlesztőt, hogy tesztfelhasználóként adja hozzá e-mailjét. Ha szervezete blokkolja a MailCraft-t, kérdezze meg a Workspace-kezelőjét. Ezek az oldalak nem térhetnek vissza ide: töröljék, majd újra próbálkozzanak, ha a hozzáférés engedélyezett, vagy ha engedélyezett, használja az alkalmazás jelszavát."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "If Google's page says the setting isn't available, either 2-Step Verification is off or the account doesn't allow app passwords (some work or school accounts, accounts with Advanced Protection, and accounts whose 2-Step Verification uses only security keys)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -12214,6 +12239,11 @@ msgstr "A tervezet megnyitása"
 #, fuzzy
 msgid "Open Draft Attachment"
 msgstr "Piszkozat mellékletének megnyitása"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Open Google's App passwords page"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs

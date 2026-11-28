@@ -322,6 +322,11 @@ msgid "1. Copy the message below and send it to your organisation's administrato
 msgstr "1. 复制下面的消息，并发送给您所在组织的管理员。"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "1. Turn on 2-Step Verification for your Google account, if it isn't on yet: Google offers app passwords only then."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "10 Minutes"
@@ -369,6 +374,11 @@ msgstr "2 周"
 msgid "2 years"
 msgstr "2 年"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "2. Open Google's App passwords page, sign in to the account you are adding, type a name such as MailCraft and press Create."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
@@ -398,6 +408,11 @@ msgstr "3 天"
 #, fuzzy
 msgid "3 months"
 msgstr "3 个月"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "3. Copy the 16-letter password Google shows, which it shows only once, and paste it here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -7348,6 +7363,11 @@ msgid "Horizontal Line"
 msgstr "水平线"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "How do I make an app password?"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "How far back mail is kept in full on this computer. Older mail keeps its headers and a preview, and downloads when you open it. It stays on the server."
@@ -7394,6 +7414,11 @@ msgstr "图标"
 #, fuzzy
 msgid "If Google says the app is in testing, ask the developer to add your email as a test user. If your organization blocks MailCraft, ask its Workspace administrator. Those pages may not return here: cancel, then retry when access is granted or use an app password if allowed."
 msgstr "如果 Google 表示应用正在测试，请联系开发者将您的电子邮件地址添加为测试用户。如果您的组织阻止 MailCraft，请联系 Google Workspace 管理员。这些页面可能不会返回此处：请取消，待授权后重试；如果允许，也可使用应用密码。"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "If Google's page says the setting isn't available, either 2-Step Verification is off or the account doesn't allow app passwords (some work or school accounts, accounts with Advanced Protection, and accounts whose 2-Step Verification uses only security keys)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -12205,6 +12230,11 @@ msgstr "打开草稿"
 #. command label
 #: crates/ui-egui/src/lib.rs
 msgid "Open Draft Attachment"
+msgstr ""
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Open Google's App passwords page"
 msgstr ""
 
 #. interface

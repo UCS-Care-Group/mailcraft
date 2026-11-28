@@ -322,6 +322,11 @@ msgid "1. Copy the message below and send it to your organisation's administrato
 msgstr "1. დააკოპირეთ ქვემოთ მოცემული შეტყობინება და გაუგზავნეთ თქვენი ორგანიზაციის ადმინისტრატორს."
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "1. Turn on 2-Step Verification for your Google account, if it isn't on yet: Google offers app passwords only then."
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/calendar_view.rs
 #, fuzzy
 msgid "10 Minutes"
@@ -369,6 +374,11 @@ msgstr "2 კვირა"
 msgid "2 years"
 msgstr "2 წელი"
 
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "2. Open Google's App passwords page, sign in to the account you are adding, type a name such as MailCraft and press Create."
+msgstr ""
+
 #. android
 #: apps/mailcraft-android/app/src/main/kotlin/work/mailcraft/android/AccountScreens.kt
 #, fuzzy
@@ -398,6 +408,11 @@ msgstr "3 დღე"
 #, fuzzy
 msgid "3 months"
 msgstr "3 თვე"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "3. Copy the 16-letter password Google shows, which it shows only once, and paste it here."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/calendar_view.rs
@@ -7374,6 +7389,11 @@ msgid "Horizontal Line"
 msgstr "ჰორიზონტალური ხაზი"
 
 #. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "How do I make an app password?"
+msgstr ""
+
+#. interface
 #: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/keep_offline.rs
 #, fuzzy
 msgid "How far back mail is kept in full on this computer. Older mail keeps its headers and a preview, and downloads when you open it. It stays on the server."
@@ -7420,6 +7440,11 @@ msgstr "ხატულები"
 #, fuzzy
 msgid "If Google says the app is in testing, ask the developer to add your email as a test user. If your organization blocks MailCraft, ask its Workspace administrator. Those pages may not return here: cancel, then retry when access is granted or use an app password if allowed."
 msgstr "თუ Google წერს, რომ აპლიკაცია ტესტირების ეტაპზეა, სთხოვეთ დეველოპერს, თქვენი ელფოსტა სატესტო მომხმარებლად დაამატოს. თუ თქვენი ორგანიზაცია MailCraft-ს ბლოკავს, მიმართეთ მის Workspace-ის ადმინისტრატორს. ის გვერდები შეიძლება აქ არ დაბრუნდეს: გააუქმეთ და წვდომის მიღების შემდეგ კიდევ სცადეთ, ან, თუ ნებადართულია, აპლიკაციის პაროლი გამოიყენეთ."
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "If Google's page says the setting isn't available, either 2-Step Verification is off or the account doesn't allow app passwords (some work or school accounts, accounts with Advanced Protection, and accounts whose 2-Step Verification uses only security keys)."
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/account_setup/help.rs
@@ -12242,6 +12267,11 @@ msgstr "მონახაზის გახსნა"
 #, fuzzy
 msgid "Open Draft Attachment"
 msgstr "დრაფტის დანართის გახსნა"
+
+#. interface
+#: crates/ui-egui/src/account_setup.rs
+msgid "Open Google's App passwords page"
+msgstr ""
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs
