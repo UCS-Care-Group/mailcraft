@@ -2203,7 +2203,7 @@ fn folder_for(mb: &mut Mailbox, account: Id, remote: &str, kind: FolderKind) -> 
     }
     let base = leaf_name(remote);
     // A name already taken (two server folders with the same last part) gets a number.
-    (1..=50).find_map(|n| mb.add_folder(account, None, &if n == 1 { base.clone() } else { format!("{base} ({n})") }).ok())
+    (1..=MAX_NUMBERED).find_map(|n| mb.add_folder(account, None, &numbered(&base, n)).ok())
 }
 
 /// The label of a folder whose parent isn't here: its whole path on the server, so the owner can
@@ -2217,19 +2217,50 @@ fn path_label(mb: &Mailbox, account: Id, remote: &str) -> Option<String> {
     clean_name(&label.split('/').map(str::trim).filter(|part| !part.is_empty()).collect::<Vec<_>>().join(" › "))
 }
 
+/// The most folders of one name [`numbered`] tells apart before a name is given up on.
+const MAX_NUMBERED: usize = 50;
+
 /// `base` as the `n`th folder of that name beside others: `base` itself, then `base (2)` on.
 fn numbered(base: &str, n: usize) -> String {
     if n <= 1 { base.to_string() } else { format!("{base} ({n})") }
 }
 
-/// Whether `name` is `base`, or `base` with the number [`numbered`] gives a name already taken.
+/// Whether `name` is `base`, or `base` with a number [`numbered`] gives a name already taken:
+/// ` (2)` to ` (50)` written as it writes them, so a number the owner chose (`(99)`, `(02)`)
+/// is theirs.
 fn is_numbered(name: &str, base: &str) -> bool {
     name == base
         || name
             .strip_prefix(base)
             .and_then(|rest| rest.strip_prefix(" ("))
             .and_then(|rest| rest.strip_suffix(')'))
-            .is_some_and(|n| (1..=2).contains(&n.len()) && n.bytes().all(|b| b.is_ascii_digit()))
+            .filter(|n| !n.starts_with('0') && n.len() <= 2 && n.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|n| n.parse::<usize>().ok())
+            .is_some_and(|n| (2..=MAX_NUMBERED).contains(&n))
+}
+
+/// Move folder `id`, still under the label this program gave it, into `parent` when that label
+/// is taken there: under its leaf name (`leaf`, numbered when that is taken too, `taken` being
+/// the names under `parent`, lowered). The name it was given, or `None` with the folder left
+/// as it was.
+fn move_under_leaf(mb: &mut Mailbox, id: Id, parent: Id, leaf: &str, taken: &HashSet<String>) -> Option<String> {
+    let before = mb.folder(id)?.name.clone();
+    let leaf = clean_name(leaf).filter(|name| !name.contains('/'))?;
+    for n in 1..=MAX_NUMBERED {
+        let name = clean_name(&numbered(&leaf, n))?;
+        // Taken under the parent, or (refused by the rename) where the folder is now.
+        if taken.contains(&name.to_lowercase()) || mb.rename_folder(id, &name).is_err() {
+            continue;
+        }
+        if mb.move_folder(id, Some(parent)).is_ok() {
+            return Some(name);
+        }
+        // Not for its name, then: it stays where and as it was. Its own name of a moment ago
+        // is still free beside it.
+        let _ = mb.rename_folder(id, &before);
+        return None;
+    }
+    None
 }
 
 /// Give every folder of mail the server lists a folder here, in the same tree, before any of its
@@ -2277,18 +2308,24 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
                     continue;
                 }
                 let mut local_parent = here.parent;
-                let local_name = here.name.clone();
+                let mut local_name = here.name.clone();
+                let label = path_label(mb, account, &f.remote);
                 if let Some(p) = parent
                     && local_parent.is_none()
-                    && mb.move_folder(id, Some(p)).is_ok()
                 {
-                    local_parent = Some(p);
-                    names.entry(local_parent).or_default().insert(local_name.to_lowercase());
+                    let moved = mb.move_folder(id, Some(p)).is_ok()
+                        || ((local_name == cut_name(&f.remote) || label.as_deref().is_some_and(|label| is_numbered(&local_name, label)))
+                            && move_under_leaf(mb, id, p, &f.name, names.entry(Some(p)).or_default())
+                                .inspect(|name| local_name.clone_from(name))
+                                .is_some());
+                    if moved {
+                        local_parent = Some(p);
+                        names.entry(local_parent).or_default().insert(local_name.to_lowercase());
+                    }
                 }
                 // A flat folder keeps the path for context. A nested one has that context in
                 // the pane, even when the parent is local only and the server never lists it.
                 let flat = local_parent.is_none() && !f.parent.is_empty();
-                let label = path_label(mb, account, &f.remote);
                 let listed_as = if flat { label.clone() } else { clean_name(&f.name) };
                 // Only a name this program gave it is put right: the path label, numbered when
                 // it was taken (`Other.Acme (2)`), or what an earlier version cut it to.
@@ -2300,7 +2337,7 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
                 {
                     let taken = names.entry(local_parent).or_default();
                     let own = local_name.to_lowercase();
-                    let free = (1..=50).find_map(|n| {
+                    let free = (1..=MAX_NUMBERED).find_map(|n| {
                         let name = clean_name(&numbered(&base, n))?;
                         let lower = name.to_lowercase();
                         (lower == own || !taken.contains(&lower)).then_some(name)
@@ -2326,7 +2363,7 @@ fn adopt_listed(mb: &mut Mailbox, account: Id, on_server: &mut OnServer, listed:
                 let made = standard.or_else(|| {
                     let taken = names.entry(parent).or_default();
                     for base in &bases {
-                        let Some(free) = (1..=50).find_map(|n| {
+                        let Some(free) = (1..=MAX_NUMBERED).find_map(|n| {
                             let name = clean_name(&numbered(base, n))?;
                             (!taken.contains(&name.to_lowercase())).then_some(name)
                         }) else {

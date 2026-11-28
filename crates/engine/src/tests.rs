@@ -3346,31 +3346,83 @@ fn a_numbered_path_label_is_shortened_once_its_parent_is_listed_and_a_chosen_one
     let account =
         run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
     // Folders of the owner's that take the labels the server's folders would have.
+    let chosen = [
+        ("Team.Plans", "Team", "Plans", "Team.Plans (99)"),
+        ("Lab.Notes", "Lab", "Notes", "Lab.Notes (02)"),
+        ("Ops.Logs", "Ops", "Logs", "Ops.Logs (old)"),
+    ];
     s.mailbox.add_folder(account, None, "Other.Acme").unwrap();
-    s.mailbox.add_folder(account, None, "Team.Plans").unwrap();
+    for (remote, ..) in chosen {
+        s.mailbox.add_folder(account, None, remote).unwrap();
+    }
     let listed = |remote: &str, parent: &str, name: &str| ListedFolder {
         remote: remote.into(),
         parent: parent.into(),
         name: name.into(),
         ..Default::default()
     };
-    let mut tree = vec![listed("Other.Acme", "Other", "Acme"), listed("Team.Plans", "Team", "Plans")];
+    let mut tree = vec![listed("Other.Acme", "Other", "Acme")];
+    tree.extend(chosen.iter().map(|(remote, parent, name, _)| listed(remote, parent, name)));
     cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree.clone(), ..Default::default() }).unwrap();
     let by_remote = |s: &Session, remote: &str| s.mailbox.folders.iter().find(|f| f.account == account && f.remote == remote).unwrap().clone();
     assert_eq!(by_remote(&s, "Other.Acme").name, "Other.Acme (2)");
-    // The owner names this one: it is theirs from now on.
-    let plans = by_remote(&s, "Team.Plans").id;
-    assert_eq!(s.mailbox.folder(plans).unwrap().name, "Team.Plans (2)");
-    s.mailbox.rename_folder(plans, "Team.Plans (old)").unwrap();
+    // The owner names these: they are theirs from now on, a number that looks like one this
+    // program gives (but isn't one it gives) included.
+    for (remote, _, _, name) in chosen {
+        let id = by_remote(&s, remote).id;
+        assert_eq!(s.mailbox.folder(id).unwrap().name, format!("{remote} (2)"));
+        s.mailbox.rename_folder(id, name).unwrap();
+    }
 
-    tree.extend([listed("Other", "", "Other"), listed("Team", "", "Team")]);
+    tree.push(listed("Other", "", "Other"));
+    tree.extend(chosen.iter().map(|(_, parent, ..)| listed(parent, "", parent)));
     cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree, ..Default::default() }).unwrap();
     let acme = by_remote(&s, "Other.Acme");
     assert_eq!(acme.name, "Acme");
     assert_eq!(acme.parent, Some(by_remote(&s, "Other").id));
-    let plans = by_remote(&s, "Team.Plans");
-    assert_eq!(plans.name, "Team.Plans (old)");
-    assert_eq!(plans.parent, Some(by_remote(&s, "Team").id));
+    for (remote, parent, _, name) in chosen {
+        let here = by_remote(&s, remote);
+        assert_eq!(here.name, name);
+        assert_eq!(here.parent, Some(by_remote(&s, parent).id));
+    }
+}
+
+#[test]
+fn a_path_labelled_folder_moves_into_its_parent_under_its_leaf_when_the_label_is_taken_there() {
+    use mailcraft_model::sync::{ListedFolder, SyncResult};
+
+    let mut s = session();
+    let account =
+        run(&mut s, "account.add", json!({"email": "avery@mail.example", "incoming": {"host": "imap.mail.example"}}))["id"].as_u64().unwrap();
+    let listed = |remote: &str, parent: &str, name: &str| ListedFolder {
+        remote: remote.into(),
+        parent: parent.into(),
+        name: name.into(),
+        ..Default::default()
+    };
+    let by_remote = |s: &Session, remote: &str| s.mailbox.folders.iter().find(|f| f.account == account && f.remote == remote).unwrap().clone();
+    // Listed before their parent: top level, under their whole paths.
+    let orphans = [listed("Other.Acme", "Other", "Acme"), listed("Other.Beta", "Other", "Beta")];
+    cmd::account::apply_sync(&mut s, SyncResult { account, listed: orphans.to_vec(), ..Default::default() }).unwrap();
+    assert_eq!(by_remote(&s, "Other.Acme").name, "Other.Acme");
+    // The parent comes; the owner makes folders of their own in it with those labels, and with
+    // Beta's leaf too.
+    cmd::account::apply_sync(&mut s, SyncResult { account, listed: vec![listed("Other", "", "Other")], ..Default::default() }).unwrap();
+    let other = by_remote(&s, "Other").id;
+    for name in ["Other.Acme", "Other.Beta", "Beta"] {
+        s.mailbox.add_folder(account, Some(other), name).unwrap();
+    }
+
+    let mut tree = vec![listed("Other", "", "Other")];
+    tree.extend(orphans);
+    cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree.clone(), ..Default::default() }).unwrap();
+    for (remote, name) in [("Other.Acme", "Acme"), ("Other.Beta", "Beta (2)")] {
+        let here = by_remote(&s, remote);
+        assert_eq!((here.name.as_str(), here.parent), (name, Some(other)));
+    }
+    let folders = s.mailbox.folders.clone();
+    cmd::account::apply_sync(&mut s, SyncResult { account, listed: tree, ..Default::default() }).unwrap();
+    assert_eq!(s.mailbox.folders, folders);
 }
 
 #[test]
