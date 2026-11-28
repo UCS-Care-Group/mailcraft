@@ -252,9 +252,77 @@ fn a_remembered_password_the_server_refused_is_asked_for_again() {
     assert_eq!(sent.lock().unwrap()[0].get(HOME).map(String::as_str), Some("old"), "it was tried");
     assert_eq!(a.dav_password(id, HOME), None, "not offered again");
     assert_eq!(a.dav_origins_wanting_password(id), vec![HOME.to_string()], "File › Info asks for another");
+    assert!(!a.dav_secret_may_come(id, HOME), "and says so: nothing more will come from the store");
+    // It goes from the store too, so the next start doesn't try it again.
+    let k = key(&a, id);
+    until_forgotten(&mut a, &k);
+    assert!(store.held.lock().unwrap().get(&k).is_none(), "removed from the store");
+    let (mut b, _, sent) = app(&store, true);
+    until_a_job(&mut b, &sent);
+    assert_eq!(sent.lock().unwrap()[0].get(HOME), None, "the next session doesn't send it");
     // A password typed after it is not touched by the refusal of the remembered one.
     assert!(a.hold_dav_password(id, HOME, "new"));
     assert_eq!(a.dav_password(id, HOME).as_deref(), Some("new"));
+}
+
+/// Poll the threads forgetting passwords until none is pending for `k`.
+fn until_forgotten(a: &mut MailApp, k: &str) {
+    for _ in 0..2_000 {
+        a.poll_dav_forgetting();
+        if !a.dav_forget_pending(k) {
+            return;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    panic!("the forget never finished");
+}
+
+#[test]
+fn file_info_waits_for_the_store_before_it_asks_for_a_password() {
+    let store = Arc::new(Store::default());
+    let (mut a, id, sent) = app(&store, true);
+    store.set(&key(&a, id), "kept").unwrap();
+    assert_eq!(a.dav_origins_wanting_password(id), vec![HOME.to_string()], "nothing read yet");
+    assert!(a.dav_secret_may_come(id, HOME), "File › Info doesn't ask before the store was read (started offline)");
+    until_a_job(&mut a, &sent);
+    assert!(a.dav_origins_wanting_password(id).is_empty(), "the store had it");
+    // With nothing in the store, once it was asked, File › Info asks.
+    let empty = Arc::new(Store::default());
+    let (mut b, id, sent) = app(&empty, true);
+    until_a_job(&mut b, &sent);
+    assert!(!b.dav_secret_may_come(id, HOME));
+    assert_eq!(b.dav_origins_wanting_password(id), vec![HOME.to_string()]);
+    // While remembering is off nothing is read, so nothing is waited for.
+    let (mut c, id, _) = app(&empty, true);
+    c.ui.remember_sign_in = false;
+    assert!(!c.dav_secret_may_come(id, HOME));
+}
+
+#[test]
+fn a_read_under_way_when_the_account_is_removed_brings_nothing_back() {
+    let store = Arc::new(Store::default());
+    let (mut a, id, _) = app(&store, true);
+    let k = key(&a, id);
+    store.set(&k, "old").unwrap();
+    let (copied, reached) = std::sync::mpsc::channel();
+    let (go, wait) = std::sync::mpsc::channel();
+    *store.gate.lock().unwrap() = Some((copied, wait));
+    assert!(a.dav_secrets_first(), "the read starts");
+    reached.recv().unwrap();
+    // The read has the old password in hand. Meanwhile the account's secrets are forgotten (it
+    // is removed), and it comes back (Undo).
+    let account = a.session.mailbox.account(id).cloned().unwrap();
+    a.forget_secrets(&account, true);
+    assert!(store.held.lock().unwrap().get(&k).is_none(), "the store has forgotten it");
+    go.send(()).unwrap();
+    for _ in 0..2_000 {
+        if !a.dav_secrets_first() || !a.dav.secrets.is_reading() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(1));
+    }
+    assert!(!a.dav.secrets.is_reading(), "the read has answered and was taken in");
+    assert_eq!(a.dav_password(id, HOME), None, "what the read brought from before the forget isn't taken in");
 }
 
 #[test]

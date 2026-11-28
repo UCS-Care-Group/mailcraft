@@ -132,7 +132,9 @@ pub fn show(ctx: &egui::Context, d: &mut DavPasswordAsk, app: &mut MailApp, t: &
 
 /// The account's line in File › Info when its calendar servers want a password.
 pub(crate) fn info_row(app: &mut MailApp, ui: &mut Ui, t: &Tokens, account: Id) {
-    if app.dav_origins_wanting_password(account).is_empty() {
+    // One the store may still hold isn't wanted yet: it hasn't been read (the app started offline),
+    // or the read is out.
+    if app.dav_origins_wanting_password(account).iter().all(|origin| app.dav_secret_may_come(account, origin)) {
         return;
     }
     ui.horizontal(|ui| {

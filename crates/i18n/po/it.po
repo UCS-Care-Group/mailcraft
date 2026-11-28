@@ -2825,8 +2825,9 @@ msgstr "Calendario elencato due volte"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Calendar Server Password"
-msgstr ""
+msgstr "Password del server del calendario"
 
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
@@ -5569,8 +5570,9 @@ msgstr "Termina in un giorno"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Enter Password…"
-msgstr ""
+msgstr "Inserisci password…"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
@@ -6670,8 +6672,9 @@ msgstr "Prima dagli un titolo"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Give the password of this account's calendars and contacts. Nothing is sent until the server asks for it."
-msgstr ""
+msgstr "Inserisci la password dei calendari e dei contatti di questo account. Non viene inviato nulla finché il server non la chiede."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -9013,8 +9016,9 @@ msgstr "MailCraft è open source, con le licenze MIT e Apache 2.0."
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "MailCraft is still removing the old password for this server. Try OK again in a moment."
-msgstr ""
+msgstr "MailCraft sta ancora rimuovendo la vecchia password di questo server. Riprova OK tra un momento."
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -11734,8 +11738,9 @@ msgstr "Dopo che ha funzionato, l'archivio credenziali del sistema la conserva p
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Once the server has taken it, MailCraft keeps it in your system's credential store, as File › Options lets it."
-msgstr ""
+msgstr "Una volta accettata dal server, MailCraft la conserva nell’archivio delle credenziali del sistema, come consente File › Opzioni."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -12553,8 +12558,9 @@ msgstr "Password per {account}"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Password for {server}"
-msgstr ""
+msgstr "Password per {server}"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -17587,8 +17593,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "The calendar server needs its password."
-msgstr ""
+msgstr "Il server del calendario ha bisogno della sua password."
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs
@@ -17616,8 +17623,9 @@ msgstr "Il calendario {name} e i suoi eventi conservati su questo computer verra
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "The calendars and contacts of {account} have a password of their own."
-msgstr ""
+msgstr "I calendari e i contatti di {account} hanno una password propria."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs

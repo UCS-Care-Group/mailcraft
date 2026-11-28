@@ -75,6 +75,20 @@ impl MailApp {
         names
     }
 
+    /// Whether a remembered password for `origin` of `account` may still come from the store: one
+    /// would be read for it ([`Self::dav_secrets_first`]) and it hasn't been asked yet this
+    /// session, or the read asking it is out.
+    pub(crate) fn dav_secret_may_come(&self, account: Id, origin: &str) -> bool {
+        if !self.ui.remember_sign_in || self.unconfirmed || self.data_removed || self.services.secrets.is_none() {
+            return false;
+        }
+        let Some(key) = self.session.mailbox.account(account).and_then(|a| Self::dav_secret_key(a, origin)) else { return false };
+        if self.dav_forget_pending(&key) {
+            return false;
+        }
+        !self.dav.secrets.asked.contains(&key) || self.dav.secrets.is_reading()
+    }
+
     /// Before a job: take in a read of the store that came back, and start one for the names the
     /// job would need. Whether the job is to wait (a read is under way).
     pub(crate) fn dav_secrets_first(&mut self) -> bool {

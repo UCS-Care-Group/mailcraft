@@ -2830,8 +2830,9 @@ msgstr "Naptári lista kétszer"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Calendar Server Password"
-msgstr ""
+msgstr "Naptárkiszolgáló jelszava"
 
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
@@ -5567,8 +5568,9 @@ msgstr "Egy napon ér véget"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Enter Password…"
-msgstr ""
+msgstr "Jelszó megadása…"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
@@ -6662,8 +6664,9 @@ msgstr "Először adjon meg egy címet"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Give the password of this account's calendars and contacts. Nothing is sent until the server asks for it."
-msgstr ""
+msgstr "Adja meg a fiók naptárainak és névjegyeinek jelszavát. Semmi sem lesz elküldve, amíg a kiszolgáló nem kéri."
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -9013,8 +9016,9 @@ msgstr "A MailCraft nyílt forráskódú, MIT és Apache 2.0 licenc alatt."
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "MailCraft is still removing the old password for this server. Try OK again in a moment."
-msgstr ""
+msgstr "A MailCraft még eltávolítja a kiszolgáló régi jelszavát. Egy pillanat múlva nyomja meg újra az OK gombot."
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -11734,8 +11738,9 @@ msgstr "Ha már működött, a rendszer hiteles boltja legközelebb megtartja."
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Once the server has taken it, MailCraft keeps it in your system's credential store, as File › Options lets it."
-msgstr ""
+msgstr "Miután a kiszolgáló elfogadta, a MailCraft a rendszer hitelesítőadat-tárolójában őrzi, ahogy a Fájl › Beállítások engedi."
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -12553,8 +12558,9 @@ msgstr "Jelszó {account} számára"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Password for {server}"
-msgstr ""
+msgstr "{server} jelszava"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -17600,8 +17606,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "The calendar server needs its password."
-msgstr ""
+msgstr "A naptárkiszolgálónak szüksége van a jelszavára."
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs
@@ -17629,8 +17636,9 @@ msgstr "A(z) {name} naptár és az ezen a számítógépen tárolt eseményei t�
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "The calendars and contacts of {account} have a password of their own."
-msgstr ""
+msgstr "A(z) {account} naptárainak és névjegyeinek saját jelszava van."
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs

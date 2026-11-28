@@ -2827,8 +2827,9 @@ msgstr "日历重复列出"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Calendar Server Password"
-msgstr ""
+msgstr "日历服务器密码"
 
 #. command label
 #: crates/engine/src/cmd/dav_sync.rs
@@ -5572,8 +5573,9 @@ msgstr "在某一天结束"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Enter Password…"
-msgstr ""
+msgstr "输入密码…"
 
 #. interface
 #: crates/ui-egui/src/send_later.rs
@@ -6665,8 +6667,9 @@ msgstr "请先为其设置标题"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Give the password of this account's calendars and contacts. Nothing is sent until the server asks for it."
-msgstr ""
+msgstr "输入此帐户的日历和联系人的密码。在服务器要求之前不会发送任何内容。"
 
 #. interface
 #: crates/ui-egui/src/report_problem.rs
@@ -9012,8 +9015,9 @@ msgstr "MailCraft 是开源软件，采用 MIT 和 Apache 2.0 许可证。"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "MailCraft is still removing the old password for this server. Try OK again in a moment."
-msgstr ""
+msgstr "MailCraft 仍在删除此服务器的旧密码。请稍后再次点击“确定”。"
 
 #. interface
 #: crates/ui-egui/src/credits.rs
@@ -11732,8 +11736,9 @@ msgstr "成功后，系统凭据存储会保存它以供下次使用；它不会
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Once the server has taken it, MailCraft keeps it in your system's credential store, as File › Options lets it."
-msgstr ""
+msgstr "服务器接受后，MailCraft 会按“文件 › 选项”的设置，将其保存在系统的凭据存储中。"
 
 #. what a command says
 #: crates/engine/src/cmd/calendar/meeting.rs
@@ -12551,8 +12556,9 @@ msgstr "{account} 的密码"
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "Password for {server}"
-msgstr ""
+msgstr "{server} 的密码"
 
 #. interface
 #: crates/ui-egui/src/import_pst.rs
@@ -17598,8 +17604,9 @@ msgstr ""
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "The calendar server needs its password."
-msgstr ""
+msgstr "日历服务器需要其密码。"
 
 #. interface
 #: crates/ui-egui/src/dav_job.rs
@@ -17627,8 +17634,9 @@ msgstr "日历 {name} 及其保存在此计算机上的事件将被删除，为�
 
 #. interface
 #: crates/ui-egui/src/dav_password_ask.rs
+#, fuzzy
 msgid "The calendars and contacts of {account} have a password of their own."
-msgstr ""
+msgstr "{account} 的日历和联系人有单独的密码。"
 
 #. interface
 #: crates/ui-egui/src/category_sync.rs

@@ -1709,6 +1709,9 @@ pub struct MailApp {
     dav_forgetting: Vec<(Receiver<(Vec<String>, Option<StoreTrouble>)>, Vec<String>)>,
     /// Names waiting for one of those threads.
     dav_forget_queue: Vec<String>,
+    /// Of those, the names of a remembered password a server refused: removed although the
+    /// settings still give them.
+    dav_forget_refused: std::collections::HashSet<String>,
     /// The folders of an Exchange server account the last run could not read (named as the owner
     /// knows them; no id), for File › Info. Not saved.
     pub(crate) ews_unreadable: std::collections::HashMap<Id, Vec<String>>,
@@ -2074,6 +2077,7 @@ impl MailApp {
             dav_passwords: Default::default(),
             dav_forgetting: Vec::new(),
             dav_forget_queue: Vec::new(),
+            dav_forget_refused: Default::default(),
             ews_unreadable: Default::default(),
             ews_signed_in: Default::default(),
             ews_certificate: Default::default(),
@@ -3351,6 +3355,16 @@ impl MailApp {
         self.dispatch_dav_forgetting();
     }
 
+    /// Remove from the credential store the remembered passwords a server refused, under these
+    /// names, so that a later start doesn't send them again ([`Self::forget_dav_entries`]).
+    pub(crate) fn forget_refused_dav_entries(&mut self, keys: Vec<String>) {
+        if keys.is_empty() || self.services.secrets.is_none() {
+            return;
+        }
+        self.dav_forget_refused.extend(keys.iter().cloned());
+        self.forget_dav_entries(keys);
+    }
+
     /// Start threads for the names waiting, while fewer than [`Self::DAV_FORGETTERS`] are under way.
     fn dispatch_dav_forgetting(&mut self) {
         /// Most names one thread takes.
@@ -3360,8 +3374,13 @@ impl MailApp {
             let mut keys: Vec<String> = self.dav_forget_queue.drain(..BATCH.min(self.dav_forget_queue.len())).collect();
             // A name the settings give again, or a password is held under, since it was queued is
             // not forgotten: it stays noted, and is never removed from the store.
+            // (A refused one goes all the same: the settings give its name, but what is under it
+            // is no good.)
             let in_use = self.dav_keys_in_use();
-            keys.retain(|key| !in_use.contains(key));
+            keys.retain(|key| !in_use.contains(key) || self.dav_forget_refused.contains(key));
+            for key in &keys {
+                self.dav_forget_refused.remove(key);
+            }
             if keys.is_empty() {
                 continue;
             }
@@ -3588,6 +3607,11 @@ impl MailApp {
         let Some(store) = &self.services.secrets else { return };
         let mut gone = Vec::new();
         let dav = if with_dav { Self::dav_secret_keys(a) } else { Vec::new() };
+        // A read of the store under way brought these from before the forget: not taken in, as
+        // `forget_dav_entries` has it (an Undo of the removal would otherwise bring them back).
+        if self.dav.secrets.is_reading() {
+            self.dav.secrets.forgotten.extend(dav.iter().cloned());
+        }
         let named = ["password", "refresh"].into_iter().flat_map(|kind| Self::secret_keys_of(kind, a)).chain(dav);
         for key in named {
             store.delete(&key);

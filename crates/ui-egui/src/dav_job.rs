@@ -299,20 +299,26 @@ impl MailApp {
                 !signed_in.iter().any(|taken| taken == origin) && sent.get(origin).is_some_and(|(sent, _)| sent == password)
             };
             self.dav_passwords.retain(|(held, origin), password| *held != account || !refused(origin, password));
-            // A remembered one that was refused isn't offered again this session either: File ›
-            // Info asks for another. (The store keeps it until a new one is taken in its place.)
+            // A remembered one that was refused isn't offered again, this session or the next: it
+            // goes from the store too, so a server that counts failed sign-ins isn't tried with it
+            // at every start. File › Info asks for another.
+            let mut refused_kept = Vec::new();
             if let Some(a) = self.session.mailbox.account(account).cloned() {
                 for (origin, (password, mail)) in &sent {
                     let Some(key) = Self::dav_secret_key(&a, origin) else { continue };
                     if !*mail
                         && refused(origin, password)
                         && let Some(kept) = self.secret_cache.remove(&key)
-                        && kept != *password
                     {
-                        self.secret_cache.insert(key, kept);
+                        if kept == *password {
+                            refused_kept.push(key);
+                        } else {
+                            self.secret_cache.insert(key, kept);
+                        }
                     }
                 }
             }
+            self.forget_refused_dav_entries(refused_kept);
             let mark = self.dav.mark(&sent_under, &sent);
             self.dav.refused.insert(account, (mark, now));
         }
