@@ -1242,6 +1242,7 @@ fn view_of_any(app: &MailApp) -> Tab {
             "Messages",
             vec![
                 Item::big("conversations", "Show as\nConversations", "view.conversations", no()).checked(v.conversations).at(1, 2),
+                Item::big("people", "Group by\nAddress", "view.contactConversations", no()).checked(v.contact_conversations).at(1, 2),
                 Item::big_menu("preview", "previewLines", "Message\nPreview", "Message Preview", Menu::Preview).at(1, 3),
                 Item::big("density", "Tighter\nSpacing", "view.density", no()).checked(tight).at(1, 4),
                 Item::big("shadeRows", "Shade\nRows", "view.shadeRows", no()).checked(shade).at(1, 4),
@@ -3116,7 +3117,7 @@ mod tests {
     /// sorting and preview, which mean nothing there; Mail › View keeps those and has no views.
     #[test]
     fn the_calendar_view_tab_has_its_views() {
-        let mail_only = ["view.conversations", "preview", "arrangeBy", "view.reverseSort"];
+        let mail_only = ["view.conversations", "view.contactConversations", "preview", "arrangeBy", "view.reverseSort"];
         let views = ["view.day", "view.workWeek", "view.week", "view.month"];
         let checked_view = |a: &MailApp| -> Vec<&str> {
             describe(a).items().filter(|item| views.contains(&item.key) && item.checked).map(|item| item.key).collect()

@@ -179,6 +179,9 @@ fn folder_pane(s: &mut Session, v: &Value) -> CmdResult {
 
 fn conversations(s: &mut Session, v: &Value) -> CmdResult {
     s.view.conversations = p::bool(v, "value").unwrap_or(!s.view.conversations);
+    if s.view.conversations {
+        s.view.contact_conversations = false;
+    }
     Ok(json!({"value": s.view.conversations}))
 }
 

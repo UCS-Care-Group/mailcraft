@@ -168,6 +168,8 @@ pub enum Dialog {
     /// Move to Contacts Folder… (#1144, [`crate::move_contacts`]): it only chooses the folder
     /// (and asks about somebody there already), then runs `people.moveToFolder`.
     MoveContacts(Box<crate::move_contacts::MoveContacts>),
+    /// Contact-based conversation address merging (#1907, [`crate::contact_view`]).
+    MergeCorrespondents(Box<crate::contact_view::MergeDialog>),
     /// Insert › Item and Insert › Contact Card ([`crate::pick_item`]): it only chooses, then
     /// runs `compose.attachItem` or `insert.businessCard`.
     Pick(Box<crate::pick_item::Pick>),
@@ -338,6 +340,7 @@ impl Dialog {
             Dialog::ImportPst(_) => "importPst",
             Dialog::MergeContacts(_) => "mergeContacts",
             Dialog::MoveContacts(_) => "moveContacts",
+            Dialog::MergeCorrespondents(_) => "mergeCorrespondents",
             Dialog::Pick(p) => match p.kind {
                 crate::pick_item::PickKind::Message => "attachItem",
                 crate::pick_item::PickKind::Contact => "businessCard",
@@ -3143,6 +3146,13 @@ pub fn show(app: &mut MailApp, ctx: &egui::Context) {
         Dialog::MoveContacts(dialog) => {
             let mut done = false;
             let open = window(ctx, tl!("Move to Contacts Folder"), crate::move_contacts::WIDTH, |ui| done = dialog.show(app, ui, enter));
+            close |= !open || done;
+        }
+        Dialog::MergeCorrespondents(dialog) => {
+            let mut done = false;
+            let open = window(ctx, tl!("Merge Correspondent Addresses"), crate::contact_view::MERGE_DIALOG_WIDTH, |ui| {
+                done = dialog.show(app, ui, enter);
+            });
             close |= !open || done;
         }
         Dialog::Symbol(dialog) => {

@@ -72,7 +72,7 @@ pub(crate) fn bg(ui: &Ui, r: Rect, resp: &Response, checked: bool, t: &Tokens) {
     }
 }
 
-fn text_w(ui: &Ui, text: &str, size: f32) -> f32 {
+pub(crate) fn text_w(ui: &Ui, text: &str, size: f32) -> f32 {
     ui.ctx().fonts_mut(|f| f.layout_no_wrap(text.to_string(), regular(size), Color32::WHITE).size().x)
 }
 

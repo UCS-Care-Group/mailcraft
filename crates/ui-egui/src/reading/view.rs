@@ -41,6 +41,9 @@ const KEPT: usize = 4;
 /// How many layouts are kept for windows: one each, and a few that outlive theirs for a moment.
 const KEPT_IN_WINDOWS: usize = 16;
 
+/// How many layouts are kept for chat bubbles in the contact/project timeline (#1907).
+const KEPT_IN_CHAT: usize = 64;
+
 /// How many other looks of a message's blocks are kept besides the one in use.
 const KEPT_CLASSES: usize = 3;
 
@@ -315,17 +318,38 @@ impl Store {
                     self.entries.iter().find(|e| shows(e) && (!e.doc.responsive || e.look == Look::of(&e.doc.lists, env))).map(|e| e.doc.clone());
                 // What was kept here of this message before it changed is of no use any more.
                 self.entries.retain(|e| e.place != place || e.message.id != message.id || message.id == 0);
+                let bucket = |p: Place| match p {
+                    Place::Pane => 0u8,
+                    Place::Chat(_) => 1,
+                    Place::Window(_) | Place::Quote | Place::Preview => 2,
+                };
                 let (kept, room) = match place {
                     Place::Pane => (self.entries.iter().filter(|e| e.place == Place::Pane).count(), KEPT),
+                    Place::Chat(_) => {
+                        self.entries.retain(|e| !matches!(e.place, Place::Chat(_)) || !e.laid.done || e.used.saturating_add(8) >= frame);
+                        (self.entries.iter().filter(|e| matches!(e.place, Place::Chat(_))).count(), KEPT_IN_CHAT)
+                    }
                     Place::Window(_) | Place::Quote | Place::Preview => {
                         // A window shows one message, and a window that is gone shows none.
-                        self.entries.retain(|e| e.place == Place::Pane || (e.place != place && e.used.saturating_add(2) >= frame));
-                        (self.entries.iter().filter(|e| e.place != Place::Pane).count(), KEPT_IN_WINDOWS)
+                        self.entries
+                            .retain(|e| matches!(e.place, Place::Pane | Place::Chat(_)) || (e.place != place && e.used.saturating_add(2) >= frame));
+                        (self.entries.iter().filter(|e| bucket(e.place) == 2).count(), KEPT_IN_WINDOWS)
                     }
                 };
-                let of_a_kind = |e: &Entry| (e.place == Place::Pane) == (place == Place::Pane);
+                let target_bucket = bucket(place);
+                let of_a_kind = |e: &Entry| bucket(e.place) == target_bucket;
+                let chat = matches!(place, Place::Chat(_));
                 if kept >= room
-                    && let Some(oldest) = self.entries.iter().enumerate().filter(|(_, e)| of_a_kind(e)).min_by_key(|(_, e)| e.used).map(|(i, _)| i)
+                    && let Some(oldest) = self
+                        .entries
+                        .iter()
+                        .enumerate()
+                        .filter(|(_, e)| of_a_kind(e) && (!chat || (e.laid.done && e.used < frame)))
+                        .min_by_key(|(_, e)| e.used)
+                        .or_else(|| {
+                            self.entries.iter().enumerate().filter(|(_, e)| of_a_kind(e) && (!chat || e.laid.done)).min_by_key(|(_, e)| e.used)
+                        })
+                        .map(|(i, _)| i)
                 {
                     self.entries.swap_remove(oldest);
                 }
@@ -452,20 +476,38 @@ pub fn doc_shown(ctx: &egui::Context, message: &Arc<Message>, place: Place, can_
     }
 }
 
+/// Measured layout dimensions and whether a link inside the body was clicked (#1907).
+pub(crate) struct ChatPainted {
+    pub size: egui::Vec2,
+    pub link_clicked: bool,
+}
+
 /// Paint the body of `message` in the width there is. Links open in the browser and its text can
 /// be selected and copied ([`select`]); nothing else in a message is interactive and nothing in
 /// it runs. Pictures from the web are shown when `access` says the owner asked for them, as far
 /// as they have come.
 pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place, access: Access) {
+    let _ = show_inner(app, ui, message, place, access, None);
+}
+
+/// Same as [`show`], laying text out at `wrap_width` and returning the content's measured size
+/// plus whether a body link was activated this frame.
+pub(crate) fn show_at(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place, access: Access, wrap_width: f32) -> ChatPainted {
+    show_inner(app, ui, message, place, access, Some(wrap_width))
+}
+
+fn show_inner(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place, access: Access, wrap_width: Option<f32>) -> ChatPainted {
     let ctx = ui.ctx().clone();
     let light = on_light_page(app, place);
     let t = if light { Tokens::light() } else { Tokens::get(&ctx) };
     // In steps of a few points, so that dragging the pane's edge does not lay a long message out
     // again for every pixel.
-    let width = ((ui.available_width().min(super::MAX_TEXT_WIDTH) / WIDTH_STEP).floor() * WIDTH_STEP).max(1.0);
+    let raw_w = wrap_width.unwrap_or_else(|| ui.available_width());
+    let width = ((raw_w.min(super::MAX_TEXT_WIDTH) / WIDTH_STEP).floor() * WIDTH_STEP).max(1.0);
     // Links whose text names one place and which go to another wear a mark (#508); not in a
     // quote or a preview, which are the owner's own.
-    let flagged = if matches!(place, Place::Pane | Place::Window(_)) { super::warnings::mismatched(app, message) } else { Vec::new() };
+    let flagged =
+        if matches!(place, Place::Pane | Place::Window(_) | Place::Chat(_)) { super::warnings::mismatched(app, message) } else { Vec::new() };
     let store = Store::of(&ctx);
     let mut store = store.lock().unwrap_or_else(|e| e.into_inner());
     #[cfg(test)]
@@ -475,7 +517,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let env = Env::for_pane(width, t.dark);
     let can_download = super::remote::available(app);
     let Some(made) = store.entry(message, place, images::frame(&ctx), can_download, env).map(|entry| entry.fit(message, can_download, env)) else {
-        return;
+        return ChatPainted { size: egui::Vec2::ZERO, link_clicked: false };
     };
     #[cfg(test)]
     {
@@ -483,24 +525,28 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     }
     #[cfg(not(test))]
     let _ = made;
-    let Some(entry) = store.entry(message, place, images::frame(&ctx), can_download, env) else { return };
+    let Some(entry) = store.entry(message, place, images::frame(&ctx), can_download, env) else {
+        return ChatPainted { size: egui::Vec2::ZERO, link_clicked: false };
+    };
     // A reply or forward asked for here quotes it as it is read here: at this width and in this
     // theme, its HTML or its text part, as shown. (Its text part is a choice only beside HTML: one
     // drawn before its body came is not quoted as text once the HTML is there.)
     let here = match place {
         Place::Pane => Some(mailcraft_engine::ReadIn::Pane),
         Place::Window(n) => Some(mailcraft_engine::ReadIn::Window(n)),
-        Place::Quote | Place::Preview => None,
+        Place::Quote | Place::Preview | Place::Chat(_) => None,
     };
     if let Some(here) = here {
         app.session.read_at(message.id, here, env, entry.doc.from_text && message.body.html.is_some());
     }
     if entry.doc.blocks.is_empty() {
-        ui.label(egui::RichText::new(tl!("This message has no text.")).color(t.text_dim));
+        if !matches!(place, Place::Chat(_)) {
+            ui.label(egui::RichText::new(tl!("This message has no text.")).color(t.text_dim));
+        }
         if let Some(state) = app.text_selection.state(place) {
             state.no_body();
         }
-        return;
+        return ChatPainted { size: egui::Vec2::ZERO, link_clicked: false };
     }
     let pictures = Pictures::of(&ctx);
     let mut pictures = pictures.lock().unwrap_or_else(|e| e.into_inner());
@@ -570,7 +616,16 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     let mut state = app.text_selection.state(place);
     // A copy that waited for the layout to be whole is due now.
     let due = state.as_deref_mut().and_then(|state| state.bind(&entry.doc, entry.laid.done));
-    let (origin, asked) = paint(ui, &entry.laid, &t, access, state, &flagged);
+    let chat = matches!(place, Place::Chat(_));
+    let measured = vec2(
+        if chat && entry.laid.done && entry.laid.content_right > 0.0 {
+            entry.laid.content_right.min(super::MAX_TEXT_WIDTH)
+        } else {
+            entry.laid.size.x
+        },
+        entry.laid.size.y,
+    );
+    let (origin, asked, link_clicked) = paint_in(ui, &entry.laid, &t, access, state, &flagged, chat);
     #[cfg(test)]
     {
         entry.origin = origin;
@@ -586,6 +641,7 @@ pub fn show(app: &mut MailApp, ui: &mut Ui, message: &Arc<Message>, place: Place
     if matches!(place, Place::Pane | Place::Window(_)) {
         wheel_zoom(app, ui);
     }
+    ChatPainted { size: measured, link_clicked }
 }
 
 /// Ctrl (⌘ on a Mac) with the wheel over the message being read zooms its text a step at a time
@@ -628,6 +684,14 @@ pub fn page(app: &MailApp, place: Place, ui: &mut Ui) -> egui::Frame {
     }
     *ui.visuals_mut() = ui.ctx().style_of(egui::Theme::Light).visuals.clone();
     egui::Frame::NONE.fill(Tokens::light().surface)
+}
+
+/// Cached laid-out content size (`width`, `height`) for `message` at `place`, when already laid out.
+pub fn laid_size(ctx: &egui::Context, place: Place, message: mailcraft_model::Id) -> Option<egui::Vec2> {
+    with_laid(ctx, place, message, |laid| {
+        let w = if laid.done && laid.content_right > 0.0 { laid.content_right } else { laid.size.x };
+        vec2(w.min(super::MAX_TEXT_WIDTH), laid.size.y)
+    })
 }
 
 /// Look at what is laid out of a message's body where it is shown, when it is shown there.
@@ -699,21 +763,28 @@ struct Hover {
 /// layout is shown in). Where its top left is, and what its menu was asked to do.
 /// `flagged` are the addresses of the links that go somewhere other than their text says: each
 /// wears a frame, and its tip says so.
-pub fn paint(
+fn paint_in(
     ui: &mut Ui,
     laid: &Laid,
     t: &Tokens,
     access: Access,
     mut state: Option<&mut select::PlaceState>,
     flagged: &[String],
-) -> (egui::Pos2, Option<Action>) {
-    let (area, _) = ui.allocate_exact_size(vec2(laid.size.x.max(1.0), laid.size.y.max(1.0)), Sense::hover());
+    shrink_to_content: bool,
+) -> (egui::Pos2, Option<Action>, bool) {
+    let alloc_w = if shrink_to_content && laid.done && laid.content_right > 0.0 {
+        laid.content_right.clamp(1.0, super::MAX_TEXT_WIDTH)
+    } else {
+        laid.size.x.max(1.0)
+    };
+    let (area, _) = ui.allocate_exact_size(vec2(alloc_w, laid.size.y.max(1.0)), Sense::hover());
     let origin = area.min.to_vec2();
     let clip = ui.clip_rect();
     let ctx = ui.ctx().clone();
-    // The pointer is sensed over all of the body that is in view, its margins and the room under
-    // a short message too: a drag that selects begins and ends wherever the pointer happens to be.
-    let response = ui.interact(clip, ui.scope_id().with("body"), select::sense(ui));
+    // In a chat bubble (`shrink_to_content`), keep pointer sensing strictly within this bubble's
+    // own body area so multiple bubbles on screen never steal events from one another.
+    let hit_rect = if shrink_to_content { area.intersect(clip) } else { clip };
+    let response = ui.interact(hit_rect, ui.scope_id().with("body"), select::sense(ui));
     if let Some(state) = state.as_deref_mut() {
         select::body(ui, &response, laid, area.min, state);
     }
@@ -865,12 +936,15 @@ pub fn paint(
     // One click follows a link. A drag that began on it selected instead; so do the second and
     // third click of a row, and a click with Shift moves the end of what is selected.
     let followed = response.clicked() && !response.double_clicked() && !response.triple_clicked() && !ui.input(|i| i.modifiers.shift);
-    if let Some(url) = link
+    let link_clicked = if let Some(url) = link
         && followed
     {
         ctx.open_url(egui::OpenUrl::new_tab(url.to_string()));
-    }
-    (area.min, asked)
+        true
+    } else {
+        false
+    };
+    (area.min, asked, link_clicked)
 }
 
 /// The most characters of a link's address, and of a picture's description, that a tip shows.

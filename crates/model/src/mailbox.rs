@@ -1424,6 +1424,10 @@ pub struct Mailbox {
     /// Reminders of mail sent whose copy the server files in Sent Items ([`PendingFollowUp`], #948).
     #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
     pub follow_ups_pending: Vec<PendingFollowUp>,
+    /// Manually merged correspondent email address groups (#1907): kept on this computer alone,
+    /// never sent to a server.
+    #[serde(skip_serializing_if = "Vec::is_empty", deserialize_with = "crate::sync::lenient_list")]
+    pub correspondent_aliases: Vec<crate::CorrespondentGroup>,
 }
 
 impl Default for Mailbox {
@@ -1475,6 +1479,7 @@ impl Default for Mailbox {
             device_limits: None,
             next_id: 1,
             follow_ups_pending: Vec::new(),
+            correspondent_aliases: Vec::new(),
         }
     }
 }
@@ -5446,6 +5451,9 @@ impl Mailbox {
         self.next_id = self.next_id.max(1);
         // (After the ids are put right: a folder it makes takes a new one.)
         fixed.extend(self.repair_contact_folders());
+        if crate::correspondents::repair_groups(&mut self.correspondent_aliases) {
+            fixed.push("merged correspondent groups tidied".into());
+        }
         fixed
     }
 
@@ -5499,6 +5507,75 @@ impl Mailbox {
         }
         self.pending = kept;
         (before - self.pending.len()) + mended
+    }
+
+    /// Manually merge two or more email addresses into one correspondent group (#1907), unioning
+    /// any existing groups that overlap those addresses.
+    pub fn merge_correspondents(&mut self, addresses: &[String], name: Option<&str>) -> Result<crate::CorrespondentGroup, ModelError> {
+        let mut merged: Vec<String> = Vec::new();
+        for raw in addresses {
+            let Some(addr) = crate::correspondents::normalize_address(raw) else {
+                return Err(ModelError::Invalid("each address must be a valid email address".into()));
+            };
+            if !merged.contains(&addr) {
+                merged.push(addr);
+            }
+        }
+        if merged.len() < 2 {
+            return Err(ModelError::Invalid("at least two distinct email addresses are required to merge".into()));
+        }
+        let mut inherited_name = String::new();
+        let mut non_overlapping = 0usize;
+        for group in &self.correspondent_aliases {
+            if group.addresses.iter().any(|a| merged.contains(a)) {
+                if inherited_name.is_empty() && !group.name.trim().is_empty() {
+                    inherited_name = group.name.clone();
+                }
+                for addr in &group.addresses {
+                    if !merged.contains(addr) {
+                        merged.push(addr.clone());
+                    }
+                }
+            } else {
+                non_overlapping = non_overlapping.saturating_add(1);
+            }
+        }
+        if merged.len() > crate::MAX_GROUP_ADDRESSES {
+            return Err(ModelError::Invalid(format!("at most {} addresses may be merged together", crate::MAX_GROUP_ADDRESSES)));
+        }
+        if non_overlapping >= crate::MAX_CORRESPONDENT_GROUPS {
+            return Err(ModelError::Invalid(format!("at most {} merged correspondent groups are supported", crate::MAX_CORRESPONDENT_GROUPS)));
+        }
+        merged.sort();
+        let chosen_name = name.map(crate::correspondents::sanitize_name).filter(|s| !s.is_empty()).unwrap_or(inherited_name);
+        let group = crate::CorrespondentGroup { name: chosen_name, addresses: merged };
+        self.correspondent_aliases.retain(|g| !g.addresses.iter().any(|a| group.addresses.contains(a)));
+        self.correspondent_aliases.push(group.clone());
+        Ok(group)
+    }
+
+    /// Remove `address` from any manually merged correspondent group (#1907); drops the group if
+    /// fewer than two addresses remain. Returns `true` if a group was changed.
+    pub fn unmerge_correspondent(&mut self, address: &str) -> Result<bool, ModelError> {
+        let Some(target) = crate::correspondents::normalize_address(address) else {
+            return Err(ModelError::Invalid("`address` must be a valid email address".into()));
+        };
+        let mut changed = false;
+        let mut remaining = Vec::with_capacity(self.correspondent_aliases.len());
+        for mut group in std::mem::take(&mut self.correspondent_aliases) {
+            let before = group.addresses.len();
+            group.addresses.retain(|a| a != &target);
+            if group.addresses.len() != before {
+                changed = true;
+            }
+            if group.addresses.len() >= 2 {
+                remaining.push(group);
+            } else if before >= 2 {
+                changed = true;
+            }
+        }
+        self.correspondent_aliases = remaining;
+        Ok(changed)
     }
 }
 

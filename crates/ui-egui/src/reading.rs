@@ -58,7 +58,7 @@ mod signature_tests;
 #[cfg(test)]
 mod tests;
 pub(crate) mod unsubscribe;
-mod view;
+pub(crate) mod view;
 mod warnings;
 #[cfg(test)]
 mod warnings_tests;
@@ -120,6 +120,8 @@ pub enum Place {
     Quote,
     /// File › Signatures: a sample reply with the signature, as a recipient sees it.
     Preview,
+    /// One message bubble in a chat-style conversation view (#1907).
+    Chat(mailcraft_model::Id),
 }
 
 /// A message that is not in the mailbox (a message file opened without being filed, #515) in
@@ -474,6 +476,97 @@ fn let_go_of_quotes(app: &MailApp, ctx: &egui::Context) {
 /// pictures only, nothing from the web.
 pub(crate) fn show_plain_view(app: &mut MailApp, ui: &mut Ui, m: &Arc<Message>, place: Place) {
     view::show(app, ui, m, place, Access::Blocked);
+}
+
+/// Outcome of rendering a message body inside a chat bubble (#1907).
+pub(crate) struct ChatBodyShown {
+    pub has_body: bool,
+    pub truncated: bool,
+    pub block_click: bool,
+}
+
+/// Render a message's HTML or plain-text body, inline pictures (`cid:` / `data:`), and
+/// privacy-gated remote-picture banner inside a chat bubble (`Place::Chat(m.id)`), clamped to
+/// `collapsed_max_h` when `!expanded`.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn show_chat_body(
+    app: &mut MailApp,
+    ui: &mut Ui,
+    m: &Arc<Message>,
+    wrap_width: f32,
+    collapsed_max_h: f32,
+    expanded: bool,
+    card_fill: egui::Color32,
+) -> ChatBodyShown {
+    let ctx = ui.ctx().clone();
+    let place = Place::Chat(m.id);
+    let t = Tokens::get(&ctx);
+    let env = mailcraft_html::Env::for_pane(wrap_width.min(MAX_TEXT_WIDTH), t.dark);
+    let doc = view::doc_shown(&ctx, m, place, remote::available(app), env);
+    let access = if doc.remote.is_empty() { Access::Blocked } else { remote::access(app, m) };
+    let progress = if access == Access::Allowed { remote::want(app, &ctx, m, &doc) } else { remote::Progress::default() };
+
+    let mut block_click = false;
+    if !doc.remote.is_empty() {
+        let notice_resp = ui.scope(|ui| {
+            remote::line(app, ui, m, &doc, access, progress, place, &t);
+        });
+        if ui.rect_contains_pointer(notice_resp.response.rect) && ui.input(|i| i.pointer.primary_clicked()) {
+            block_click = true;
+        }
+    }
+
+    if doc.blocks.is_empty() {
+        return ChatBodyShown { has_body: false, truncated: false, block_click };
+    }
+
+    let known = view::laid_size(&ctx, place, m.id);
+    let full_h = known.map_or(0.0, |s| s.y);
+    let clamped = !expanded && full_h > collapsed_max_h + 12.0;
+
+    let est_h = if clamped { collapsed_max_h } else { full_h.max(24.0) };
+    let est_rect = Rect::from_min_size(ui.cursor().min, vec2(wrap_width, est_h));
+    select::begin_in(app, ui, m, place, true, Some(est_rect));
+
+    let measured = if clamped {
+        let h_scroll_room = if known.is_some_and(|s| s.x > wrap_width + 1.0) { 14.0 } else { 0.0 };
+        let content_w = known.map_or(wrap_width, |s| s.x.clamp(1.0, wrap_width));
+        let outer_h = (collapsed_max_h + h_scroll_room).min(full_h);
+        let (outer, _) = ui.allocate_exact_size(vec2(content_w, outer_h), Sense::hover());
+        let clip_rect = outer.intersect(ui.clip_rect());
+        let mut child = ui.new_child(egui::UiBuilder::new().max_rect(outer));
+        child.set_clip_rect(clip_rect);
+        let mut painted = view::ChatPainted { size: egui::Vec2::ZERO, link_clicked: false };
+        egui::ScrollArea::horizontal().id_salt(("chat_body_h", m.id)).auto_shrink([true, true]).show(&mut child, |ui| {
+            painted = view::show_at(app, ui, m, place, access, wrap_width);
+        });
+        block_click |= painted.link_clicked;
+        let fade_h = 28.0_f32.min(collapsed_max_h * 0.25);
+        let fade_bottom = outer.min.y + collapsed_max_h;
+        for (i, alpha) in [0.30_f32, 0.65, 0.94].iter().enumerate() {
+            let y0 = fade_bottom - fade_h + fade_h * (i as f32 / 3.0);
+            let y1 = fade_bottom - fade_h + fade_h * ((i + 1) as f32 / 3.0);
+            let band = Rect::from_min_max(pos2(outer.min.x, y0), pos2(outer.max.x, y1)).intersect(clip_rect);
+            if band.height() > 0.0 {
+                ui.painter().rect_filled(band, 0.0, card_fill.gamma_multiply(*alpha));
+            }
+        }
+        painted.size
+    } else {
+        let mut painted = view::ChatPainted { size: egui::Vec2::ZERO, link_clicked: false };
+        egui::ScrollArea::horizontal().id_salt(("chat_body_h", m.id)).auto_shrink([true, true]).show(ui, |ui| {
+            painted = view::show_at(app, ui, m, place, access, wrap_width);
+        });
+        block_click |= painted.link_clicked;
+        painted.size
+    };
+
+    select::settle(app, ui, place);
+    // Keep clipping and the "Show more" control driven by one consistent measurement per frame.
+    if !expanded && (measured.y > collapsed_max_h + 12.0) != clamped {
+        ctx.request_repaint();
+    }
+    ChatBodyShown { has_body: true, truncated: clamped, block_click }
 }
 
 /// Pictures the host has brought are taken in, whatever is on screen ([`remote::tick`]), and the

@@ -285,6 +285,21 @@ pub struct ViewState {
     pub sort_descending: bool,
     /// Show messages grouped into conversations.
     pub conversations: bool,
+    /// Show messages aggregated per correspondent in a chat-like view (#1907).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub contact_conversations: bool,
+    /// In contact-based conversation view, aggregate across all accounts rather than only the
+    /// account of the folder in view (#1907).
+    #[serde(default, skip_serializing_if = "is_false")]
+    pub contact_all_accounts: bool,
+    /// Selected correspondent canonical key in contact-based conversation view (#1907).
+    /// Never persisted to settings so no email addresses are written there.
+    #[serde(skip)]
+    pub selected_correspondent: Option<String>,
+    /// Effective `allAccounts` scope captured when [`Self::selected_correspondent`] was picked
+    /// (#1907), so implicit-key queries resolve within the same scope. Never persisted.
+    #[serde(skip)]
+    pub selected_correspondent_all_accounts: Option<bool>,
     /// The conversations opened in the list (#503), each by its account and its key
     /// ([`Session::threads`], #795): their messages are listed under their rows. Another folder, tab
     /// or search starts with all of them closed. Not kept with the view's settings, which would
@@ -364,6 +379,10 @@ impl Default for ViewState {
             sort: SortBy::Date,
             sort_descending: true,
             conversations: false,
+            contact_conversations: false,
+            contact_all_accounts: false,
+            selected_correspondent: None,
+            selected_correspondent_all_accounts: None,
             open: Vec::new(),
             filter: Filter::All,
             gmail: None,
@@ -641,7 +660,7 @@ impl Selection {
     }
 
     /// No message selected, and nothing kept for one.
-    pub(crate) fn clear_messages(&mut self) {
+    pub fn clear_messages(&mut self) {
         self.messages.clear();
         self.focus_row = None;
         self.anchor_row = None;
@@ -2339,9 +2358,19 @@ impl Session {
     /// to be searched as without an index.
     #[cfg(not(target_arch = "wasm32"))]
     fn search_words(&self) -> (std::collections::HashMap<Id, bool>, usize) {
+        self.search_words_for(&self.search_query(), crate::list::in_view(self))
+    }
+
+    /// Answer `query` from the word index (plus bounded disk phrase checks) for messages
+    /// admitted by `in_scope`.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn search_words_for(
+        &self,
+        query: &mailcraft_model::search::Query,
+        in_scope: impl Fn(&Message) -> bool,
+    ) -> (std::collections::HashMap<Id, bool>, usize) {
         use std::cell::Cell;
         let mut decided = std::collections::HashMap::new();
-        let query = self.search_query();
         let Some(words) = self.words.as_ref().filter(|_| !query.is_empty()) else { return (decided, 0) };
         let mut verify: Vec<Id> = Vec::new();
         {
@@ -2349,10 +2378,9 @@ impl Session {
             let Some(index) = guard.as_ref() else { return (decided, 0) };
             let sets: Vec<Option<crate::words::Bits>> =
                 (0..query.len()).map(|i| query.words_of(i).map(|(fields, w)| index.matching(w, fields))).collect();
-            let in_view = crate::list::in_view(self);
             for m in self.mailbox.messages.values() {
                 let Some(slot) = index.slot_of(m.id) else { continue };
-                if !in_view(m) {
+                if !in_scope(m) {
                     continue;
                 }
                 let text_on_disk = crate::words::body_in_memory(m).is_none();
@@ -2400,6 +2428,15 @@ impl Session {
             decided.insert(id, hit);
         }
         (decided, unread)
+    }
+
+    #[cfg(target_arch = "wasm32")]
+    pub(crate) fn search_words_for(
+        &self,
+        _: &mailcraft_model::search::Query,
+        _: impl Fn(&Message) -> bool,
+    ) -> (std::collections::HashMap<Id, bool>, usize) {
+        (std::collections::HashMap::new(), 0)
     }
 
     /// How far the word index a search answers from has got.
@@ -3588,6 +3625,8 @@ impl Session {
         self.view.search.clear();
         // Another mailbox starts with every conversation closed, though its folder has the same id.
         self.view.open.clear();
+        self.view.selected_correspondent = None;
+        self.view.selected_correspondent_all_accounts = None;
         // An account's id means another account there, or none.
         self.view.task_account = AccountChoice::All;
         self.view.people_account = AccountChoice::All;
