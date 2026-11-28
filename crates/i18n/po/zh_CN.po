@@ -12695,8 +12695,9 @@ msgstr "粘贴图片"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "仅粘贴文本"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
