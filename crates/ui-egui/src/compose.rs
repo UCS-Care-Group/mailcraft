@@ -450,6 +450,7 @@ fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
         let current = from_list::current(&app.session.mailbox, c.account, &c.from);
         let end = r.max.x - 12.0;
         let pick = Rect::from_min_max(pos2((r.min.x + 16.0 + label_width).min(end), r.min.y + 4.0), pos2(end, r.max.y - 4.0));
+        app.hit.add("composeFrom", 0, pick);
         let resp = ui.interact(pick, ui.scope_id().with("compose_from"), Sense::click());
         if resp.hovered() {
             ui.painter().rect_filled(pick.expand2(vec2(4.0, 0.0)), 4.0, t.hover);
@@ -457,21 +458,29 @@ fn header(app: &mut MailApp, ui: &mut Ui, c: &Shown, focus_to: bool) {
         paint_clipped(ui.painter(), pos2(pick.min.x, pick.center().y), pick.width(), &format!("{current} ▾"), regular(13.0), t.text);
         // (In the order of the folder pane, #702; an account's other addresses under its own.)
         let choices = from_list::choices(&app.session.mailbox);
-        egui::Popup::menu(&resp).show(|ui| {
-            for choice in choices {
-                let picked = ui
-                    .horizontal(|ui| {
-                        if !choice.from.is_empty() {
-                            ui.add_space(14.0);
-                        }
-                        ui.selectable_label(from_list::is_current(&choice, c.account, &c.from), &choice.label).clicked()
-                    })
-                    .inner;
-                if picked {
-                    let _ = app.execute("compose.set", json!({"account": choice.account, "from": choice.from}));
-                    ui.close();
+        let opening = !egui::Popup::is_id_open(ui.ctx(), egui::Popup::default_response_id(&resp));
+        egui::Popup::menu(&resp).close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside).show(|ui| {
+            let out = egui::ScrollArea::vertical().max_height(320.0).show(ui, |ui| {
+                for choice in choices {
+                    let current = from_list::is_current(&choice, c.account, &c.from);
+                    let item = ui
+                        .horizontal(|ui| {
+                            if !choice.from.is_empty() {
+                                ui.add_space(14.0);
+                            }
+                            ui.selectable_label(current, &choice.label)
+                        })
+                        .inner;
+                    if opening && current {
+                        item.scroll_to_me_animation(Some(egui::Align::Center), egui::style::ScrollAnimation::none());
+                    }
+                    if item.clicked() {
+                        let _ = app.execute("compose.set", json!({"account": choice.account, "from": choice.from}));
+                        ui.close();
+                    }
                 }
-            }
+            });
+            app.hit.add("composeFromMenu", 0, out.inner_rect);
         });
         ui.painter().line_segment([pos2(r.min.x + 16.0, r.max.y), pos2(r.max.x - 12.0, r.max.y)], Stroke::new(1.0, t.border));
     }
