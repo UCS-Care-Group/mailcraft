@@ -174,7 +174,16 @@ impl HostUpdates {
     }
 }
 
+/// What a window's frame is cleared to before it is drawn: eframe's own dark grey, opaque. eframe's
+/// has some transparency, which an opaque window never showed; on Windows the frames go to the
+/// desktop with premultiplied alpha (`graphics::premultiplied_backbuffer`), and a see-through
+/// clear colour would let what is behind the window show where nothing is drawn.
+const CLEAR_COLOR: egui::Color32 = egui::Color32::from_rgb(12, 12, 12);
+
 impl eframe::App for App {
+    fn clear_color(&self, _visuals: &egui::Visuals) -> [f32; 4] {
+        CLEAR_COLOR.to_normalized_gamma_f32()
+    }
     fn logic(&mut self, ctx: &egui::Context, frame: &mut eframe::Frame) {
         #[cfg(target_os = "macos")]
         apple_events::poll(&self.7, &mut self.0, ctx);
@@ -1727,9 +1736,11 @@ fn main() -> eframe::Result {
         options.clipboard_shortcuts = false;
     }
     // Before eframe creates the wgpu instance: default Windows to DirectX 12 only, or OpenGL when
-    // DirectX 12 has no GPU driver (see graphics.rs).
+    // DirectX 12 has no GPU driver, and present DirectX 12 through DirectComposition with
+    // premultiplied alpha, so that NVIDIA's overlay doesn't take a maximized window for a game
+    // (see graphics.rs).
     #[cfg(target_os = "windows")]
-    graphics::configure(&mut options, eframe::wgpu::Backends::from_env());
+    graphics::configure(&mut options, eframe::wgpu::Backends::from_env(), eframe::wgpu::Dx12SwapchainKind::from_env());
     let (prefs, settings_unread) = load_prefs();
     let close_to_tray = prefs.as_ref().is_some_and(|ui| ui.close_to_tray);
     let restored = prefs.as_ref().and_then(|ui| ui.window).and_then(WindowGeometry::sanitized);

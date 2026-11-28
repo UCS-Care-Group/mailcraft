@@ -2333,8 +2333,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "附加文件"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Attach Item"
 msgstr "附加项目"
@@ -12700,8 +12700,9 @@ msgstr "粘贴图片"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "仅粘贴文本"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15808,7 +15809,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "提醒到期时显示桌面通知"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "新邮件到达时显示桌面通知"

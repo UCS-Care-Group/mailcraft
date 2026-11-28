@@ -20,6 +20,8 @@
 //!   results by when they were sent and gives at most 1,000; each page is sorted here newest
 //!   first by arrival. The next page is the `@odata.nextLink` the server gave, followed on Graph
 //!   alone, and for a shared mailbox never at `/me`.
+//! - **Received-date-only queries** use a plain messages list with a UTC `$filter` and
+//!   `$orderby=receivedDateTime desc`.
 //! - **Refusals by Graph's code**, in the words a run already has for them: a shared mailbox
 //!   that won't be opened ([`NetError::SharedRefused`]), the sign-in, the permission, the server
 //!   busy (the mailbox's gate pauses as for a run), the network gone (`offline`).
@@ -66,10 +68,18 @@ pub(crate) fn search_messages_with(base: &str, token: &str, request: &GraphSearc
         }
     };
     let url = if request.next.is_empty() {
-        let Some(value) = search_value(&request.query) else {
+        let mut fields = vec![("$select", FIELDS), ("$top", PAGE)];
+        let value;
+        if let Some(filter) = request.received.and_then(received_filter) {
+            value = filter;
+            fields.extend([("$filter", value.as_str()), ("$orderby", "receivedDateTime desc")]);
+        } else if let Some(search) = search_value(&request.query) {
+            value = search;
+            fields.push(("$search", value.as_str()));
+        } else {
             out.errors.push("Nothing of this search can be asked of Microsoft's server.".into());
             return out;
-        };
+        }
         let path = if request.folder.is_empty() {
             graph.mail_path("/messages")
         } else {
@@ -79,7 +89,7 @@ pub(crate) fn search_messages_with(base: &str, token: &str, request: &GraphSearc
             };
             format!("{}/{}/messages", folders(&graph), http::encode(&folder))
         };
-        let query = http::form(&[("$search", value.as_str()), ("$select", FIELDS), ("$top", PAGE)]);
+        let query = http::form(&fields);
         graph.url(&format!("{path}?{query}"))
     } else {
         match next_page(&graph, &request.next) {
@@ -125,6 +135,17 @@ pub(crate) fn search_messages_with(base: &str, token: &str, request: &GraphSearc
     }
     log::info!("graph search: {} found on a page of {}, more to come: {}", out.messages.len(), entries.len(), !out.next.is_empty());
     out
+}
+
+/// Graph requires the ordered property to appear first in the filter.
+fn received_filter((from, until): (Option<i64>, Option<i64>)) -> Option<String> {
+    let utc = mailcraft_time::format_iso_utc;
+    match (from, until) {
+        (Some(a), Some(b)) if a < b => Some(format!("receivedDateTime ge {} and receivedDateTime lt {}", utc(a), utc(b))),
+        (Some(a), None) => Some(format!("receivedDateTime ge {}", utc(a))),
+        (None, Some(b)) => Some(format!("receivedDateTime lt {}", utc(b))),
+        _ => None,
+    }
 }
 
 /// What a search that stopped says.

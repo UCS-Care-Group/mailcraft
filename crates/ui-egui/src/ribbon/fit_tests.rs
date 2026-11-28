@@ -115,7 +115,7 @@ fn recent_attachments_open_in_compact_classic_columns_and_overflow() {
         group.items[0].menu = Some(super::Menu::RecentAttachments);
         let mut h = egui_kittest::Harness::builder().with_accessibility_check(false).allow_missing_glyphs().build_ui_state(
             move |ui, app: &mut MailApp| match stage {
-                Some(stage) => super::classic_cells(app, ui, &[&group.items[0]], stage),
+                Some(stage) => super::classic_cells(app, ui, &group, &[&group.items[0]], stage),
                 None => super::group_entries(ui, app, &group),
             },
             app,

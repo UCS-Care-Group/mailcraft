@@ -2339,8 +2339,8 @@ msgstr ""
 msgid "Attach File"
 msgstr "Dołącz plik"
 
-#. command label, interface, name
-#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs
+#. command label, interface, name, ribbon
+#: crates/engine/src/cmd/compose.rs crates/ui-egui/src/pick_item.rs crates/ui-egui/src/ribbon.rs
 #, fuzzy
 msgid "Attach Item"
 msgstr "Dołącz element"
@@ -12747,8 +12747,9 @@ msgstr "Wklej obraz"
 
 #. interface
 #: crates/ui-egui/src/text_menu.rs
+#, fuzzy
 msgid "Paste Text Only"
-msgstr ""
+msgstr "Wklej tylko tekst"
 
 #. interface
 #: crates/ui-egui/src/signatures.rs
@@ -15867,7 +15868,7 @@ msgid "Show a desktop alert for reminders"
 msgstr "Pokazuj alert na pulpicie dla przypomnień"
 
 #. interface
-#: crates/ui-egui/src/alerts.rs
+#: crates/ui-egui/src/account_setup.rs crates/ui-egui/src/alerts.rs
 #, fuzzy
 msgid "Show a desktop alert when new mail arrives"
 msgstr "Pokazuj alert na pulpicie po nadejściu nowej poczty"
