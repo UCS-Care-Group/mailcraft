@@ -366,7 +366,12 @@ impl Transport {
             }
             NetError::Tls { .. } => TransportError::Tls,
             NetError::Connect { .. } => TransportError::Unreachable,
-            _ => TransportError::Other,
+            // (One answer past the limit is that message's own fault, not the server being out of reach.)
+            too_long if mailcraft_net::https::is_too_long(&too_long) => TransportError::BodyTooLarge,
+            other => {
+                log::warn!("ews transport: a failure of no known kind: {other}");
+                TransportError::Other
+            }
         }
     }
 }

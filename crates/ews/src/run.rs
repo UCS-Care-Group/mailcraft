@@ -204,6 +204,9 @@ impl<E: HttpExchange> Run<'_, E> {
                 Ok(done) => return Ok(done),
                 Err(error) => error,
             };
+            if let Error::Transport(why) = &error {
+                log::warn!("ews: the request failed on the way: {why}");
+            }
             match error {
                 Error::Busy { back_off_ms } => {
                     tries = tries.saturating_add(1);
@@ -222,6 +225,8 @@ impl<E: HttpExchange> Run<'_, E> {
                 Error::Transport(TransportError::Aborted) => return Err(Asked::Stop(Stop::Cancelled)),
                 Error::Transport(TransportError::Tls) => return Err(Asked::Stop(Stop::Tls)),
                 Error::Transport(TransportError::Unreachable) => return Err(Asked::Stop(Stop::Unreachable)),
+                // (An answer past the limit is that request's own trouble: the run goes on without it.)
+                Error::Transport(TransportError::BodyTooLarge) if !once => return Err(Asked::Bad),
                 Error::Transport(_) if once => return Err(Asked::Lost),
                 Error::Transport(_) => return Err(Asked::Stop(Stop::Unreachable)),
                 Error::Server(code) => return Err(Asked::Code(code)),
