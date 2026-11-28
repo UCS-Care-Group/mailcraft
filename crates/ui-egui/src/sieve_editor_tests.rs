@@ -454,3 +454,14 @@ fn change_rule_through_ui_dialog_opens_the_pencils_editor() {
         _ => panic!("no Rules dialog"),
     }
 }
+
+/// Only the rules of the owner's own script on the server: the dialog doesn't say there are none
+/// (#2058).
+#[test]
+fn rules_of_the_owners_script_alone_are_not_no_rules() {
+    let (mut app, _, _) = own_window();
+    app.execute("ui.dialog", json!({"name": "rules"})).unwrap();
+    let h = harness(app);
+    assert!(h.query_by_label("In your Sieve script \"roundcube\"").is_some());
+    assert!(h.query_by_label("No rules yet. A rule files, flags or deletes mail as it arrives.").is_none());
+}

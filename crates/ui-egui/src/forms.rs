@@ -6255,7 +6255,8 @@ pub(crate) mod rules {
                     for (i, r) in here.iter().enumerate() {
                         rule_row(ui, app, r, mark_of(r.id), (i > 0, i + 1 < here.len()), account, &servers, &mut run, &mut change, None);
                     }
-                    if there.is_empty() && here.is_empty() {
+                    // (Rules of the owner's own script shown above are rules too, #2058.)
+                    if there.is_empty() && here.is_empty() && elsewhere.as_ref().is_none_or(|e| e.rules.is_empty()) {
                         ui.label(egui::RichText::new(tl!("No rules yet. A rule files, flags or deletes mail as it arrives.")).color(t.text_dim));
                     }
                 });
