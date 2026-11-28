@@ -22691,12 +22691,6 @@ msgstr "chiudere prima una conversazione: ognuna delle 1.000 aperte ha un messag
 msgid "collected from mail"
 msgstr "raccolta dalla posta"
 
-#. why a command can't run
-#: crates/engine/src/gmail.rs
-#, fuzzy
-msgid "comes once Google has reviewed MailCraft"
-msgstr "arriverà quando Google avrà esaminato MailCraft"
-
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23015,6 +23009,12 @@ msgstr "è fuori dalla cartella da svuotare: lasciato intatto"
 #, fuzzy
 msgid "is part of a mailbox you opened from outside MailCraft's own folder: it is yours and was not touched"
 msgstr "fa parte di una cassetta postale aperta da fuori della cartella di MailCraft: è tua e non è stata toccata"
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+#, fuzzy
+msgid "is switched off in this build"
+msgstr "è disattivato in questa versione"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs

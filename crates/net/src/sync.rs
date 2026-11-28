@@ -874,8 +874,9 @@ fn unchanged(state: &FolderState, now: FolderStatus, limit: u32) -> bool {
 /// ([`SyncResult::gmail_refused`]): the engine asks again at the next run, and after
 /// [`mailcraft_model::gmail::MAX_GMAIL_REFUSALS`] refusals gives the move up. Moves left
 /// when the requests run out go back as unsent ([`SyncResult::gmail_unsent`]) and wait for the
-/// next run. A token or a permission Gmail doesn't take, Gmail busy or out of reach stop the
-/// moves for this run, and that is said once.
+/// next run. A lasting 403 (the API not enabled, a permission missing) goes back as refused
+/// for every move left, and is said. A token Gmail doesn't take, Gmail busy or out of reach stop
+/// the moves for this run, and that is said once.
 fn gmail_moves(run: &mut Run, host: Host) {
     /// The most requests to Gmail's API in one run, the halves of refused batches included.
     const MAX_GMAIL_REQUESTS: usize = 32;
@@ -920,6 +921,15 @@ fn gmail_moves(run: &mut Run, host: Host) {
                 work.extend([first.to_vec(), second.to_vec()]);
             }
             Err(NetError::Proto(ProtoError::Rejected(_))) => run.out.gmail_refused.extend(batch.iter().copied().copied()),
+            // A lasting 403 (API not enabled, permission missing) won't pass next run either: every move
+            // left counts as refused, so the engine gives them up after a few runs instead of for ever.
+            Err(NetError::Forbidden(text)) => {
+                let left: Vec<_> = batch.iter().chain(work.iter().flatten()).copied().copied().collect();
+                log::info!("gmail: {} moves between categories refused for good", left.len());
+                run.out.errors.push(format!("Couldn't move mail between Gmail's categories: {text}"));
+                run.out.gmail_refused.extend(left);
+                return;
+            }
             // Nothing was sent (it can't be, for a batch made here): it waits.
             Err(NetError::Config(_)) => run.out.gmail_unsent = run.out.gmail_unsent.saturating_add(ids.len()),
             Err(e) => {

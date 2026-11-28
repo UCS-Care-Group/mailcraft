@@ -411,7 +411,7 @@ fn switched_off_gmails_reading_wins_over_a_move_left_waiting() {
     let saved = serde_json::to_string(&s.mailbox).unwrap();
     let mut s = Session::empty();
     s.mailbox = serde_json::from_str(&saved).unwrap();
-    assert!(!s.gmail_category_moves);
+    s.gmail_category_moves = false;
     assert_eq!(by_uid(&s, account, 3).gmail_move_waiting(), Some(GmailCategory::Forums));
     assert!(moves(&s, account).is_empty());
     apply_sync(&mut s, result(account, vec![inbox_delta(inbox, Vec::new(), vec![sorted(3, GmailCategory::Updates)])], Vec::new())).unwrap();
@@ -430,7 +430,7 @@ fn switched_off_gmails_reading_wins_over_a_move_left_waiting() {
 
 #[test]
 fn only_a_google_sign_in_moves_and_only_while_moves_are_on() {
-    // Switched off, as the program ships: disabled with the reason, refused when named, nothing in
+    // Switched off (as the build can be): disabled with the reason, refused when named, nothing in
     // the request.
     let (mut s, account, _) = sorted_inbox(true);
     let three = id_of(&s, account, 3);
@@ -443,8 +443,7 @@ fn only_a_google_sign_in_moves_and_only_while_moves_are_on() {
     s.run(ID, &json!({"ids": [three], "category": "primary"})).unwrap();
     s.gmail_category_moves = false;
     assert!(moves(&s, account).is_empty());
-    const { assert!(!crate::gmail::GMAIL_CATEGORY_MOVES, "ships switched off until Google's review") };
-    assert!(!Session::empty().gmail_category_moves);
+    assert_eq!(Session::empty().gmail_category_moves, crate::gmail::GMAIL_CATEGORY_MOVES);
 
     // An app password: categories to look at, none to move between.
     let (mut s, account, _) = sorted_inbox(false);

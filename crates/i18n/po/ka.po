@@ -22634,12 +22634,6 @@ msgstr "ჯერ დახურეთ მიმოწერა: 1000 გახ
 msgid "collected from mail"
 msgstr "შეგროვებულია ფოსტიდან"
 
-#. why a command can't run
-#: crates/engine/src/gmail.rs
-#, fuzzy
-msgid "comes once Google has reviewed MailCraft"
-msgstr "ხელმისაწვდომი იქნება, როცა Google MailCraft-ს განიხილავს"
-
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -22959,6 +22953,12 @@ msgstr "გასასუფთავებელი საქაღალდ�
 #, fuzzy
 msgid "is part of a mailbox you opened from outside MailCraft's own folder: it is yours and was not touched"
 msgstr "იმ საფოსტო ყუთის ნაწილია, რომელიც MailCraft-ის საკუთარი საქაღალდის გარედან გახსენით: ის თქვენია და ხელი არ ხლებია"
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+#, fuzzy
+msgid "is switched off in this build"
+msgstr "გამორთულია ამ ვერსიაში"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs

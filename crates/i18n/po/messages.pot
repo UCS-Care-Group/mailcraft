@@ -18857,11 +18857,6 @@ msgstr ""
 msgid "collected from mail"
 msgstr ""
 
-#. why a command can't run
-#: crates/engine/src/gmail.rs
-msgid "comes once Google has reviewed MailCraft"
-msgstr ""
-
 #. interface
 #: crates/ui-egui/src/forms.rs
 msgid "confidential"
@@ -19128,6 +19123,11 @@ msgstr ""
 #. interface
 #: crates/ui-egui/src/data_removal.rs
 msgid "is part of a mailbox you opened from outside MailCraft's own folder: it is yours and was not touched"
+msgstr ""
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+msgid "is switched off in this build"
 msgstr ""
 
 #. interface

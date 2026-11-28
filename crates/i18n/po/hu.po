@@ -22710,12 +22710,6 @@ msgstr "először zárjunk le egy beszélgetést: az 1000 nyitott közül mindeg
 msgid "collected from mail"
 msgstr "levélből gyűjtötték"
 
-#. why a command can't run
-#: crates/engine/src/gmail.rs
-#, fuzzy
-msgid "comes once Google has reviewed MailCraft"
-msgstr "jön, ha a Google már felülvizsgálta MailCraft"
-
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -23035,6 +23029,12 @@ msgstr "kívül van a kiürült mappán: egyedül hagy"
 #, fuzzy
 msgid "is part of a mailbox you opened from outside MailCraft's own folder: it is yours and was not touched"
 msgstr "egy olyan postafiók része, amelyet a MailCraft saját mappáján kívülről nyitott meg. A MailCraft nem módosította."
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+#, fuzzy
+msgid "is switched off in this build"
+msgstr "ebben a változatban ki van kapcsolva"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs

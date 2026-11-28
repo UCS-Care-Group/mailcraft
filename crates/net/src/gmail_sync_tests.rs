@@ -232,8 +232,6 @@ fn no_request_goes_to_gmails_api_without_moves_or_a_google_sign_in() {
 
 #[test]
 fn switched_off_a_request_with_moves_sends_nothing_to_gmails_api() {
-    // The build's switch, which this crate holds to whatever a request asks.
-    const { assert!(!mailcraft_model::gmail::GMAIL_CATEGORY_MOVES, "ships switched off until Google's review") };
     let imap = Fake::imap(google_world());
     let api = crate::gmail::standin::StandIn::start().unwrap();
     api.state().add(GMAIL_IDS + 2, &["INBOX", "CATEGORY_SOCIAL"]);
@@ -243,11 +241,30 @@ fn switched_off_a_request_with_moves_sends_nothing_to_gmails_api() {
     assert_eq!(result.errors, Vec::<String>::new());
     assert!(result.gmail_moved.is_empty());
     assert!(api.requests().is_empty(), "{:?}", api.requests());
-    // Nor does the client itself, asked directly.
-    let asked = crate::gmail::batch_modify(crate::gmail::standin::TOKEN, &[GMAIL_IDS + 2], GmailCategory::Primary);
-    assert!(matches!(asked, Err(NetError::Config(_))), "{asked:?}");
-    assert!(api.requests().is_empty());
     assert_eq!(api.state().categories(GMAIL_IDS + 2), ["CATEGORY_SOCIAL"]);
+}
+
+#[test]
+fn a_lasting_403_refuses_every_move_left_and_a_rate_limit_403_only_waits() {
+    let imap = Fake::imap(google_world());
+    let api = crate::gmail::standin::StandIn::start().unwrap();
+    for uid in [1u32, 2] {
+        api.state().add(GMAIL_IDS + u64::from(uid), &["INBOX", "CATEGORY_PERSONAL"]);
+    }
+    let _routed = api.route();
+    let moves = vec![moving(30, 1, GmailCategory::Social), moving(31, 2, GmailCategory::Forums)];
+    api.state().reason = "userRateLimitExceeded".into();
+    api.state().faults.push_back(403);
+    let result = whole(&signed_in(&imap, moves.clone()), Limits::in_pieces(), gmail());
+    assert!(result.gmail_refused.is_empty() && result.gmail_moved.is_empty());
+    assert_eq!(api.requests().len(), 1);
+    api.state().reason = "accessNotConfigured".into();
+    api.state().faults.push_back(403);
+    let result = whole(&signed_in(&imap, moves.clone()), Limits::in_pieces(), gmail());
+    assert_eq!(api.requests().len(), 2, "the second batch isn't tried after a lasting 403");
+    assert!(result.gmail_moved.is_empty());
+    assert_eq!(result.gmail_refused.len(), 2);
+    assert!(result.errors.iter().any(|e| e.contains("may not move mail")), "{:?}", result.errors);
 }
 
 #[test]
@@ -341,7 +358,7 @@ fn the_moves_of_one_message_stay_in_one_half() {
 
 #[test]
 fn a_stop_partway_through_halving_keeps_what_went_and_the_rest_waits() {
-    for status in [401u16, 403, 429, 500, 503] {
+    for status in [401u16, 429, 500, 503] {
         let imap = Fake::imap(google_world());
         let api = crate::gmail::standin::StandIn::start().unwrap();
         let mut moves = all_to(&api, 1..=4, GmailCategory::Primary);

@@ -55,8 +55,8 @@ fn api_base() -> String {
 /// its own thread: `standin::route`.)
 pub fn switched_on() -> bool {
     #[cfg(any(test, feature = "stand-in"))]
-    if standin::switched_on() {
-        return true;
+    if let Some(on) = standin::switched_on() {
+        return on;
     }
     mailcraft_model::gmail::GMAIL_CATEGORY_MOVES
 }
@@ -70,7 +70,8 @@ pub fn switched_on() -> bool {
 ///
 /// What can go wrong, for the host to act on:
 /// - `ProtoError::Auth` ([`NetError::is_refused_sign_in`]): Gmail didn't take the token (401).
-/// - [`NetError::Forbidden`]: the token is good and doesn't let this happen (403).
+/// - [`NetError::Forbidden`]: the token is good and doesn't let this happen (403 that isn't a
+///   rate limit: the API isn't enabled, a permission is missing): lasting, not to be retried at once.
 /// - [`NetError::Busy`]: not now (429, 5xx). Ask again later; nothing here waits.
 /// - `ProtoError::Rejected`: Gmail refused these moves (any other status).
 /// - [`NetError::Config`]: nothing was sent (switched off, an id missing, too many ids, no
@@ -86,7 +87,7 @@ pub const MAX_BATCH: usize = 1000;
 /// [`batch_modify`] against the API at `base`.
 fn batch_modify_at(base: &str, token: &str, ids: &[u64], category: GmailCategory) -> Result<(), NetError> {
     if !switched_on() {
-        return Err(NetError::Config("moving mail between Gmail's categories comes once Google has reviewed MailCraft".into()));
+        return Err(NetError::Config("moving mail between Gmail's categories is switched off in this build".into()));
     }
     if ids.is_empty() {
         return Ok(());
@@ -116,10 +117,27 @@ fn batch_modify_at(base: &str, token: &str, ids: &[u64], category: GmailCategory
     match status {
         200..=299 => Ok(()),
         401 => Err(NetError::Proto(ProtoError::Auth("Gmail didn't take the sign-in".into()))),
+        // A 403 is also how Gmail says "too fast" (rateLimitExceeded, userRateLimitExceeded, quota):
+        // that one is not now; any other (API not enabled, insufficient permissions) is lasting.
+        403 if is_rate_limit(&reply.body) => Err(NetError::Busy { text: "Gmail is busy; try again later".into(), retry_after: None }),
         403 => Err(NetError::Forbidden("this account may not move mail between Gmail's categories".into())),
         429 | 500..=599 => Err(NetError::Busy { text: "Gmail is busy; try again later".into(), retry_after: None }),
         _ => Err(NetError::Proto(ProtoError::Rejected(format!("Gmail answered with status {status}").into()))),
     }
+}
+
+/// Whether a 403's answer is about how fast Gmail is asked, and not about what is allowed: its
+/// `error.errors[].reason` (or `error.status`) says so. The free text (`message`, `details`) is
+/// not read: a lasting refusal that mentions a quota project must stay lasting.
+fn is_rate_limit(body: &[u8]) -> bool {
+    let Ok(value) = serde_json::from_slice::<serde_json::Value>(body) else { return false };
+    let Some(error) = value.get("error") else { return false };
+    let speed = |reason: &str| {
+        let reason = reason.to_ascii_lowercase();
+        reason.contains("ratelimit") || reason.contains("quota") || reason.contains("limitexceeded") || reason == "resource_exhausted"
+    };
+    let reasons = error.get("errors").and_then(|e| e.as_array()).into_iter().flatten();
+    reasons.filter_map(|e| e.get("reason")).chain(error.get("status")).filter_map(|r| r.as_str()).any(speed)
 }
 
 /// Whether a Google token may go to `url`: Gmail's API host, over TLS, on its usual port, and no

@@ -21409,11 +21409,6 @@ msgstr "schließen Sie zuerst eine Unterhaltung: in jeder der 1.000 geöffneten 
 msgid "collected from mail"
 msgstr "aus E-Mails gesammelt"
 
-#. why a command can't run
-#: crates/engine/src/gmail.rs
-msgid "comes once Google has reviewed MailCraft"
-msgstr "ist verfügbar, sobald Google MailCraft überprüft hat"
-
 #. interface
 #: crates/ui-egui/src/forms.rs
 #, fuzzy
@@ -21717,6 +21712,12 @@ msgstr "liegt außerhalb des zu leerenden Ordners: bleibt unverändert"
 #: crates/ui-egui/src/data_removal.rs
 msgid "is part of a mailbox you opened from outside MailCraft's own folder: it is yours and was not touched"
 msgstr "gehört zu einem Postfach, das Sie von außerhalb des MailCraft-Ordners geöffnet haben: Es gehört Ihnen und wurde nicht verändert"
+
+#. why a command can't run
+#: crates/engine/src/gmail.rs
+#, fuzzy
+msgid "is switched off in this build"
+msgstr "ist in dieser Version abgeschaltet"
 
 #. interface
 #: crates/ui-egui/src/data_removal.rs

@@ -11,8 +11,8 @@
 //! The owner may move mail from one to another (`mail.setGmailCategory`), for an account that
 //! signs in with Google ([`moves_offered`], [`why_not_movable`]): the move is made here at once,
 //! like a read mark, and goes to Gmail through its API at the next Send/Receive
-//! (`SyncRequest::gmail_moves`). That ships switched off until Google has reviewed MailCraft's
-//! use of the API ([`GMAIL_CATEGORY_MOVES`]).
+//! (`SyncRequest::gmail_moves`). The build can switch it off
+//! ([`GMAIL_CATEGORY_MOVES`]).
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -27,7 +27,7 @@ pub use mailcraft_model::gmail::GMAIL_CATEGORY_MOVES;
 
 /// Why moves between Gmail's categories aren't there while they are switched off. (The reasons
 /// are written out where they are given, so that they are translated; these are for comparing.)
-pub const MOVES_NOT_YET: &str = "comes once Google has reviewed MailCraft";
+pub const MOVES_NOT_YET: &str = "is switched off in this build";
 /// Why an account signed in with an app password can't move mail between Gmail's categories.
 pub const NEEDS_GOOGLE_SIGN_IN: &str = "needs Google sign-in";
 
@@ -36,7 +36,7 @@ pub const NEEDS_GOOGLE_SIGN_IN: &str = "needs Google sign-in";
 /// signs in with Google; else why not.
 pub fn moves_offered(s: &Session) -> Option<&'static str> {
     if !s.gmail_category_moves {
-        return Some("comes once Google has reviewed MailCraft");
+        return Some("is switched off in this build");
     }
     if cfg!(target_arch = "wasm32") {
         return Some("can't be done in the browser");
